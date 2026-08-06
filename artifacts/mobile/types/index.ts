@@ -1,0 +1,117 @@
+export type UserRole =
+  | 'super_admin'
+  | 'dealer'
+  | 'reception'
+  | 'technician'
+  | 'store_manager'
+  | 'accountant';
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  mobile: string;
+  role: UserRole;
+  isActive: boolean;
+  joinDate: string;
+  designation?: string;
+  password?: string;
+}
+
+export type RepairStatus =
+  | 'received'
+  | 'diagnosing'
+  | 'waiting_parts'
+  | 'repairing'
+  | 'testing'
+  | 'ready'
+  | 'delivered'
+  | 'cancelled';
+
+export type RepairPriority = 'low' | 'normal' | 'high' | 'urgent';
+
+export interface Repair {
+  id: string;
+  repairId: string;
+  customerId: string;
+  customerName: string;
+  mobile: string;
+  deviceType: string;
+  brand: string;
+  model: string;
+  imei?: string;
+  problem: string;
+  technicianId?: string;
+  technicianName?: string;
+  status: RepairStatus;
+  priority: RepairPriority;
+  repairCharge: number;
+  partsCharge: number;
+  advance: number;
+  receiveDate: string;
+  expectedDate: string;
+  deliveryDate?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  mobile: string;
+  email?: string;
+  address?: string;
+  dueAmount: number;
+  totalRepairs: number;
+  createdAt: string;
+}
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  category: 'product' | 'accessory' | 'spare_part';
+  brand: string;
+  quantity: number;
+  minStock: number;
+  purchasePrice: number;
+  sellingPrice: number;
+  supplier?: string;
+  createdAt: string;
+}
+
+export interface Purchase {
+  id: string;
+  purchaseId: string;
+  invoiceNo: string;
+  supplier: string;
+  supplierMobile?: string;
+  itemName: string;
+  quantity: number;
+  purchasePrice: number;
+  total: number;
+  paymentStatus: 'paid' | 'unpaid' | 'partial';
+  paymentMethod: string;
+  date: string;
+  createdAt: string;
+}
+
+export interface FinanceEntry {
+  id: string;
+  type: 'income' | 'expense';
+  category: string;
+  amount: number;
+  description: string;
+  paymentMethod: string;
+  date: string;
+  createdAt: string;
+}
+
+export interface AttendanceRecord {
+  id: string;
+  staffId: string;
+  staffName: string;
+  checkIn?: string;
+  checkOut?: string;
+  date: string;
+  status: 'present' | 'absent' | 'late' | 'half_day';
+}

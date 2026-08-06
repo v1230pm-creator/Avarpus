@@ -1,0 +1,150 @@
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
+import { Button } from '@/components/ui/Button';
+import { useColors } from '@/hooks/useColors';
+
+export default function OTPScreen() {
+  const colors = useColors();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [timer, setTimer] = useState(60);
+  const [loading, setLoading] = useState(false);
+  const refs = useRef<(TextInput | null)[]>([]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTimer((t) => (t > 0 ? t - 1 : 0)), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleChange = (val: string, idx: number) => {
+    const d = val.replace(/\D/g, '');
+    if (d.length > 1) {
+      const digits = d.split('').slice(0, 6 - idx);
+      const next = [...otp];
+      digits.forEach((ch, i) => { if (idx + i < 6) next[idx + i] = ch; });
+      setOtp(next);
+      const nextFocus = Math.min(idx + digits.length, 5);
+      refs.current[nextFocus]?.focus();
+      return;
+    }
+    const next = [...otp];
+    next[idx] = d;
+    setOtp(next);
+    if (d && idx < 5) refs.current[idx + 1]?.focus();
+  };
+
+  const handleKeyPress = (e: any, idx: number) => {
+    if (e.nativeEvent.key === 'Backspace' && !otp[idx] && idx > 0) {
+      refs.current[idx - 1]?.focus();
+    }
+  };
+
+  const handleVerify = async () => {
+    setLoading(true);
+    await new Promise((r) => setTimeout(r, 1000));
+    setLoading(false);
+    router.replace('/(tabs)');
+  };
+
+  const filled = otp.join('').length === 6;
+
+  return (
+    <LinearGradient colors={['#060A14', '#0D1528', '#060A14']} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }]}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Feather name="arrow-left" size={22} color="#F1F5F9" />
+          </TouchableOpacity>
+
+          <View style={{ flex: 1, justifyContent: 'center', gap: 36 }}>
+            <View style={styles.header}>
+              <View style={styles.iconCircle}>
+                <Feather name="smartphone" size={32} color="#60A5FA" />
+              </View>
+              <Text style={[styles.title, { fontFamily: 'Inter_700Bold' }]}>Verify Your Mobile</Text>
+              <Text style={[styles.subtitle, { fontFamily: 'Inter_400Regular' }]}>
+                Enter the 6-digit OTP sent to your registered mobile number
+              </Text>
+            </View>
+
+            <View style={styles.otpRow}>
+              {otp.map((digit, idx) => (
+                <TextInput
+                  key={idx}
+                  ref={(r) => { refs.current[idx] = r; }}
+                  value={digit}
+                  onChangeText={(v) => handleChange(v, idx)}
+                  onKeyPress={(e) => handleKeyPress(e, idx)}
+                  keyboardType="number-pad"
+                  maxLength={1}
+                  selectTextOnFocus
+                  style={[
+                    styles.otpCell,
+                    {
+                      borderColor: digit ? '#3B82F6' : '#1E293B',
+                      color: '#F1F5F9',
+                      fontFamily: 'Inter_700Bold',
+                      backgroundColor: '#0F172A',
+                      borderRadius: colors.radius - 2,
+                    },
+                  ]}
+                  textAlign="center"
+                />
+              ))}
+            </View>
+
+            <TouchableOpacity
+              onPress={() => { if (timer === 0) { setTimer(60); setOtp(['', '', '', '', '', '']); } }}
+              disabled={timer > 0}
+              style={{ alignItems: 'center' }}
+            >
+              <Text style={[styles.resendText, {
+                color: timer > 0 ? '#475569' : '#60A5FA',
+                fontFamily: 'Inter_500Medium',
+              }]}>
+                {timer > 0 ? `Resend OTP in ${timer}s` : 'Resend OTP'}
+              </Text>
+            </TouchableOpacity>
+
+            <Button
+              title="Verify & Continue"
+              onPress={handleVerify}
+              loading={loading}
+              disabled={!filled}
+              fullWidth
+              size="lg"
+            />
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </LinearGradient>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, paddingHorizontal: 24 },
+  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  header: { alignItems: 'center', gap: 14 },
+  iconCircle: {
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: '#1E40AF22', alignItems: 'center', justifyContent: 'center',
+  },
+  title: { fontSize: 26, color: '#F1F5F9' },
+  subtitle: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22 },
+  otpRow: { flexDirection: 'row', justifyContent: 'center', gap: 10 },
+  otpCell: { width: 48, height: 60, fontSize: 24, borderWidth: 1.5 },
+  resendText: { fontSize: 14 },
+});

@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/"
+title = "VMC Electronic BMS"
+description = "Enterprise Business Management System for VMC Electronic — a mobile-first app for managing repairs, inventory, purchases, customers, staff, finance, and reports with role-based access for Super Admin, Dealer, Reception, Technician, Store Manager, and Accountant."
+version = "1.0.0"
+id = "artifacts/mobile"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/" ]
+localPort = 18115
+
+[services.development]
+run = "pnpm --filter @workspace/mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/mobile", "run", "serve" ]
+
+[services.env]
+PORT = "18115"
+BASE_PATH = "/"

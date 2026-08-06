@@ -1,0 +1,140 @@
+import React, { useState } from 'react';
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useColors } from '@/hooks/useColors';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+
+export default function SettingsScreen() {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+
+  const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
+
+  const [companyName, setCompanyName] = useState('VMC Electronic');
+  const [phone, setPhone] = useState('+91 98765 43210');
+  const [email, setEmail] = useState('info@vmcelectronic.com');
+  const [address, setAddress] = useState('123 Tech Street, Bengaluru, Karnataka 560001');
+  const [gst, setGst] = useState('29ABCDE1234F1Z5');
+  const [currency, setCurrency] = useState('INR');
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { paddingTop: topPad + 14, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Feather name="arrow-left" size={22} color={colors.foreground} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Settings</Text>
+        <View style={{ width: 44 }} />
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Company Info */}
+        <View style={[styles.sectionHeader, { borderLeftColor: colors.primary }]}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Company Information</Text>
+        </View>
+
+        <Input label="Company Name" value={companyName} onChangeText={setCompanyName} leftIcon="briefcase" />
+        <Input label="Phone" value={phone} onChangeText={setPhone} leftIcon="phone" keyboardType="phone-pad" />
+        <Input label="Email" value={email} onChangeText={setEmail} leftIcon="mail" keyboardType="email-address" />
+        <Input label="Address" value={address} onChangeText={setAddress} leftIcon="map-pin" multiline numberOfLines={2} style={{ height: 72, textAlignVertical: 'top', paddingTop: 10 } as any} />
+        <Input label="GST Number" value={gst} onChangeText={setGst} leftIcon="file-text" autoCapitalize="characters" />
+
+        {/* App Config */}
+        <View style={[styles.sectionHeader, { borderLeftColor: colors.primary }]}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>App Configuration</Text>
+        </View>
+
+        <Card>
+          <View style={styles.configRow}>
+            <View>
+              <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Currency</Text>
+              <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Default: INR (Indian Rupee)</Text>
+            </View>
+            <View style={[styles.currencyBadge, { backgroundColor: colors.secondary }]}>
+              <Text style={[styles.currencyText, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>₹ INR</Text>
+            </View>
+          </View>
+        </Card>
+
+        <Card>
+          <View style={styles.configRow}>
+            <View>
+              <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>App Version</Text>
+              <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>VMC Electronic BMS</Text>
+            </View>
+            <Text style={[styles.versionText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>v1.0.0</Text>
+          </View>
+        </Card>
+
+        {/* Danger Zone */}
+        <View style={[styles.sectionHeader, { borderLeftColor: colors.destructive }]}>
+          <Text style={[styles.sectionTitle, { color: colors.destructive, fontFamily: 'Inter_700Bold' }]}>Data Management</Text>
+        </View>
+
+        <Card>
+          <Text style={[styles.dangerDesc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            Backup and restore your app data. All data is stored locally on this device.
+          </Text>
+          <View style={styles.dangerActions}>
+            <TouchableOpacity style={[styles.dangerBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+              <Feather name="download" size={16} color={colors.primary} />
+              <Text style={[styles.dangerBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Backup Data</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.dangerBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+              <Feather name="upload" size={16} color={colors.primary} />
+              <Text style={[styles.dangerBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Restore</Text>
+            </TouchableOpacity>
+          </View>
+        </Card>
+
+        {saved ? (
+          <View style={[styles.savedBanner, { backgroundColor: colors.successLight, borderColor: colors.success + '33', borderRadius: colors.radius }]}>
+            <Feather name="check-circle" size={16} color={colors.success} />
+            <Text style={[styles.savedText, { color: colors.success, fontFamily: 'Inter_600SemiBold' }]}>Settings saved!</Text>
+          </View>
+        ) : (
+          <Button title="Save Settings" onPress={handleSave} fullWidth size="lg" />
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1 },
+  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 22 },
+  scroll: { paddingHorizontal: 16, paddingTop: 20, gap: 16 },
+  sectionHeader: { borderLeftWidth: 3, paddingLeft: 10, marginTop: 4, marginBottom: -4 },
+  sectionTitle: { fontSize: 15 },
+  configRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  configLabel: { fontSize: 15 },
+  configSub: { fontSize: 12, marginTop: 2 },
+  currencyBadge: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
+  currencyText: { fontSize: 14 },
+  versionText: { fontSize: 14 },
+  dangerDesc: { fontSize: 13, lineHeight: 20 },
+  dangerActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  dangerBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1 },
+  dangerBtnText: { fontSize: 13 },
+  savedBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderWidth: 1 },
+  savedText: { fontSize: 14 },
+});

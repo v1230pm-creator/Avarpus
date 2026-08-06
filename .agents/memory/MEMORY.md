@@ -1,0 +1,1 @@
+- [VMC BMS Architecture](vmc-bms-arch.md) — frontend-only Expo app; AsyncStorage + seed data; all screen files and context structure decisions.
