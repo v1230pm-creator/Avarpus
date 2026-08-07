@@ -95,8 +95,8 @@ router.post(
         mobile,
         email: str(b.email),
         address: str(b.address),
-        dueAmount: num(b.dueAmount),
-        totalRepairs: Math.trunc(num(b.totalRepairs)),
+        // dueAmount and totalRepairs are derived from repairs server-side —
+        // client-provided values are ignored.
       })
       .returning();
     res.json({ customer: customerOut(created) });
@@ -115,8 +115,7 @@ router.patch(
     if (b.mobile !== undefined) patch.mobile = str(b.mobile) ?? undefined;
     if (b.email !== undefined) patch.email = str(b.email);
     if (b.address !== undefined) patch.address = str(b.address);
-    if (b.dueAmount !== undefined) patch.dueAmount = num(b.dueAmount);
-    if (b.totalRepairs !== undefined) patch.totalRepairs = Math.trunc(num(b.totalRepairs));
+    // dueAmount / totalRepairs are derived from repairs and cannot be patched.
     const [updated] = await db
       .update(customersTable)
       .set(patch)
@@ -159,6 +158,28 @@ async function logRepairEvent(
     action: args.action,
     details: args.details ?? null,
   });
+}
+
+// Recompute a customer's derived stats from their repairs:
+// - totalRepairs: number of non-cancelled repairs linked to the customer
+// - dueAmount: sum over delivered repairs of (repairCharge + partsCharge − advance),
+//   clamped at 0 per repair so an overpaid advance never produces a negative due.
+async function syncCustomerStats(
+  tx: Pick<typeof db, "select" | "update">,
+  shopId: string,
+  customerId: string,
+): Promise<void> {
+  const [stats] = await tx
+    .select({
+      total: sql<number>`count(*) filter (where ${repairsTable.status} <> 'cancelled')::int`,
+      due: sql<number>`coalesce(sum(greatest(${repairsTable.repairCharge} + ${repairsTable.partsCharge} - ${repairsTable.advance}, 0)) filter (where ${repairsTable.status} = 'delivered'), 0)::float`,
+    })
+    .from(repairsTable)
+    .where(and(eq(repairsTable.shopId, shopId), eq(repairsTable.customerId, customerId)));
+  await tx
+    .update(customersTable)
+    .set({ totalRepairs: stats?.total ?? 0, dueAmount: stats?.due ?? 0 })
+    .where(and(eq(customersTable.id, customerId), eq(customersTable.shopId, shopId)));
 }
 
 function checklistOrNull(v: unknown): Record<string, boolean> | null {
@@ -247,6 +268,19 @@ router.post(
     const status = REPAIR_STATUSES.includes(b.status) ? b.status : "received";
     const priority = REPAIR_PRIORITIES.includes(b.priority) ? b.priority : "normal";
 
+    // A repair may only be linked to a customer of the caller's own shop.
+    let customerId = str(b.customerId);
+    if (customerId) {
+      const [cust] = await db
+        .select({ id: customersTable.id })
+        .from(customersTable)
+        .where(and(eq(customersTable.id, customerId), eq(customersTable.shopId, shopId)));
+      if (!cust) {
+        res.status(400).json({ message: "Customer not found in your shop" });
+        return;
+      }
+    }
+
     const created = await db.transaction(async (tx) => {
       // Server-generated sequential ticket number, unique per shop.
       const [{ count }] = await tx
@@ -259,7 +293,7 @@ router.post(
         .values({
           shopId,
           repairId,
-          customerId: str(b.customerId),
+          customerId,
           customerName,
           mobile,
           deviceType,
@@ -290,6 +324,7 @@ router.post(
         action: "created",
         details: { ticket: row.repairId, status: row.status, priority: row.priority },
       });
+      if (row.customerId) await syncCustomerStats(tx, shopId, row.customerId);
       return row;
     });
     res.json({ repair: repairOut(created) });
@@ -406,6 +441,17 @@ router.patch(
           action: "assigned",
           details: { technicianName: patch.technicianName ?? null },
         });
+      }
+      // Charges, advance or status changes affect the linked customer's
+      // derived due amount / repair count — recompute inside the same tx.
+      if (
+        row.customerId &&
+        (patch.status !== undefined ||
+          patch.repairCharge !== undefined ||
+          patch.partsCharge !== undefined ||
+          patch.advance !== undefined)
+      ) {
+        await syncCustomerStats(tx, shopId, row.customerId);
       }
       return row;
     });

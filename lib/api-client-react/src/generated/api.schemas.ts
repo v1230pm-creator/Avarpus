@@ -125,8 +125,6 @@ export interface CustomerInput {
   mobile?: string;
   email?: string;
   address?: string;
-  dueAmount?: number;
-  totalRepairs?: number;
 }
 
 export type RepairChecklist = {[key: string]: boolean};

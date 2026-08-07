@@ -13,6 +13,9 @@ import { useAuth } from '@/context/AuthContext';
 // This context loads it from the API and keeps mutations in sync — nothing
 // is persisted on the device anymore.
 
+/** Input for creating a customer — derived stats are computed server-side. */
+export type NewCustomer = Pick<Customer, 'name' | 'mobile'> & Partial<Pick<Customer, 'email' | 'address'>>;
+
 interface DataContextType {
   repairs: Repair[];
   customers: Customer[];
@@ -26,7 +29,7 @@ interface DataContextType {
   loadAll: () => Promise<void>;
   addRepair: (r: Repair) => Promise<Repair>;
   updateRepair: (r: Repair) => Promise<void>;
-  addCustomer: (c: Customer) => Promise<Customer>;
+  addCustomer: (c: NewCustomer) => Promise<Customer>;
   updateCustomer: (c: Customer) => Promise<void>;
   addInventoryItem: (i: InventoryItem) => Promise<void>;
   updateInventoryItem: (i: InventoryItem) => Promise<void>;
@@ -41,7 +44,7 @@ const DataContext = createContext<DataContextType>({
   loadAll: async () => {},
   addRepair: async (r) => r,
   updateRepair: async () => {},
-  addCustomer: async (c) => c,
+  addCustomer: async (c) => c as Customer,
   updateCustomer: async () => {},
   addInventoryItem: async () => {},
   updateInventoryItem: async () => {},
@@ -96,6 +99,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated, loadAll]);
 
+  // Best-effort refresh of the customers list (used after repair mutations,
+  // which change customers' server-derived dueAmount/totalRepairs).
+  const refreshCustomers = useCallback(() => {
+    customersList()
+      .then((c) => setCustomers(c.customers as Customer[]))
+      .catch(() => {}); // non-fatal: stats refresh on next full load
+  }, []);
+
   // The server assigns ids (and ticket numbers) — client-provided ids in the
   // input objects are ignored and replaced by the created entity.
   const addRepair = async (r: Repair): Promise<Repair> => {
@@ -126,6 +137,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
     const created = res.repair as Repair;
     setRepairs((prev) => [...prev, created]);
+    // The server derives customer dueAmount/totalRepairs from repairs —
+    // refresh customers so those stats stay in sync on screen.
+    refreshCustomers();
     return created;
   };
 
@@ -156,16 +170,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
     const updated = res.repair as Repair;
     setRepairs((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+    refreshCustomers();
   };
 
-  const addCustomer = async (c: Customer): Promise<Customer> => {
+  // dueAmount / totalRepairs are derived server-side from repairs — the
+  // client never sends them.
+  const addCustomer = async (c: NewCustomer): Promise<Customer> => {
     const res = await customersCreate({
       name: c.name,
       mobile: c.mobile,
       email: c.email,
       address: c.address,
-      dueAmount: c.dueAmount,
-      totalRepairs: c.totalRepairs,
     });
     const created = res.customer as Customer;
     setCustomers((prev) => [...prev, created]);
@@ -178,8 +193,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       mobile: c.mobile,
       email: c.email,
       address: c.address,
-      dueAmount: c.dueAmount,
-      totalRepairs: c.totalRepairs,
     });
     const updated = res.customer as Customer;
     setCustomers((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));

@@ -169,9 +169,8 @@ export default function NewRepairScreen() {
       let customerId = customers.find((c) => c.mobile === mobile)?.id;
       if (!customerId) {
         const created = await addCustomer({
-          id: '', name: customerName.trim(), mobile: mobile.trim(),
-          address: address.trim() || undefined, dueAmount: 0, totalRepairs: 1,
-          createdAt: getTodayStr(),
+          name: customerName.trim(), mobile: mobile.trim(),
+          address: address.trim() || undefined,
         });
         customerId = created.id;
       }

@@ -835,8 +835,6 @@ components:
         mobile: { type: string }
         email: { type: string }
         address: { type: string }
-        dueAmount: { type: number }
-        totalRepairs: { type: number }
     Repair:
       type: object
       properties:

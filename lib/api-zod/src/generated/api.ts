@@ -326,9 +326,7 @@ export const CustomersCreateBody = zod.object({
   "name": zod.string().optional(),
   "mobile": zod.string().optional(),
   "email": zod.string().optional(),
-  "address": zod.string().optional(),
-  "dueAmount": zod.number().optional(),
-  "totalRepairs": zod.number().optional()
+  "address": zod.string().optional()
 })
 
 export const CustomersCreateResponse = zod.object({
@@ -356,9 +354,7 @@ export const CustomersUpdateBody = zod.object({
   "name": zod.string().optional(),
   "mobile": zod.string().optional(),
   "email": zod.string().optional(),
-  "address": zod.string().optional(),
-  "dueAmount": zod.number().optional(),
-  "totalRepairs": zod.number().optional()
+  "address": zod.string().optional()
 })
 
 export const CustomersUpdateResponse = zod.object({
