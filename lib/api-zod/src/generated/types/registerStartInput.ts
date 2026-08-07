@@ -16,4 +16,5 @@ export interface RegisterStartInput {
   gstNumber?: string;
   shopAddress: string;
   role?: RegisterStartInputRole;
+  accessCode?: string;
 }

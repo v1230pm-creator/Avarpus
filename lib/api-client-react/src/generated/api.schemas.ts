@@ -39,7 +39,7 @@ export type RegisterStartInputRole = typeof RegisterStartInputRole[keyof typeof 
 export const RegisterStartInputRole = {
   reception: 'reception',
   dealer: 'dealer',
-  admin: 'admin',
+  super_admin: 'super_admin',
 } as const;
 
 export interface RegisterStartInput {
@@ -51,6 +51,7 @@ export interface RegisterStartInput {
   gstNumber?: string;
   shopAddress: string;
   role?: RegisterStartInputRole;
+  accessCode?: string;
 }
 
 export interface RegisterVerifyInput {

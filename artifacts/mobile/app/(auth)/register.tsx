@@ -131,7 +131,7 @@ export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const adminMode = mode === 'admin';
-  const [role, setRole] = useState<'dealer' | 'admin'>('dealer');
+  const [role, setRole] = useState<'dealer' | 'super_admin'>('dealer');
 
   const [step, setStep] = useState<Step>('form');
 
@@ -142,6 +142,7 @@ export default function RegisterScreen() {
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [accessCode, setAccessCode] = useState('');
   const [gstNumber, setGstNumber] = useState('');
   const [shopAddress, setShopAddress] = useState('');
   const [profilePhoto, setProfilePhoto] = useState('');
@@ -210,6 +211,7 @@ export default function RegisterScreen() {
     if (password !== confirmPassword) e.confirmPassword = 'Passwords do not match';
     if (!shopAddress.trim()) e.shopAddress = 'Shop address is required';
     if (gstNumber.trim() && gstNumber.trim().length !== 15) e.gstNumber = 'GST number must be 15 characters';
+    if (adminMode && !accessCode.trim()) e.accessCode = 'Access code is required';
     setErrors(e);
     if (Object.keys(e).length > 0) return;
 
@@ -224,9 +226,13 @@ export default function RegisterScreen() {
         gstNumber: gstNumber.trim() || undefined,
         shopAddress: shopAddress.trim(),
         role: adminMode ? role : undefined,
+        accessCode: adminMode ? accessCode.trim() : undefined,
       });
     } catch (err: any) {
-      setErrors({ email: err?.data?.message ?? 'Could not send OTP. Please try again.' });
+      const msg = err?.data?.message ?? 'Could not send OTP. Please try again.';
+      setErrors(
+        adminMode && /access code/i.test(msg) ? { accessCode: msg } : { email: msg },
+      );
       return;
     } finally {
       setFormLoading(false);
@@ -304,6 +310,7 @@ export default function RegisterScreen() {
         gstNumber: gstNumber.trim() || undefined,
         shopAddress: shopAddress.trim(),
         role: adminMode ? role : undefined,
+        accessCode: adminMode ? accessCode.trim() : undefined,
       });
       setEmailTimer(60);
       setEmailOtp(['', '', '', '', '', '']);
@@ -356,21 +363,26 @@ export default function RegisterScreen() {
             <Reanimated.View style={[gs.card, cardStyle]}>
               {adminMode && (
                 <View style={gs.roleRow}>
-                  {(['dealer', 'admin'] as const).map((r) => (
+                  {(['dealer', 'super_admin'] as const).map((r) => (
                     <TouchableOpacity
                       key={r}
                       style={[gs.roleBtn, role === r && gs.roleBtnActive]}
                       onPress={() => setRole(r)}
                       activeOpacity={0.8}
                     >
-                      <Feather name={r === 'admin' ? 'shield' : 'briefcase'} size={16}
+                      <Feather name={r === 'super_admin' ? 'shield' : 'briefcase'} size={16}
                         color={role === r ? '#60A5FA' : '#475569'} />
                       <Text style={[gs.roleText, role === r && gs.roleTextActive, { fontFamily: 'Inter_600SemiBold' }]}>
-                        {r === 'admin' ? 'Admin' : 'Dealer'}
+                        {r === 'super_admin' ? 'Admin' : 'Dealer'}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
+              )}
+              {adminMode && (
+                <Input dark label="Access Code" value={accessCode} onChangeText={setAccessCode}
+                  placeholder="Restricted access code" isPassword autoCapitalize="none"
+                  leftIcon="key" error={errors.accessCode} />
               )}
               <Input dark label="Business Name" value={businessName} onChangeText={setBusinessName}
                 placeholder="Your shop / business name" leftIcon="briefcase" error={errors.businessName} />

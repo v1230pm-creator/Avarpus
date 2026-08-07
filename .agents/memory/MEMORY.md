@@ -2,3 +2,4 @@
 - [Drizzle journal drift](drizzle-journal-drift.md) — boot fails with "relation already exists" when DB drifts from the migration journal; backfill journal rows, don't drop tables.
 - [App lock enforcement](app-lock.md) — lock must be enforced at the tabs route boundary and fail closed; reviewers reject index-only redirects and any Skip path visible before lock config is confirmed.
 - [Stale api-client d.ts](api-client-dist-types.md) — mobile typecheck reads lib types from dist declarations; rebuild them after changing lib exports or you get phantom TS2305 errors.
+- [Role naming](role-naming.md) — the privileged role is `super_admin` everywhere; introducing an `admin` role breaks client permissions/labels.

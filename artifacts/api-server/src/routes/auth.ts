@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { eq, or } from "drizzle-orm";
 import { db, otpCodesTable, usersTable } from "@workspace/db";
 import {
@@ -32,6 +33,13 @@ import { asyncHandler } from "../lib/asyncHandler";
 const router: IRouter = Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Constant-time string comparison to avoid leaking the access code via timing
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const ha = createHash("sha256").update(a).digest();
+  const hb = createHash("sha256").update(b).digest();
+  return timingSafeEqual(ha, hb) && a.length === b.length;
+}
 
 function validPassword(p: unknown): p is string {
   return (
@@ -176,12 +184,43 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
     gstNumber,
     shopAddress,
     role,
+    accessCode,
   } = req.body ?? {};
-  const ALLOWED_ROLES = ["reception", "dealer", "admin"] as const;
+  const ALLOWED_ROLES = ["reception", "dealer", "super_admin"] as const;
   const requestedRole =
     typeof role === "string" && (ALLOWED_ROLES as readonly string[]).includes(role)
       ? role
       : "reception";
+  // Admin/dealer sign-up is gated by a server-side access code. Staff
+  // (reception) registration is unaffected.
+  if (requestedRole === "super_admin" || requestedRole === "dealer") {
+    const expected = process.env.ADMIN_ACCESS_CODE;
+    if (!expected) {
+      console.error(
+        "ADMIN_ACCESS_CODE is not configured; rejecting admin/dealer registration",
+      );
+      res.status(503).json({
+        message: "Admin/dealer registration is currently disabled. Contact your administrator.",
+      });
+      return;
+    }
+    // Throttle guesses per IP before comparing
+    const guessKey = `regcode:ip:${req.ip ?? "unknown"}`;
+    const lockout = checkFailureLockout(guessKey);
+    if (lockout.limited) {
+      res.status(429).json({
+        message: `Too many incorrect access codes. Try again in ${retryAfterText(lockout.retryAfterMs)}.`,
+      });
+      return;
+    }
+    const provided = typeof accessCode === "string" ? accessCode.trim() : "";
+    if (!provided || !timingSafeEqualStr(provided, expected)) {
+      recordFailure(guessKey);
+      res.status(403).json({ message: "Invalid access code" });
+      return;
+    }
+    clearFailures(guessKey);
+  }
   if (
     typeof name !== "string" || !name.trim() ||
     typeof businessName !== "string" || !businessName.trim() ||
@@ -229,6 +268,13 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
     gstNumber: typeof gstNumber === "string" && gstNumber.trim() ? gstNumber.trim() : null,
     shopAddress: shopAddress.trim(),
     role: requestedRole,
+    // Non-reversible fingerprint of the access code used to authorize the
+    // elevated registration; re-checked at verify so rotating or unsetting
+    // the code invalidates in-flight elevated registrations.
+    accessCodeFingerprint:
+      requestedRole === "super_admin" || requestedRole === "dealer"
+        ? sha256(process.env.ADMIN_ACCESS_CODE!)
+        : null,
   });
   try {
     await sendOtpEmail(normEmail, code, "registration");
@@ -267,7 +313,29 @@ router.post("/auth/register/verify", asyncHandler(async (req, res) => {
     gstNumber: string | null;
     shopAddress: string;
     role?: string;
+    accessCodeFingerprint?: string | null;
   };
+  // Re-validate the elevated-registration authorization at account creation:
+  // the access code used at start must still match the currently configured
+  // code, so unsetting or rotating it invalidates in-flight registrations.
+  if (p.role === "super_admin" || p.role === "dealer") {
+    const expected = process.env.ADMIN_ACCESS_CODE;
+    if (!expected) {
+      res.status(503).json({
+        message: "Admin/dealer registration is currently disabled. Contact your administrator.",
+      });
+      return;
+    }
+    if (
+      typeof p.accessCodeFingerprint !== "string" ||
+      !timingSafeEqualStr(p.accessCodeFingerprint, sha256(expected))
+    ) {
+      res.status(403).json({
+        message: "The access code has changed. Please restart registration.",
+      });
+      return;
+    }
+  }
   // Re-check uniqueness right before insert
   const existing = await db
     .select({ id: usersTable.id })
@@ -283,7 +351,7 @@ router.post("/auth/register/verify", asyncHandler(async (req, res) => {
     email: p.email,
     mobile: p.mobile,
     passwordHash: p.passwordHash,
-    role: (p.role === "dealer" || p.role === "admin" ? p.role : "reception") as "reception" | "dealer" | "admin",
+    role: p.role === "dealer" || p.role === "super_admin" ? p.role : "reception",
     isActive: false, // pending admin approval
     designation: "Owner",
     joinDate: new Date().toISOString().split("T")[0],

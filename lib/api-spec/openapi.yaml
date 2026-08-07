@@ -314,7 +314,8 @@ components:
         password: { type: string }
         gstNumber: { type: string }
         shopAddress: { type: string }
-        role: { type: string, enum: [reception, dealer, admin] }
+        role: { type: string, enum: [reception, dealer, super_admin] }
+        accessCode: { type: string }
       required: [name, businessName, email, mobile, password, shopAddress]
     RegisterVerifyInput:
       type: object
@@ -376,4 +377,3 @@ components:
           type: string
       required:
         - status
-
