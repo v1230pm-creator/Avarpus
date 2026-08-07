@@ -248,13 +248,6 @@ export default function LoginScreen() {
         >
           {/* ── Header ─────────────────────────────────────── */}
           <Reanimated.View style={[styles.header, headerStyle]}>
-            {/* Text-only VMC monogram */}
-            <LinearGradient colors={['#1D4ED8', '#3B82F6']} style={styles.monogram}>
-              <Text style={[styles.monogramText, { fontFamily: 'Inter_700Bold' }]}>VMC</Text>
-              <View style={styles.goldDot} />
-            </LinearGradient>
-
-            <Text style={[styles.appName, { fontFamily: 'Inter_700Bold' }]}>VMC Electronic</Text>
             <Text style={[styles.tagline, { fontFamily: 'Inter_400Regular' }]}>Business Management System</Text>
             <View style={styles.versionRow}>
               <View style={styles.versionDot} />
