@@ -160,8 +160,11 @@ export default function LoginScreen() {
   }));
   const badgesStyle = useAnimatedStyle(() => ({ opacity: badgesOpacity.value }));
 
+  // scroll padding (24×2) + card padding (24×2) + tab internal padding (2×2) = 100
+  const tabW = (SCREEN_W - 100) / 2;
+
   const tabIndicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: withTiming(tabX.value === 0 ? 0 : (SCREEN_W - 48 - 4) / 2, { duration: 250, easing: Easing.out(Easing.cubic) }) }],
+    transform: [{ translateX: withTiming(tabX.value === 0 ? 0 : tabW, { duration: 250, easing: Easing.out(Easing.cubic) }) }],
   }));
 
   const switchTab = (tab: LoginTab) => {
@@ -197,8 +200,6 @@ export default function LoginScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push('/(auth)/otp');
   };
-
-  const tabW = (SCREEN_W - 48 - 4) / 2;
 
   return (
     <View style={styles.root}>
