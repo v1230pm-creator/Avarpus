@@ -34,7 +34,10 @@ import type {
   OtpRequestInput,
   OtpVerifyInput,
   RegisterStartInput,
-  RegisterVerifyInput
+  RegisterVerifyInput,
+  StaffCreate200,
+  StaffCreateInput,
+  StaffList200
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -359,9 +362,9 @@ export const getAuthRegisterVerifyUrl = () => {
 /**
  * @summary Verify email OTP and create the account
  */
-export const authRegisterVerify = async (registerVerifyInput: RegisterVerifyInput, options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
+export const authRegisterVerify = async (registerVerifyInput: RegisterVerifyInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthSession> => {
 
-  return customFetch<Message>(getAuthRegisterVerifyUrl(),
+  return customFetch<AuthSession>(getAuthRegisterVerifyUrl(),
   {
     ...options,
     method: 'POST',
@@ -708,6 +711,154 @@ export function useAuthMe<TData = Awaited<ReturnType<typeof authMe>>, TError = E
 
 
 
+
+export const getStaffListUrl = () => {
+
+
+
+
+  return `/api/staff`
+}
+
+/**
+ * @summary List staff of the current dealer's shop (dealer/super_admin only)
+ */
+export const staffList = async ( options?: Parameters<typeof customFetch>[1]): Promise<StaffList200> => {
+
+  return customFetch<StaffList200>(getStaffListUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getStaffListQueryKey = () => {
+    return [
+    `/api/staff`
+    ] as const;
+    }
+
+
+export const getStaffListQueryOptions = <TData = Awaited<ReturnType<typeof staffList>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof staffList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getStaffListQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof staffList>>> = ({ signal }) => staffList({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof staffList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type StaffListQueryResult = NonNullable<Awaited<ReturnType<typeof staffList>>>
+export type StaffListQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List staff of the current dealer's shop (dealer/super_admin only)
+ */
+
+export function useStaffList<TData = Awaited<ReturnType<typeof staffList>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof staffList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getStaffListQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStaffCreateUrl = () => {
+
+
+
+
+  return `/api/staff`
+}
+
+/**
+ * @summary Create a staff account in the current dealer's shop (dealer/super_admin only)
+ */
+export const staffCreate = async (staffCreateInput: StaffCreateInput, options?: Parameters<typeof customFetch>[1]): Promise<StaffCreate200> => {
+
+  return customFetch<StaffCreate200>(getStaffCreateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffCreateInput)
+  }
+);}
+
+
+
+
+
+export const getStaffCreateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof staffCreate>>, TError,{data: BodyType<StaffCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof staffCreate>>, TError,{data: BodyType<StaffCreateInput>}, TContext> => {
+
+const mutationKey = ['staffCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof staffCreate>>, {data: BodyType<StaffCreateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  staffCreate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StaffCreateMutationResult = NonNullable<Awaited<ReturnType<typeof staffCreate>>>
+    export type StaffCreateMutationBody = BodyType<StaffCreateInput>
+    export type StaffCreateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a staff account in the current dealer's shop (dealer/super_admin only)
+ */
+export const useStaffCreate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof staffCreate>>, TError,{data: BodyType<StaffCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof staffCreate>>,
+        TError,
+        {data: BodyType<StaffCreateInput>},
+        TContext
+      > => {
+      return useMutation(getStaffCreateMutationOptions(options));
+    }
 
 export const getAuthLoginHistoryUrl = () => {
 

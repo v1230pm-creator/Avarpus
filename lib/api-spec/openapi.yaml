@@ -101,11 +101,11 @@ paths:
               $ref: "#/components/schemas/RegisterVerifyInput"
       responses:
         "200":
-          description: Account created
+          description: Dealer account created and signed in
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Message"
+                $ref: "#/components/schemas/AuthSession"
   /auth/forgot/request:
     post:
       operationId: authForgotRequest
@@ -171,6 +171,45 @@ paths:
       responses:
         "200":
           description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/AuthUser"
+                required: [user]
+  /staff:
+    get:
+      operationId: staffList
+      tags: [auth]
+      summary: List staff of the current dealer's shop (dealer/super_admin only)
+      responses:
+        "200":
+          description: Staff members
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  staff:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuthUser"
+                required: [staff]
+    post:
+      operationId: staffCreate
+      tags: [auth]
+      summary: Create a staff account in the current dealer's shop (dealer/super_admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffCreateInput"
+      responses:
+        "200":
+          description: Staff account created
           content:
             application/json:
               schema:
@@ -314,8 +353,6 @@ components:
         password: { type: string }
         gstNumber: { type: string }
         shopAddress: { type: string }
-        role: { type: string, enum: [reception, dealer, super_admin] }
-        accessCode: { type: string }
       required: [name, businessName, email, mobile, password, shopAddress]
     RegisterVerifyInput:
       type: object
@@ -362,7 +399,18 @@ components:
         shopAddress: { type: string }
         profilePhoto: { type: string }
         companyLogo: { type: string }
+        shopId: { type: string }
       required: [id, name, email, mobile, role, isActive]
+    StaffCreateInput:
+      type: object
+      properties:
+        name: { type: string }
+        email: { type: string }
+        mobile: { type: string }
+        password: { type: string }
+        role: { type: string, enum: [reception, technician, store_manager, accountant] }
+        designation: { type: string }
+      required: [name, email, mobile, password, role]
     AuthSession:
       type: object
       properties:

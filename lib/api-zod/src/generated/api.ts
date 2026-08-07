@@ -33,7 +33,8 @@ export const AuthLoginResponse = zod.object({
   "gstNumber": zod.string().optional(),
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
-  "companyLogo": zod.string().optional()
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional()
 })
 })
 
@@ -75,7 +76,8 @@ export const AuthOtpVerifyResponse = zod.object({
   "gstNumber": zod.string().optional(),
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
-  "companyLogo": zod.string().optional()
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional()
 })
 })
 
@@ -90,9 +92,7 @@ export const AuthRegisterStartBody = zod.object({
   "mobile": zod.string(),
   "password": zod.string(),
   "gstNumber": zod.string().optional(),
-  "shopAddress": zod.string(),
-  "role": zod.enum(['reception', 'dealer', 'super_admin']).optional(),
-  "accessCode": zod.string().optional()
+  "shopAddress": zod.string()
 })
 
 export const AuthRegisterStartResponse = zod.object({
@@ -109,7 +109,23 @@ export const AuthRegisterVerifyBody = zod.object({
 })
 
 export const AuthRegisterVerifyResponse = zod.object({
-  "message": zod.string()
+  "token": zod.string(),
+  "user": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional()
+})
 })
 
 
@@ -169,7 +185,63 @@ export const AuthMeResponse = zod.object({
   "gstNumber": zod.string().optional(),
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
-  "companyLogo": zod.string().optional()
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional()
+})
+})
+
+
+/**
+ * @summary List staff of the current dealer's shop (dealer/super_admin only)
+ */
+export const StaffListResponse = zod.object({
+  "staff": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional()
+}))
+})
+
+
+/**
+ * @summary Create a staff account in the current dealer's shop (dealer/super_admin only)
+ */
+export const StaffCreateBody = zod.object({
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "password": zod.string(),
+  "role": zod.enum(['reception', 'technician', 'store_manager', 'accountant']),
+  "designation": zod.string().optional()
+})
+
+export const StaffCreateResponse = zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional()
 })
 })
 

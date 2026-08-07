@@ -134,19 +134,6 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Hidden admin/dealer mode — triple-tap on the VMC logo toggles it
-  const [adminMode, setAdminMode] = useState(false);
-  const logoTaps = useRef<number[]>([]);
-  const handleLogoTap = () => {
-    const now = Date.now();
-    logoTaps.current = [...logoTaps.current.filter((t) => now - t < 1500), now];
-    if (logoTaps.current.length >= 3) {
-      logoTaps.current = [];
-      setAdminMode((v) => !v);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  };
-
   // Entry animations
   const headerY = useSharedValue(30);
   const headerOpacity = useSharedValue(0);
@@ -260,7 +247,7 @@ export default function LoginScreen() {
         >
           {/* ── Logo ────────────────────────────────────────── */}
           <Reanimated.View style={[styles.logoWrap, headerStyle]}>
-            <TouchableOpacity activeOpacity={1} onPress={handleLogoTap} style={{ alignItems: 'center', gap: 2 }}>
+            <View style={{ alignItems: 'center', gap: 2 }}>
               <Image
                 source={require('@/assets/images/vmc-text.png')}
                 style={styles.logoImg}
@@ -272,16 +259,8 @@ export default function LoginScreen() {
                 style={styles.handsImg}
                 contentFit="contain"
               />
-            </TouchableOpacity>
+            </View>
             <Text style={[styles.tagline, { fontFamily: 'Inter_400Regular' }]}>Business Management System</Text>
-            {adminMode && (
-              <View style={styles.adminBadge}>
-                <Feather name="shield" size={12} color="#D4AF37" />
-                <Text style={[styles.adminBadgeText, { fontFamily: 'Inter_600SemiBold' }]}>
-                  ADMIN / DEALER ACCESS
-                </Text>
-              </View>
-            )}
           </Reanimated.View>
 
           {/* ── Glass Card ──────────────────────────────────── */}
@@ -472,7 +451,7 @@ export default function LoginScreen() {
           {/* ── Bottom ──────────────────────────────────────── */}
           <View style={styles.bottomSection}>
             <TouchableOpacity
-              onPress={() => router.push(adminMode ? '/(auth)/register?mode=admin' : '/(auth)/register')}
+              onPress={() => router.push('/(auth)/register')}
               activeOpacity={0.7}
             >
               <Text style={[styles.registerText, { fontFamily: 'Inter_400Regular' }]}>

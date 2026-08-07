@@ -13,6 +13,8 @@ interface AuthContextType {
   login: (emailOrMobile: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
   loginWithOtp: (mobile: string, code: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
+  /** Adopt a session returned by an auth API call (e.g. registration). */
+  adoptSession: (session: { token: string; user: any }) => Promise<void>;
   canAccess: (feature: string) => boolean;
   /** Message explaining why the user was signed out (e.g. session revoked). */
   signedOutNotice: string | null;
@@ -26,6 +28,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => ({ success: false }),
   loginWithOtp: async () => ({ success: false }),
   logout: async () => {},
+  adoptSession: async () => {},
   canAccess: () => false,
   signedOutNotice: null,
   clearSignedOutNotice: () => {},
@@ -109,6 +112,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(u);
   };
 
+  const adoptSession = async (session: { token: string; user: any }) => {
+    await applySession(session);
+    setSignedOutNotice(null);
+  };
+
   const login = async (emailOrMobile: string, password: string, rememberMe = false) => {
     try {
       const session = await authLogin({ emailOrMobile, password, rememberMe, device: deviceDescription() });
@@ -158,6 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         loginWithOtp,
         logout,
+        adoptSession,
         canAccess,
         signedOutNotice,
         clearSignedOutNotice: () => setSignedOutNotice(null),

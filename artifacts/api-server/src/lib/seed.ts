@@ -14,6 +14,9 @@ const SEED_USERS = [
 ];
 
 export async function seedUsersIfEmpty(): Promise<void> {
+  // Demo users are only seeded when explicitly enabled. Production flow is:
+  // dealers register publicly, then create their own staff in-app.
+  if (process.env.SEED_DEMO_USERS !== "true") return;
   const existing = await db.select({ id: usersTable.id }).from(usersTable).limit(1);
   if (existing.length > 0) return;
   await db.insert(usersTable).values(

@@ -20,4 +20,5 @@ export interface AuthUser {
   shopAddress?: string;
   profilePhoto?: string;
   companyLogo?: string;
+  shopId?: string;
 }

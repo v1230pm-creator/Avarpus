@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -26,6 +26,7 @@ import Reanimated, {
 import { authRegisterStart, authRegisterVerify } from '@workspace/api-client-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { useAuth } from '@/context/AuthContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Step = 'form' | 'email_otp' | 'success';
@@ -129,9 +130,7 @@ const bar = StyleSheet.create({
 export default function RegisterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { mode } = useLocalSearchParams<{ mode?: string }>();
-  const adminMode = mode === 'admin';
-  const [role, setRole] = useState<'dealer' | 'super_admin'>('dealer');
+  const { adoptSession } = useAuth();
 
   const [step, setStep] = useState<Step>('form');
 
@@ -142,7 +141,6 @@ export default function RegisterScreen() {
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [accessCode, setAccessCode] = useState('');
   const [gstNumber, setGstNumber] = useState('');
   const [shopAddress, setShopAddress] = useState('');
   const [profilePhoto, setProfilePhoto] = useState('');
@@ -211,7 +209,6 @@ export default function RegisterScreen() {
     if (password !== confirmPassword) e.confirmPassword = 'Passwords do not match';
     if (!shopAddress.trim()) e.shopAddress = 'Shop address is required';
     if (gstNumber.trim() && gstNumber.trim().length !== 15) e.gstNumber = 'GST number must be 15 characters';
-    if (adminMode && !accessCode.trim()) e.accessCode = 'Access code is required';
     setErrors(e);
     if (Object.keys(e).length > 0) return;
 
@@ -225,14 +222,10 @@ export default function RegisterScreen() {
         password,
         gstNumber: gstNumber.trim() || undefined,
         shopAddress: shopAddress.trim(),
-        role: adminMode ? role : undefined,
-        accessCode: adminMode ? accessCode.trim() : undefined,
       });
     } catch (err: any) {
       const msg = err?.data?.message ?? 'Could not send OTP. Please try again.';
-      setErrors(
-        adminMode && /access code/i.test(msg) ? { accessCode: msg } : { email: msg },
-      );
+      setErrors({ email: msg });
       return;
     } finally {
       setFormLoading(false);
@@ -285,7 +278,8 @@ export default function RegisterScreen() {
     if (entered.length < 6) { setEmailError('Enter the 6-digit OTP'); return; }
     setEmailLoading(true);
     try {
-      await authRegisterVerify({ email: email.trim().toLowerCase(), code: entered });
+      const session = await authRegisterVerify({ email: email.trim().toLowerCase(), code: entered });
+      await adoptSession(session);
     } catch (err: any) {
       setEmailError(err?.data?.message ?? 'Verification failed. Please try again.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -309,8 +303,6 @@ export default function RegisterScreen() {
         password,
         gstNumber: gstNumber.trim() || undefined,
         shopAddress: shopAddress.trim(),
-        role: adminMode ? role : undefined,
-        accessCode: adminMode ? accessCode.trim() : undefined,
       });
       setEmailTimer(60);
       setEmailOtp(['', '', '', '', '', '']);
@@ -347,10 +339,10 @@ export default function RegisterScreen() {
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
               <Text style={[gs.title, { fontFamily: 'Inter_700Bold' }]}>
-                {adminMode ? 'Admin / Dealer Account' : 'Create Account'}
+                Create Dealer Account
               </Text>
               <Text style={[gs.subtitle, { fontFamily: 'Inter_400Regular' }]}>
-                {adminMode ? 'Restricted registration' : 'Request staff access'}
+                Register your shop / business
               </Text>
             </View>
           </View>
@@ -361,29 +353,6 @@ export default function RegisterScreen() {
           {/* ── STEP 1: Form ── */}
           {step === 'form' && (
             <Reanimated.View style={[gs.card, cardStyle]}>
-              {adminMode && (
-                <View style={gs.roleRow}>
-                  {(['dealer', 'super_admin'] as const).map((r) => (
-                    <TouchableOpacity
-                      key={r}
-                      style={[gs.roleBtn, role === r && gs.roleBtnActive]}
-                      onPress={() => setRole(r)}
-                      activeOpacity={0.8}
-                    >
-                      <Feather name={r === 'super_admin' ? 'shield' : 'briefcase'} size={16}
-                        color={role === r ? '#60A5FA' : '#475569'} />
-                      <Text style={[gs.roleText, role === r && gs.roleTextActive, { fontFamily: 'Inter_600SemiBold' }]}>
-                        {r === 'super_admin' ? 'Admin' : 'Dealer'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-              {adminMode && (
-                <Input dark label="Access Code" value={accessCode} onChangeText={setAccessCode}
-                  placeholder="Restricted access code" isPassword autoCapitalize="none"
-                  leftIcon="key" error={errors.accessCode} />
-              )}
               <Input dark label="Business Name" value={businessName} onChangeText={setBusinessName}
                 placeholder="Your shop / business name" leftIcon="briefcase" error={errors.businessName} />
               <Input dark label="Owner Name" value={name} onChangeText={setName}
@@ -430,7 +399,7 @@ export default function RegisterScreen() {
               <View style={gs.infoBox}>
                 <Feather name="info" size={14} color="#60A5FA" />
                 <Text style={[gs.infoText, { fontFamily: 'Inter_400Regular' }]}>
-                  We'll send a 6-digit OTP to your email and mobile to verify your identity.
+                  We'll send a 6-digit OTP to your email to verify your identity. Your account is created as the shop owner (Dealer) — you can add staff later from Staff Management.
                 </Text>
               </View>
 
@@ -495,15 +464,15 @@ export default function RegisterScreen() {
                   <Feather name="check" size={36} color="#FFFFFF" />
                 </LinearGradient>
               </View>
-              <Text style={[gs.successTitle, { fontFamily: 'Inter_700Bold' }]}>Account Created!</Text>
+              <Text style={[gs.successTitle, { fontFamily: 'Inter_700Bold' }]}>Welcome, Dealer!</Text>
               <Text style={[gs.successSub, { fontFamily: 'Inter_400Regular' }]}>
-                Your account has been created successfully. It will be activated after admin approval.
+                Your dealer account and shop workspace are ready. You can add staff anytime from Staff Management.
               </Text>
 
               <View style={gs.successSteps}>
                 {[
                   { icon: 'mail', color: '#3B82F6', label: 'Email verified' },
-                  { icon: 'user-check', color: '#D4AF37', label: 'Pending admin approval' },
+                  { icon: 'briefcase', color: '#D4AF37', label: 'Shop workspace created' },
                 ].map((item, i) => (
                   <View key={i} style={gs.successStep}>
                     <View style={[gs.successStepDot, { backgroundColor: item.color + '22' }]}>
@@ -516,11 +485,11 @@ export default function RegisterScreen() {
 
               <TouchableOpacity
                 style={gs.goLoginBtn}
-                onPress={() => router.replace('/(auth)')}
+                onPress={() => router.replace('/(tabs)')}
                 activeOpacity={0.8}
               >
                 <LinearGradient colors={['#1D4ED8', '#2563EB', '#3B82F6']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={gs.goLoginGrad}>
-                  <Text style={[gs.goLoginText, { fontFamily: 'Inter_600SemiBold' }]}>Go to Sign In</Text>
+                  <Text style={[gs.goLoginText, { fontFamily: 'Inter_600SemiBold' }]}>Go to Dashboard</Text>
                   <Feather name="arrow-right" size={18} color="#FFFFFF" />
                 </LinearGradient>
               </TouchableOpacity>

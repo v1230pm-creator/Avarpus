@@ -33,15 +33,6 @@ export interface OtpVerifyInput {
   device?: string;
 }
 
-export type RegisterStartInputRole = typeof RegisterStartInputRole[keyof typeof RegisterStartInputRole];
-
-
-export const RegisterStartInputRole = {
-  reception: 'reception',
-  dealer: 'dealer',
-  super_admin: 'super_admin',
-} as const;
-
 export interface RegisterStartInput {
   name: string;
   businessName: string;
@@ -50,8 +41,6 @@ export interface RegisterStartInput {
   password: string;
   gstNumber?: string;
   shopAddress: string;
-  role?: RegisterStartInputRole;
-  accessCode?: string;
 }
 
 export interface RegisterVerifyInput {
@@ -93,6 +82,26 @@ export interface AuthUser {
   shopAddress?: string;
   profilePhoto?: string;
   companyLogo?: string;
+  shopId?: string;
+}
+
+export type StaffCreateInputRole = typeof StaffCreateInputRole[keyof typeof StaffCreateInputRole];
+
+
+export const StaffCreateInputRole = {
+  reception: 'reception',
+  technician: 'technician',
+  store_manager: 'store_manager',
+  accountant: 'accountant',
+} as const;
+
+export interface StaffCreateInput {
+  name: string;
+  email: string;
+  mobile: string;
+  password: string;
+  role: StaffCreateInputRole;
+  designation?: string;
 }
 
 export interface AuthSession {
@@ -113,6 +122,14 @@ export type AuthForgotVerify200 = {
 };
 
 export type AuthMe200 = {
+  user: AuthUser;
+};
+
+export type StaffList200 = {
+  staff: AuthUser[];
+};
+
+export type StaffCreate200 = {
   user: AuthUser;
 };
 

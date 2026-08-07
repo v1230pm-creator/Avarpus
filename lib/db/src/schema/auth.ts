@@ -17,6 +17,10 @@ export const usersTable = pgTable("users", {
   mobile: text("mobile").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   role: text("role").notNull().default("reception"),
+  // Shop the user belongs to. Dealers own their shop; staff accounts created
+  // by a dealer inherit the dealer's shop. (No FK to avoid a circular
+  // users<->shops reference; integrity is maintained by the API layer.)
+  shopId: uuid("shop_id"),
   isActive: boolean("is_active").notNull().default(false),
   designation: text("designation"),
   joinDate: text("join_date"),
@@ -25,6 +29,22 @@ export const usersTable = pgTable("users", {
   shopAddress: text("shop_address"),
   profilePhoto: text("profile_photo"),
   companyLogo: text("company_logo"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// A dealer's shop/workspace. Created automatically when a dealer registers.
+// `settings` holds the shop's default workspace settings (currency, hours, …).
+export const shopsTable = pgTable("shops", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  dealerId: uuid("dealer_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  businessName: text("business_name").notNull(),
+  gstNumber: text("gst_number"),
+  address: text("address"),
+  settings: jsonb("settings").notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -80,6 +100,7 @@ export const insertUserSchema = createInsertSchema(usersTable).omit({
 });
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type DbUser = typeof usersTable.$inferSelect;
+export type DbShop = typeof shopsTable.$inferSelect;
 export type DbSession = typeof sessionsTable.$inferSelect;
 export type DbOtpCode = typeof otpCodesTable.$inferSelect;
 export type DbLoginEvent = typeof loginEventsTable.$inferSelect;
