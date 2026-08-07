@@ -30,15 +30,6 @@ import { useAuth } from '@/context/AuthContext';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
-const DEMO_ACCOUNTS = [
-  { role: 'Super Admin',    email: 'superadmin@vmc.com', password: 'Admin@123' },
-  { role: 'Dealer / Owner', email: 'dealer@vmc.com',     password: 'Dealer@123' },
-  { role: 'Reception',      email: 'reception@vmc.com',  password: 'Staff@123' },
-  { role: 'Technician',     email: 'tech@vmc.com',       password: 'Tech@123' },
-  { role: 'Store Manager',  email: 'store@vmc.com',      password: 'Store@123' },
-  { role: 'Accountant',     email: 'accounts@vmc.com',   password: 'Accts@123' },
-];
-
 type LoginTab = 'email' | 'mobile';
 
 // Stable random particle data (seeded once)
@@ -140,7 +131,6 @@ export default function LoginScreen() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showDemo, setShowDemo] = useState(false);
 
   // Entry animations
   const headerY = useSharedValue(30);
@@ -206,15 +196,6 @@ export default function LoginScreen() {
     setError('');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push('/(auth)/otp');
-  };
-
-  const fillDemo = (acc: typeof DEMO_ACCOUNTS[0]) => {
-    setEmail(acc.email);
-    setPassword(acc.password);
-    setActiveTab('email');
-    tabX.value = 0;
-    setShowDemo(false);
-    setError('');
   };
 
   const tabW = (SCREEN_W - 48 - 4) / 2;
@@ -409,52 +390,6 @@ export default function LoginScreen() {
                 </View>
               )}
 
-              {/* ── Demo Accounts ── */}
-              <TouchableOpacity
-                onPress={() => { setShowDemo((v) => !v); Haptics.selectionAsync(); }}
-                style={styles.demoToggle}
-                activeOpacity={0.7}
-              >
-                <View style={styles.demoDots}>
-                  <View style={[styles.demoDot, { backgroundColor: '#2563EB' }]} />
-                  <View style={[styles.demoDot, { backgroundColor: '#D4AF37' }]} />
-                  <View style={[styles.demoDot, { backgroundColor: '#10B981' }]} />
-                </View>
-                <Text style={[styles.demoToggleText, { fontFamily: 'Inter_500Medium' }]}>
-                  {showDemo ? 'Hide' : 'Use'} Demo Account
-                </Text>
-                <Feather name={showDemo ? 'chevron-up' : 'chevron-down'} size={15} color="#60A5FA" />
-              </TouchableOpacity>
-
-              {showDemo && (
-                <View style={styles.demoList}>
-                  {DEMO_ACCOUNTS.map((acc, idx) => (
-                    <TouchableOpacity
-                      key={acc.role}
-                      onPress={() => fillDemo(acc)}
-                      activeOpacity={0.75}
-                      style={[
-                        styles.demoItem,
-                        idx < DEMO_ACCOUNTS.length - 1 && styles.demoItemBorder,
-                      ]}
-                    >
-                      <View style={[styles.demoAvatar, { backgroundColor: ROLE_COLORS[idx] + '22' }]}>
-                        <Text style={[styles.demoAvatarText, { color: ROLE_COLORS[idx], fontFamily: 'Inter_700Bold' }]}>
-                          {acc.role[0]}
-                        </Text>
-                      </View>
-                      <View style={styles.demoInfo}>
-                        <Text style={[styles.demoRole, { fontFamily: 'Inter_600SemiBold' }]}>{acc.role}</Text>
-                        <Text style={[styles.demoEmail, { fontFamily: 'Inter_400Regular' }]}>{acc.email}</Text>
-                      </View>
-                      <View style={styles.demoRight}>
-                        <Text style={[styles.demoPwd, { fontFamily: 'Inter_400Regular' }]}>{acc.password}</Text>
-                        <Feather name="corner-down-left" size={13} color="#3B82F6" />
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
             </View>
           </Reanimated.View>
 
@@ -482,9 +417,6 @@ export default function LoginScreen() {
     </View>
   );
 }
-
-// Role avatar colors
-const ROLE_COLORS = ['#DC2626', '#7C3AED', '#0284C7', '#059669', '#D97706', '#64748B'];
 
 // Blue gradient CTA button
 function GradientButton({ title, onPress, loading, icon }: { title: string; onPress: () => void; loading: boolean; icon: keyof typeof Feather.glyphMap }) {
