@@ -291,8 +291,18 @@ export default function NewRepairScreen() {
           </body>
         </html>
       `;
-      const { uri } = await Print.printToFileAsync({ html });
-      await Sharing.shareAsync(uri);
+      if (Platform.OS === 'web') {
+        // Web: printToFileAsync/Sharing are unsupported — open the browser
+        // print dialog instead (user can "Save as PDF" from there).
+        await Print.printAsync({ html });
+      } else {
+        const { uri } = await Print.printToFileAsync({ html });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, { mimeType: 'application/pdf' });
+        } else {
+          await Print.printAsync({ html });
+        }
+      }
     } catch (e) {
       Alert.alert('Error', 'Could not generate PDF.');
     }
