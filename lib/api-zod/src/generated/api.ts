@@ -13,7 +13,8 @@ import * as zod from 'zod';
  */
 export const AuthLoginBody = zod.object({
   "emailOrMobile": zod.string(),
-  "password": zod.string()
+  "password": zod.string(),
+  "rememberMe": zod.boolean().optional()
 })
 
 export const AuthLoginResponse = zod.object({
@@ -44,8 +45,7 @@ export const AuthOtpRequestBody = zod.object({
 })
 
 export const AuthOtpRequestResponse = zod.object({
-  "message": zod.string(),
-  "sentTo": zod.string().nullish()
+  "message": zod.string()
 })
 
 
@@ -54,7 +54,8 @@ export const AuthOtpRequestResponse = zod.object({
  */
 export const AuthOtpVerifyBody = zod.object({
   "mobile": zod.string(),
-  "code": zod.string()
+  "code": zod.string(),
+  "rememberMe": zod.boolean().optional()
 })
 
 export const AuthOtpVerifyResponse = zod.object({
@@ -166,6 +167,19 @@ export const AuthMeResponse = zod.object({
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional()
 })
+})
+
+
+/**
+ * @summary List recent successful logins for the current user
+ */
+export const AuthLoginHistoryResponse = zod.object({
+  "events": zod.array(zod.object({
+  "id": zod.string(),
+  "method": zod.string(),
+  "rememberMe": zod.boolean(),
+  "createdAt": zod.string()
+}))
 })
 
 

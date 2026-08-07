@@ -8,6 +8,7 @@
 export interface LoginInput {
   emailOrMobile: string;
   password: string;
+  rememberMe?: boolean;
 }
 
 export interface ForgotRequestInput {
@@ -27,6 +28,7 @@ export interface OtpRequestInput {
 export interface OtpVerifyInput {
   mobile: string;
   code: string;
+  rememberMe?: boolean;
 }
 
 export interface RegisterStartInput {
@@ -42,6 +44,13 @@ export interface RegisterStartInput {
 export interface RegisterVerifyInput {
   email: string;
   code: string;
+}
+
+export interface LoginEvent {
+  id: string;
+  method: string;
+  rememberMe: boolean;
+  createdAt: string;
 }
 
 export interface Message {
@@ -75,8 +84,6 @@ export interface HealthStatus {
 
 export type AuthOtpRequest200 = {
   message: string;
-  /** @nullable */
-  sentTo?: string | null;
 };
 
 export type AuthForgotVerify200 = {
@@ -85,5 +92,9 @@ export type AuthForgotVerify200 = {
 
 export type AuthMe200 = {
   user: AuthUser;
+};
+
+export type AuthLoginHistory200 = {
+  events: LoginEvent[];
 };
 

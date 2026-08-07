@@ -8,6 +8,4 @@
 
 export type AuthOtpRequest200 = {
   message: string;
-  /** @nullable */
-  sentTo?: string | null;
 };

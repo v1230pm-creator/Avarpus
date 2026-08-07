@@ -1,10 +1,13 @@
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { and, eq, gt, isNull } from "drizzle-orm";
-import { db, otpCodesTable, sessionsTable, usersTable } from "@workspace/db";
+import { db, loginEventsTable, otpCodesTable, sessionsTable, usersTable } from "@workspace/db";
 import type { DbUser } from "@workspace/db";
+import { desc } from "drizzle-orm";
 
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+// "Remember me" keeps the session for 30 days; otherwise it lasts 1 day.
+const SESSION_TTL_REMEMBERED_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const SESSION_TTL_DEFAULT_MS = 24 * 60 * 60 * 1000; // 1 day
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_OTP_ATTEMPTS = 5;
 
@@ -28,14 +31,37 @@ export function generateToken(): string {
   return crypto.randomBytes(48).toString("hex");
 }
 
-export async function createSession(userId: string): Promise<string> {
+export async function createSession(userId: string, rememberMe = false): Promise<string> {
   const token = generateToken();
+  const ttl = rememberMe ? SESSION_TTL_REMEMBERED_MS : SESSION_TTL_DEFAULT_MS;
   await db.insert(sessionsTable).values({
     token,
     userId,
-    expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+    expiresAt: new Date(Date.now() + ttl),
   });
   return token;
+}
+
+export async function recordLoginEvent(
+  userId: string,
+  method: "password" | "otp",
+  rememberMe: boolean,
+): Promise<void> {
+  await db.insert(loginEventsTable).values({ userId, method, rememberMe });
+}
+
+export async function getLoginHistory(userId: string, limit = 20) {
+  return db
+    .select({
+      id: loginEventsTable.id,
+      method: loginEventsTable.method,
+      rememberMe: loginEventsTable.rememberMe,
+      createdAt: loginEventsTable.createdAt,
+    })
+    .from(loginEventsTable)
+    .where(eq(loginEventsTable.userId, userId))
+    .orderBy(desc(loginEventsTable.createdAt))
+    .limit(limit);
 }
 
 export async function getSessionUser(token: string): Promise<DbUser | null> {

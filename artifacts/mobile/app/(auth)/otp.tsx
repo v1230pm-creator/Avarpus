@@ -23,8 +23,9 @@ export default function OTPScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { loginWithOtp } = useAuth();
-  const params = useLocalSearchParams<{ mobile?: string; sentTo?: string }>();
+  const params = useLocalSearchParams<{ mobile?: string; sentTo?: string; rememberMe?: string }>();
   const mobile = typeof params.mobile === 'string' ? params.mobile : '';
+  const rememberMe = params.rememberMe === '1';
   const sentTo = '';
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(60);
@@ -63,7 +64,7 @@ export default function OTPScreen() {
   const handleVerify = async () => {
     setLoading(true);
     setError('');
-    const result = await loginWithOtp(mobile, otp.join(''));
+    const result = await loginWithOtp(mobile, otp.join(''), rememberMe);
     setLoading(false);
     if (!result.success) {
       setError(result.error ?? 'Verification failed. Please try again.');

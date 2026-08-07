@@ -20,6 +20,10 @@ description: Durable auth and architecture decisions for the VMC Electronic BMS 
 
 **Why:** The `drizzle-kit push` approach (previously used manually) leaves no migration journal. On a fresh database there was no automated step to create tables before seeding, so every auth call failed until someone ran push manually. The migrator + `dist/migrations/` copy pattern is reproducible across deploys.
 
+## Session management
+- Sessions are short-lived by default; "Remember me" (sent by both password and OTP login) is the only way to get the long 30-day TTL. Successful logins are audited server-side and surfaced to the user in Settings.
+- Inactivity auto-lock is enforced client-side at the tabs boundary; on timeout it locks to PIN when a lock is configured (fail closed) and fully logs out otherwise. The tabs layout must react to lock-state *changes* (subscription), not just check once on mount — a one-shot check leaves a relock bypass after unlock, and reviewers reject that.
+
 ## Mobile → API connection
 - Base URL configured at app module level via `setBaseUrl` / `setAuthTokenGetter` from `@workspace/api-client-react`.
 - Bearer token stored in AsyncStorage key `vmc_auth_token`.

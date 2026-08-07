@@ -182,7 +182,7 @@ export default function LoginScreen() {
     }
     setLoading(true);
     setError('');
-    const result = await login(email.trim(), password);
+    const result = await login(email.trim(), password, rememberMe);
     setLoading(false);
     if (!result.success) {
       setError(result.error ?? 'Invalid credentials. Please try again.');
@@ -207,7 +207,7 @@ export default function LoginScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       router.push({
         pathname: '/(auth)/otp',
-        params: { mobile: mobile.trim() },
+        params: { mobile: mobile.trim(), rememberMe: rememberMe ? '1' : '0' },
       });
     } catch (err: any) {
       setError(err?.data?.message ?? 'Could not send OTP. Please try again.');
@@ -409,6 +409,17 @@ export default function LoginScreen() {
                       A 6-digit OTP will be sent to your registered mobile number.
                     </Text>
                   </View>
+
+                  <TouchableOpacity
+                    onPress={() => setRememberMe(!rememberMe)}
+                    style={styles.checkboxRow}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                      {rememberMe && <Feather name="check" size={11} color="#FFFFFF" />}
+                    </View>
+                    <Text style={[styles.rememberText, { fontFamily: 'Inter_400Regular' }]}>Remember me</Text>
+                  </TouchableOpacity>
 
                   <GradientButton title="Send OTP" onPress={handleSendOtp} loading={otpLoading} icon="send" />
 

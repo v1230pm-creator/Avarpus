@@ -9,4 +9,5 @@
 export interface LoginInput {
   emailOrMobile: string;
   password: string;
+  rememberMe?: boolean;
 }

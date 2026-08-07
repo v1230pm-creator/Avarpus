@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import { isLockEnabled, isUnlocked } from '@/utils/appLock';
+import { isLockEnabled, isUnlocked, subscribeLockState } from '@/utils/appLock';
+import { InactivityGuard } from '@/components/InactivityGuard';
 import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -155,6 +156,23 @@ export default function TabLayout() {
     return () => { active = false; };
   }, []);
 
+  // React to lock-state changes while mounted: re-locking (e.g. after an
+  // inactivity timeout) must immediately block the tabs again.
+  useEffect(() => {
+    const unsubscribe = subscribeLockState((unlockedNow) => {
+      if (unlockedNow) {
+        setLockCheck('open');
+        return;
+      }
+      // Fail closed while re-reading lock config
+      setLockCheck('locked');
+      isLockEnabled()
+        .then((enabled) => setLockCheck(enabled ? 'locked' : 'open'))
+        .catch(() => setLockCheck('locked'));
+    });
+    return unsubscribe;
+  }, []);
+
   if (lockCheck === 'pending') {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
@@ -167,8 +185,9 @@ export default function TabLayout() {
     return <Redirect href="/(auth)/biometric" />;
   }
 
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
+  return (
+    <InactivityGuard>
+      {isLiquidGlassAvailable() ? <NativeTabLayout /> : <ClassicTabLayout />}
+    </InactivityGuard>
+  );
 }

@@ -12,12 +12,27 @@ const LEGACY_MPIN_KEY = '@vmc_mpin';
 // In-memory flag: true once the user has unlocked in this session.
 let unlocked = false;
 
+type LockListener = (unlocked: boolean) => void;
+const listeners = new Set<LockListener>();
+
 export function isUnlocked() {
   return unlocked;
 }
 
 export function setUnlocked(value: boolean) {
+  if (unlocked === value) return;
   unlocked = value;
+  listeners.forEach((l) => {
+    try {
+      l(value);
+    } catch {}
+  });
+}
+
+/** Subscribe to unlock-state changes. Returns an unsubscribe function. */
+export function subscribeLockState(listener: LockListener): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }
 
 /** Returns the stored MPIN, migrating any legacy plaintext value to SecureStore. */

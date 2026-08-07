@@ -1,13 +1,30 @@
-import React, { useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { authLoginHistory, type LoginEvent } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import {
+  DEFAULT_INACTIVITY_MINUTES,
+  INACTIVITY_OPTIONS,
+  getInactivityTimeoutMinutes,
+  inactivityLabel,
+  setInactivityTimeoutMinutes,
+} from '@/utils/sessionPrefs';
+
+function formatLoginTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  });
+}
 
 export default function SettingsScreen() {
   const colors = useColors();
@@ -23,6 +40,24 @@ export default function SettingsScreen() {
   const [gst, setGst] = useState('29ABCDE1234F1Z5');
   const [currency, setCurrency] = useState('INR');
   const [saved, setSaved] = useState(false);
+
+  // Security & session
+  const [inactivityMin, setInactivityMin] = useState<number>(DEFAULT_INACTIVITY_MINUTES);
+  const [history, setHistory] = useState<LoginEvent[] | null>(null);
+  const [historyError, setHistoryError] = useState(false);
+
+  useEffect(() => {
+    getInactivityTimeoutMinutes().then(setInactivityMin).catch(() => {});
+    authLoginHistory()
+      .then((res) => setHistory(res.events))
+      .catch(() => setHistoryError(true));
+  }, []);
+
+  const selectInactivity = async (minutes: number) => {
+    Haptics.selectionAsync();
+    setInactivityMin(minutes);
+    await setInactivityTimeoutMinutes(minutes);
+  };
 
   const handleSave = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -83,6 +118,82 @@ export default function SettingsScreen() {
           </View>
         </Card>
 
+        {/* Security & Session */}
+        <View style={[styles.sectionHeader, { borderLeftColor: colors.primary }]}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Security &amp; Session</Text>
+        </View>
+
+        <Card>
+          <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Auto-lock after inactivity</Text>
+          <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            Locks the app (or signs you out if no PIN is set) after this period of inactivity.
+          </Text>
+          <View style={styles.timeoutRow}>
+            {INACTIVITY_OPTIONS.map((min) => {
+              const active = inactivityMin === min;
+              return (
+                <TouchableOpacity
+                  key={min}
+                  onPress={() => selectInactivity(min)}
+                  style={[
+                    styles.timeoutChip,
+                    {
+                      backgroundColor: active ? colors.primary : colors.secondary,
+                      borderColor: active ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.timeoutChipText, {
+                    color: active ? '#FFFFFF' : colors.foreground,
+                    fontFamily: 'Inter_600SemiBold',
+                  }]}>
+                    {inactivityLabel(min)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </Card>
+
+        <Card>
+          <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Login history</Text>
+          <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            Recent sign-ins to your account.
+          </Text>
+          {history === null && !historyError && (
+            <ActivityIndicator style={{ marginTop: 14 }} color={colors.primary} />
+          )}
+          {historyError && (
+            <Text style={[styles.historyEmpty, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              Couldn't load login history. Check your connection and try again.
+            </Text>
+          )}
+          {history !== null && history.length === 0 && (
+            <Text style={[styles.historyEmpty, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              No logins recorded yet.
+            </Text>
+          )}
+          {history !== null && history.map((e, i) => (
+            <View
+              key={e.id}
+              style={[styles.historyRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
+            >
+              <View style={[styles.historyIcon, { backgroundColor: colors.secondary }]}>
+                <Feather name={e.method === 'otp' ? 'smartphone' : 'key'} size={14} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.historyMethod, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                  {e.method === 'otp' ? 'Mobile OTP' : 'Email & password'}
+                  {e.rememberMe ? '  ·  Remembered' : ''}
+                </Text>
+                <Text style={[styles.historyTime, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  {formatLoginTime(e.createdAt)}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </Card>
+
         {/* Danger Zone */}
         <View style={[styles.sectionHeader, { borderLeftColor: colors.destructive }]}>
           <Text style={[styles.sectionTitle, { color: colors.destructive, fontFamily: 'Inter_700Bold' }]}>Data Management</Text>
@@ -135,6 +246,14 @@ const styles = StyleSheet.create({
   dangerActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
   dangerBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1 },
   dangerBtnText: { fontSize: 13 },
+  timeoutRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  timeoutChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  timeoutChipText: { fontSize: 13 },
+  historyEmpty: { fontSize: 13, marginTop: 14 },
+  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, marginTop: 2 },
+  historyIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  historyMethod: { fontSize: 13 },
+  historyTime: { fontSize: 12, marginTop: 2 },
   savedBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderWidth: 1 },
   savedText: { fontSize: 14 },
 });

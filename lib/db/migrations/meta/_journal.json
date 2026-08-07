@@ -8,6 +8,13 @@
       "when": 1786086599549,
       "tag": "0000_flaky_sandman",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786088734157,
+      "tag": "0001_login_events",
+      "breakpoints": true
     }
   ]
 }

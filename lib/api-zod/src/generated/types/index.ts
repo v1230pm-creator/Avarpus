@@ -7,6 +7,7 @@
  */
 
 export * from './authForgotVerify200';
+export * from './authLoginHistory200';
 export * from './authMe200';
 export * from './authOtpRequest200';
 export * from './authSession';
@@ -14,6 +15,7 @@ export * from './authUser';
 export * from './forgotRequestInput';
 export * from './forgotResetInput';
 export * from './healthStatus';
+export * from './loginEvent';
 export * from './loginInput';
 export * from './message';
 export * from './otpRequestInput';

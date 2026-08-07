@@ -21,6 +21,7 @@ import type {
 
 import type {
   AuthForgotVerify200,
+  AuthLoginHistory200,
   AuthMe200,
   AuthOtpRequest200,
   AuthSession,
@@ -695,6 +696,83 @@ export function useAuthMe<TData = Awaited<ReturnType<typeof authMe>>, TError = E
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getAuthMeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAuthLoginHistoryUrl = () => {
+
+
+
+
+  return `/api/auth/login-history`
+}
+
+/**
+ * @summary List recent successful logins for the current user
+ */
+export const authLoginHistory = async ( options?: Parameters<typeof customFetch>[1]): Promise<AuthLoginHistory200> => {
+
+  return customFetch<AuthLoginHistory200>(getAuthLoginHistoryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAuthLoginHistoryQueryKey = () => {
+    return [
+    `/api/auth/login-history`
+    ] as const;
+    }
+
+
+export const getAuthLoginHistoryQueryOptions = <TData = Awaited<ReturnType<typeof authLoginHistory>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof authLoginHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAuthLoginHistoryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof authLoginHistory>>> = ({ signal }) => authLoginHistory({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof authLoginHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AuthLoginHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof authLoginHistory>>>
+export type AuthLoginHistoryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List recent successful logins for the current user
+ */
+
+export function useAuthLoginHistory<TData = Awaited<ReturnType<typeof authLoginHistory>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof authLoginHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAuthLoginHistoryQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

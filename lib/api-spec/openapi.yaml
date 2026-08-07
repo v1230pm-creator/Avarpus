@@ -179,6 +179,24 @@ paths:
                   user:
                     $ref: "#/components/schemas/AuthUser"
                 required: [user]
+  /auth/login-history:
+    get:
+      operationId: authLoginHistory
+      tags: [auth]
+      summary: List recent successful logins for the current user
+      responses:
+        "200":
+          description: Login history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LoginEvent"
+                required: [events]
   /auth/logout:
     post:
       operationId: authLogout
@@ -211,6 +229,7 @@ components:
       properties:
         emailOrMobile: { type: string }
         password: { type: string }
+        rememberMe: { type: boolean }
       required: [emailOrMobile, password]
     ForgotRequestInput:
       type: object
@@ -234,6 +253,7 @@ components:
       properties:
         mobile: { type: string }
         code: { type: string }
+        rememberMe: { type: boolean }
       required: [mobile, code]
     RegisterStartInput:
       type: object
@@ -252,6 +272,14 @@ components:
         email: { type: string }
         code: { type: string }
       required: [email, code]
+    LoginEvent:
+      type: object
+      properties:
+        id: { type: string }
+        method: { type: string }
+        rememberMe: { type: boolean }
+        createdAt: { type: string }
+      required: [id, method, rememberMe, createdAt]
     Message:
       type: object
       properties:

@@ -41,6 +41,19 @@ export const sessionsTable = pgTable("sessions", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
 
+// Record of each successful sign-in (for the "Login history" screen).
+export const loginEventsTable = pgTable("login_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  method: text("method").notNull(), // 'password' | 'otp'
+  rememberMe: boolean("remember_me").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 // One-time codes for login OTP, registration verification and password reset.
 // `codeHash` stores a sha256 of the code/token — never the raw value.
 export const otpCodesTable = pgTable("otp_codes", {
@@ -65,3 +78,4 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type DbUser = typeof usersTable.$inferSelect;
 export type DbSession = typeof sessionsTable.$inferSelect;
 export type DbOtpCode = typeof otpCodesTable.$inferSelect;
+export type DbLoginEvent = typeof loginEventsTable.$inferSelect;

@@ -8,8 +8,8 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (emailOrMobile: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  loginWithOtp: (mobile: string, code: string) => Promise<{ success: boolean; error?: string }>;
+  login: (emailOrMobile: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
+  loginWithOtp: (mobile: string, code: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   canAccess: (feature: string) => boolean;
 }
@@ -72,9 +72,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(u);
   };
 
-  const login = async (emailOrMobile: string, password: string) => {
+  const login = async (emailOrMobile: string, password: string, rememberMe = false) => {
     try {
-      const session = await authLogin({ emailOrMobile, password });
+      const session = await authLogin({ emailOrMobile, password, rememberMe });
       await applySession(session);
       return { success: true };
     } catch (err) {
@@ -82,9 +82,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const loginWithOtp = async (mobile: string, code: string) => {
+  const loginWithOtp = async (mobile: string, code: string, rememberMe = false) => {
     try {
-      const session = await authOtpVerify({ mobile, code });
+      const session = await authOtpVerify({ mobile, code, rememberMe });
       await applySession(session);
       return { success: true };
     } catch (err) {

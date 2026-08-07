@@ -7,7 +7,9 @@ import {
   createSession,
   deleteSession,
   generateToken,
+  getLoginHistory,
   hashPassword,
+  recordLoginEvent,
   publicUser,
   sha256,
   verifyPassword,
@@ -32,7 +34,7 @@ function validPassword(p: unknown): p is string {
 
 // ── Email + password login ────────────────────────────────────────────────
 router.post("/auth/login", asyncHandler(async (req, res) => {
-  const { emailOrMobile, password } = req.body ?? {};
+  const { emailOrMobile, password, rememberMe } = req.body ?? {};
   if (typeof emailOrMobile !== "string" || typeof password !== "string") {
     res.status(400).json({ message: "Email/mobile and password are required" });
     return;
@@ -54,7 +56,9 @@ router.post("/auth/login", asyncHandler(async (req, res) => {
     res.status(403).json({ message: "Account pending admin approval" });
     return;
   }
-  const token = await createSession(user.id);
+  const remember = rememberMe === true;
+  const token = await createSession(user.id, remember);
+  await recordLoginEvent(user.id, "password", remember);
   res.json({ token, user: publicUser(user) });
 }));
 
@@ -87,7 +91,7 @@ router.post("/auth/otp/request", asyncHandler(async (req, res) => {
 }));
 
 router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
-  const { mobile, code } = req.body ?? {};
+  const { mobile, code, rememberMe } = req.body ?? {};
   if (typeof mobile !== "string" || typeof code !== "string") {
     res.status(400).json({ message: "Mobile and code are required" });
     return;
@@ -107,7 +111,9 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
     res.status(401).json({ message: "Account not found or inactive" });
     return;
   }
-  const token = await createSession(user.id);
+  const remember = rememberMe === true;
+  const token = await createSession(user.id, remember);
+  await recordLoginEvent(user.id, "otp", remember);
   res.json({ token, user: publicUser(user) });
 }));
 
@@ -300,6 +306,18 @@ router.post("/auth/forgot/reset", asyncHandler(async (req, res) => {
 router.get("/auth/me", requireAuth, (req, res) => {
   res.json({ user: publicUser(req.user!) });
 });
+
+router.get("/auth/login-history", requireAuth, asyncHandler(async (req, res) => {
+  const events = await getLoginHistory(req.user!.id);
+  res.json({
+    events: events.map((e) => ({
+      id: e.id,
+      method: e.method,
+      rememberMe: e.rememberMe,
+      createdAt: e.createdAt.toISOString(),
+    })),
+  });
+}));
 
 router.post("/auth/logout", requireAuth, asyncHandler(async (req, res) => {
   await deleteSession(req.sessionToken!);
