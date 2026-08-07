@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   FlatList,
   Platform,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -16,6 +17,7 @@ import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { RepairStatusBadge, PriorityBadge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { Repair } from '@/types';
 import { formatDate, formatCurrency } from '@/utils/helpers';
@@ -65,9 +67,19 @@ export default function RepairsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { canAccess, user } = useAuth();
-  const { repairs } = useData();
+  const { repairs, isLoading, loadError, loadAll } = useData();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('All');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadAll();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
@@ -169,11 +181,19 @@ export default function RepairsScreen() {
         />
       </FadeInView>
 
+      {isLoading && repairs.length === 0 ? (
+        <DataLoadingState />
+      ) : loadError && repairs.length === 0 ? (
+        <DataErrorState onRetry={loadAll} />
+      ) : (
+      <>
+      {!!loadError && <DataErrorBanner onRetry={loadAll} />}
       <FlatList
         data={filtered}
         keyExtractor={(r) => r.id}
         contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         ListEmptyComponent={
           <EmptyState
             icon="tool"
@@ -187,6 +207,8 @@ export default function RepairsScreen() {
           <RepairCard repair={item} onPress={() => router.push(`/(tabs)/repairs/${item.id}`)} />
         )}
       />
+      </>
+      )}
     </View>
   );
 }

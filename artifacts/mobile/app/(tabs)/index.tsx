@@ -1,6 +1,7 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import {
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GlassCard, useIsDark } from '@/components/ui/Glass';
+import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
@@ -371,7 +373,19 @@ export default function DashboardScreen() {
   const colors = useColors();
   const router = useRouter();
   const { canAccess } = useAuth();
-  const { repairs, customers, inventory, finance } = useData();
+  const { repairs, customers, inventory, finance, isLoading, loadError, loadAll } = useData();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadAll();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const hasAnyData = repairs.length > 0 || customers.length > 0 || inventory.length > 0 || finance.length > 0;
 
   const isDark = useIsDark();
   const today = getTodayStr();
@@ -469,8 +483,25 @@ export default function DashboardScreen() {
         <View style={{ position: 'absolute', top: -100, right: -100, width: 300, height: 300, borderRadius: 150, backgroundColor: colors.primary, opacity: isDark ? 0.08 : 0.04, transform: [{ scale: 1.5 }] }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+      {isLoading && !hasAnyData ? (
+        <>
+          <Header />
+          <DataLoadingState />
+        </>
+      ) : loadError && !hasAnyData ? (
+        <>
+          <Header />
+          <DataErrorState onRetry={loadAll} />
+        </>
+      ) : (
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+      >
         <Header />
+
+        {!!loadError && <DataErrorBanner onRetry={loadAll} />}
 
         <Animated.View style={{ opacity: cardAnims[0], transform: [{ translateY: cardAnims[0].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
           <QuickActions />
@@ -557,6 +588,7 @@ export default function DashboardScreen() {
           )}
         </View>
       </ScrollView>
+      )}
 
       <QuickActionFAB />
     </View>

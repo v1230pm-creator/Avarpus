@@ -3,6 +3,7 @@ import {
   Animated,
   FlatList,
   Platform,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -15,6 +16,7 @@ import { Feather } from '@expo/vector-icons';
 import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { Avatar } from '@/components/ui/Avatar';
 import { GlassCard, ScreenGlow, FadeInView, useIsDark } from '@/components/ui/Glass';
 import { Customer } from '@/types';
@@ -57,8 +59,18 @@ export default function CustomersScreen() {
   const isDark = useIsDark();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { customers } = useData();
+  const { customers, isLoading, loadError, loadAll } = useData();
   const [search, setSearch] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadAll();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
@@ -117,11 +129,19 @@ export default function CustomersScreen() {
         </View>
       </FadeInView>
 
+      {isLoading && customers.length === 0 ? (
+        <DataLoadingState />
+      ) : loadError && customers.length === 0 ? (
+        <DataErrorState onRetry={loadAll} />
+      ) : (
+      <>
+      {!!loadError && <DataErrorBanner onRetry={loadAll} />}
       <FlatList
         data={filtered}
         keyExtractor={(c) => c.id}
         contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         ListEmptyComponent={
           <EmptyState
             icon="users"
@@ -133,6 +153,8 @@ export default function CustomersScreen() {
           <CustomerCard customer={item} onPress={() => router.push(`/(tabs)/customers/${item.id}`)} />
         )}
       />
+      </>
+      )}
     </View>
   );
 }

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   FlatList,
   Platform,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -14,6 +15,7 @@ import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { InventoryItem } from '@/types';
 import { formatCurrency } from '@/utils/helpers';
@@ -98,9 +100,19 @@ function InventoryCard({ item }: { item: InventoryItem }) {
 export default function InventoryScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { inventory } = useData();
+  const { inventory, isLoading, loadError, loadAll } = useData();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<Cat>('All');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadAll();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
@@ -174,14 +186,24 @@ export default function InventoryScreen() {
         />
       </FadeInView>
 
+      {isLoading && inventory.length === 0 ? (
+        <DataLoadingState />
+      ) : loadError && inventory.length === 0 ? (
+        <DataErrorState onRetry={loadAll} />
+      ) : (
+      <>
+      {!!loadError && <DataErrorBanner onRetry={loadAll} />}
       <FlatList
         data={filtered}
         keyExtractor={(i) => i.id}
         contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         ListEmptyComponent={<EmptyState icon="package" title="No items found" description={search ? 'Try a different search' : 'No inventory items'} />}
         renderItem={({ item }) => <InventoryCard item={item} />}
       />
+      </>
+      )}
     </View>
   );
 }
