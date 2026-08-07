@@ -1,1 +1,2 @@
 - [VMC BMS Architecture](vmc-bms-arch.md) — frontend-only Expo app; AsyncStorage + seed data; all screen files and context structure decisions.
+- [App lock enforcement](app-lock.md) — lock must be enforced at the tabs route boundary and fail closed; reviewers reject index-only redirects and any Skip path visible before lock config is confirmed.

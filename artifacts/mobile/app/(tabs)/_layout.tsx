@@ -1,6 +1,8 @@
-import React from 'react';
-import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Platform, StyleSheet, useColorScheme, View } from 'react-native';
+import { Redirect } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
+import { isLockEnabled, isUnlocked } from '@/utils/appLock';
 import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -133,6 +135,38 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
+  const colors = useColors();
+  const [lockCheck, setLockCheck] = useState<'pending' | 'locked' | 'open'>(
+    isUnlocked() ? 'open' : 'pending',
+  );
+
+  useEffect(() => {
+    if (isUnlocked()) return;
+    let active = true;
+    (async () => {
+      try {
+        const locked = (await isLockEnabled()) && !isUnlocked();
+        if (active) setLockCheck(locked ? 'locked' : 'open');
+      } catch {
+        // Fail closed: if lock configuration can't be read, require unlocking.
+        if (active) setLockCheck('locked');
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  if (lockCheck === 'pending') {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
+  }
+
+  if (lockCheck === 'locked') {
+    return <Redirect href="/(auth)/biometric" />;
+  }
+
   if (isLiquidGlassAvailable()) {
     return <NativeTabLayout />;
   }

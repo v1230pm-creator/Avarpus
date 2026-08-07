@@ -26,14 +26,16 @@ import Reanimated, {
   withTiming,
 } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  BIOMETRIC_ENABLED_KEY,
+  getStoredMpin,
+  setUnlocked,
+  storeMpin,
+} from '@/utils/appLock';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
-const MPIN_KEY = '@vmc_mpin';
-const MPIN_SETUP_KEY = '@vmc_mpin_setup';
-const BIOMETRIC_ENABLED_KEY = '@vmc_biometric_enabled';
-
-type Mode = 'choose' | 'setup_mpin' | 'enter_mpin' | 'confirm_mpin';
+type Mode = 'loading' | 'choose' | 'setup_mpin' | 'enter_mpin' | 'confirm_mpin' | 'bio_unlock';
 
 const DOTS = [0, 1, 2, 3, 4, 5];
 const PAD = [
@@ -47,7 +49,7 @@ export default function BiometricScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [mode, setMode] = useState<Mode>('choose');
+  const [mode, setMode] = useState<Mode>('loading');
   const [hasBiometric, setHasBiometric] = useState(false);
   const [biometricType, setBiometricType] = useState<'fingerprint' | 'face'>('fingerprint');
   const [mpinSetup, setMpinSetup] = useState(false);
@@ -89,20 +91,29 @@ export default function BiometricScreen() {
       setBiometricType(hasFace ? 'face' : 'fingerprint');
       setHasBiometric(compatible && enrolled);
 
-      const savedMpin = await AsyncStorage.getItem(MPIN_KEY);
-      const mpinEnabled = await AsyncStorage.getItem(MPIN_SETUP_KEY);
+      const savedMpin = await getStoredMpin();
       const bioEnabled = await AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY);
 
-      setMpinSetup(!!mpinEnabled && !!savedMpin);
+      setMpinSetup(!!savedMpin);
       setBiometricEnabled(bioEnabled === 'true');
 
-      // If already configured — go directly to verify
-      if (mpinEnabled && savedMpin) {
+      // If already configured — go directly to verify. Skip is only reachable
+      // once we've positively confirmed no lock is configured.
+      if (savedMpin) {
         setMode('enter_mpin');
-      } else if (bioEnabled === 'true' && compatible && enrolled) {
-        triggerBiometric();
+      } else if (bioEnabled === 'true') {
+        // Biometric lock is configured — never show setup/skip, even if
+        // biometric hardware/enrollment is currently unavailable.
+        setMode('bio_unlock');
+        if (compatible && enrolled) triggerBiometric();
+      } else {
+        setMode('choose');
       }
-    } catch {}
+    } catch {
+      // Fail closed: if we can't read the lock configuration, require the PIN.
+      setMode('enter_mpin');
+      setMpinError('Could not verify lock settings. Enter your PIN.');
+    }
   }
 
   const triggerBiometric = useCallback(async () => {
@@ -111,9 +122,10 @@ export default function BiometricScreen() {
         promptMessage: 'Authenticate to continue',
         fallbackLabel: 'Use MPIN',
         cancelLabel: 'Cancel',
-        disableDeviceFallback: false,
+        disableDeviceFallback: true,
       });
       if (result.success) {
+        setUnlocked(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.replace('/(tabs)');
       }
@@ -152,8 +164,8 @@ export default function BiometricScreen() {
       if (next.length === 6) {
         setTimeout(async () => {
           if (next === mpin) {
-            await AsyncStorage.setItem(MPIN_KEY, mpin);
-            await AsyncStorage.setItem(MPIN_SETUP_KEY, 'true');
+            await storeMpin(mpin);
+            setUnlocked(true);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             router.replace('/(tabs)');
           } else {
@@ -174,8 +186,9 @@ export default function BiometricScreen() {
       setEnteredMpin(next);
       if (next.length === 6) {
         setTimeout(async () => {
-          const saved = await AsyncStorage.getItem(MPIN_KEY);
+          const saved = await getStoredMpin();
           if (next === saved) {
+            setUnlocked(true);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             router.replace('/(tabs)');
           } else {
@@ -195,27 +208,34 @@ export default function BiometricScreen() {
     });
     if (result.success) {
       await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
+      setUnlocked(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace('/(tabs)');
     }
   };
 
   const skipAll = () => {
+    // Skipping is only allowed during first-time setup (no lock configured yet).
+    setUnlocked(true);
     router.replace('/(tabs)');
   };
 
   const currentPin = mode === 'setup_mpin' ? mpin : mode === 'confirm_mpin' ? confirmMpin : enteredMpin;
 
   const title =
+    mode === 'loading' ? 'Checking Security' :
     mode === 'choose' ? 'Secure Your App' :
     mode === 'setup_mpin' ? 'Create 6-digit PIN' :
     mode === 'confirm_mpin' ? 'Confirm Your PIN' :
+    mode === 'bio_unlock' ? 'Unlock' :
     'Enter Your PIN';
 
   const subtitle =
+    mode === 'loading' ? 'One moment…' :
     mode === 'choose' ? 'Choose how you want to unlock the app next time' :
     mode === 'setup_mpin' ? 'Pick a 6-digit PIN you\'ll remember' :
     mode === 'confirm_mpin' ? 'Re-enter the same PIN to confirm' :
+    mode === 'bio_unlock' ? 'Authenticate to continue' :
     'Enter your PIN to continue';
 
   return (
@@ -248,6 +268,30 @@ export default function BiometricScreen() {
           <Text style={[styles.title, { fontFamily: 'Inter_700Bold' }]}>{title}</Text>
           <Text style={[styles.subtitle, { fontFamily: 'Inter_400Regular' }]}>{subtitle}</Text>
         </Reanimated.View>
+
+        {/* ── Biometric-only unlock (no skip) ── */}
+        {mode === 'bio_unlock' && (
+          <Reanimated.View style={[styles.optionsWrap, cardStyle]}>
+            <TouchableOpacity style={styles.optionCard} onPress={triggerBiometric} activeOpacity={0.8}>
+              {Platform.OS === 'ios' ? (
+                <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+              ) : null}
+              <LinearGradient colors={['#1E3A6E22', '#2563EB11']} style={StyleSheet.absoluteFill} />
+              <View style={styles.optionIcon}>
+                <Feather name={biometricType === 'face' ? 'camera' : 'shield'} size={28} color="#3B82F6" />
+              </View>
+              <View style={styles.optionText}>
+                <Text style={[styles.optionTitle, { fontFamily: 'Inter_600SemiBold' }]}>
+                  Unlock with {biometricType === 'face' ? 'Face ID' : 'Fingerprint'}
+                </Text>
+                <Text style={[styles.optionSub, { fontFamily: 'Inter_400Regular' }]}>
+                  Tap to authenticate
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={18} color="#3B82F6" />
+            </TouchableOpacity>
+          </Reanimated.View>
+        )}
 
         {/* ── Choose mode ── */}
         {mode === 'choose' && (
@@ -352,7 +396,7 @@ export default function BiometricScreen() {
 
             {/* Bottom actions */}
             <View style={styles.pinActions}>
-              {mode === 'enter_mpin' && hasBiometric && (
+              {mode === 'enter_mpin' && hasBiometric && biometricEnabled && (
                 <TouchableOpacity onPress={triggerBiometric} style={styles.bioBtnSmall} activeOpacity={0.7}>
                   <Feather name={biometricType === 'face' ? 'camera' : 'shield'} size={18} color="#3B82F6" />
                   <Text style={[styles.bioBtnText, { fontFamily: 'Inter_500Medium' }]}>
@@ -363,11 +407,6 @@ export default function BiometricScreen() {
               {mode !== 'enter_mpin' && (
                 <TouchableOpacity onPress={() => setMode('choose')} activeOpacity={0.7}>
                   <Text style={[styles.backText, { fontFamily: 'Inter_400Regular' }]}>← Back</Text>
-                </TouchableOpacity>
-              )}
-              {mode === 'enter_mpin' && (
-                <TouchableOpacity onPress={skipAll} activeOpacity={0.7}>
-                  <Text style={[styles.skipText, { fontFamily: 'Inter_400Regular' }]}>Skip</Text>
                 </TouchableOpacity>
               )}
             </View>

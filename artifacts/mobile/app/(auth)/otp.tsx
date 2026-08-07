@@ -71,7 +71,8 @@ export default function OTPScreen() {
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.replace('/(tabs)');
+    // Route through the lock screen so an existing PIN/biometric lock is enforced
+    router.replace('/(auth)/biometric');
   };
 
   const handleResend = async () => {
