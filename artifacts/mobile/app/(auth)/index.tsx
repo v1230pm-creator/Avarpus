@@ -232,11 +232,16 @@ export default function LoginScreen() {
           {/* ── Logo ────────────────────────────────────────── */}
           <Reanimated.View style={[styles.logoWrap, headerStyle]}>
             <Image
-              source={require('@/assets/images/vmc-logo.png')}
+              source={require('@/assets/images/vmc-text.png')}
               style={styles.logoImg}
               contentFit="contain"
             />
-            <Text style={[styles.appName, { fontFamily: 'Inter_700Bold' }]}>VMC Electronic</Text>
+            <Text style={[styles.electronicText, { fontFamily: 'Inter_500Medium' }]}>ELECTRONIC</Text>
+            <Image
+              source={require('@/assets/images/vmc-hands.png')}
+              style={styles.handsImg}
+              contentFit="contain"
+            />
             <Text style={[styles.tagline, { fontFamily: 'Inter_400Regular' }]}>Business Management System</Text>
           </Reanimated.View>
 
@@ -505,7 +510,9 @@ const styles = StyleSheet.create({
 
   // Logo
   logoWrap: { alignItems: 'center', gap: 2 },
-  logoImg: { width: 200, height: 110 },
+  logoImg: { width: 200, height: 50 },
+  electronicText: { fontSize: 13, color: '#94A3B8', letterSpacing: 5, marginTop: 4 },
+  handsImg: { width: 190, height: 40, marginTop: 2 },
 
   // Header
   header: { alignItems: 'center', gap: 8 },
