@@ -206,6 +206,14 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
     res.status(409).json({ message: "Account with this email or mobile already exists" });
     return;
   }
+  // 60-second cooldown per email between OTP sends (covers resend too)
+  const cooldown = checkWindowLimit(`otpreq:register:${normEmail}`, 1, 60 * 1000);
+  if (cooldown.limited) {
+    res.status(429).json({
+      message: `Please wait ${retryAfterText(cooldown.retryAfterMs)} before requesting another code.`,
+    });
+    return;
+  }
   const code = await createOtp(normEmail, "register", {
     name: name.trim(),
     businessName: businessName.trim(),
@@ -215,7 +223,19 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
     gstNumber: typeof gstNumber === "string" && gstNumber.trim() ? gstNumber.trim() : null,
     shopAddress: shopAddress.trim(),
   });
-  await sendOtpEmail(normEmail, code, "registration");
+  try {
+    await sendOtpEmail(normEmail, code, "registration");
+  } catch (err) {
+    // Surface the exact Resend error in server logs
+    console.error(
+      "Registration OTP email delivery failed:",
+      err instanceof Error ? err.message : err,
+    );
+    res.status(502).json({
+      message: "Could not send the verification email. Please try again shortly.",
+    });
+    return;
+  }
   res.json({ message: `Verification code sent to ${normEmail}` });
 }));
 

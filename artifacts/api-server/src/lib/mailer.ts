@@ -54,7 +54,7 @@ async function sendEmail(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      from: process.env["MAIL_FROM"] ?? "VMC Electronic BMS <onboarding@resend.dev>",
+      from: process.env["MAIL_FROM"] ?? "VMC Electronic BMS <noreply@vmcelectronic.com>",
       to: [to],
       subject,
       html,
