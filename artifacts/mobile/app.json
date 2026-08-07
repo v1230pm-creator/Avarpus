@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "VMC Electronic BMS",
-    "slug": "mobile",
+    "name": "VMC Electronic ERP",
+    "slug": "vmcelectronicerp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "vmcelectronicerp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -14,11 +14,14 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.vmcelectronicerp.app"
     },
-    "android": {},
+    "android": {
+      "package": "com.vmcelectronicerp.app"
+    },
     "web": {
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       [
