@@ -109,6 +109,146 @@ export interface AuthSession {
   user: AuthUser;
 }
 
+export interface Customer {
+  id: string;
+  name: string;
+  mobile: string;
+  email?: string;
+  address?: string;
+  dueAmount: number;
+  totalRepairs: number;
+  createdAt: string;
+}
+
+export interface CustomerInput {
+  name?: string;
+  mobile?: string;
+  email?: string;
+  address?: string;
+  dueAmount?: number;
+  totalRepairs?: number;
+}
+
+export interface Repair {
+  id: string;
+  repairId: string;
+  customerId?: string;
+  customerName: string;
+  mobile: string;
+  deviceType: string;
+  brand: string;
+  model: string;
+  imei?: string;
+  problem: string;
+  technicianId?: string;
+  technicianName?: string;
+  status: string;
+  priority: string;
+  repairCharge: number;
+  partsCharge: number;
+  advance: number;
+  receiveDate: string;
+  expectedDate: string;
+  deliveryDate?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface RepairInput {
+  customerId?: string;
+  customerName?: string;
+  mobile?: string;
+  deviceType?: string;
+  brand?: string;
+  model?: string;
+  imei?: string;
+  problem?: string;
+  technicianId?: string;
+  technicianName?: string;
+  status?: string;
+  priority?: string;
+  repairCharge?: number;
+  partsCharge?: number;
+  advance?: number;
+  receiveDate?: string;
+  expectedDate?: string;
+  deliveryDate?: string;
+  notes?: string;
+}
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  category: string;
+  brand: string;
+  quantity: number;
+  minStock: number;
+  purchasePrice: number;
+  sellingPrice: number;
+  supplier?: string;
+  createdAt: string;
+}
+
+export interface InventoryItemInput {
+  name?: string;
+  category?: string;
+  brand?: string;
+  quantity?: number;
+  minStock?: number;
+  purchasePrice?: number;
+  sellingPrice?: number;
+  supplier?: string;
+}
+
+export interface Purchase {
+  id: string;
+  purchaseId: string;
+  invoiceNo: string;
+  supplier: string;
+  supplierMobile?: string;
+  itemName: string;
+  quantity: number;
+  purchasePrice: number;
+  total: number;
+  paymentStatus: string;
+  paymentMethod: string;
+  date: string;
+  createdAt: string;
+}
+
+export interface PurchaseInput {
+  invoiceNo?: string;
+  supplier?: string;
+  supplierMobile?: string;
+  itemName?: string;
+  quantity?: number;
+  purchasePrice?: number;
+  total?: number;
+  paymentStatus?: string;
+  paymentMethod?: string;
+  date?: string;
+}
+
+export interface FinanceEntry {
+  id: string;
+  type: string;
+  category: string;
+  amount: number;
+  description: string;
+  paymentMethod: string;
+  date: string;
+  createdAt: string;
+}
+
+export interface FinanceEntryInput {
+  type?: string;
+  category?: string;
+  amount?: number;
+  description?: string;
+  paymentMethod?: string;
+  date?: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -139,5 +279,57 @@ export type AuthLoginHistory200 = {
 
 export type AuthSessions200 = {
   sessions: SessionInfo[];
+};
+
+export type CustomersList200 = {
+  customers: Customer[];
+};
+
+export type CustomersCreate200 = {
+  customer: Customer;
+};
+
+export type CustomersUpdate200 = {
+  customer: Customer;
+};
+
+export type RepairsList200 = {
+  repairs: Repair[];
+};
+
+export type RepairsCreate200 = {
+  repair: Repair;
+};
+
+export type RepairsUpdate200 = {
+  repair: Repair;
+};
+
+export type InventoryList200 = {
+  items: InventoryItem[];
+};
+
+export type InventoryCreate200 = {
+  item: InventoryItem;
+};
+
+export type InventoryUpdate200 = {
+  item: InventoryItem;
+};
+
+export type PurchasesList200 = {
+  purchases: Purchase[];
+};
+
+export type PurchasesCreate200 = {
+  purchase: Purchase;
+};
+
+export type FinanceList200 = {
+  entries: FinanceEntry[];
+};
+
+export type FinanceCreate200 = {
+  entry: FinanceEntry;
 };
 

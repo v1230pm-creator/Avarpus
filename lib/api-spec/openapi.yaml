@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: auth
     description: Authentication operations
+  - name: business
+    description: Shop-scoped business data (repairs, customers, inventory, purchases, finance)
 paths:
   /auth/login:
     post:
@@ -295,6 +297,282 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
+  /customers:
+    get:
+      operationId: customersList
+      tags: [business]
+      summary: List customers of the caller's shop
+      responses:
+        "200":
+          description: Customers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  customers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Customer"
+                required: [customers]
+    post:
+      operationId: customersCreate
+      tags: [business]
+      summary: Create a customer in the caller's shop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerInput"
+      responses:
+        "200":
+          description: Created customer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  customer:
+                    $ref: "#/components/schemas/Customer"
+                required: [customer]
+  /customers/{id}:
+    patch:
+      operationId: customersUpdate
+      tags: [business]
+      summary: Update a customer in the caller's shop
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerInput"
+      responses:
+        "200":
+          description: Updated customer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  customer:
+                    $ref: "#/components/schemas/Customer"
+                required: [customer]
+  /repairs:
+    get:
+      operationId: repairsList
+      tags: [business]
+      summary: List repairs of the caller's shop
+      responses:
+        "200":
+          description: Repairs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  repairs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Repair"
+                required: [repairs]
+    post:
+      operationId: repairsCreate
+      tags: [business]
+      summary: Create a repair ticket in the caller's shop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepairInput"
+      responses:
+        "200":
+          description: Created repair
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  repair:
+                    $ref: "#/components/schemas/Repair"
+                required: [repair]
+  /repairs/{id}:
+    patch:
+      operationId: repairsUpdate
+      tags: [business]
+      summary: Update a repair in the caller's shop
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepairInput"
+      responses:
+        "200":
+          description: Updated repair
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  repair:
+                    $ref: "#/components/schemas/Repair"
+                required: [repair]
+  /inventory:
+    get:
+      operationId: inventoryList
+      tags: [business]
+      summary: List inventory items of the caller's shop
+      responses:
+        "200":
+          description: Inventory items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/InventoryItem"
+                required: [items]
+    post:
+      operationId: inventoryCreate
+      tags: [business]
+      summary: Create an inventory item in the caller's shop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryItemInput"
+      responses:
+        "200":
+          description: Created inventory item
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item:
+                    $ref: "#/components/schemas/InventoryItem"
+                required: [item]
+  /inventory/{id}:
+    patch:
+      operationId: inventoryUpdate
+      tags: [business]
+      summary: Update an inventory item in the caller's shop
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryItemInput"
+      responses:
+        "200":
+          description: Updated inventory item
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item:
+                    $ref: "#/components/schemas/InventoryItem"
+                required: [item]
+  /purchases:
+    get:
+      operationId: purchasesList
+      tags: [business]
+      summary: List purchases of the caller's shop
+      responses:
+        "200":
+          description: Purchases
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  purchases:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Purchase"
+                required: [purchases]
+    post:
+      operationId: purchasesCreate
+      tags: [business]
+      summary: Record a purchase in the caller's shop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseInput"
+      responses:
+        "200":
+          description: Created purchase
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  purchase:
+                    $ref: "#/components/schemas/Purchase"
+                required: [purchase]
+  /finance:
+    get:
+      operationId: financeList
+      tags: [business]
+      summary: List finance entries of the caller's shop
+      responses:
+        "200":
+          description: Finance entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FinanceEntry"
+                required: [entries]
+    post:
+      operationId: financeCreate
+      tags: [business]
+      summary: Record a finance entry in the caller's shop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinanceEntryInput"
+      responses:
+        "200":
+          description: Created finance entry
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entry:
+                    $ref: "#/components/schemas/FinanceEntry"
+                required: [entry]
   /healthz:
     get:
       operationId: healthCheck
@@ -418,6 +696,151 @@ components:
         user:
           $ref: "#/components/schemas/AuthUser"
       required: [token, user]
+    Customer:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        mobile: { type: string }
+        email: { type: string }
+        address: { type: string }
+        dueAmount: { type: number }
+        totalRepairs: { type: number }
+        createdAt: { type: string }
+      required: [id, name, mobile, dueAmount, totalRepairs, createdAt]
+    CustomerInput:
+      type: object
+      properties:
+        name: { type: string }
+        mobile: { type: string }
+        email: { type: string }
+        address: { type: string }
+        dueAmount: { type: number }
+        totalRepairs: { type: number }
+    Repair:
+      type: object
+      properties:
+        id: { type: string }
+        repairId: { type: string }
+        customerId: { type: string }
+        customerName: { type: string }
+        mobile: { type: string }
+        deviceType: { type: string }
+        brand: { type: string }
+        model: { type: string }
+        imei: { type: string }
+        problem: { type: string }
+        technicianId: { type: string }
+        technicianName: { type: string }
+        status: { type: string }
+        priority: { type: string }
+        repairCharge: { type: number }
+        partsCharge: { type: number }
+        advance: { type: number }
+        receiveDate: { type: string }
+        expectedDate: { type: string }
+        deliveryDate: { type: string }
+        notes: { type: string }
+        createdAt: { type: string }
+      required: [id, repairId, customerName, mobile, deviceType, brand, model, problem, status, priority, repairCharge, partsCharge, advance, receiveDate, expectedDate, createdAt]
+    RepairInput:
+      type: object
+      properties:
+        customerId: { type: string }
+        customerName: { type: string }
+        mobile: { type: string }
+        deviceType: { type: string }
+        brand: { type: string }
+        model: { type: string }
+        imei: { type: string }
+        problem: { type: string }
+        technicianId: { type: string }
+        technicianName: { type: string }
+        status: { type: string }
+        priority: { type: string }
+        repairCharge: { type: number }
+        partsCharge: { type: number }
+        advance: { type: number }
+        receiveDate: { type: string }
+        expectedDate: { type: string }
+        deliveryDate: { type: string }
+        notes: { type: string }
+    InventoryItem:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        category: { type: string }
+        brand: { type: string }
+        quantity: { type: number }
+        minStock: { type: number }
+        purchasePrice: { type: number }
+        sellingPrice: { type: number }
+        supplier: { type: string }
+        createdAt: { type: string }
+      required: [id, name, category, brand, quantity, minStock, purchasePrice, sellingPrice, createdAt]
+    InventoryItemInput:
+      type: object
+      properties:
+        name: { type: string }
+        category: { type: string }
+        brand: { type: string }
+        quantity: { type: number }
+        minStock: { type: number }
+        purchasePrice: { type: number }
+        sellingPrice: { type: number }
+        supplier: { type: string }
+    Purchase:
+      type: object
+      properties:
+        id: { type: string }
+        purchaseId: { type: string }
+        invoiceNo: { type: string }
+        supplier: { type: string }
+        supplierMobile: { type: string }
+        itemName: { type: string }
+        quantity: { type: number }
+        purchasePrice: { type: number }
+        total: { type: number }
+        paymentStatus: { type: string }
+        paymentMethod: { type: string }
+        date: { type: string }
+        createdAt: { type: string }
+      required: [id, purchaseId, invoiceNo, supplier, itemName, quantity, purchasePrice, total, paymentStatus, paymentMethod, date, createdAt]
+    PurchaseInput:
+      type: object
+      properties:
+        invoiceNo: { type: string }
+        supplier: { type: string }
+        supplierMobile: { type: string }
+        itemName: { type: string }
+        quantity: { type: number }
+        purchasePrice: { type: number }
+        total: { type: number }
+        paymentStatus: { type: string }
+        paymentMethod: { type: string }
+        date: { type: string }
+    FinanceEntry:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string }
+        category: { type: string }
+        amount: { type: number }
+        description: { type: string }
+        paymentMethod: { type: string }
+        date: { type: string }
+        createdAt: { type: string }
+      required: [id, type, category, amount, description, paymentMethod, date, createdAt]
+    FinanceEntryInput:
+      type: object
+      properties:
+        type: { type: string }
+        category: { type: string }
+        amount: { type: number }
+        description: { type: string }
+        paymentMethod: { type: string }
+        date: { type: string }
     HealthStatus:
       type: object
       properties:

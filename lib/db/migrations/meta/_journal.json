@@ -29,6 +29,13 @@
       "when": 1786100655519,
       "tag": "0003_shops",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786126699436,
+      "tag": "0004_business_tables",
+      "breakpoints": true
     }
   ]
 }

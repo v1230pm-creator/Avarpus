@@ -28,7 +28,6 @@ const PAYMENT_STATUS_COLORS = {
 
 function PurchaseCard({ purchase }: { purchase: Purchase }) {
   const colors = useColors();
-  const balance = purchase.totalAmount - purchase.paidAmount;
   return (
     <GlassCard style={styles.card}>
       <View style={styles.cardTop}>
@@ -44,30 +43,23 @@ function PurchaseCard({ purchase }: { purchase: Purchase }) {
 
       <Text style={[styles.supplier, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{purchase.supplier}</Text>
       <Text style={[styles.itemsText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-        {purchase.items.length} item{purchase.items.length !== 1 ? 's' : ''} purchased
+        {purchase.purchaseId} · {purchase.paymentMethod}
       </Text>
 
       <View style={[styles.itemList, { borderTopColor: colors.border }]}>
-        {purchase.items.slice(0, 2).map((item, idx) => (
-          <Text key={idx} style={[styles.itemLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
-            • {item.name} × {item.quantity} @ {formatCurrency(item.unitPrice)}
-          </Text>
-        ))}
-        {purchase.items.length > 2 && (
-          <Text style={[styles.moreItems, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>
-            +{purchase.items.length - 2} more items
-          </Text>
-        )}
+        <Text style={[styles.itemLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+          • {purchase.itemName} × {purchase.quantity} @ {formatCurrency(purchase.purchasePrice)}
+        </Text>
       </View>
 
       <View style={styles.cardFooter}>
         <View>
           <Text style={[styles.totalAmount, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-            {formatCurrency(purchase.totalAmount)}
+            {formatCurrency(purchase.total)}
           </Text>
-          {balance > 0 && (
+          {purchase.paymentStatus !== 'paid' && (
             <Text style={[styles.balanceText, { color: colors.warning, fontFamily: 'Inter_500Medium' }]}>
-              Due: {formatCurrency(balance)}
+              {purchase.paymentStatus === 'partial' ? 'Partially paid' : `Due: ${formatCurrency(purchase.total)}`}
             </Text>
           )}
         </View>
@@ -112,7 +104,7 @@ export default function PurchasesScreen() {
   }, [purchases, filter, search]);
 
   const totalDue = useMemo(
-    () => purchases.filter((p) => p.paymentStatus !== 'paid').reduce((s, p) => s + (p.totalAmount - p.paidAmount), 0),
+    () => purchases.filter((p) => p.paymentStatus === 'unpaid').reduce((s, p) => s + p.total, 0),
     [purchases],
   );
 

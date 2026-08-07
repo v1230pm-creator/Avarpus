@@ -1,6 +1,17 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { Repair, Customer, InventoryItem, Purchase, FinanceEntry, User } from '@/types';
-import { storage, KEYS } from '@/utils/storage';
+import {
+  customersList, customersCreate, customersUpdate,
+  repairsList, repairsCreate, repairsUpdate,
+  inventoryList, inventoryCreate, inventoryUpdate,
+  purchasesList, purchasesCreate,
+  financeList, financeCreate,
+} from '@workspace/api-client-react';
+import { Repair, Customer, InventoryItem, Purchase, FinanceEntry } from '@/types';
+import { useAuth } from '@/context/AuthContext';
+
+// Business data now lives server-side, scoped to the signed-in user's shop.
+// This context loads it from the API and keeps mutations in sync — nothing
+// is persisted on the device anymore.
 
 interface DataContextType {
   repairs: Repair[];
@@ -8,11 +19,14 @@ interface DataContextType {
   inventory: InventoryItem[];
   purchases: Purchase[];
   finance: FinanceEntry[];
-  users: User[];
+  /** True while the initial load for the current session is in flight. */
+  isLoading: boolean;
+  /** Set when the last load failed (e.g. server unreachable). */
+  loadError: string | null;
   loadAll: () => Promise<void>;
-  addRepair: (r: Repair) => Promise<void>;
+  addRepair: (r: Repair) => Promise<Repair>;
   updateRepair: (r: Repair) => Promise<void>;
-  addCustomer: (c: Customer) => Promise<void>;
+  addCustomer: (c: Customer) => Promise<Customer>;
   updateCustomer: (c: Customer) => Promise<void>;
   addInventoryItem: (i: InventoryItem) => Promise<void>;
   updateInventoryItem: (i: InventoryItem) => Promise<void>;
@@ -21,11 +35,13 @@ interface DataContextType {
 }
 
 const DataContext = createContext<DataContextType>({
-  repairs: [], customers: [], inventory: [], purchases: [], finance: [], users: [],
+  repairs: [], customers: [], inventory: [], purchases: [], finance: [],
+  isLoading: false,
+  loadError: null,
   loadAll: async () => {},
-  addRepair: async () => {},
+  addRepair: async (r) => r,
   updateRepair: async () => {},
-  addCustomer: async () => {},
+  addCustomer: async (c) => c,
   updateCustomer: async () => {},
   addInventoryItem: async () => {},
   updateInventoryItem: async () => {},
@@ -34,83 +50,197 @@ const DataContext = createContext<DataContextType>({
 });
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [finance, setFinance] = useState<FinanceEntry[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
-    const [r, c, i, p, f, u] = await Promise.all([
-      storage.get<Repair[]>(KEYS.REPAIRS),
-      storage.get<Customer[]>(KEYS.CUSTOMERS),
-      storage.get<InventoryItem[]>(KEYS.INVENTORY),
-      storage.get<Purchase[]>(KEYS.PURCHASES),
-      storage.get<FinanceEntry[]>(KEYS.FINANCE),
-      storage.get<User[]>(KEYS.USERS),
-    ]);
-    setRepairs(r ?? []);
-    setCustomers(c ?? []);
-    setInventory(i ?? []);
-    setPurchases(p ?? []);
-    setFinance(f ?? []);
-    setUsers(u ?? []);
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const [r, c, i, p, f] = await Promise.all([
+        repairsList(),
+        customersList(),
+        inventoryList(),
+        purchasesList(),
+        financeList(),
+      ]);
+      setRepairs(r.repairs as Repair[]);
+      setCustomers(c.customers as Customer[]);
+      setInventory(i.items as InventoryItem[]);
+      setPurchases(p.purchases as Purchase[]);
+      setFinance(f.entries as FinanceEntry[]);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Could not load shop data');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadAll();
+    } else {
+      // Clear any previous shop's data on sign-out.
+      setRepairs([]);
+      setCustomers([]);
+      setInventory([]);
+      setPurchases([]);
+      setFinance([]);
+      setLoadError(null);
+    }
+  }, [isAuthenticated, loadAll]);
 
-  const addRepair = async (r: Repair) => {
-    const next = [...repairs, r];
-    setRepairs(next);
-    await storage.set(KEYS.REPAIRS, next);
+  // The server assigns ids (and ticket numbers) — client-provided ids in the
+  // input objects are ignored and replaced by the created entity.
+  const addRepair = async (r: Repair): Promise<Repair> => {
+    const res = await repairsCreate({
+      customerId: r.customerId || undefined,
+      customerName: r.customerName,
+      mobile: r.mobile,
+      deviceType: r.deviceType,
+      brand: r.brand,
+      model: r.model,
+      imei: r.imei,
+      problem: r.problem,
+      technicianId: r.technicianId,
+      technicianName: r.technicianName,
+      status: r.status,
+      priority: r.priority,
+      repairCharge: r.repairCharge,
+      partsCharge: r.partsCharge,
+      advance: r.advance,
+      receiveDate: r.receiveDate,
+      expectedDate: r.expectedDate,
+      deliveryDate: r.deliveryDate,
+      notes: r.notes,
+    });
+    const created = res.repair as Repair;
+    setRepairs((prev) => [...prev, created]);
+    return created;
   };
 
   const updateRepair = async (r: Repair) => {
-    const next = repairs.map((x) => (x.id === r.id ? r : x));
-    setRepairs(next);
-    await storage.set(KEYS.REPAIRS, next);
+    const res = await repairsUpdate(r.id, {
+      customerName: r.customerName,
+      mobile: r.mobile,
+      deviceType: r.deviceType,
+      brand: r.brand,
+      model: r.model,
+      imei: r.imei,
+      problem: r.problem,
+      technicianId: r.technicianId,
+      technicianName: r.technicianName,
+      status: r.status,
+      priority: r.priority,
+      repairCharge: r.repairCharge,
+      partsCharge: r.partsCharge,
+      advance: r.advance,
+      receiveDate: r.receiveDate,
+      expectedDate: r.expectedDate,
+      deliveryDate: r.deliveryDate,
+      notes: r.notes,
+    });
+    const updated = res.repair as Repair;
+    setRepairs((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
   };
 
-  const addCustomer = async (c: Customer) => {
-    const next = [...customers, c];
-    setCustomers(next);
-    await storage.set(KEYS.CUSTOMERS, next);
+  const addCustomer = async (c: Customer): Promise<Customer> => {
+    const res = await customersCreate({
+      name: c.name,
+      mobile: c.mobile,
+      email: c.email,
+      address: c.address,
+      dueAmount: c.dueAmount,
+      totalRepairs: c.totalRepairs,
+    });
+    const created = res.customer as Customer;
+    setCustomers((prev) => [...prev, created]);
+    return created;
   };
 
   const updateCustomer = async (c: Customer) => {
-    const next = customers.map((x) => (x.id === c.id ? c : x));
-    setCustomers(next);
-    await storage.set(KEYS.CUSTOMERS, next);
+    const res = await customersUpdate(c.id, {
+      name: c.name,
+      mobile: c.mobile,
+      email: c.email,
+      address: c.address,
+      dueAmount: c.dueAmount,
+      totalRepairs: c.totalRepairs,
+    });
+    const updated = res.customer as Customer;
+    setCustomers((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
   };
 
   const addInventoryItem = async (i: InventoryItem) => {
-    const next = [...inventory, i];
-    setInventory(next);
-    await storage.set(KEYS.INVENTORY, next);
+    const res = await inventoryCreate({
+      name: i.name,
+      category: i.category,
+      brand: i.brand,
+      quantity: i.quantity,
+      minStock: i.minStock,
+      purchasePrice: i.purchasePrice,
+      sellingPrice: i.sellingPrice,
+      supplier: i.supplier,
+    });
+    const created = res.item as InventoryItem;
+    setInventory((prev) => [...prev, created]);
   };
 
   const updateInventoryItem = async (i: InventoryItem) => {
-    const next = inventory.map((x) => (x.id === i.id ? i : x));
-    setInventory(next);
-    await storage.set(KEYS.INVENTORY, next);
+    const res = await inventoryUpdate(i.id, {
+      name: i.name,
+      category: i.category,
+      brand: i.brand,
+      quantity: i.quantity,
+      minStock: i.minStock,
+      purchasePrice: i.purchasePrice,
+      sellingPrice: i.sellingPrice,
+      supplier: i.supplier,
+    });
+    const updated = res.item as InventoryItem;
+    setInventory((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
   };
 
   const addPurchase = async (p: Purchase) => {
-    const next = [...purchases, p];
-    setPurchases(next);
-    await storage.set(KEYS.PURCHASES, next);
+    const res = await purchasesCreate({
+      invoiceNo: p.invoiceNo,
+      supplier: p.supplier,
+      supplierMobile: p.supplierMobile,
+      itemName: p.itemName,
+      quantity: p.quantity,
+      purchasePrice: p.purchasePrice,
+      total: p.total,
+      paymentStatus: p.paymentStatus,
+      paymentMethod: p.paymentMethod,
+      date: p.date,
+    });
+    const created = res.purchase as Purchase;
+    setPurchases((prev) => [...prev, created]);
   };
 
   const addFinanceEntry = async (f: FinanceEntry) => {
-    const next = [...finance, f];
-    setFinance(next);
-    await storage.set(KEYS.FINANCE, next);
+    const res = await financeCreate({
+      type: f.type,
+      category: f.category,
+      amount: f.amount,
+      description: f.description,
+      paymentMethod: f.paymentMethod,
+      date: f.date,
+    });
+    const created = res.entry as FinanceEntry;
+    setFinance((prev) => [...prev, created]);
   };
 
   return (
     <DataContext.Provider value={{
-      repairs, customers, inventory, purchases, finance, users,
+      repairs, customers, inventory, purchases, finance,
+      isLoading, loadError,
       loadAll, addRepair, updateRepair, addCustomer, updateCustomer,
       addInventoryItem, updateInventoryItem, addPurchase, addFinanceEntry,
     }}>

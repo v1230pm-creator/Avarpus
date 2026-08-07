@@ -21,8 +21,6 @@ import { SelectInput } from '@/components/ui/SelectInput';
 import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { Repair } from '@/types';
 import {
-  generateId,
-  generateRepairId,
   getTodayStr,
   getNextWeekStr,
   DEVICE_TYPES,
@@ -83,12 +81,11 @@ export default function NewRepairScreen() {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      // Check if customer exists or create new one
+      // Check if customer exists or create new one (server assigns the id)
       let customerId = customers.find((c) => c.mobile === mobile)?.id;
       if (!customerId) {
-        customerId = `c${Date.now()}`;
-        await addCustomer({
-          id: customerId,
+        const created = await addCustomer({
+          id: '',
           name: customerName.trim(),
           mobile: mobile.trim(),
           address: address.trim() || undefined,
@@ -96,15 +93,16 @@ export default function NewRepairScreen() {
           totalRepairs: 1,
           createdAt: getTodayStr(),
         });
+        customerId = created.id;
       }
 
-      const repairId = generateRepairId(repairs.length);
       const techId = user?.role === 'technician' ? user.id : undefined;
       const techName = user?.role === 'technician' ? user.name : undefined;
 
+      // id and repairId (ticket number) are assigned by the server.
       const newRepair: Repair = {
-        id: generateId(),
-        repairId,
+        id: '',
+        repairId: '',
         customerId,
         customerName: customerName.trim(),
         mobile: mobile.trim(),
@@ -129,6 +127,8 @@ export default function NewRepairScreen() {
       await addRepair(newRepair);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
+    } catch (err) {
+      Alert.alert('Could not save repair', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setLoading(false);
     }
@@ -191,7 +191,7 @@ export default function NewRepairScreen() {
         <View style={[styles.infoBox, { backgroundColor: colors.infoLight, borderColor: colors.info + '44' }]}>
           <Feather name="info" size={15} color={colors.info} />
           <Text style={[styles.infoText, { color: colors.info, fontFamily: 'Inter_400Regular' }]}>
-            A repair job ID will be auto-generated on submission (e.g. {generateRepairId(repairs.length)})
+            A repair job ID will be auto-generated on submission (e.g. VMC-{String(repairs.length + 1).padStart(3, '0')})
           </Text>
         </View>
 

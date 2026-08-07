@@ -303,6 +303,403 @@ export const AuthLogoutResponse = zod.object({
 
 
 /**
+ * @summary List customers of the caller's shop
+ */
+export const CustomersListResponse = zod.object({
+  "customers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "mobile": zod.string(),
+  "email": zod.string().optional(),
+  "address": zod.string().optional(),
+  "dueAmount": zod.number(),
+  "totalRepairs": zod.number(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create a customer in the caller's shop
+ */
+export const CustomersCreateBody = zod.object({
+  "name": zod.string().optional(),
+  "mobile": zod.string().optional(),
+  "email": zod.string().optional(),
+  "address": zod.string().optional(),
+  "dueAmount": zod.number().optional(),
+  "totalRepairs": zod.number().optional()
+})
+
+export const CustomersCreateResponse = zod.object({
+  "customer": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "mobile": zod.string(),
+  "email": zod.string().optional(),
+  "address": zod.string().optional(),
+  "dueAmount": zod.number(),
+  "totalRepairs": zod.number(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Update a customer in the caller's shop
+ */
+export const CustomersUpdateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const CustomersUpdateBody = zod.object({
+  "name": zod.string().optional(),
+  "mobile": zod.string().optional(),
+  "email": zod.string().optional(),
+  "address": zod.string().optional(),
+  "dueAmount": zod.number().optional(),
+  "totalRepairs": zod.number().optional()
+})
+
+export const CustomersUpdateResponse = zod.object({
+  "customer": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "mobile": zod.string(),
+  "email": zod.string().optional(),
+  "address": zod.string().optional(),
+  "dueAmount": zod.number(),
+  "totalRepairs": zod.number(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary List repairs of the caller's shop
+ */
+export const RepairsListResponse = zod.object({
+  "repairs": zod.array(zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string(),
+  "mobile": zod.string(),
+  "deviceType": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "imei": zod.string().optional(),
+  "problem": zod.string(),
+  "technicianId": zod.string().optional(),
+  "technicianName": zod.string().optional(),
+  "status": zod.string(),
+  "priority": zod.string(),
+  "repairCharge": zod.number(),
+  "partsCharge": zod.number(),
+  "advance": zod.number(),
+  "receiveDate": zod.string(),
+  "expectedDate": zod.string(),
+  "deliveryDate": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create a repair ticket in the caller's shop
+ */
+export const RepairsCreateBody = zod.object({
+  "customerId": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "mobile": zod.string().optional(),
+  "deviceType": zod.string().optional(),
+  "brand": zod.string().optional(),
+  "model": zod.string().optional(),
+  "imei": zod.string().optional(),
+  "problem": zod.string().optional(),
+  "technicianId": zod.string().optional(),
+  "technicianName": zod.string().optional(),
+  "status": zod.string().optional(),
+  "priority": zod.string().optional(),
+  "repairCharge": zod.number().optional(),
+  "partsCharge": zod.number().optional(),
+  "advance": zod.number().optional(),
+  "receiveDate": zod.string().optional(),
+  "expectedDate": zod.string().optional(),
+  "deliveryDate": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+export const RepairsCreateResponse = zod.object({
+  "repair": zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string(),
+  "mobile": zod.string(),
+  "deviceType": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "imei": zod.string().optional(),
+  "problem": zod.string(),
+  "technicianId": zod.string().optional(),
+  "technicianName": zod.string().optional(),
+  "status": zod.string(),
+  "priority": zod.string(),
+  "repairCharge": zod.number(),
+  "partsCharge": zod.number(),
+  "advance": zod.number(),
+  "receiveDate": zod.string(),
+  "expectedDate": zod.string(),
+  "deliveryDate": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Update a repair in the caller's shop
+ */
+export const RepairsUpdateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RepairsUpdateBody = zod.object({
+  "customerId": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "mobile": zod.string().optional(),
+  "deviceType": zod.string().optional(),
+  "brand": zod.string().optional(),
+  "model": zod.string().optional(),
+  "imei": zod.string().optional(),
+  "problem": zod.string().optional(),
+  "technicianId": zod.string().optional(),
+  "technicianName": zod.string().optional(),
+  "status": zod.string().optional(),
+  "priority": zod.string().optional(),
+  "repairCharge": zod.number().optional(),
+  "partsCharge": zod.number().optional(),
+  "advance": zod.number().optional(),
+  "receiveDate": zod.string().optional(),
+  "expectedDate": zod.string().optional(),
+  "deliveryDate": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+export const RepairsUpdateResponse = zod.object({
+  "repair": zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string(),
+  "mobile": zod.string(),
+  "deviceType": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "imei": zod.string().optional(),
+  "problem": zod.string(),
+  "technicianId": zod.string().optional(),
+  "technicianName": zod.string().optional(),
+  "status": zod.string(),
+  "priority": zod.string(),
+  "repairCharge": zod.number(),
+  "partsCharge": zod.number(),
+  "advance": zod.number(),
+  "receiveDate": zod.string(),
+  "expectedDate": zod.string(),
+  "deliveryDate": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary List inventory items of the caller's shop
+ */
+export const InventoryListResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "brand": zod.string(),
+  "quantity": zod.number(),
+  "minStock": zod.number(),
+  "purchasePrice": zod.number(),
+  "sellingPrice": zod.number(),
+  "supplier": zod.string().optional(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create an inventory item in the caller's shop
+ */
+export const InventoryCreateBody = zod.object({
+  "name": zod.string().optional(),
+  "category": zod.string().optional(),
+  "brand": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "minStock": zod.number().optional(),
+  "purchasePrice": zod.number().optional(),
+  "sellingPrice": zod.number().optional(),
+  "supplier": zod.string().optional()
+})
+
+export const InventoryCreateResponse = zod.object({
+  "item": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "brand": zod.string(),
+  "quantity": zod.number(),
+  "minStock": zod.number(),
+  "purchasePrice": zod.number(),
+  "sellingPrice": zod.number(),
+  "supplier": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Update an inventory item in the caller's shop
+ */
+export const InventoryUpdateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const InventoryUpdateBody = zod.object({
+  "name": zod.string().optional(),
+  "category": zod.string().optional(),
+  "brand": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "minStock": zod.number().optional(),
+  "purchasePrice": zod.number().optional(),
+  "sellingPrice": zod.number().optional(),
+  "supplier": zod.string().optional()
+})
+
+export const InventoryUpdateResponse = zod.object({
+  "item": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "brand": zod.string(),
+  "quantity": zod.number(),
+  "minStock": zod.number(),
+  "purchasePrice": zod.number(),
+  "sellingPrice": zod.number(),
+  "supplier": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary List purchases of the caller's shop
+ */
+export const PurchasesListResponse = zod.object({
+  "purchases": zod.array(zod.object({
+  "id": zod.string(),
+  "purchaseId": zod.string(),
+  "invoiceNo": zod.string(),
+  "supplier": zod.string(),
+  "supplierMobile": zod.string().optional(),
+  "itemName": zod.string(),
+  "quantity": zod.number(),
+  "purchasePrice": zod.number(),
+  "total": zod.number(),
+  "paymentStatus": zod.string(),
+  "paymentMethod": zod.string(),
+  "date": zod.string(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Record a purchase in the caller's shop
+ */
+export const PurchasesCreateBody = zod.object({
+  "invoiceNo": zod.string().optional(),
+  "supplier": zod.string().optional(),
+  "supplierMobile": zod.string().optional(),
+  "itemName": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "purchasePrice": zod.number().optional(),
+  "total": zod.number().optional(),
+  "paymentStatus": zod.string().optional(),
+  "paymentMethod": zod.string().optional(),
+  "date": zod.string().optional()
+})
+
+export const PurchasesCreateResponse = zod.object({
+  "purchase": zod.object({
+  "id": zod.string(),
+  "purchaseId": zod.string(),
+  "invoiceNo": zod.string(),
+  "supplier": zod.string(),
+  "supplierMobile": zod.string().optional(),
+  "itemName": zod.string(),
+  "quantity": zod.number(),
+  "purchasePrice": zod.number(),
+  "total": zod.number(),
+  "paymentStatus": zod.string(),
+  "paymentMethod": zod.string(),
+  "date": zod.string(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary List finance entries of the caller's shop
+ */
+export const FinanceListResponse = zod.object({
+  "entries": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "category": zod.string(),
+  "amount": zod.number(),
+  "description": zod.string(),
+  "paymentMethod": zod.string(),
+  "date": zod.string(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Record a finance entry in the caller's shop
+ */
+export const FinanceCreateBody = zod.object({
+  "type": zod.string().optional(),
+  "category": zod.string().optional(),
+  "amount": zod.number().optional(),
+  "description": zod.string().optional(),
+  "paymentMethod": zod.string().optional(),
+  "date": zod.string().optional()
+})
+
+export const FinanceCreateResponse = zod.object({
+  "entry": zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "category": zod.string(),
+  "amount": zod.number(),
+  "description": zod.string(),
+  "paymentMethod": zod.string(),
+  "date": zod.string(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */
