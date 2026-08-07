@@ -4,7 +4,14 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { authLoginHistory, type LoginEvent } from '@workspace/api-client-react';
+import {
+  authLoginHistory,
+  authRevokeOtherSessions,
+  authRevokeSession,
+  authSessions,
+  type LoginEvent,
+  type SessionInfo,
+} from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -45,13 +52,50 @@ export default function SettingsScreen() {
   const [inactivityMin, setInactivityMin] = useState<number>(DEFAULT_INACTIVITY_MINUTES);
   const [history, setHistory] = useState<LoginEvent[] | null>(null);
   const [historyError, setHistoryError] = useState(false);
+  const [sessions, setSessions] = useState<SessionInfo[] | null>(null);
+  const [sessionsError, setSessionsError] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [revokingOthers, setRevokingOthers] = useState(false);
+
+  const loadSessions = () => {
+    authSessions()
+      .then((res) => { setSessions(res.sessions); setSessionsError(false); })
+      .catch(() => setSessionsError(true));
+  };
 
   useEffect(() => {
     getInactivityTimeoutMinutes().then(setInactivityMin).catch(() => {});
     authLoginHistory()
       .then((res) => setHistory(res.events))
       .catch(() => setHistoryError(true));
+    loadSessions();
   }, []);
+
+  const revokeSession = async (id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setRevokingId(id);
+    try {
+      await authRevokeSession(id);
+      setSessions((prev) => prev?.filter((s) => s.id !== id) ?? prev);
+    } catch {
+      setSessionsError(true);
+    } finally {
+      setRevokingId(null);
+    }
+  };
+
+  const revokeOthers = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setRevokingOthers(true);
+    try {
+      await authRevokeOtherSessions();
+      setSessions((prev) => prev?.filter((s) => s.current) ?? prev);
+    } catch {
+      setSessionsError(true);
+    } finally {
+      setRevokingOthers(false);
+    }
+  };
 
   const selectInactivity = async (minutes: number) => {
     Haptics.selectionAsync();
@@ -156,6 +200,73 @@ export default function SettingsScreen() {
         </Card>
 
         <Card>
+          <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Active sessions</Text>
+          <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            Devices currently signed in to your account.
+          </Text>
+          {sessions === null && !sessionsError && (
+            <ActivityIndicator style={{ marginTop: 14 }} color={colors.primary} />
+          )}
+          {sessionsError && (
+            <Text style={[styles.historyEmpty, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              Couldn't load sessions. Check your connection and try again.
+            </Text>
+          )}
+          {sessions !== null && sessions.map((s, i) => (
+            <View
+              key={s.id}
+              style={[styles.historyRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
+            >
+              <View style={[styles.historyIcon, { backgroundColor: colors.secondary }]}>
+                <Feather name="smartphone" size={14} color={s.current ? colors.success : colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.historyMethod, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                  {s.deviceInfo || 'Unknown device'}
+                  {s.current ? '  ·  This device' : ''}
+                </Text>
+                <Text style={[styles.historyTime, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  Signed in {formatLoginTime(s.createdAt)}
+                </Text>
+              </View>
+              {!s.current && (
+                <TouchableOpacity
+                  onPress={() => revokeSession(s.id)}
+                  disabled={revokingId === s.id}
+                  style={[styles.revokeBtn, { borderColor: colors.border, backgroundColor: colors.secondary }]}
+                >
+                  {revokingId === s.id ? (
+                    <ActivityIndicator size="small" color={colors.destructive} />
+                  ) : (
+                    <Text style={[styles.revokeBtnText, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>
+                      Sign out
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
+          {sessions !== null && sessions.some((s) => !s.current) && (
+            <TouchableOpacity
+              onPress={revokeOthers}
+              disabled={revokingOthers}
+              style={[styles.revokeAllBtn, { borderColor: colors.destructive + '55', backgroundColor: colors.destructive + '11' }]}
+            >
+              {revokingOthers ? (
+                <ActivityIndicator size="small" color={colors.destructive} />
+              ) : (
+                <>
+                  <Feather name="log-out" size={15} color={colors.destructive} />
+                  <Text style={[styles.revokeBtnText, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>
+                    Sign out all other devices
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </Card>
+
+        <Card>
           <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Login history</Text>
           <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
             Recent sign-ins to your account.
@@ -184,6 +295,7 @@ export default function SettingsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={[styles.historyMethod, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
                   {e.method === 'otp' ? 'Mobile OTP' : 'Email & password'}
+                  {e.deviceInfo ? `  ·  ${e.deviceInfo}` : ''}
                   {e.rememberMe ? '  ·  Remembered' : ''}
                 </Text>
                 <Text style={[styles.historyTime, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
@@ -253,6 +365,9 @@ const styles = StyleSheet.create({
   historyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, marginTop: 2 },
   historyIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   historyMethod: { fontSize: 13 },
+  revokeBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, minWidth: 70, alignItems: 'center' },
+  revokeBtnText: { fontSize: 12 },
+  revokeAllBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1, marginTop: 12 },
   historyTime: { fontSize: 12, marginTop: 2 },
   savedBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderWidth: 1 },
   savedText: { fontSize: 14 },

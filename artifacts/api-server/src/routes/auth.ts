@@ -9,11 +9,15 @@ import {
   generateToken,
   getLoginHistory,
   hashPassword,
+  listActiveSessions,
   recordLoginEvent,
+  revokeOtherSessions,
+  revokeSessionById,
   publicUser,
   sha256,
   verifyPassword,
 } from "../lib/authUtils";
+import type { Request } from "express";
 import { sendOtpEmail } from "../lib/mailer";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
@@ -30,6 +34,17 @@ function validPassword(p: unknown): p is string {
     /[a-z]/.test(p) &&
     /[0-9]/.test(p)
   );
+}
+
+// Best-effort device description captured at sign-in: prefer the client-sent
+// `device` field, fall back to the User-Agent header.
+function deviceInfoFrom(req: Request): string | null {
+  const device = (req.body ?? {}).device;
+  if (typeof device === "string" && device.trim()) {
+    return device.trim().slice(0, 120);
+  }
+  const ua = req.headers["user-agent"];
+  return typeof ua === "string" && ua.trim() ? ua.trim().slice(0, 120) : null;
 }
 
 // ── Email + password login ────────────────────────────────────────────────
@@ -57,8 +72,9 @@ router.post("/auth/login", asyncHandler(async (req, res) => {
     return;
   }
   const remember = rememberMe === true;
-  const token = await createSession(user.id, remember);
-  await recordLoginEvent(user.id, "password", remember);
+  const deviceInfo = deviceInfoFrom(req);
+  const token = await createSession(user.id, remember, deviceInfo);
+  await recordLoginEvent(user.id, "password", remember, deviceInfo);
   res.json({ token, user: publicUser(user) });
 }));
 
@@ -112,8 +128,9 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
     return;
   }
   const remember = rememberMe === true;
-  const token = await createSession(user.id, remember);
-  await recordLoginEvent(user.id, "otp", remember);
+  const deviceInfo = deviceInfoFrom(req);
+  const token = await createSession(user.id, remember, deviceInfo);
+  await recordLoginEvent(user.id, "otp", remember, deviceInfo);
   res.json({ token, user: publicUser(user) });
 }));
 
@@ -314,9 +331,44 @@ router.get("/auth/login-history", requireAuth, asyncHandler(async (req, res) => 
       id: e.id,
       method: e.method,
       rememberMe: e.rememberMe,
+      deviceInfo: e.deviceInfo ?? undefined,
       createdAt: e.createdAt.toISOString(),
     })),
   });
+}));
+
+// ── Active sessions ───────────────────────────────────────────────────────
+router.get("/auth/sessions", requireAuth, asyncHandler(async (req, res) => {
+  const sessions = await listActiveSessions(req.user!.id, req.sessionToken!);
+  res.json({
+    sessions: sessions.map((s) => ({
+      id: s.id,
+      deviceInfo: s.deviceInfo ?? undefined,
+      createdAt: s.createdAt.toISOString(),
+      expiresAt: s.expiresAt.toISOString(),
+      current: s.current,
+    })),
+  });
+}));
+
+router.delete("/auth/sessions/:id", requireAuth, asyncHandler(async (req, res) => {
+  const sessionId = String(req.params.id ?? "");
+  // Guard against invalid UUIDs, which would make the DB comparison throw
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId)) {
+    res.status(404).json({ message: "Session not found" });
+    return;
+  }
+  const revoked = await revokeSessionById(req.user!.id, sessionId);
+  if (!revoked) {
+    res.status(404).json({ message: "Session not found" });
+    return;
+  }
+  res.json({ message: "Session signed out" });
+}));
+
+router.post("/auth/sessions/revoke-others", requireAuth, asyncHandler(async (req, res) => {
+  const count = await revokeOtherSessions(req.user!.id, req.sessionToken!);
+  res.json({ message: count === 1 ? "Signed out 1 other device" : `Signed out ${count} other devices` });
 }));
 
 router.post("/auth/logout", requireAuth, asyncHandler(async (req, res) => {

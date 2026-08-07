@@ -25,6 +25,7 @@ import type {
   AuthMe200,
   AuthOtpRequest200,
   AuthSession,
+  AuthSessions200,
   ForgotRequestInput,
   ForgotResetInput,
   HealthStatus,
@@ -784,6 +785,225 @@ export function useAuthLoginHistory<TData = Awaited<ReturnType<typeof authLoginH
 
 
 
+
+export const getAuthSessionsUrl = () => {
+
+
+
+
+  return `/api/auth/sessions`
+}
+
+/**
+ * @summary List active sessions for the current user
+ */
+export const authSessions = async ( options?: Parameters<typeof customFetch>[1]): Promise<AuthSessions200> => {
+
+  return customFetch<AuthSessions200>(getAuthSessionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAuthSessionsQueryKey = () => {
+    return [
+    `/api/auth/sessions`
+    ] as const;
+    }
+
+
+export const getAuthSessionsQueryOptions = <TData = Awaited<ReturnType<typeof authSessions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof authSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAuthSessionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof authSessions>>> = ({ signal }) => authSessions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof authSessions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AuthSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof authSessions>>>
+export type AuthSessionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List active sessions for the current user
+ */
+
+export function useAuthSessions<TData = Awaited<ReturnType<typeof authSessions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof authSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAuthSessionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAuthRevokeSessionUrl = (id: string,) => {
+
+
+
+
+  return `/api/auth/sessions/${id}`
+}
+
+/**
+ * @summary Sign out a specific session by id
+ */
+export const authRevokeSession = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
+
+  return customFetch<Message>(getAuthRevokeSessionUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getAuthRevokeSessionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authRevokeSession>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authRevokeSession>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['authRevokeSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authRevokeSession>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  authRevokeSession(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthRevokeSessionMutationResult = NonNullable<Awaited<ReturnType<typeof authRevokeSession>>>
+
+    export type AuthRevokeSessionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Sign out a specific session by id
+ */
+export const useAuthRevokeSession = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authRevokeSession>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authRevokeSession>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAuthRevokeSessionMutationOptions(options));
+    }
+
+export const getAuthRevokeOtherSessionsUrl = () => {
+
+
+
+
+  return `/api/auth/sessions/revoke-others`
+}
+
+/**
+ * @summary Sign out all sessions except the current one
+ */
+export const authRevokeOtherSessions = async ( options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
+
+  return customFetch<Message>(getAuthRevokeOtherSessionsUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAuthRevokeOtherSessionsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authRevokeOtherSessions>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authRevokeOtherSessions>>, TError,void, TContext> => {
+
+const mutationKey = ['authRevokeOtherSessions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authRevokeOtherSessions>>, void> = () => {
+
+
+          return  authRevokeOtherSessions(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthRevokeOtherSessionsMutationResult = NonNullable<Awaited<ReturnType<typeof authRevokeOtherSessions>>>
+
+    export type AuthRevokeOtherSessionsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Sign out all sessions except the current one
+ */
+export const useAuthRevokeOtherSessions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authRevokeOtherSessions>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authRevokeOtherSessions>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getAuthRevokeOtherSessionsMutationOptions(options));
+    }
 
 export const getAuthLogoutUrl = () => {
 

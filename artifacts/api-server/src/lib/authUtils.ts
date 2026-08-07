@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, ne } from "drizzle-orm";
 import { db, loginEventsTable, otpCodesTable, sessionsTable, usersTable } from "@workspace/db";
 import type { DbUser } from "@workspace/db";
 import { desc } from "drizzle-orm";
@@ -31,12 +31,17 @@ export function generateToken(): string {
   return crypto.randomBytes(48).toString("hex");
 }
 
-export async function createSession(userId: string, rememberMe = false): Promise<string> {
+export async function createSession(
+  userId: string,
+  rememberMe = false,
+  deviceInfo?: string | null,
+): Promise<string> {
   const token = generateToken();
   const ttl = rememberMe ? SESSION_TTL_REMEMBERED_MS : SESSION_TTL_DEFAULT_MS;
   await db.insert(sessionsTable).values({
     token,
     userId,
+    deviceInfo: deviceInfo ?? null,
     expiresAt: new Date(Date.now() + ttl),
   });
   return token;
@@ -46,8 +51,14 @@ export async function recordLoginEvent(
   userId: string,
   method: "password" | "otp",
   rememberMe: boolean,
+  deviceInfo?: string | null,
 ): Promise<void> {
-  await db.insert(loginEventsTable).values({ userId, method, rememberMe });
+  await db.insert(loginEventsTable).values({
+    userId,
+    method,
+    rememberMe,
+    deviceInfo: deviceInfo ?? null,
+  });
 }
 
 export async function getLoginHistory(userId: string, limit = 20) {
@@ -56,6 +67,7 @@ export async function getLoginHistory(userId: string, limit = 20) {
       id: loginEventsTable.id,
       method: loginEventsTable.method,
       rememberMe: loginEventsTable.rememberMe,
+      deviceInfo: loginEventsTable.deviceInfo,
       createdAt: loginEventsTable.createdAt,
     })
     .from(loginEventsTable)
@@ -78,6 +90,47 @@ export async function getSessionUser(token: string): Promise<DbUser | null> {
 
 export async function deleteSession(token: string): Promise<void> {
   await db.delete(sessionsTable).where(eq(sessionsTable.token, token));
+}
+
+// Active (non-expired) sessions for a user, newest first. Never returns tokens.
+export async function listActiveSessions(userId: string, currentToken: string) {
+  const rows = await db
+    .select({
+      id: sessionsTable.id,
+      token: sessionsTable.token,
+      deviceInfo: sessionsTable.deviceInfo,
+      createdAt: sessionsTable.createdAt,
+      expiresAt: sessionsTable.expiresAt,
+    })
+    .from(sessionsTable)
+    .where(and(eq(sessionsTable.userId, userId), gt(sessionsTable.expiresAt, new Date())))
+    .orderBy(desc(sessionsTable.createdAt));
+  return rows.map((r) => ({
+    id: r.id,
+    deviceInfo: r.deviceInfo,
+    createdAt: r.createdAt,
+    expiresAt: r.expiresAt,
+    current: r.token === currentToken,
+  }));
+}
+
+// Revoke one of the user's own sessions by its public id.
+// Returns false when no matching session belongs to this user.
+export async function revokeSessionById(userId: string, sessionId: string): Promise<boolean> {
+  const deleted = await db
+    .delete(sessionsTable)
+    .where(and(eq(sessionsTable.userId, userId), eq(sessionsTable.id, sessionId)))
+    .returning({ id: sessionsTable.id });
+  return deleted.length > 0;
+}
+
+// Revoke every session of the user except the current one. Returns count revoked.
+export async function revokeOtherSessions(userId: string, currentToken: string): Promise<number> {
+  const deleted = await db
+    .delete(sessionsTable)
+    .where(and(eq(sessionsTable.userId, userId), ne(sessionsTable.token, currentToken)))
+    .returning({ id: sessionsTable.id });
+  return deleted.length;
 }
 
 export async function createOtp(

@@ -197,6 +197,53 @@ paths:
                     items:
                       $ref: "#/components/schemas/LoginEvent"
                 required: [events]
+  /auth/sessions:
+    get:
+      operationId: authSessions
+      tags: [auth]
+      summary: List active sessions for the current user
+      responses:
+        "200":
+          description: Active sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SessionInfo"
+                required: [sessions]
+  /auth/sessions/{id}:
+    delete:
+      operationId: authRevokeSession
+      tags: [auth]
+      summary: Sign out a specific session by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Session revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /auth/sessions/revoke-others:
+    post:
+      operationId: authRevokeOtherSessions
+      tags: [auth]
+      summary: Sign out all sessions except the current one
+      responses:
+        "200":
+          description: Other sessions revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
   /auth/logout:
     post:
       operationId: authLogout
@@ -230,6 +277,7 @@ components:
         emailOrMobile: { type: string }
         password: { type: string }
         rememberMe: { type: boolean }
+        device: { type: string }
       required: [emailOrMobile, password]
     ForgotRequestInput:
       type: object
@@ -254,6 +302,7 @@ components:
         mobile: { type: string }
         code: { type: string }
         rememberMe: { type: boolean }
+        device: { type: string }
       required: [mobile, code]
     RegisterStartInput:
       type: object
@@ -278,8 +327,18 @@ components:
         id: { type: string }
         method: { type: string }
         rememberMe: { type: boolean }
+        deviceInfo: { type: string }
         createdAt: { type: string }
       required: [id, method, rememberMe, createdAt]
+    SessionInfo:
+      type: object
+      properties:
+        id: { type: string }
+        deviceInfo: { type: string }
+        createdAt: { type: string }
+        expiresAt: { type: string }
+        current: { type: boolean }
+      required: [id, createdAt, expiresAt, current]
     Message:
       type: object
       properties:

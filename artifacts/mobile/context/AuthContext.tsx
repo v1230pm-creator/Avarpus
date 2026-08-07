@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { authLogin, authLogout, authMe, authOtpVerify } from '@workspace/api-client-react';
 import { User, UserRole } from '@/types';
 import { storage, KEYS } from '@/utils/storage';
@@ -40,6 +42,14 @@ function apiErrorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+// Human-readable description of this device, recorded server-side at sign-in
+// so the user can recognize sessions in Settings → Active sessions.
+function deviceDescription(): string {
+  const os = Platform.OS === 'ios' ? 'iOS' : Platform.OS === 'android' ? 'Android' : 'Web';
+  const model = Constants.deviceName?.trim();
+  return model ? `${os} · ${model}` : os;
+}
+
 function toUser(u: any): User {
   return { ...u, role: u.role as UserRole } as User;
 }
@@ -74,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (emailOrMobile: string, password: string, rememberMe = false) => {
     try {
-      const session = await authLogin({ emailOrMobile, password, rememberMe });
+      const session = await authLogin({ emailOrMobile, password, rememberMe, device: deviceDescription() });
       await applySession(session);
       return { success: true };
     } catch (err) {
@@ -84,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithOtp = async (mobile: string, code: string, rememberMe = false) => {
     try {
-      const session = await authOtpVerify({ mobile, code, rememberMe });
+      const session = await authOtpVerify({ mobile, code, rememberMe, device: deviceDescription() });
       await applySession(session);
       return { success: true };
     } catch (err) {

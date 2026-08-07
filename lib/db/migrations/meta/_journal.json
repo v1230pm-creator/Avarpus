@@ -15,6 +15,13 @@
       "when": 1786088734157,
       "tag": "0001_login_events",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786089962468,
+      "tag": "0002_session_device_info",
+      "breakpoints": true
     }
   ]
 }

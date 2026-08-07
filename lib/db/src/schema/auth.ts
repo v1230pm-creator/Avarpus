@@ -32,9 +32,12 @@ export const usersTable = pgTable("users", {
 
 export const sessionsTable = pgTable("sessions", {
   token: text("token").primaryKey(),
+  // Public identifier safe to expose to clients (never expose `token`).
+  id: uuid("id").notNull().unique().defaultRandom(),
   userId: uuid("user_id")
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
+  deviceInfo: text("device_info"), // e.g. "ios · iPhone 15" or a user-agent snippet
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -49,6 +52,7 @@ export const loginEventsTable = pgTable("login_events", {
     .references(() => usersTable.id, { onDelete: "cascade" }),
   method: text("method").notNull(), // 'password' | 'otp'
   rememberMe: boolean("remember_me").notNull().default(false),
+  deviceInfo: text("device_info"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

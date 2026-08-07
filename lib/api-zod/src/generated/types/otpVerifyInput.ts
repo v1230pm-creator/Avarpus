@@ -10,4 +10,5 @@ export interface OtpVerifyInput {
   mobile: string;
   code: string;
   rememberMe?: boolean;
+  device?: string;
 }

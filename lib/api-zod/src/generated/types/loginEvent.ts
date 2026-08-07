@@ -10,5 +10,6 @@ export interface LoginEvent {
   id: string;
   method: string;
   rememberMe: boolean;
+  deviceInfo?: string;
   createdAt: string;
 }

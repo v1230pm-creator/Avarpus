@@ -14,7 +14,8 @@ import * as zod from 'zod';
 export const AuthLoginBody = zod.object({
   "emailOrMobile": zod.string(),
   "password": zod.string(),
-  "rememberMe": zod.boolean().optional()
+  "rememberMe": zod.boolean().optional(),
+  "device": zod.string().optional()
 })
 
 export const AuthLoginResponse = zod.object({
@@ -55,7 +56,8 @@ export const AuthOtpRequestResponse = zod.object({
 export const AuthOtpVerifyBody = zod.object({
   "mobile": zod.string(),
   "code": zod.string(),
-  "rememberMe": zod.boolean().optional()
+  "rememberMe": zod.boolean().optional(),
+  "device": zod.string().optional()
 })
 
 export const AuthOtpVerifyResponse = zod.object({
@@ -178,8 +180,43 @@ export const AuthLoginHistoryResponse = zod.object({
   "id": zod.string(),
   "method": zod.string(),
   "rememberMe": zod.boolean(),
+  "deviceInfo": zod.string().optional(),
   "createdAt": zod.string()
 }))
+})
+
+
+/**
+ * @summary List active sessions for the current user
+ */
+export const AuthSessionsResponse = zod.object({
+  "sessions": zod.array(zod.object({
+  "id": zod.string(),
+  "deviceInfo": zod.string().optional(),
+  "createdAt": zod.string(),
+  "expiresAt": zod.string(),
+  "current": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Sign out a specific session by id
+ */
+export const AuthRevokeSessionParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AuthRevokeSessionResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Sign out all sessions except the current one
+ */
+export const AuthRevokeOtherSessionsResponse = zod.object({
+  "message": zod.string()
 })
 
 

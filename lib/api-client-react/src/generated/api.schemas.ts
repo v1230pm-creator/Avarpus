@@ -9,6 +9,7 @@ export interface LoginInput {
   emailOrMobile: string;
   password: string;
   rememberMe?: boolean;
+  device?: string;
 }
 
 export interface ForgotRequestInput {
@@ -29,6 +30,7 @@ export interface OtpVerifyInput {
   mobile: string;
   code: string;
   rememberMe?: boolean;
+  device?: string;
 }
 
 export interface RegisterStartInput {
@@ -50,7 +52,16 @@ export interface LoginEvent {
   id: string;
   method: string;
   rememberMe: boolean;
+  deviceInfo?: string;
   createdAt: string;
+}
+
+export interface SessionInfo {
+  id: string;
+  deviceInfo?: string;
+  createdAt: string;
+  expiresAt: string;
+  current: boolean;
 }
 
 export interface Message {
@@ -96,5 +107,9 @@ export type AuthMe200 = {
 
 export type AuthLoginHistory200 = {
   events: LoginEvent[];
+};
+
+export type AuthSessions200 = {
+  sessions: SessionInfo[];
 };
 
