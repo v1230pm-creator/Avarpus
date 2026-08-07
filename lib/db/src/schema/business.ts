@@ -1,6 +1,7 @@
 import {
   doublePrecision,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -55,6 +56,12 @@ export const repairsTable = pgTable("repairs", {
   expectedDate: text("expected_date").notNull(),
   deliveryDate: text("delivery_date"),
   notes: text("notes"),
+  // Device intake additions
+  checklist: jsonb("checklist"), // { [item: string]: boolean } captured at receiving
+  receivingSignaturePath: text("receiving_signature_path"), // /objects/... in App Storage
+  deliverySignaturePath: text("delivery_signature_path"),
+  warrantyDays: integer("warranty_days").notNull().default(0), // 0 = no warranty
+  warrantyExpiry: text("warranty_expiry"), // ISO date, computed on delivery
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -115,8 +122,48 @@ export const financeEntriesTable = pgTable("finance_entries", {
     .defaultNow(),
 });
 
+// Photos & documents attached to a repair (device photos, damage, bill, customer ID)
+export const repairPhotosTable = pgTable("repair_photos", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  shopId: uuid("shop_id")
+    .notNull()
+    .references(() => shopsTable.id, { onDelete: "cascade" }),
+  repairId: uuid("repair_id")
+    .notNull()
+    .references(() => repairsTable.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(), // front|back|left|right|top|bottom|damage|bill|customer_id|other
+  objectPath: text("object_path").notNull(), // /objects/... in App Storage
+  uploadedById: uuid("uploaded_by_id"),
+  uploadedByName: text("uploaded_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Immutable activity timeline for a repair (also serves as audit log).
+// Rows are append-only: no update/delete endpoints exist by design.
+export const repairEventsTable = pgTable("repair_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  shopId: uuid("shop_id")
+    .notNull()
+    .references(() => shopsTable.id, { onDelete: "cascade" }),
+  repairId: uuid("repair_id")
+    .notNull()
+    .references(() => repairsTable.id, { onDelete: "cascade" }),
+  userId: uuid("user_id"),
+  userName: text("user_name").notNull(),
+  userRole: text("user_role").notNull(),
+  action: text("action").notNull(), // created|status_changed|photo_added|signature_captured|checklist_updated|assigned|...
+  details: jsonb("details"), // free-form structured payload (old/new status, photo kind, etc.)
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export type DbCustomer = typeof customersTable.$inferSelect;
 export type DbRepair = typeof repairsTable.$inferSelect;
 export type DbInventoryItem = typeof inventoryItemsTable.$inferSelect;
 export type DbPurchase = typeof purchasesTable.$inferSelect;
 export type DbFinanceEntry = typeof financeEntriesTable.$inferSelect;
+export type DbRepairPhoto = typeof repairPhotosTable.$inferSelect;
+export type DbRepairEvent = typeof repairEventsTable.$inferSelect;

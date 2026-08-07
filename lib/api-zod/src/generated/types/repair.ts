@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { RepairChecklist } from './repairChecklist';
 
 export interface Repair {
   id: string;
@@ -28,5 +29,10 @@ export interface Repair {
   expectedDate: string;
   deliveryDate?: string;
   notes?: string;
+  checklist?: RepairChecklist;
+  receivingSignaturePath?: string;
+  deliverySignaturePath?: string;
+  warrantyDays: number;
+  warrantyExpiry?: string;
   createdAt: string;
 }

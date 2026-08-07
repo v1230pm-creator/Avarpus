@@ -129,6 +129,8 @@ export interface CustomerInput {
   totalRepairs?: number;
 }
 
+export type RepairChecklist = {[key: string]: boolean};
+
 export interface Repair {
   id: string;
   repairId: string;
@@ -151,8 +153,15 @@ export interface Repair {
   expectedDate: string;
   deliveryDate?: string;
   notes?: string;
+  checklist?: RepairChecklist;
+  receivingSignaturePath?: string;
+  deliverySignaturePath?: string;
+  warrantyDays: number;
+  warrantyExpiry?: string;
   createdAt: string;
 }
+
+export type RepairInputChecklist = {[key: string]: boolean};
 
 export interface RepairInput {
   customerId?: string;
@@ -174,6 +183,85 @@ export interface RepairInput {
   expectedDate?: string;
   deliveryDate?: string;
   notes?: string;
+  checklist?: RepairInputChecklist;
+  receivingSignaturePath?: string;
+  deliverySignaturePath?: string;
+  warrantyDays?: number;
+}
+
+export type RepairPhotoKind = typeof RepairPhotoKind[keyof typeof RepairPhotoKind];
+
+
+export const RepairPhotoKind = {
+  front: 'front',
+  back: 'back',
+  left: 'left',
+  right: 'right',
+  top: 'top',
+  bottom: 'bottom',
+  damage: 'damage',
+  bill: 'bill',
+  customer_id: 'customer_id',
+  other: 'other',
+} as const;
+
+export interface RepairPhoto {
+  id: string;
+  repairId: string;
+  kind: RepairPhotoKind;
+  objectPath: string;
+  uploadedByName?: string;
+  createdAt: string;
+}
+
+export type RepairPhotoInputKind = typeof RepairPhotoInputKind[keyof typeof RepairPhotoInputKind];
+
+
+export const RepairPhotoInputKind = {
+  front: 'front',
+  back: 'back',
+  left: 'left',
+  right: 'right',
+  top: 'top',
+  bottom: 'bottom',
+  damage: 'damage',
+  bill: 'bill',
+  customer_id: 'customer_id',
+  other: 'other',
+} as const;
+
+export interface RepairPhotoInput {
+  kind: RepairPhotoInputKind;
+  objectPath: string;
+}
+
+export type RepairEventDetails = { [key: string]: unknown };
+
+export interface RepairEvent {
+  id: string;
+  repairId: string;
+  userId?: string;
+  userName: string;
+  userRole: string;
+  action: string;
+  details?: RepairEventDetails;
+  createdAt: string;
+}
+
+export interface UploadUrlRequest {
+  name: string;
+  size: number;
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+  metadata?: UploadUrlRequest;
+}
+
+export interface ErrorEnvelope {
+  error: string;
 }
 
 export interface InventoryItem {
@@ -303,6 +391,18 @@ export type RepairsCreate200 = {
 
 export type RepairsUpdate200 = {
   repair: Repair;
+};
+
+export type RepairPhotosList200 = {
+  photos: RepairPhoto[];
+};
+
+export type RepairPhotosAdd200 = {
+  photo: RepairPhoto;
+};
+
+export type RepairEventsList200 = {
+  events: RepairEvent[];
 };
 
 export type InventoryList200 = {

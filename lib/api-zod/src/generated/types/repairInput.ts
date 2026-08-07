@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { RepairInputChecklist } from './repairInputChecklist';
 
 export interface RepairInput {
   customerId?: string;
@@ -26,4 +27,8 @@ export interface RepairInput {
   expectedDate?: string;
   deliveryDate?: string;
   notes?: string;
+  checklist?: RepairInputChecklist;
+  receivingSignaturePath?: string;
+  deliverySignaturePath?: string;
+  warrantyDays?: number;
 }

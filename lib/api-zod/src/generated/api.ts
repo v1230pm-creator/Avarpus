@@ -401,6 +401,11 @@ export const RepairsListResponse = zod.object({
   "expectedDate": zod.string(),
   "deliveryDate": zod.string().optional(),
   "notes": zod.string().optional(),
+  "checklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "receivingSignaturePath": zod.string().optional(),
+  "deliverySignaturePath": zod.string().optional(),
+  "warrantyDays": zod.number(),
+  "warrantyExpiry": zod.string().optional(),
   "createdAt": zod.string()
 }))
 })
@@ -428,7 +433,11 @@ export const RepairsCreateBody = zod.object({
   "receiveDate": zod.string().optional(),
   "expectedDate": zod.string().optional(),
   "deliveryDate": zod.string().optional(),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "checklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "receivingSignaturePath": zod.string().optional(),
+  "deliverySignaturePath": zod.string().optional(),
+  "warrantyDays": zod.number().optional()
 })
 
 export const RepairsCreateResponse = zod.object({
@@ -454,6 +463,11 @@ export const RepairsCreateResponse = zod.object({
   "expectedDate": zod.string(),
   "deliveryDate": zod.string().optional(),
   "notes": zod.string().optional(),
+  "checklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "receivingSignaturePath": zod.string().optional(),
+  "deliverySignaturePath": zod.string().optional(),
+  "warrantyDays": zod.number(),
+  "warrantyExpiry": zod.string().optional(),
   "createdAt": zod.string()
 })
 })
@@ -485,7 +499,11 @@ export const RepairsUpdateBody = zod.object({
   "receiveDate": zod.string().optional(),
   "expectedDate": zod.string().optional(),
   "deliveryDate": zod.string().optional(),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "checklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "receivingSignaturePath": zod.string().optional(),
+  "deliverySignaturePath": zod.string().optional(),
+  "warrantyDays": zod.number().optional()
 })
 
 export const RepairsUpdateResponse = zod.object({
@@ -511,9 +529,108 @@ export const RepairsUpdateResponse = zod.object({
   "expectedDate": zod.string(),
   "deliveryDate": zod.string().optional(),
   "notes": zod.string().optional(),
+  "checklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "receivingSignaturePath": zod.string().optional(),
+  "deliverySignaturePath": zod.string().optional(),
+  "warrantyDays": zod.number(),
+  "warrantyExpiry": zod.string().optional(),
   "createdAt": zod.string()
 })
 })
+
+
+/**
+ * @summary List photos/documents attached to a repair
+ */
+export const RepairPhotosListParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RepairPhotosListResponse = zod.object({
+  "photos": zod.array(zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "kind": zod.enum(['front', 'back', 'left', 'right', 'top', 'bottom', 'damage', 'bill', 'customer_id', 'other']),
+  "objectPath": zod.string(),
+  "uploadedByName": zod.string().optional(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Attach an uploaded photo/document to a repair
+ */
+export const RepairPhotosAddParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RepairPhotosAddBody = zod.object({
+  "kind": zod.enum(['front', 'back', 'left', 'right', 'top', 'bottom', 'damage', 'bill', 'customer_id', 'other']),
+  "objectPath": zod.string()
+})
+
+export const RepairPhotosAddResponse = zod.object({
+  "photo": zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "kind": zod.enum(['front', 'back', 'left', 'right', 'top', 'bottom', 'damage', 'bill', 'customer_id', 'other']),
+  "objectPath": zod.string(),
+  "uploadedByName": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary List the immutable activity timeline of a repair
+ */
+export const RepairEventsListParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RepairEventsListResponse = zod.object({
+  "events": zod.array(zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "userId": zod.string().optional(),
+  "userName": zod.string(),
+  "userRole": zod.string(),
+  "action": zod.string(),
+  "details": zod.record(zod.string(), zod.unknown()).optional(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Request a presigned URL for file upload
+ */
+export const RequestUploadUrlBody = zod.object({
+  "name": zod.string(),
+  "size": zod.number(),
+  "contentType": zod.string()
+})
+
+export const RequestUploadUrlResponse = zod.object({
+  "uploadURL": zod.string(),
+  "objectPath": zod.string(),
+  "metadata": zod.object({
+  "name": zod.string(),
+  "size": zod.number(),
+  "contentType": zod.string()
+}).optional()
+})
+
+
+/**
+ * @summary Serve an object entity from PRIVATE_OBJECT_DIR
+ */
+export const GetStorageObjectParams = zod.object({
+  "objectPath": zod.coerce.string()
+})
+
+export const GetStorageObjectResponse = zod.unknown()
 
 
 /**

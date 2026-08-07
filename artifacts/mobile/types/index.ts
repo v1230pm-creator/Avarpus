@@ -57,6 +57,11 @@ export interface Repair {
   expectedDate: string;
   deliveryDate?: string;
   notes?: string;
+  checklist?: Record<string, boolean>;
+  warrantyDays?: number;
+  warrantyExpiry?: string;
+  receivingSignaturePath?: string;
+  deliverySignaturePath?: string;
   createdAt: string;
 }
 

@@ -119,6 +119,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       expectedDate: r.expectedDate,
       deliveryDate: r.deliveryDate,
       notes: r.notes,
+      checklist: r.checklist,
+      warrantyDays: r.warrantyDays,
+      receivingSignaturePath: r.receivingSignaturePath,
+      deliverySignaturePath: r.deliverySignaturePath,
     });
     const created = res.repair as Repair;
     setRepairs((prev) => [...prev, created]);
@@ -145,6 +149,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       expectedDate: r.expectedDate,
       deliveryDate: r.deliveryDate,
       notes: r.notes,
+      checklist: r.checklist,
+      warrantyDays: r.warrantyDays,
+      receivingSignaturePath: r.receivingSignaturePath,
+      deliverySignaturePath: r.deliverySignaturePath,
     });
     const updated = res.repair as Repair;
     setRepairs((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));

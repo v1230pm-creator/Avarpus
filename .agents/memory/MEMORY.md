@@ -5,4 +5,5 @@
 - [Role naming](role-naming.md) — the privileged role is `super_admin` everywhere; introducing an `admin` role breaks client permissions/labels.
 - [Registration & staff model](registration-model.md) — public signup is dealer-only (server-forced); staff only via RBAC /staff endpoints; demo seeding off by default.
 - [drizzle-kit generate quirk](drizzle-generate-config.md) — checked-in drizzle.config.ts breaks `generate` (absolute paths); use a temp relative-path config from lib/db.
+- [Object storage shop scoping](object-storage-shop-scope.md) — objects live under uploads/<shopId>/; attach/serve endpoints must validate that prefix or shops leak each other's photos/signatures.
 - [Restyle review bar](restyle-reviews.md) — reviewers reject app-wide restyles if any list-item cards keep the old flat surface; grep old surface tokens before submitting.

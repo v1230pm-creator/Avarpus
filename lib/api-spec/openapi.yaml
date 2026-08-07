@@ -14,6 +14,8 @@ tags:
     description: Authentication operations
   - name: business
     description: Shop-scoped business data (repairs, customers, inventory, purchases, finance)
+  - name: Storage
+    description: Object storage upload and serving endpoints.
 paths:
   /auth/login:
     post:
@@ -429,6 +431,124 @@ paths:
                   repair:
                     $ref: "#/components/schemas/Repair"
                 required: [repair]
+  /repairs/{id}/photos:
+    get:
+      operationId: repairPhotosList
+      tags: [business]
+      summary: List photos/documents attached to a repair
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Photos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  photos:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RepairPhoto"
+                required: [photos]
+    post:
+      operationId: repairPhotosAdd
+      tags: [business]
+      summary: Attach an uploaded photo/document to a repair
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepairPhotoInput"
+      responses:
+        "200":
+          description: Created photo record
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  photo:
+                    $ref: "#/components/schemas/RepairPhoto"
+                required: [photo]
+  /repairs/{id}/events:
+    get:
+      operationId: repairEventsList
+      tags: [business]
+      summary: List the immutable activity timeline of a repair
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Events (newest first)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RepairEvent"
+                required: [events]
+  /storage/uploads/request-url:
+    post:
+      tags: [Storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadUrlRequest'
+      responses:
+        '200':
+          description: Presigned upload URL generated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadUrlResponse'
+        '400':
+          description: Missing or invalid required fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /storage/objects/{objectPath}:
+    get:
+      tags: [Storage]
+      operationId: getStorageObject
+      summary: Serve an object entity from PRIVATE_OBJECT_DIR
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Object content streamed with correct Content-Type.
+          content:
+            '*/*':
+              schema: { type: string, format: binary }
+        '404':
+          description: Object not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /inventory:
     get:
       operationId: inventoryList
@@ -741,8 +861,15 @@ components:
         expectedDate: { type: string }
         deliveryDate: { type: string }
         notes: { type: string }
+        checklist:
+          type: object
+          additionalProperties: { type: boolean }
+        receivingSignaturePath: { type: string }
+        deliverySignaturePath: { type: string }
+        warrantyDays: { type: number }
+        warrantyExpiry: { type: string }
         createdAt: { type: string }
-      required: [id, repairId, customerName, mobile, deviceType, brand, model, problem, status, priority, repairCharge, partsCharge, advance, receiveDate, expectedDate, createdAt]
+      required: [id, repairId, customerName, mobile, deviceType, brand, model, problem, status, priority, repairCharge, partsCharge, advance, receiveDate, expectedDate, warrantyDays, createdAt]
     RepairInput:
       type: object
       properties:
@@ -765,6 +892,60 @@ components:
         expectedDate: { type: string }
         deliveryDate: { type: string }
         notes: { type: string }
+        checklist:
+          type: object
+          additionalProperties: { type: boolean }
+        receivingSignaturePath: { type: string }
+        deliverySignaturePath: { type: string }
+        warrantyDays: { type: number }
+    RepairPhoto:
+      type: object
+      properties:
+        id: { type: string }
+        repairId: { type: string }
+        kind: { type: string, enum: [front, back, left, right, top, bottom, damage, bill, customer_id, other] }
+        objectPath: { type: string }
+        uploadedByName: { type: string }
+        createdAt: { type: string }
+      required: [id, repairId, kind, objectPath, createdAt]
+    RepairPhotoInput:
+      type: object
+      properties:
+        kind: { type: string, enum: [front, back, left, right, top, bottom, damage, bill, customer_id, other] }
+        objectPath: { type: string }
+      required: [kind, objectPath]
+    RepairEvent:
+      type: object
+      properties:
+        id: { type: string }
+        repairId: { type: string }
+        userId: { type: string }
+        userName: { type: string }
+        userRole: { type: string }
+        action: { type: string }
+        details: { type: object, additionalProperties: true }
+        createdAt: { type: string }
+      required: [id, repairId, userName, userRole, action, createdAt]
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string }
+        size: { type: number }
+        contentType: { type: string }
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL: { type: string }
+        objectPath: { type: string }
+        metadata:
+          $ref: '#/components/schemas/UploadUrlRequest'
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
     InventoryItem:
       type: object
       properties:

@@ -1,9 +1,11 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import {
   db,
   customersTable,
   repairsTable,
+  repairPhotosTable,
+  repairEventsTable,
   inventoryItemsTable,
   purchasesTable,
   financeEntriesTable,
@@ -136,6 +138,48 @@ const REPAIR_STATUSES = [
 ] as const;
 const REPAIR_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 
+// Append an immutable event row to a repair's timeline / audit log.
+// Deliberately no update/delete endpoints — history cannot be edited.
+async function logRepairEvent(
+  dbOrTx: Pick<typeof db, "insert">,
+  args: {
+    shopId: string;
+    repairId: string; // repairs.id (uuid)
+    user: DbUser;
+    action: string;
+    details?: Record<string, unknown>;
+  },
+): Promise<void> {
+  await dbOrTx.insert(repairEventsTable).values({
+    shopId: args.shopId,
+    repairId: args.repairId,
+    userId: args.user.id,
+    userName: args.user.name,
+    userRole: args.user.role,
+    action: args.action,
+    details: args.details ?? null,
+  });
+}
+
+function checklistOrNull(v: unknown): Record<string, boolean> | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const out: Record<string, boolean> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof val === "boolean") out[k] = val;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+const WARRANTY_DAYS = [0, 7, 30, 90, 180] as const;
+
+// An object path may only be attached if it lives in the caller's shop
+// namespace (uploads are issued under /objects/uploads/<shopId>/...).
+function ownedObjectPath(shopId: string, v: unknown): string | null {
+  const s = str(v);
+  if (!s) return null;
+  return s.startsWith(`/objects/uploads/${shopId}/`) ? s : null;
+}
+
 function repairOut(r: typeof repairsTable.$inferSelect) {
   return {
     id: r.id,
@@ -159,6 +203,11 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
     expectedDate: r.expectedDate,
     deliveryDate: r.deliveryDate ?? undefined,
     notes: r.notes ?? undefined,
+    checklist: (r.checklist as Record<string, boolean> | null) ?? undefined,
+    receivingSignaturePath: r.receivingSignaturePath ?? undefined,
+    deliverySignaturePath: r.deliverySignaturePath ?? undefined,
+    warrantyDays: r.warrantyDays,
+    warrantyExpiry: r.warrantyExpiry ?? undefined,
     createdAt: iso(r.createdAt),
   };
 }
@@ -229,8 +278,18 @@ router.post(
           expectedDate: str(b.expectedDate) ?? new Date().toISOString().split("T")[0],
           deliveryDate: str(b.deliveryDate),
           notes: str(b.notes),
+          checklist: checklistOrNull(b.checklist),
+          receivingSignaturePath: ownedObjectPath(shopId, b.receivingSignaturePath),
+          warrantyDays: WARRANTY_DAYS.includes(b.warrantyDays) ? b.warrantyDays : 0,
         })
         .returning();
+      await logRepairEvent(tx, {
+        shopId,
+        repairId: row.id,
+        user: (req as AuthedRequest).user,
+        action: "created",
+        details: { ticket: row.repairId, status: row.status, priority: row.priority },
+      });
       return row;
     });
     res.json({ repair: repairOut(created) });
@@ -275,16 +334,205 @@ router.patch(
     if (b.expectedDate !== undefined) patch.expectedDate = str(b.expectedDate) ?? undefined;
     if (b.deliveryDate !== undefined) patch.deliveryDate = str(b.deliveryDate);
     if (b.notes !== undefined) patch.notes = str(b.notes);
-    const [updated] = await db
-      .update(repairsTable)
-      .set(patch)
-      .where(and(eq(repairsTable.id, String(req.params.id ?? "")), eq(repairsTable.shopId, shopId)))
-      .returning();
-    if (!updated) {
+    if (b.checklist !== undefined) patch.checklist = checklistOrNull(b.checklist);
+    if (b.receivingSignaturePath !== undefined) {
+      const p = ownedObjectPath(shopId, b.receivingSignaturePath);
+      if (!p) {
+        res.status(400).json({ message: "Invalid signature path" });
+        return;
+      }
+      patch.receivingSignaturePath = p;
+    }
+    if (b.deliverySignaturePath !== undefined) {
+      const p = ownedObjectPath(shopId, b.deliverySignaturePath);
+      if (!p) {
+        res.status(400).json({ message: "Invalid signature path" });
+        return;
+      }
+      patch.deliverySignaturePath = p;
+    }
+    if (b.warrantyDays !== undefined) {
+      if (!WARRANTY_DAYS.includes(b.warrantyDays)) {
+        res.status(400).json({ message: "Warranty must be 0, 7, 30, 90 or 180 days" });
+        return;
+      }
+      patch.warrantyDays = b.warrantyDays;
+    }
+    const id = String(req.params.id ?? "");
+    const [existing] = await db
+      .select()
+      .from(repairsTable)
+      .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)));
+    if (!existing) {
       res.status(404).json({ message: "Repair not found" });
       return;
     }
+    // Warranty expiry is computed when the repair is delivered.
+    const effectiveWarrantyDays = patch.warrantyDays ?? existing.warrantyDays;
+    if (patch.status === "delivered" && effectiveWarrantyDays > 0) {
+      const deliveredOn = patch.deliveryDate ?? existing.deliveryDate ?? new Date().toISOString().split("T")[0];
+      const expiry = new Date(`${deliveredOn}T00:00:00Z`);
+      expiry.setUTCDate(expiry.getUTCDate() + effectiveWarrantyDays);
+      patch.warrantyExpiry = expiry.toISOString().split("T")[0];
+      if (patch.deliveryDate === undefined && !existing.deliveryDate) patch.deliveryDate = deliveredOn;
+    }
+    const updated = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(repairsTable)
+        .set(patch)
+        .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)))
+        .returning();
+      const user = (req as AuthedRequest).user;
+      if (patch.status !== undefined && patch.status !== existing.status) {
+        await logRepairEvent(tx, {
+          shopId, repairId: id, user,
+          action: "status_changed",
+          details: { from: existing.status, to: patch.status },
+        });
+      }
+      if (patch.checklist !== undefined) {
+        await logRepairEvent(tx, { shopId, repairId: id, user, action: "checklist_updated" });
+      }
+      if (patch.receivingSignaturePath || patch.deliverySignaturePath) {
+        await logRepairEvent(tx, {
+          shopId, repairId: id, user,
+          action: "signature_captured",
+          details: { stage: patch.deliverySignaturePath ? "delivery" : "receiving" },
+        });
+      }
+      if (patch.technicianId !== undefined && patch.technicianId !== existing.technicianId) {
+        await logRepairEvent(tx, {
+          shopId, repairId: id, user,
+          action: "assigned",
+          details: { technicianName: patch.technicianName ?? null },
+        });
+      }
+      return row;
+    });
     res.json({ repair: repairOut(updated) });
+  }),
+);
+
+// ── Repair photos & timeline ────────────────────────────────────────────────
+
+const PHOTO_KINDS = ["front", "back", "left", "right", "top", "bottom", "damage", "bill", "customer_id", "other"] as const;
+
+async function repairInShop(shopId: string, id: string) {
+  const [row] = await db
+    .select({ id: repairsTable.id })
+    .from(repairsTable)
+    .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)));
+  return row ?? null;
+}
+
+router.get(
+  "/repairs/:id/photos",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const id = String(req.params.id ?? "");
+    if (!(await repairInShop(shopId, id))) {
+      res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    const rows = await db
+      .select()
+      .from(repairPhotosTable)
+      .where(and(eq(repairPhotosTable.repairId, id), eq(repairPhotosTable.shopId, shopId)))
+      .orderBy(asc(repairPhotosTable.createdAt));
+    res.json({
+      photos: rows.map((p) => ({
+        id: p.id,
+        repairId: p.repairId,
+        kind: p.kind,
+        objectPath: p.objectPath,
+        uploadedByName: p.uploadedByName ?? undefined,
+        createdAt: iso(p.createdAt),
+      })),
+    });
+  }),
+);
+
+router.post(
+  "/repairs/:id/photos",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const id = String(req.params.id ?? "");
+    if (!(await repairInShop(shopId, id))) {
+      res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    const b = req.body ?? {};
+    const kind = PHOTO_KINDS.includes(b.kind) ? b.kind : null;
+    const objectPath = ownedObjectPath(shopId, b.objectPath);
+    if (!kind || !objectPath) {
+      res.status(400).json({ message: "kind and a valid objectPath from your own shop's uploads are required" });
+      return;
+    }
+    const user = (req as AuthedRequest).user;
+    const created = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(repairPhotosTable)
+        .values({
+          shopId,
+          repairId: id,
+          kind,
+          objectPath,
+          uploadedById: user.id,
+          uploadedByName: user.name,
+        })
+        .returning();
+      await logRepairEvent(tx, {
+        shopId, repairId: id, user,
+        action: "photo_added",
+        details: { kind },
+      });
+      return row;
+    });
+    res.json({
+      photo: {
+        id: created.id,
+        repairId: created.repairId,
+        kind: created.kind,
+        objectPath: created.objectPath,
+        uploadedByName: created.uploadedByName ?? undefined,
+        createdAt: iso(created.createdAt),
+      },
+    });
+  }),
+);
+
+router.get(
+  "/repairs/:id/events",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const id = String(req.params.id ?? "");
+    if (!(await repairInShop(shopId, id))) {
+      res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    const rows = await db
+      .select()
+      .from(repairEventsTable)
+      .where(and(eq(repairEventsTable.repairId, id), eq(repairEventsTable.shopId, shopId)))
+      .orderBy(desc(repairEventsTable.createdAt));
+    res.json({
+      events: rows.map((e) => ({
+        id: e.id,
+        repairId: e.repairId,
+        userId: e.userId ?? undefined,
+        userName: e.userName,
+        userRole: e.userRole,
+        action: e.action,
+        details: (e.details as Record<string, unknown> | null) ?? undefined,
+        createdAt: iso(e.createdAt),
+      })),
+    });
   }),
 );
 
