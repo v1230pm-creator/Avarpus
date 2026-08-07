@@ -1,0 +1,454 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  Dimensions,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  Vibration,
+  View,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import * as LocalAuthentication from 'expo-local-authentication';
+import Reanimated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+
+const MPIN_KEY = '@vmc_mpin';
+const MPIN_SETUP_KEY = '@vmc_mpin_setup';
+const BIOMETRIC_ENABLED_KEY = '@vmc_biometric_enabled';
+
+type Mode = 'choose' | 'setup_mpin' | 'enter_mpin' | 'confirm_mpin';
+
+const DOTS = [0, 1, 2, 3, 4, 5];
+const PAD = [
+  ['1', '2', '3'],
+  ['4', '5', '6'],
+  ['7', '8', '9'],
+  ['', '0', '⌫'],
+];
+
+export default function BiometricScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  const [mode, setMode] = useState<Mode>('choose');
+  const [hasBiometric, setHasBiometric] = useState(false);
+  const [biometricType, setBiometricType] = useState<'fingerprint' | 'face'>('fingerprint');
+  const [mpinSetup, setMpinSetup] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+
+  // MPIN state
+  const [mpin, setMpin] = useState('');
+  const [confirmMpin, setConfirmMpin] = useState('');
+  const [enteredMpin, setEnteredMpin] = useState('');
+  const [mpinError, setMpinError] = useState('');
+
+  // Animations
+  const cardY = useSharedValue(40);
+  const cardOpacity = useSharedValue(0);
+  const shakeX = useSharedValue(0);
+  const dotScale = useSharedValue(1);
+
+  useEffect(() => {
+    cardY.value = withSpring(0, { damping: 20, stiffness: 140 });
+    cardOpacity.value = withTiming(1, { duration: 500 });
+    checkCapabilities();
+  }, []);
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: cardY.value }],
+    opacity: cardOpacity.value,
+  }));
+
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeX.value }],
+  }));
+
+  async function checkCapabilities() {
+    try {
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+      const hasFace = types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION);
+      setBiometricType(hasFace ? 'face' : 'fingerprint');
+      setHasBiometric(compatible && enrolled);
+
+      const savedMpin = await AsyncStorage.getItem(MPIN_KEY);
+      const mpinEnabled = await AsyncStorage.getItem(MPIN_SETUP_KEY);
+      const bioEnabled = await AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY);
+
+      setMpinSetup(!!mpinEnabled && !!savedMpin);
+      setBiometricEnabled(bioEnabled === 'true');
+
+      // If already configured — go directly to verify
+      if (mpinEnabled && savedMpin) {
+        setMode('enter_mpin');
+      } else if (bioEnabled === 'true' && compatible && enrolled) {
+        triggerBiometric();
+      }
+    } catch {}
+  }
+
+  const triggerBiometric = useCallback(async () => {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Authenticate to continue',
+        fallbackLabel: 'Use MPIN',
+        cancelLabel: 'Cancel',
+        disableDeviceFallback: false,
+      });
+      if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        router.replace('/(tabs)');
+      }
+    } catch {}
+  }, []);
+
+  const shake = () => {
+    shakeX.value = withSequence(
+      withTiming(-10, { duration: 60 }),
+      withTiming(10, { duration: 60 }),
+      withTiming(-8, { duration: 60 }),
+      withTiming(8, { duration: 60 }),
+      withTiming(0, { duration: 60 }),
+    );
+    if (Platform.OS !== 'web') Vibration.vibrate(300);
+  };
+
+  const handlePad = (key: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (mode === 'setup_mpin') {
+      if (key === '⌫') { setMpin((p) => p.slice(0, -1)); return; }
+      if (mpin.length >= 6) return;
+      const next = mpin + key;
+      setMpin(next);
+      if (next.length === 6) {
+        setTimeout(() => { setMode('confirm_mpin'); setConfirmMpin(''); }, 300);
+      }
+    }
+
+    if (mode === 'confirm_mpin') {
+      if (key === '⌫') { setConfirmMpin((p) => p.slice(0, -1)); return; }
+      if (confirmMpin.length >= 6) return;
+      const next = confirmMpin + key;
+      setConfirmMpin(next);
+      if (next.length === 6) {
+        setTimeout(async () => {
+          if (next === mpin) {
+            await AsyncStorage.setItem(MPIN_KEY, mpin);
+            await AsyncStorage.setItem(MPIN_SETUP_KEY, 'true');
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            router.replace('/(tabs)');
+          } else {
+            setMpinError('PINs do not match. Try again.');
+            shake();
+            setConfirmMpin('');
+            setMpin('');
+            setMode('setup_mpin');
+          }
+        }, 300);
+      }
+    }
+
+    if (mode === 'enter_mpin') {
+      if (key === '⌫') { setEnteredMpin((p) => p.slice(0, -1)); setMpinError(''); return; }
+      if (enteredMpin.length >= 6) return;
+      const next = enteredMpin + key;
+      setEnteredMpin(next);
+      if (next.length === 6) {
+        setTimeout(async () => {
+          const saved = await AsyncStorage.getItem(MPIN_KEY);
+          if (next === saved) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            router.replace('/(tabs)');
+          } else {
+            setMpinError('Incorrect PIN. Try again.');
+            shake();
+            setEnteredMpin('');
+          }
+        }, 300);
+      }
+    }
+  };
+
+  const enableBiometric = async () => {
+    const result = await LocalAuthentication.authenticateAsync({
+      promptMessage: 'Verify your identity',
+      cancelLabel: 'Cancel',
+    });
+    if (result.success) {
+      await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/(tabs)');
+    }
+  };
+
+  const skipAll = () => {
+    router.replace('/(tabs)');
+  };
+
+  const currentPin = mode === 'setup_mpin' ? mpin : mode === 'confirm_mpin' ? confirmMpin : enteredMpin;
+
+  const title =
+    mode === 'choose' ? 'Secure Your App' :
+    mode === 'setup_mpin' ? 'Create 6-digit PIN' :
+    mode === 'confirm_mpin' ? 'Confirm Your PIN' :
+    'Enter Your PIN';
+
+  const subtitle =
+    mode === 'choose' ? 'Choose how you want to unlock the app next time' :
+    mode === 'setup_mpin' ? 'Pick a 6-digit PIN you\'ll remember' :
+    mode === 'confirm_mpin' ? 'Re-enter the same PIN to confirm' :
+    'Enter your PIN to continue';
+
+  return (
+    <View style={styles.root}>
+      <LinearGradient
+        colors={['#050912', '#091525', '#030710']}
+        locations={[0, 0.5, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+
+      {/* Glow circles */}
+      <View style={[styles.glow, { top: -100, left: -80, width: 280, height: 280, backgroundColor: '#2563EB' }]} />
+      <View style={[styles.glow, { bottom: -80, right: -60, width: 220, height: 220, backgroundColor: '#1D4ED8' }]} />
+
+      <View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
+        {/* Icon */}
+        <Reanimated.View style={[styles.iconWrap, cardStyle]}>
+          <LinearGradient colors={['#1D4ED8', '#3B82F6']} style={styles.iconGrad}>
+            <Feather
+              name={mode === 'enter_mpin' || mode === 'setup_mpin' || mode === 'confirm_mpin'
+                ? 'lock' : biometricType === 'face' ? 'camera' : 'shield'}
+              size={32}
+              color="#FFFFFF"
+            />
+          </LinearGradient>
+        </Reanimated.View>
+
+        {/* Title */}
+        <Reanimated.View style={[styles.titleWrap, cardStyle]}>
+          <Text style={[styles.title, { fontFamily: 'Inter_700Bold' }]}>{title}</Text>
+          <Text style={[styles.subtitle, { fontFamily: 'Inter_400Regular' }]}>{subtitle}</Text>
+        </Reanimated.View>
+
+        {/* ── Choose mode ── */}
+        {mode === 'choose' && (
+          <Reanimated.View style={[styles.optionsWrap, cardStyle]}>
+            {/* Fingerprint option */}
+            {hasBiometric && (
+              <TouchableOpacity style={styles.optionCard} onPress={enableBiometric} activeOpacity={0.8}>
+                {Platform.OS === 'ios' ? (
+                  <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+                ) : null}
+                <LinearGradient colors={['#1E3A6E22', '#2563EB11']} style={StyleSheet.absoluteFill} />
+                <View style={styles.optionIcon}>
+                  <Feather name={biometricType === 'face' ? 'camera' : 'shield'} size={28} color="#3B82F6" />
+                </View>
+                <View style={styles.optionText}>
+                  <Text style={[styles.optionTitle, { fontFamily: 'Inter_600SemiBold' }]}>
+                    {biometricType === 'face' ? 'Face ID' : 'Fingerprint'}
+                  </Text>
+                  <Text style={[styles.optionSub, { fontFamily: 'Inter_400Regular' }]}>
+                    Use biometric to unlock instantly
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={18} color="#3B82F6" />
+              </TouchableOpacity>
+            )}
+
+            {/* MPIN option */}
+            <TouchableOpacity
+              style={styles.optionCard}
+              onPress={() => { setMode('setup_mpin'); setMpin(''); }}
+              activeOpacity={0.8}
+            >
+              {Platform.OS === 'ios' ? (
+                <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+              ) : null}
+              <LinearGradient colors={['#1E3A6E22', '#2563EB11']} style={StyleSheet.absoluteFill} />
+              <View style={styles.optionIcon}>
+                <Feather name="lock" size={28} color="#D4AF37" />
+              </View>
+              <View style={styles.optionText}>
+                <Text style={[styles.optionTitle, { fontFamily: 'Inter_600SemiBold' }]}>Set MPIN</Text>
+                <Text style={[styles.optionSub, { fontFamily: 'Inter_400Regular' }]}>
+                  Create a 6-digit security PIN
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={18} color="#D4AF37" />
+            </TouchableOpacity>
+
+            {/* Skip */}
+            <TouchableOpacity style={styles.skipBtn} onPress={skipAll} activeOpacity={0.7}>
+              <Text style={[styles.skipText, { fontFamily: 'Inter_400Regular' }]}>Skip for now</Text>
+            </TouchableOpacity>
+          </Reanimated.View>
+        )}
+
+        {/* ── PIN pad (setup / confirm / enter) ── */}
+        {(mode === 'setup_mpin' || mode === 'confirm_mpin' || mode === 'enter_mpin') && (
+          <Reanimated.View style={[styles.pinWrap, cardStyle]}>
+            {/* Dot indicators */}
+            <Reanimated.View style={[styles.dotsRow, shakeStyle]}>
+              {DOTS.map((i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.dot,
+                    currentPin.length > i && styles.dotFilled,
+                    mpinError && styles.dotError,
+                  ]}
+                />
+              ))}
+            </Reanimated.View>
+
+            {/* Error message */}
+            {!!mpinError && (
+              <Text style={[styles.pinError, { fontFamily: 'Inter_400Regular' }]}>{mpinError}</Text>
+            )}
+
+            {/* Numpad */}
+            <View style={styles.pad}>
+              {PAD.map((row, ri) => (
+                <View key={ri} style={styles.padRow}>
+                  {row.map((key, ki) => {
+                    if (key === '') return <View key={ki} style={styles.padEmpty} />;
+                    return (
+                      <TouchableOpacity
+                        key={ki}
+                        style={[styles.padKey, key === '⌫' && styles.padBackspace]}
+                        onPress={() => handlePad(key)}
+                        activeOpacity={0.7}
+                      >
+                        {key === '⌫' ? (
+                          <Feather name="delete" size={20} color="#94A3B8" />
+                        ) : (
+                          <Text style={[styles.padKeyText, { fontFamily: 'Inter_600SemiBold' }]}>{key}</Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+
+            {/* Bottom actions */}
+            <View style={styles.pinActions}>
+              {mode === 'enter_mpin' && hasBiometric && (
+                <TouchableOpacity onPress={triggerBiometric} style={styles.bioBtnSmall} activeOpacity={0.7}>
+                  <Feather name={biometricType === 'face' ? 'camera' : 'shield'} size={18} color="#3B82F6" />
+                  <Text style={[styles.bioBtnText, { fontFamily: 'Inter_500Medium' }]}>
+                    Use {biometricType === 'face' ? 'Face ID' : 'Fingerprint'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {mode !== 'enter_mpin' && (
+                <TouchableOpacity onPress={() => setMode('choose')} activeOpacity={0.7}>
+                  <Text style={[styles.backText, { fontFamily: 'Inter_400Regular' }]}>← Back</Text>
+                </TouchableOpacity>
+              )}
+              {mode === 'enter_mpin' && (
+                <TouchableOpacity onPress={skipAll} activeOpacity={0.7}>
+                  <Text style={[styles.skipText, { fontFamily: 'Inter_400Regular' }]}>Skip</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </Reanimated.View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  glow: { position: 'absolute', borderRadius: 999, opacity: 0.08 },
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    gap: 20,
+  },
+
+  // Icon
+  iconWrap: { marginBottom: 4 },
+  iconGrad: {
+    width: 80, height: 80, borderRadius: 24,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#2563EB', shadowOpacity: 0.45, shadowRadius: 18,
+    shadowOffset: { width: 0, height: 0 }, elevation: 10,
+  },
+
+  // Title
+  titleWrap: { alignItems: 'center', gap: 8 },
+  title: { fontSize: 22, color: '#F1F5F9', textAlign: 'center' },
+  subtitle: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 20, maxWidth: 260 },
+
+  // Options (choose mode)
+  optionsWrap: { width: '100%', gap: 14 },
+  optionCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    borderRadius: 16, padding: 18,
+    borderWidth: 1, borderColor: '#1E3A5F66',
+    backgroundColor: Platform.OS === 'ios' ? '#0B1526AA' : '#0D1B2E',
+    overflow: 'hidden',
+  },
+  optionIcon: {
+    width: 48, height: 48, borderRadius: 14,
+    backgroundColor: '#0A1628', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: '#1E3A5F55',
+  },
+  optionText: { flex: 1, gap: 4 },
+  optionTitle: { fontSize: 15, color: '#F1F5F9' },
+  optionSub: { fontSize: 12, color: '#64748B' },
+
+  skipBtn: { alignItems: 'center', paddingVertical: 10 },
+  skipText: { fontSize: 13, color: '#475569' },
+
+  // PIN pad
+  pinWrap: { width: '100%', alignItems: 'center', gap: 24 },
+  dotsRow: { flexDirection: 'row', gap: 14 },
+  dot: {
+    width: 14, height: 14, borderRadius: 7,
+    borderWidth: 2, borderColor: '#334155',
+    backgroundColor: 'transparent',
+  },
+  dotFilled: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
+  dotError: { borderColor: '#EF4444' },
+  pinError: { fontSize: 13, color: '#F87171', marginTop: -8 },
+
+  pad: { gap: 12, width: '100%', maxWidth: 300 },
+  padRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  padKey: {
+    flex: 1, height: 68, borderRadius: 16,
+    backgroundColor: '#0D1B2E', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: '#1E3A5F55',
+  },
+  padBackspace: { backgroundColor: '#080F1D' },
+  padEmpty: { flex: 1, height: 68 },
+  padKeyText: { fontSize: 22, color: '#F1F5F9' },
+
+  pinActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24 },
+  bioBtnSmall: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
+  bioBtnText: { fontSize: 13, color: '#3B82F6' },
+  backText: { fontSize: 13, color: '#475569' },
+});

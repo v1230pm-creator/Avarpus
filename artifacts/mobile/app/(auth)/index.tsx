@@ -194,7 +194,7 @@ export default function LoginScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(tabs)');
+      router.replace('/(auth)/biometric');
     }
   };
 
@@ -241,7 +241,7 @@ export default function LoginScreen() {
         <ScrollView
           contentContainerStyle={[
             styles.scroll,
-            { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 40 },
+            { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24, flexGrow: 1, justifyContent: 'center' },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
