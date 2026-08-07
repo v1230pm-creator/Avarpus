@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +14,7 @@ import { Feather } from '@expo/vector-icons';
 import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { Card } from '@/components/ui/Card';
+import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { StatCard } from '@/components/ui/StatCard';
 import { GlassCard, ScreenGlow, useStaggerAnim, useIsDark } from '@/components/ui/Glass';
 import { FinanceEntry } from '@/types';
@@ -50,8 +52,18 @@ export default function FinanceScreen() {
   const isDark = useIsDark();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { finance } = useData();
+  const { finance, isLoading, loadError, loadAll } = useData();
   const [period, setPeriod] = useState<Period>('Month');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadAll();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
@@ -94,7 +106,18 @@ export default function FinanceScreen() {
         <View style={{ width: 44 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
+      {isLoading && finance.length === 0 ? (
+        <DataLoadingState />
+      ) : loadError && finance.length === 0 ? (
+        <DataErrorState onRetry={loadAll} />
+      ) : (
+      <>
+      {!!loadError && <DataErrorBanner onRetry={loadAll} />}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+      >
         {/* Period Filter */}
         <View style={styles.periodRow}>
           {PERIODS.map((p) => {
@@ -155,6 +178,8 @@ export default function FinanceScreen() {
           </GlassCard>
         )}
       </ScrollView>
+      </>
+      )}
     </View>
   );
 }

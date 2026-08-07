@@ -3,6 +3,7 @@ import {
   Animated,
   FlatList,
   Platform,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -16,6 +17,7 @@ import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { GlassCard, ScreenGlow, FadeInView, useIsDark } from '@/components/ui/Glass';
 import { Purchase } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/helpers';
@@ -76,9 +78,19 @@ export default function PurchasesScreen() {
   const isDark = useIsDark();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { purchases } = useData();
+  const { purchases, isLoading, loadError, loadAll } = useData();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'All' | 'Unpaid' | 'Paid' | 'Partial'>('All');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadAll();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
@@ -163,14 +175,24 @@ export default function PurchasesScreen() {
         </View>
       </FadeInView>
 
+      {isLoading && purchases.length === 0 ? (
+        <DataLoadingState />
+      ) : loadError && purchases.length === 0 ? (
+        <DataErrorState onRetry={loadAll} />
+      ) : (
+      <>
+      {!!loadError && <DataErrorBanner onRetry={loadAll} />}
       <FlatList
         data={filtered}
         keyExtractor={(p) => p.id}
         contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         ListEmptyComponent={<EmptyState icon="shopping-bag" title="No purchases found" description="No purchase orders match the current filter" />}
         renderItem={({ item }) => <PurchaseCard purchase={item} />}
       />
+      </>
+      )}
     </View>
   );
 }
