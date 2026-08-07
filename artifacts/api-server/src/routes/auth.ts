@@ -175,7 +175,13 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
     password,
     gstNumber,
     shopAddress,
+    role,
   } = req.body ?? {};
+  const ALLOWED_ROLES = ["reception", "dealer", "admin"] as const;
+  const requestedRole =
+    typeof role === "string" && (ALLOWED_ROLES as readonly string[]).includes(role)
+      ? role
+      : "reception";
   if (
     typeof name !== "string" || !name.trim() ||
     typeof businessName !== "string" || !businessName.trim() ||
@@ -222,6 +228,7 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
     passwordHash: hashPassword(password),
     gstNumber: typeof gstNumber === "string" && gstNumber.trim() ? gstNumber.trim() : null,
     shopAddress: shopAddress.trim(),
+    role: requestedRole,
   });
   try {
     await sendOtpEmail(normEmail, code, "registration");
@@ -259,6 +266,7 @@ router.post("/auth/register/verify", asyncHandler(async (req, res) => {
     passwordHash: string;
     gstNumber: string | null;
     shopAddress: string;
+    role?: string;
   };
   // Re-check uniqueness right before insert
   const existing = await db
@@ -275,7 +283,7 @@ router.post("/auth/register/verify", asyncHandler(async (req, res) => {
     email: p.email,
     mobile: p.mobile,
     passwordHash: p.passwordHash,
-    role: "reception",
+    role: (p.role === "dealer" || p.role === "admin" ? p.role : "reception") as "reception" | "dealer" | "admin",
     isActive: false, // pending admin approval
     designation: "Owner",
     joinDate: new Date().toISOString().split("T")[0],

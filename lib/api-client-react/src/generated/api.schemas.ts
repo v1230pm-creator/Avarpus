@@ -33,6 +33,15 @@ export interface OtpVerifyInput {
   device?: string;
 }
 
+export type RegisterStartInputRole = typeof RegisterStartInputRole[keyof typeof RegisterStartInputRole];
+
+
+export const RegisterStartInputRole = {
+  reception: 'reception',
+  dealer: 'dealer',
+  admin: 'admin',
+} as const;
+
 export interface RegisterStartInput {
   name: string;
   businessName: string;
@@ -41,6 +50,7 @@ export interface RegisterStartInput {
   password: string;
   gstNumber?: string;
   shopAddress: string;
+  role?: RegisterStartInputRole;
 }
 
 export interface RegisterVerifyInput {

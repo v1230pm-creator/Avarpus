@@ -90,7 +90,8 @@ export const AuthRegisterStartBody = zod.object({
   "mobile": zod.string(),
   "password": zod.string(),
   "gstNumber": zod.string().optional(),
-  "shopAddress": zod.string()
+  "shopAddress": zod.string(),
+  "role": zod.enum(['reception', 'dealer', 'admin']).optional()
 })
 
 export const AuthRegisterStartResponse = zod.object({

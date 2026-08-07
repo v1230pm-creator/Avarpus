@@ -22,5 +22,6 @@ export * from './message';
 export * from './otpRequestInput';
 export * from './otpVerifyInput';
 export * from './registerStartInput';
+export * from './registerStartInputRole';
 export * from './registerVerifyInput';
 export * from './sessionInfo';

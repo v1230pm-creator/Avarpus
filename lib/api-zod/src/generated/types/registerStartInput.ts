@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { RegisterStartInputRole } from './registerStartInputRole';
 
 export interface RegisterStartInput {
   name: string;
@@ -14,4 +15,5 @@ export interface RegisterStartInput {
   password: string;
   gstNumber?: string;
   shopAddress: string;
+  role?: RegisterStartInputRole;
 }

@@ -314,6 +314,7 @@ components:
         password: { type: string }
         gstNumber: { type: string }
         shopAddress: { type: string }
+        role: { type: string, enum: [reception, dealer, admin] }
       required: [name, businessName, email, mobile, password, shopAddress]
     RegisterVerifyInput:
       type: object

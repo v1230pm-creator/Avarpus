@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -129,6 +129,9 @@ const bar = StyleSheet.create({
 export default function RegisterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const adminMode = mode === 'admin';
+  const [role, setRole] = useState<'dealer' | 'admin'>('dealer');
 
   const [step, setStep] = useState<Step>('form');
 
@@ -220,6 +223,7 @@ export default function RegisterScreen() {
         password,
         gstNumber: gstNumber.trim() || undefined,
         shopAddress: shopAddress.trim(),
+        role: adminMode ? role : undefined,
       });
     } catch (err: any) {
       setErrors({ email: err?.data?.message ?? 'Could not send OTP. Please try again.' });
@@ -299,6 +303,7 @@ export default function RegisterScreen() {
         password,
         gstNumber: gstNumber.trim() || undefined,
         shopAddress: shopAddress.trim(),
+        role: adminMode ? role : undefined,
       });
       setEmailTimer(60);
       setEmailOtp(['', '', '', '', '', '']);
@@ -334,8 +339,12 @@ export default function RegisterScreen() {
               <Feather name="arrow-left" size={22} color="#F1F5F9" />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text style={[gs.title, { fontFamily: 'Inter_700Bold' }]}>Create Account</Text>
-              <Text style={[gs.subtitle, { fontFamily: 'Inter_400Regular' }]}>Request staff access</Text>
+              <Text style={[gs.title, { fontFamily: 'Inter_700Bold' }]}>
+                {adminMode ? 'Admin / Dealer Account' : 'Create Account'}
+              </Text>
+              <Text style={[gs.subtitle, { fontFamily: 'Inter_400Regular' }]}>
+                {adminMode ? 'Restricted registration' : 'Request staff access'}
+              </Text>
             </View>
           </View>
 
@@ -345,6 +354,24 @@ export default function RegisterScreen() {
           {/* ── STEP 1: Form ── */}
           {step === 'form' && (
             <Reanimated.View style={[gs.card, cardStyle]}>
+              {adminMode && (
+                <View style={gs.roleRow}>
+                  {(['dealer', 'admin'] as const).map((r) => (
+                    <TouchableOpacity
+                      key={r}
+                      style={[gs.roleBtn, role === r && gs.roleBtnActive]}
+                      onPress={() => setRole(r)}
+                      activeOpacity={0.8}
+                    >
+                      <Feather name={r === 'admin' ? 'shield' : 'briefcase'} size={16}
+                        color={role === r ? '#60A5FA' : '#475569'} />
+                      <Text style={[gs.roleText, role === r && gs.roleTextActive, { fontFamily: 'Inter_600SemiBold' }]}>
+                        {r === 'admin' ? 'Admin' : 'Dealer'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
               <Input dark label="Business Name" value={businessName} onChangeText={setBusinessName}
                 placeholder="Your shop / business name" leftIcon="briefcase" error={errors.businessName} />
               <Input dark label="Owner Name" value={name} onChangeText={setName}
@@ -521,6 +548,16 @@ const gs = StyleSheet.create({
     borderWidth: 1, borderColor: '#3B82F622',
   },
   infoText: { fontSize: 12, color: '#93C5FD', flex: 1, lineHeight: 18 },
+
+  roleRow: { flexDirection: 'row', gap: 12 },
+  roleBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    height: 46, borderRadius: 12, backgroundColor: '#0A1628',
+    borderWidth: 1.5, borderColor: '#1E3A5F66',
+  },
+  roleBtnActive: { borderColor: '#2563EB', backgroundColor: '#1D3A7040' },
+  roleText: { fontSize: 14, color: '#475569' },
+  roleTextActive: { color: '#60A5FA' },
 
   photoRow: { flexDirection: 'row', gap: 12 },
   photoBox: {
