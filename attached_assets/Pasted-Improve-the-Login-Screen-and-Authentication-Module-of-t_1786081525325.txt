@@ -1,0 +1,99 @@
+Improve the Login Screen and Authentication Module of the VMC Electronic Business Management System.
+
+Create a premium enterprise-level login experience with Apple, Stripe, Linear, and Notion inspired UI.
+
+Requirements:
+
+1. Branding
+- Display the VMC logo prominently at the top.
+- Place "VMC Electronic" below the logo.
+- Subtitle: "Business Management System".
+
+
+2. Background
+- Premium dark blue gradient.
+- Glassmorphism login card.
+- Soft animated floating shapes.
+- Smooth transitions.
+- Professional shadows.
+
+3. Authentication
+Support:
+- Email Login
+- Mobile OTP Login
+- Email Verification
+- Mobile OTP Verification
+- Forgot Password
+- Remember Me
+- Login with OTP
+- Session Management
+
+Future Ready:
+- Fingerprint Login
+- Face ID Login
+
+4. Login Card
+Include:
+- Premium Gradient Sign In Button
+
+5. Registration
+Create a premium registration page.
+
+Fields:
+- Business Name
+- Owner Name
+- Mobile Number
+- OTP Verification
+- Email
+- Email Verification
+- Password
+- Confirm Password
+- GST Number (Optional)
+- Shop Address
+- Profile Photo
+- Company Logo Upload
+
+6. UI Animations
+- Button hover animation
+- Input focus animation
+- Loading spinner
+- Success checkmark animation
+- Error animation
+- Smooth page transitions
+
+7. Validation
+- Strong password validation
+- Email validation
+- Mobile validation
+- OTP validation
+- Friendly error messages
+
+8. Security
+- JWT Authentication
+- Encrypted Passwords
+- Secure Sessions
+- Role Based Login
+- Login History
+- Device Remember
+- Auto Logout after inactivity
+
+9. Responsive Design
+Optimize perfectly for:
+- Mobile
+- Tablet
+- Desktop
+- Progressive Web App (PWA)
+
+10. Coding Standards
+Use:
+- React
+- TypeScript
+- Tailwind CSS
+- Node.js
+- Express.js
+- PostgreSQL
+- Drizzle ORM
+
+Use reusable components, clean architecture, responsive layout, production-ready code, accessibility best practices, and enterprise-level UI/UX.
+
+Do not use placeholder or demo data. Connect all authentication screens to the real backend APIs and database. Build this as a commercial-grade application suitable for production deployment.

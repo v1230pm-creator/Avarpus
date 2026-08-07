@@ -10,6 +10,8 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -135,11 +137,26 @@ export default function RegisterScreen() {
   const [step, setStep] = useState<Step>('form');
 
   // Form fields
+  const [businessName, setBusinessName] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [gstNumber, setGstNumber] = useState('');
+  const [shopAddress, setShopAddress] = useState('');
+  const [profilePhoto, setProfilePhoto] = useState('');
+  const [companyLogo, setCompanyLogo] = useState('');
+
+  const pickImage = async (setter: (uri: string) => void) => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.6,
+    });
+    if (!result.canceled && result.assets[0]) setter(result.assets[0].uri);
+  };
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formLoading, setFormLoading] = useState(false);
 
@@ -197,11 +214,17 @@ export default function RegisterScreen() {
   // ── Step 1: Validate & proceed to email OTP ───────────────────────────────
   const handleFormNext = async () => {
     const e: Record<string, string> = {};
-    if (!name.trim()) e.name = 'Full name is required';
-    if (!email.trim() || !email.includes('@')) e.email = 'Valid email is required';
+    if (!businessName.trim()) e.businessName = 'Business name is required';
+    if (!name.trim()) e.name = 'Owner name is required';
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) e.email = 'Valid email is required';
     if (!mobile.trim() || mobile.length !== 10) e.mobile = 'Valid 10-digit mobile required';
-    if (!password || password.length < 6) e.password = 'Min. 6 characters';
+    if (!password || password.length < 8) e.password = 'Min. 8 characters';
+    else if (!/[A-Z]/.test(password)) e.password = 'Include an uppercase letter';
+    else if (!/[a-z]/.test(password)) e.password = 'Include a lowercase letter';
+    else if (!/[0-9]/.test(password)) e.password = 'Include a number';
     if (password !== confirmPassword) e.confirmPassword = 'Passwords do not match';
+    if (!shopAddress.trim()) e.shopAddress = 'Shop address is required';
+    if (gstNumber.trim() && gstNumber.trim().length !== 15) e.gstNumber = 'GST number must be 15 characters';
     setErrors(e);
     if (Object.keys(e).length > 0) return;
 
@@ -288,8 +311,12 @@ export default function RegisterScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
-    // Create account
+    // Create account — re-check uniqueness right before writing
     const users = (await storage.get<User[]>(KEYS.USERS)) ?? [];
+    if (users.some((u) => u.email === email.toLowerCase().trim() || u.mobile === mobile.trim())) {
+      setPhoneError('Account with this email or mobile already exists');
+      return;
+    }
     const newUser: User = {
       id: `u${Date.now()}`,
       name: name.trim(),
@@ -298,8 +325,13 @@ export default function RegisterScreen() {
       role: 'reception',
       isActive: false,
       joinDate: new Date().toISOString().split('T')[0],
-      designation: 'Staff',
+      designation: 'Owner',
       password,
+      businessName: businessName.trim(),
+      gstNumber: gstNumber.trim() || undefined,
+      shopAddress: shopAddress.trim(),
+      profilePhoto: profilePhoto || undefined,
+      companyLogo: companyLogo || undefined,
     };
     await storage.set(KEYS.USERS, [...users, newUser]);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -344,19 +376,48 @@ export default function RegisterScreen() {
           {/* ── STEP 1: Form ── */}
           {step === 'form' && (
             <Reanimated.View style={[gs.card, cardStyle]}>
-              <Input label="Full Name" value={name} onChangeText={setName}
-                placeholder="Your full name" leftIcon="user" error={errors.name} />
-              <Input label="Email Address" value={email} onChangeText={setEmail}
+              <Input dark label="Business Name" value={businessName} onChangeText={setBusinessName}
+                placeholder="Your shop / business name" leftIcon="briefcase" error={errors.businessName} />
+              <Input dark label="Owner Name" value={name} onChangeText={setName}
+                placeholder="Owner full name" leftIcon="user" error={errors.name} />
+              <Input dark label="Email Address" value={email} onChangeText={setEmail}
                 placeholder="name@company.com" keyboardType="email-address"
                 autoCapitalize="none" leftIcon="mail" error={errors.email} />
-              <Input label="Mobile Number" value={mobile}
+              <Input dark label="Mobile Number" value={mobile}
                 onChangeText={(t) => setMobile(t.replace(/\D/g, '').slice(0, 10))}
                 placeholder="10-digit mobile" keyboardType="phone-pad"
                 leftIcon="phone" error={errors.mobile} />
-              <Input label="Password" value={password} onChangeText={setPassword}
-                placeholder="Min. 6 characters" isPassword leftIcon="lock" error={errors.password} />
-              <Input label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword}
+              <Input dark label="Password" value={password} onChangeText={setPassword}
+                placeholder="8+ chars, A-z, 0-9" isPassword leftIcon="lock" error={errors.password} />
+              <Input dark label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword}
                 placeholder="Re-enter password" isPassword leftIcon="lock" error={errors.confirmPassword} />
+              <Input dark label="GST Number (Optional)" value={gstNumber}
+                onChangeText={(t) => setGstNumber(t.toUpperCase().slice(0, 15))}
+                placeholder="15-character GSTIN" autoCapitalize="characters"
+                leftIcon="file-text" error={errors.gstNumber} />
+              <Input dark label="Shop Address" value={shopAddress} onChangeText={setShopAddress}
+                placeholder="Full shop address" leftIcon="map-pin"
+                multiline error={errors.shopAddress} />
+
+              {/* Photo uploads */}
+              <View style={gs.photoRow}>
+                <TouchableOpacity style={gs.photoBox} onPress={() => pickImage(setProfilePhoto)} activeOpacity={0.8}>
+                  {profilePhoto ? (
+                    <Image source={{ uri: profilePhoto }} style={gs.photoImg} contentFit="cover" />
+                  ) : (
+                    <Feather name="user" size={22} color="#475569" />
+                  )}
+                  <Text style={[gs.photoLabel, { fontFamily: 'Inter_500Medium' }]}>Profile Photo</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={gs.photoBox} onPress={() => pickImage(setCompanyLogo)} activeOpacity={0.8}>
+                  {companyLogo ? (
+                    <Image source={{ uri: companyLogo }} style={gs.photoImg} contentFit="cover" />
+                  ) : (
+                    <Feather name="image" size={22} color="#475569" />
+                  )}
+                  <Text style={[gs.photoLabel, { fontFamily: 'Inter_500Medium' }]}>Company Logo</Text>
+                </TouchableOpacity>
+              </View>
 
               <View style={gs.infoBox}>
                 <Feather name="info" size={14} color="#60A5FA" />
@@ -552,6 +613,15 @@ const gs = StyleSheet.create({
     borderWidth: 1, borderColor: '#3B82F622',
   },
   infoText: { fontSize: 12, color: '#93C5FD', flex: 1, lineHeight: 18 },
+
+  photoRow: { flexDirection: 'row', gap: 12 },
+  photoBox: {
+    flex: 1, height: 96, borderRadius: 14,
+    backgroundColor: '#0A1628', borderWidth: 1.5, borderColor: '#1E3A5F66', borderStyle: 'dashed',
+    alignItems: 'center', justifyContent: 'center', gap: 8, overflow: 'hidden',
+  },
+  photoImg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 26 },
+  photoLabel: { fontSize: 11, color: '#64748B', position: 'absolute', bottom: 8 },
 
   // OTP
   otpHeader: { alignItems: 'center', gap: 6 },

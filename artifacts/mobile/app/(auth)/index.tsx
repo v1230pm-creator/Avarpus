@@ -236,6 +236,8 @@ export default function LoginScreen() {
               style={styles.logoImg}
               contentFit="contain"
             />
+            <Text style={[styles.appName, { fontFamily: 'Inter_700Bold' }]}>VMC Electronic</Text>
+            <Text style={[styles.tagline, { fontFamily: 'Inter_400Regular' }]}>Business Management System</Text>
           </Reanimated.View>
 
           {/* ── Glass Card ──────────────────────────────────── */}
@@ -336,7 +338,7 @@ export default function LoginScreen() {
                   <RememberMeRow
                     checked={rememberMe}
                     onToggle={() => setRememberMe((v) => !v)}
-                    onForgot={() => {}}
+                    onForgot={() => router.push('/(auth)/forgot')}
                   />
 
                   {/* Sign In */}
@@ -502,8 +504,8 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 24, gap: 22 },
 
   // Logo
-  logoWrap: { alignItems: 'center' },
-  logoImg: { width: 220, height: 125 },
+  logoWrap: { alignItems: 'center', gap: 2 },
+  logoImg: { width: 200, height: 110 },
 
   // Header
   header: { alignItems: 'center', gap: 8 },

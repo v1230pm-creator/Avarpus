@@ -11,13 +11,28 @@ interface InputProps extends TextInputProps {
   onRightIconPress?: () => void;
   containerStyle?: ViewStyle;
   isPassword?: boolean;
+  dark?: boolean;
 }
+
+const DARK = {
+  foreground: '#94A3B8',
+  input: '#0A1628',
+  border: '#1E3A5F66',
+  primary: '#3B82F6',
+  mutedForeground: '#475569',
+  destructive: '#F87171',
+  text: '#F1F5F9',
+  radius: 14,
+};
 
 export function Input({
   label, error, leftIcon, rightIcon, onRightIconPress,
-  containerStyle, isPassword = false, ...props
+  containerStyle, isPassword = false, dark = false, ...props
 }: InputProps) {
-  const colors = useColors();
+  const themeColors = useColors();
+  const colors = dark
+    ? { ...themeColors, ...DARK }
+    : { ...themeColors, text: themeColors.foreground };
   const [showPassword, setShowPassword] = useState(false);
   const [focused, setFocused] = useState(false);
 
@@ -41,7 +56,7 @@ export function Input({
         )}
         <TextInput
           style={[styles.input, {
-            color: colors.foreground,
+            color: colors.text,
             fontFamily: 'Inter_400Regular',
             paddingLeft: leftIcon ? 0 : 14,
             paddingRight: (isPassword || rightIcon) ? 0 : 14,

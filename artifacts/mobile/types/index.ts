@@ -16,6 +16,11 @@ export interface User {
   joinDate: string;
   designation?: string;
   password?: string;
+  businessName?: string;
+  gstNumber?: string;
+  shopAddress?: string;
+  profilePhoto?: string;
+  companyLogo?: string;
 }
 
 export type RepairStatus =
