@@ -7,6 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
+import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
 
 interface MenuItem {
@@ -37,6 +38,8 @@ export default function MoreScreen() {
 
   const visibleItems = MENU_ITEMS.filter((item) => item.roles.includes(user?.role ?? ''));
 
+  const anims = useStaggerAnim(3);
+
   const handleLogout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await logout();
@@ -45,28 +48,30 @@ export default function MoreScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <ScreenGlow />
+
+      <View style={[styles.header, { paddingTop: topPad + 16 }]}>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>More</Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
         {/* User Card */}
-        <View style={[styles.userCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+        <GlassCard animValue={anims[0]} style={styles.userCard}>
           <Avatar name={user?.name ?? 'User'} size={56} />
           <View style={styles.userInfo}>
             <Text style={[styles.userName, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{user?.name}</Text>
             <Text style={[styles.userEmail, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{user?.email}</Text>
-            <View style={[styles.roleBadge, { backgroundColor: colors.primary + '22' }]}>
+            <View style={[styles.roleBadge, { backgroundColor: colors.primary + '15' }]}>
               <Text style={[styles.roleText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
                 {ROLE_LABELS[user?.role ?? 'reception']}
               </Text>
             </View>
           </View>
-        </View>
+        </GlassCard>
 
         {/* Menu Items */}
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>MODULES</Text>
-        <View style={[styles.menuGroup, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>MODULES</Text>
+        <GlassCard animValue={anims[1]} style={styles.menuGroup}>
           {visibleItems.map((item, idx) => (
             <TouchableOpacity
               key={item.id}
@@ -74,8 +79,7 @@ export default function MoreScreen() {
               activeOpacity={0.7}
               style={[
                 styles.menuItem,
-                { borderBottomColor: colors.border },
-                idx < visibleItems.length - 1 && styles.menuItemBorder,
+                idx < visibleItems.length - 1 && [styles.menuItemBorder, { borderBottomColor: colors.border }],
               ]}
             >
               <View style={[styles.menuIconWrap, { backgroundColor: item.color + '1A' }]}>
@@ -88,7 +92,7 @@ export default function MoreScreen() {
               <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
             </TouchableOpacity>
           ))}
-        </View>
+        </GlassCard>
 
         {/* Version info */}
         <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
@@ -98,7 +102,7 @@ export default function MoreScreen() {
         {/* Logout */}
         <TouchableOpacity
           onPress={handleLogout}
-          style={[styles.logoutBtn, { backgroundColor: colors.destructive + '1A', borderColor: colors.destructive + '33', borderRadius: colors.radius }]}
+          style={[styles.logoutBtn, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '33', borderRadius: 20 }]}
           activeOpacity={0.8}
         >
           <Feather name="log-out" size={18} color={colors.destructive} />
@@ -111,17 +115,17 @@ export default function MoreScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
-  headerTitle: { fontSize: 26 },
+  header: { paddingHorizontal: 20, paddingBottom: 16 },
+  headerTitle: { fontSize: 28 },
   scroll: { padding: 16, gap: 14 },
-  userCard: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, borderWidth: 1 },
+  userCard: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16 },
   userInfo: { flex: 1, gap: 3 },
   userName: { fontSize: 18 },
   userEmail: { fontSize: 13 },
   roleBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20, marginTop: 2 },
   roleText: { fontSize: 11 },
   sectionLabel: { fontSize: 11, letterSpacing: 1 },
-  menuGroup: { borderWidth: 1, borderRadius: 16, overflow: 'hidden' },
+  menuGroup: { overflow: 'hidden' },
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
   menuItemBorder: { borderBottomWidth: 1 },
   menuIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

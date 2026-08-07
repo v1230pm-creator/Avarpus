@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   FlatList,
   Platform,
   StyleSheet,
@@ -15,6 +16,7 @@ import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { GlassCard, ScreenGlow, FadeInView, useIsDark } from '@/components/ui/Glass';
 import { Purchase } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 
@@ -28,9 +30,9 @@ function PurchaseCard({ purchase }: { purchase: Purchase }) {
   const colors = useColors();
   const balance = purchase.totalAmount - purchase.paidAmount;
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+    <GlassCard style={styles.card}>
       <View style={styles.cardTop}>
-        <View style={[styles.invoiceBadge, { backgroundColor: colors.primary + '1A' }]}>
+        <View style={[styles.invoiceBadge, { backgroundColor: colors.primary + '15' }]}>
           <Text style={[styles.invoiceId, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{purchase.invoiceNo}</Text>
         </View>
         <Badge
@@ -73,12 +75,13 @@ function PurchaseCard({ purchase }: { purchase: Purchase }) {
           {formatDate(purchase.date)}
         </Text>
       </View>
-    </View>
+    </GlassCard>
   );
 }
 
 export default function PurchasesScreen() {
   const colors = useColors();
+  const isDark = useIsDark();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { purchases } = useData();
@@ -86,6 +89,15 @@ export default function PurchasesScreen() {
   const [filter, setFilter] = useState<'All' | 'Unpaid' | 'Paid' | 'Partial'>('All');
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
+
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  React.useEffect(() => {
+    Animated.timing(headerAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, [headerAnim]);
 
   const filtered = useMemo(() => {
     let list = purchases;
@@ -106,48 +118,58 @@ export default function PurchasesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 14, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
-        </TouchableOpacity>
-        <View>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Purchases</Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            {filtered.length} orders{totalDue > 0 ? ` · Due ${formatCurrency(totalDue)}` : ''}
-          </Text>
-        </View>
-        <View style={{ width: 44 }} />
-      </View>
+      <ScreenGlow />
 
-      <View style={[styles.searchWrap, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <View style={[styles.searchBar, { backgroundColor: colors.input, borderColor: colors.border }]}>
-          <Feather name="search" size={16} color={colors.mutedForeground} />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search purchases..."
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
-          />
-          {!!search && <TouchableOpacity onPress={() => setSearch('')}><Feather name="x" size={16} color={colors.mutedForeground} /></TouchableOpacity>}
+      <FadeInView animValue={headerAnim}>
+        <View style={[styles.header, { paddingTop: topPad + 14 }]}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Feather name="arrow-left" size={22} color={colors.foreground} />
+          </TouchableOpacity>
+          <View>
+            <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Purchases</Text>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              {filtered.length} orders{totalDue > 0 ? ` · Due ${formatCurrency(totalDue)}` : ''}
+            </Text>
+          </View>
+          <View style={{ width: 44 }} />
         </View>
-        <View style={styles.filterRow}>
-          {(['All', 'Unpaid', 'Paid', 'Partial'] as const).map((f) => {
-            const active = filter === f;
-            return (
-              <TouchableOpacity
-                key={f}
-                onPress={() => setFilter(f)}
-                style={[styles.filterTab, { backgroundColor: active ? colors.primary : colors.muted, borderColor: active ? colors.primary : colors.border }]}
-              >
-                <Text style={[styles.filterText, { color: active ? '#FFFFFF' : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_400Regular' }]}>
-                  {f}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+
+        <View style={styles.searchWrap}>
+          <View style={[styles.searchBar, {
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+          }]}>
+            <Feather name="search" size={16} color={colors.mutedForeground} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search purchases..."
+              placeholderTextColor={colors.mutedForeground}
+              style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+            />
+            {!!search && <TouchableOpacity onPress={() => setSearch('')}><Feather name="x" size={16} color={colors.mutedForeground} /></TouchableOpacity>}
+          </View>
+          <View style={styles.filterRow}>
+            {(['All', 'Unpaid', 'Paid', 'Partial'] as const).map((f) => {
+              const active = filter === f;
+              return (
+                <TouchableOpacity
+                  key={f}
+                  onPress={() => setFilter(f)}
+                  style={[styles.filterTab, {
+                    backgroundColor: active ? colors.primary : (isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)'),
+                    borderColor: active ? colors.primary : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)'),
+                  }]}
+                >
+                  <Text style={[styles.filterText, { color: active ? '#FFFFFF' : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>
+                    {f}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
-      </View>
+      </FadeInView>
 
       <FlatList
         data={filtered}
@@ -163,20 +185,20 @@ export default function PurchasesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14 },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 22 },
-  headerSub: { fontSize: 12 },
-  searchWrap: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, gap: 10 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12 },
-  searchInput: { flex: 1, height: 44, fontSize: 14 },
+  headerSub: { fontSize: 12, marginTop: 2 },
+  searchWrap: { paddingHorizontal: 16, paddingBottom: 12, gap: 10 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14 },
+  searchInput: { flex: 1, height: 46, fontSize: 14 },
   filterRow: { flexDirection: 'row', gap: 8 },
-  filterTab: { flex: 1, paddingVertical: 7, borderRadius: 20, borderWidth: 1, alignItems: 'center' },
+  filterTab: { flex: 1, paddingVertical: 8, borderRadius: 20, borderWidth: 1, alignItems: 'center' },
   filterText: { fontSize: 12 },
-  list: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
-  card: { padding: 14, gap: 8, borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowOffset: { width: 0, height: 1 }, shadowRadius: 4, elevation: 1 },
+  list: { paddingHorizontal: 16, paddingTop: 4, gap: 10 },
+  card: { padding: 14, gap: 8 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  invoiceBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  invoiceBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   invoiceId: { fontSize: 11 },
   supplier: { fontSize: 16 },
   itemsText: { fontSize: 12 },

@@ -16,6 +16,7 @@ import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { RepairStatusBadge, PriorityBadge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { Repair } from '@/types';
 import { formatDate, formatCurrency } from '@/utils/helpers';
 
@@ -26,33 +27,35 @@ function RepairCard({ repair, onPress }: { repair: Repair; onPress: () => void }
   const colors = useColors();
   const balance = Math.max(0, repair.repairCharge + repair.partsCharge - repair.advance);
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-      <View style={styles.cardTop}>
-        <View style={[styles.repairIdBadge, { backgroundColor: colors.primary + '1A' }]}>
-          <Text style={[styles.repairId, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{repair.repairId}</Text>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
+      <GlassCard style={styles.card}>
+        <View style={styles.cardTop}>
+          <View style={[styles.repairIdBadge, { backgroundColor: colors.primary + '15' }]}>
+            <Text style={[styles.repairId, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{repair.repairId}</Text>
+          </View>
+          <PriorityBadge priority={repair.priority} />
         </View>
-        <PriorityBadge priority={repair.priority} />
-      </View>
-      <Text style={[styles.customerName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{repair.customerName}</Text>
-      <Text style={[styles.deviceLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-        {repair.deviceType} · {repair.brand} {repair.model}
-      </Text>
-      <Text style={[styles.problem, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
-        {repair.problem}
-      </Text>
-      <View style={styles.cardBottom}>
-        <RepairStatusBadge status={repair.status} />
-        <View style={styles.cardBottomRight}>
-          {balance > 0 && (
-            <Text style={[styles.balance, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>
-              Due {formatCurrency(balance)}
+        <Text style={[styles.customerName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{repair.customerName}</Text>
+        <Text style={[styles.deviceLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          {repair.deviceType} · {repair.brand} {repair.model}
+        </Text>
+        <Text style={[styles.problem, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+          {repair.problem}
+        </Text>
+        <View style={styles.cardBottom}>
+          <RepairStatusBadge status={repair.status} />
+          <View style={styles.cardBottomRight}>
+            {balance > 0 && (
+              <Text style={[styles.balance, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>
+                Due {formatCurrency(balance)}
+              </Text>
+            )}
+            <Text style={[styles.dateText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              {formatDate(repair.createdAt)}
             </Text>
-          )}
-          <Text style={[styles.dateText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            {formatDate(repair.createdAt)}
-          </Text>
+          </View>
         </View>
-      </View>
+      </GlassCard>
     </TouchableOpacity>
   );
 }
@@ -93,20 +96,25 @@ export default function RepairsScreen() {
 
   const canCreateRepair = canAccess('repairs') && user?.role !== 'technician';
 
+  const headerAnims = useStaggerAnim(3);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScreenGlow />
+
       {/* Header */}
-      <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <FadeInView animValue={headerAnims[0]} style={[styles.header, { paddingTop: topPad + 16 }]}>
         <View style={styles.headerRow}>
           <View>
             <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Repairs</Text>
-            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
               {filtered.length} jobs
             </Text>
           </View>
           {canCreateRepair && (
             <TouchableOpacity
               onPress={() => router.push('/(tabs)/repairs/new')}
+              activeOpacity={0.85}
               style={[styles.addBtn, { backgroundColor: colors.primary }]}
             >
               <Feather name="plus" size={18} color="#FFFFFF" />
@@ -116,7 +124,7 @@ export default function RepairsScreen() {
         </View>
 
         {/* Search */}
-        <View style={[styles.searchBar, { backgroundColor: colors.input, borderColor: colors.border }]}>
+        <GlassCard style={styles.searchBar}>
           <Feather name="search" size={16} color={colors.mutedForeground} />
           <TextInput
             value={search}
@@ -130,7 +138,7 @@ export default function RepairsScreen() {
               <Feather name="x" size={16} color={colors.mutedForeground} />
             </TouchableOpacity>
           )}
-        </View>
+        </GlassCard>
 
         {/* Filter Tabs */}
         <FlatList
@@ -144,21 +152,22 @@ export default function RepairsScreen() {
             return (
               <TouchableOpacity
                 onPress={() => setFilter(item)}
+                activeOpacity={0.8}
                 style={[styles.filterTab, {
-                  backgroundColor: active ? colors.primary : colors.muted,
-                  borderColor: active ? colors.primary : colors.border,
+                  backgroundColor: active ? colors.primary : colors.primary + '12',
+                  borderColor: active ? colors.primary : 'transparent',
                 }]}
               >
                 <Text style={[styles.filterText, {
                   color: active ? '#FFFFFF' : colors.mutedForeground,
-                  fontFamily: active ? 'Inter_600SemiBold' : 'Inter_400Regular',
+                  fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium',
                 }]}>{item}</Text>
               </TouchableOpacity>
             );
           }}
           style={{ paddingBottom: 2 }}
         />
-      </View>
+      </FadeInView>
 
       <FlatList
         data={filtered}
@@ -184,18 +193,18 @@ export default function RepairsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, gap: 12 },
+  header: { paddingHorizontal: 16, paddingBottom: 12, gap: 14 },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 26 },
-  headerSub: { fontSize: 13 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
+  headerTitle: { fontSize: 28 },
+  headerSub: { fontSize: 13, marginTop: 2 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14 },
   addBtnText: { color: '#FFFFFF', fontSize: 14 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12 },
-  searchInput: { flex: 1, height: 44, fontSize: 14 },
-  filterTab: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
+  searchInput: { flex: 1, height: 46, fontSize: 14 },
+  filterTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   filterText: { fontSize: 13 },
-  list: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
-  card: { padding: 14, gap: 7, borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowOffset: { width: 0, height: 1 }, shadowRadius: 4, elevation: 1 },
+  list: { paddingHorizontal: 16, paddingTop: 14, gap: 12 },
+  card: { padding: 16, gap: 7 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   repairIdBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   repairId: { fontSize: 11 },

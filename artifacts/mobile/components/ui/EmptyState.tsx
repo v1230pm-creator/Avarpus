@@ -16,8 +16,18 @@ export function EmptyState({ icon, title, description, actionLabel, onAction }: 
   const colors = useColors();
   return (
     <View style={styles.container}>
-      <View style={[styles.iconWrap, { backgroundColor: colors.muted, borderRadius: 100 }]}>
-        <Feather name={icon} size={32} color={colors.mutedForeground} />
+      <View
+        style={[
+          styles.iconWrap,
+          {
+            backgroundColor: colors.primary + '12',
+            borderRadius: 100,
+            borderWidth: 1,
+            borderColor: colors.primary + '22',
+          },
+        ]}
+      >
+        <Feather name={icon} size={32} color={colors.primary} />
       </View>
       <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{title}</Text>
       {description && (

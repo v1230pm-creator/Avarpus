@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import { GlassCard, useIsDark } from '@/components/ui/Glass';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
@@ -39,43 +39,6 @@ const getStatusColor = (status: string, colors: any) => {
 };
 
 // --- Components ---
-
-const GlassCard = ({ children, style, animValue }: any) => {
-  const colors = useColors();
-  const isDark = colors.background.toLowerCase() === '#0b0e1a' || colors.background === '#0B0E1A';
-
-  const animatedStyle = animValue ? {
-    opacity: animValue,
-    transform: [{
-      translateY: animValue.interpolate({
-        inputRange: [0, 1],
-        outputRange: [20, 0]
-      })
-    }]
-  } : {};
-
-  return (
-    <Animated.View style={[
-      animatedStyle,
-      {
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
-        backgroundColor: isDark ? 'rgba(17, 24, 39, 0.6)' : 'rgba(255, 255, 255, 0.8)',
-        overflow: 'hidden',
-        shadowColor: colors.foreground,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: isDark ? 0.2 : 0.05,
-        shadowRadius: 12,
-        elevation: 4,
-      },
-      style
-    ]}>
-      {Platform.OS === 'ios' && <BlurView intensity={isDark ? 30 : 60} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
-      {children}
-    </Animated.View>
-  );
-};
 
 const Header = () => {
   const colors = useColors();
@@ -410,7 +373,7 @@ export default function DashboardScreen() {
   const { canAccess } = useAuth();
   const { repairs, customers, inventory, finance } = useData();
 
-  const isDark = colors.background.toLowerCase() === '#0b0e1a' || colors.background === '#0B0E1A';
+  const isDark = useIsDark();
   const today = getTodayStr();
 
   const stats = useMemo(() => {

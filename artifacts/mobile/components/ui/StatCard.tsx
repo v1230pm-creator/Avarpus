@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
+import { GlassCard } from '@/components/ui/Glass';
 
 type IconColor = 'primary' | 'success' | 'warning' | 'error' | 'info' | 'muted';
 
@@ -35,12 +36,7 @@ export function StatCard({ title, value, icon, iconColor = 'primary', subtitle, 
   };
 
   return (
-    <View style={[styles.card, {
-      backgroundColor: colors.card,
-      borderRadius: colors.radius,
-      borderColor: colors.border,
-      shadowColor: colors.foreground,
-    }, style]}>
+    <GlassCard style={StyleSheet.flatten([styles.card, style])}>
       <View style={[styles.iconWrap, { backgroundColor: iconBg[iconColor], borderRadius: colors.radius - 4 }]}>
         <Feather name={icon} size={20} color={iconFg[iconColor]} />
       </View>
@@ -55,14 +51,13 @@ export function StatCard({ title, value, icon, iconColor = 'primary', subtitle, 
           {subtitle}
         </Text>
       )}
-    </View>
+    </GlassCard>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    padding: 16, gap: 6, borderWidth: 1,
-    shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
+    padding: 16, gap: 6,
   },
   iconWrap: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   value: { fontSize: 24, lineHeight: 28 },

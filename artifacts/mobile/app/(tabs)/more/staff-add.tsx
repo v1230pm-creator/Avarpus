@@ -16,6 +16,7 @@ import { staffCreate } from '@workspace/api-client-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
+import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
 
 // Roles a dealer can assign — dealer/admin accounts can never be created here.
@@ -52,6 +53,8 @@ export default function AddStaffScreen() {
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
+  const anims = useStaggerAnim(3);
+
   const handleCreate = async () => {
     const e: Record<string, string> = {};
     if (!name.trim()) e.name = 'Name is required';
@@ -87,15 +90,17 @@ export default function AddStaffScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 14, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+      <ScreenGlow />
+
+      <View style={[styles.header, { paddingTop: topPad + 14 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}>
+          <Feather name="arrow-left" size={20} color={colors.foreground} />
         </TouchableOpacity>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Add Staff</Text>
           <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Create a staff account for your shop</Text>
         </View>
-        <View style={{ width: 44 }} />
+        <View style={{ width: 40 }} />
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
@@ -104,6 +109,7 @@ export default function AddStaffScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          <FadeInView animValue={anims[0]} style={styles.section}>
           <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>ROLE & PERMISSIONS</Text>
           <View style={styles.roleGrid}>
             {STAFF_ROLES.map((r) => {
@@ -114,9 +120,9 @@ export default function AddStaffScreen() {
                   style={[
                     styles.roleCard,
                     {
-                      backgroundColor: active ? colors.primary + '14' : colors.card,
-                      borderColor: active ? colors.primary : colors.border,
-                      borderRadius: colors.radius,
+                      backgroundColor: active ? colors.primary + '15' : colors.primary + '08',
+                      borderColor: active ? colors.primary : colors.primary + '18',
+                      borderRadius: 16,
                     },
                   ]}
                   onPress={() => setRole(r)}
@@ -133,7 +139,9 @@ export default function AddStaffScreen() {
               );
             })}
           </View>
+          </FadeInView>
 
+          <FadeInView animValue={anims[1]} style={styles.section}>
           <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>DETAILS</Text>
           <View style={{ gap: 14 }}>
             <Input label="Full Name" value={name} onChangeText={setName}
@@ -150,15 +158,18 @@ export default function AddStaffScreen() {
             <Input label="Designation (Optional)" value={designation} onChangeText={setDesignation}
               placeholder="e.g. Senior Technician" leftIcon="tag" error={errors.designation} />
           </View>
+          </FadeInView>
 
-          <View style={[styles.infoBox, { backgroundColor: colors.muted, borderColor: colors.border, borderRadius: colors.radius }]}>
-            <Feather name="info" size={14} color={colors.mutedForeground} />
+          <FadeInView animValue={anims[2]} style={styles.section}>
+          <View style={[styles.infoBox, { backgroundColor: colors.primary + '0F', borderColor: colors.primary + '22', borderRadius: 16 }]}>
+            <Feather name="info" size={14} color={colors.primary} />
             <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
               The staff member signs in with this email/mobile and password. Their access is limited by the role you assign.
             </Text>
           </View>
 
           <Button title="Create Staff Account" onPress={handleCreate} loading={loading} fullWidth size="lg" />
+          </FadeInView>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -167,11 +178,12 @@ export default function AddStaffScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1 },
-  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14, gap: 8 },
+  backBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 22 },
   headerSub: { fontSize: 13 },
   scroll: { padding: 16, gap: 16 },
+  section: { gap: 16 },
   sectionLabel: { fontSize: 11, letterSpacing: 1, marginTop: 4 },
   roleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   roleCard: { width: '48%', flexGrow: 1, borderWidth: 1.5, padding: 14, gap: 6 },

@@ -18,6 +18,7 @@ import { useColors } from '@/hooks/useColors';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { SelectInput } from '@/components/ui/SelectInput';
+import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { Repair } from '@/types';
 import {
   generateId,
@@ -45,6 +46,8 @@ export default function NewRepairScreen() {
   const router = useRouter();
   const { addRepair, addCustomer, repairs, customers } = useData();
   const { user } = useAuth();
+
+  const anims = useStaggerAnim(2);
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
@@ -133,20 +136,23 @@ export default function NewRepairScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScreenGlow />
+
       {/* Header */}
-      <View style={[styles.header, { paddingTop: topPad + 14, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <FadeInView animValue={anims[0]} style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>New Repair Job</Text>
         <View style={{ width: 44 }} />
-      </View>
+      </FadeInView>
 
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        <FadeInView animValue={anims[1]} style={{ gap: 16 }}>
         <SectionHeader title="Customer Information" />
         <Input label="Customer Name *" value={customerName} onChangeText={setCustomerName} placeholder="Full name" leftIcon="user" error={errors.customerName} />
         <Input label="Mobile Number *" value={mobile} onChangeText={setMobile} placeholder="10-digit number" keyboardType="phone-pad" leftIcon="phone" error={errors.mobile} />
@@ -197,6 +203,7 @@ export default function NewRepairScreen() {
           size="lg"
           style={{ marginTop: 8 }}
         />
+        </FadeInView>
       </ScrollView>
     </View>
   );
@@ -206,13 +213,13 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1,
+    paddingHorizontal: 16, paddingBottom: 14,
   },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18 },
   scroll: { paddingHorizontal: 16, paddingTop: 20, gap: 16 },
   sectionHeader: { borderLeftWidth: 3, paddingLeft: 10, marginTop: 8, marginBottom: -4 },
   sectionTitle: { fontSize: 15 },
-  infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 10, borderWidth: 1 },
+  infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14, borderRadius: 16, borderWidth: 1 },
   infoText: { fontSize: 12, flex: 1, lineHeight: 18 },
 });

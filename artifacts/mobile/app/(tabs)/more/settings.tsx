@@ -16,6 +16,7 @@ import { useColors } from '@/hooks/useColors';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import {
   DEFAULT_INACTIVITY_MINUTES,
   INACTIVITY_OPTIONS,
@@ -109,14 +110,18 @@ export default function SettingsScreen() {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const anims = useStaggerAnim(6);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 14, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+      <ScreenGlow />
+
+      <View style={[styles.header, { paddingTop: topPad + 14 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}>
+          <Feather name="arrow-left" size={20} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Settings</Text>
-        <View style={{ width: 44 }} />
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView
@@ -124,6 +129,7 @@ export default function SettingsScreen() {
         contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}
         keyboardShouldPersistTaps="handled"
       >
+        <FadeInView animValue={anims[0]} style={styles.section}>
         {/* Company Info */}
         <View style={[styles.sectionHeader, { borderLeftColor: colors.primary }]}>
           <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Company Information</Text>
@@ -134,7 +140,9 @@ export default function SettingsScreen() {
         <Input label="Email" value={email} onChangeText={setEmail} leftIcon="mail" keyboardType="email-address" />
         <Input label="Address" value={address} onChangeText={setAddress} leftIcon="map-pin" multiline numberOfLines={2} style={{ height: 72, textAlignVertical: 'top', paddingTop: 10 } as any} />
         <Input label="GST Number" value={gst} onChangeText={setGst} leftIcon="file-text" autoCapitalize="characters" />
+        </FadeInView>
 
+        <FadeInView animValue={anims[1]} style={styles.section}>
         {/* App Config */}
         <View style={[styles.sectionHeader, { borderLeftColor: colors.primary }]}>
           <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>App Configuration</Text>
@@ -146,7 +154,7 @@ export default function SettingsScreen() {
               <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Currency</Text>
               <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Default: INR (Indian Rupee)</Text>
             </View>
-            <View style={[styles.currencyBadge, { backgroundColor: colors.secondary }]}>
+            <View style={[styles.currencyBadge, { backgroundColor: colors.primary + '15' }]}>
               <Text style={[styles.currencyText, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>₹ INR</Text>
             </View>
           </View>
@@ -161,7 +169,9 @@ export default function SettingsScreen() {
             <Text style={[styles.versionText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>v1.0.0</Text>
           </View>
         </Card>
+        </FadeInView>
 
+        <FadeInView animValue={anims[2]} style={styles.section}>
         {/* Security & Session */}
         <View style={[styles.sectionHeader, { borderLeftColor: colors.primary }]}>
           <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Security &amp; Session</Text>
@@ -182,8 +192,8 @@ export default function SettingsScreen() {
                   style={[
                     styles.timeoutChip,
                     {
-                      backgroundColor: active ? colors.primary : colors.secondary,
-                      borderColor: active ? colors.primary : colors.border,
+                      backgroundColor: active ? colors.primary : colors.primary + '12',
+                      borderColor: active ? colors.primary : colors.primary + '22',
                     },
                   ]}
                 >
@@ -217,7 +227,7 @@ export default function SettingsScreen() {
               key={s.id}
               style={[styles.historyRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
             >
-              <View style={[styles.historyIcon, { backgroundColor: colors.secondary }]}>
+              <View style={[styles.historyIcon, { backgroundColor: (s.current ? colors.success : colors.primary) + '15' }]}>
                 <Feather name="smartphone" size={14} color={s.current ? colors.success : colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
@@ -233,7 +243,7 @@ export default function SettingsScreen() {
                 <TouchableOpacity
                   onPress={() => revokeSession(s.id)}
                   disabled={revokingId === s.id}
-                  style={[styles.revokeBtn, { borderColor: colors.border, backgroundColor: colors.secondary }]}
+                  style={[styles.revokeBtn, { borderColor: colors.destructive + '33', backgroundColor: colors.destructive + '11' }]}
                 >
                   {revokingId === s.id ? (
                     <ActivityIndicator size="small" color={colors.destructive} />
@@ -289,7 +299,7 @@ export default function SettingsScreen() {
               key={e.id}
               style={[styles.historyRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
             >
-              <View style={[styles.historyIcon, { backgroundColor: colors.secondary }]}>
+              <View style={[styles.historyIcon, { backgroundColor: colors.primary + '15' }]}>
                 <Feather name={e.method === 'otp' ? 'smartphone' : 'key'} size={14} color={colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
@@ -305,7 +315,9 @@ export default function SettingsScreen() {
             </View>
           ))}
         </Card>
+        </FadeInView>
 
+        <FadeInView animValue={anims[3]} style={styles.section}>
         {/* Danger Zone */}
         <View style={[styles.sectionHeader, { borderLeftColor: colors.destructive }]}>
           <Text style={[styles.sectionTitle, { color: colors.destructive, fontFamily: 'Inter_700Bold' }]}>Data Management</Text>
@@ -316,11 +328,11 @@ export default function SettingsScreen() {
             Backup and restore your app data. All data is stored locally on this device.
           </Text>
           <View style={styles.dangerActions}>
-            <TouchableOpacity style={[styles.dangerBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+            <TouchableOpacity style={[styles.dangerBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '22' }]}>
               <Feather name="download" size={16} color={colors.primary} />
               <Text style={[styles.dangerBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Backup Data</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.dangerBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+            <TouchableOpacity style={[styles.dangerBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '22' }]}>
               <Feather name="upload" size={16} color={colors.primary} />
               <Text style={[styles.dangerBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Restore</Text>
             </TouchableOpacity>
@@ -335,6 +347,7 @@ export default function SettingsScreen() {
         ) : (
           <Button title="Save Settings" onPress={handleSave} fullWidth size="lg" />
         )}
+        </FadeInView>
       </ScrollView>
     </View>
   );
@@ -342,24 +355,25 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1 },
-  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14 },
+  backBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 22 },
-  scroll: { paddingHorizontal: 16, paddingTop: 20, gap: 16 },
+  scroll: { paddingHorizontal: 16, paddingTop: 16, gap: 20 },
+  section: { gap: 16 },
   sectionHeader: { borderLeftWidth: 3, paddingLeft: 10, marginTop: 4, marginBottom: -4 },
   sectionTitle: { fontSize: 15 },
   configRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   configLabel: { fontSize: 15 },
   configSub: { fontSize: 12, marginTop: 2 },
-  currencyBadge: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
+  currencyBadge: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
   currencyText: { fontSize: 14 },
   versionText: { fontSize: 14 },
   dangerDesc: { fontSize: 13, lineHeight: 20 },
   dangerActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  dangerBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1 },
+  dangerBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
   dangerBtnText: { fontSize: 13 },
   timeoutRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-  timeoutChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  timeoutChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1 },
   timeoutChipText: { fontSize: 13 },
   historyEmpty: { fontSize: 13, marginTop: 14 },
   historyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, marginTop: 2 },

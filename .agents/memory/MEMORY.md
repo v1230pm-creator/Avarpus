@@ -4,3 +4,4 @@
 - [Stale api-client d.ts](api-client-dist-types.md) — mobile typecheck reads lib types from dist declarations; rebuild them after changing lib exports or you get phantom TS2305 errors.
 - [Role naming](role-naming.md) — the privileged role is `super_admin` everywhere; introducing an `admin` role breaks client permissions/labels.
 - [Registration & staff model](registration-model.md) — public signup is dealer-only (server-forced); staff only via RBAC /staff endpoints; demo seeding off by default.
+- [Restyle review bar](restyle-reviews.md) — reviewers reject app-wide restyles if any list-item cards keep the old flat surface; grep old surface tokens before submitting.

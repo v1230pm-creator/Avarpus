@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
 
 const ROLE_COLORS: Record<string, string> = {
@@ -33,7 +34,7 @@ function StaffCard({ staff }: { staff: StaffUser }) {
   const colors = useColors();
   const roleColor = ROLE_COLORS[staff.role] ?? colors.primary;
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+    <GlassCard style={styles.card}>
       <Avatar name={staff.name} size={52} />
       <View style={styles.cardContent}>
         <View style={styles.nameRow}>
@@ -53,7 +54,7 @@ function StaffCard({ staff }: { staff: StaffUser }) {
           )}
         </View>
       </View>
-    </View>
+    </GlassCard>
   );
 }
 
@@ -86,6 +87,8 @@ export default function StaffScreen() {
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
+  const anims = useStaggerAnim(2);
+
   const filtered = useMemo(() => {
     if (!search.trim()) return staff;
     const q = search.toLowerCase();
@@ -98,41 +101,45 @@ export default function StaffScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 14, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Staff</Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{filtered.length} members</Text>
-        </View>
-        {canManage ? (
-          <TouchableOpacity
-            onPress={() => router.push('/(tabs)/more/staff-add')}
-            style={[styles.addBtn, { backgroundColor: colors.primary }]}
-            activeOpacity={0.85}
-          >
-            <Feather name="user-plus" size={16} color="#FFFFFF" />
-            <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Add Staff</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 44 }} />
-        )}
-      </View>
+      <ScreenGlow />
 
-      <View style={[styles.searchWrap, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <View style={[styles.searchBar, { backgroundColor: colors.input, borderColor: colors.border }]}>
-          <Feather name="search" size={16} color={colors.mutedForeground} />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search staff..."
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
-          />
-          {!!search && <TouchableOpacity onPress={() => setSearch('')}><Feather name="x" size={16} color={colors.mutedForeground} /></TouchableOpacity>}
+      <FadeInView animValue={anims[0]}>
+        <View style={[styles.header, { paddingTop: topPad + 14 }]}>
+          <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}>
+            <Feather name="arrow-left" size={20} color={colors.foreground} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Staff</Text>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{filtered.length} members</Text>
+          </View>
+          {canManage ? (
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/more/staff-add')}
+              style={[styles.addBtn, { backgroundColor: colors.primary }]}
+              activeOpacity={0.85}
+            >
+              <Feather name="user-plus" size={16} color="#FFFFFF" />
+              <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Add Staff</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 40 }} />
+          )}
         </View>
-      </View>
+
+        <View style={styles.searchWrap}>
+          <View style={[styles.searchBar, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '22' }]}>
+            <Feather name="search" size={16} color={colors.mutedForeground} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search staff..."
+              placeholderTextColor={colors.mutedForeground}
+              style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+            />
+            {!!search && <TouchableOpacity onPress={() => setSearch('')}><Feather name="x" size={16} color={colors.mutedForeground} /></TouchableOpacity>}
+          </View>
+        </View>
+      </FadeInView>
 
       <FlatList
         data={filtered}
@@ -157,17 +164,17 @@ export default function StaffScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1, gap: 8 },
-  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14, gap: 8 },
+  backBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 22 },
   headerSub: { fontSize: 13 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 38, paddingHorizontal: 14, borderRadius: 10, marginTop: 3 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 38, paddingHorizontal: 14, borderRadius: 12, marginTop: 3 },
   addBtnText: { fontSize: 13, color: '#FFFFFF' },
-  searchWrap: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12 },
-  searchInput: { flex: 1, height: 44, fontSize: 14 },
+  searchWrap: { paddingHorizontal: 16, paddingVertical: 12 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14 },
+  searchInput: { flex: 1, height: 46, fontSize: 14 },
   list: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
-  card: { flexDirection: 'row', gap: 14, padding: 14, borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowOffset: { width: 0, height: 1 }, shadowRadius: 3, elevation: 1 },
+  card: { flexDirection: 'row', gap: 14, padding: 14, alignItems: 'center' },
   cardContent: { flex: 1, gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   name: { fontSize: 15 },

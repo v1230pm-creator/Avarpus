@@ -8,6 +8,7 @@ import { useColors } from '@/hooks/useColors';
 import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { RepairStatusBadge } from '@/components/ui/Badge';
+import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 
 export default function CustomerDetailScreen() {
@@ -25,17 +26,22 @@ export default function CustomerDetailScreen() {
     [repairs, id],
   );
 
+  const anims = useStaggerAnim(2);
+
   if (!customer) {
     return (
       <View style={[{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.mutedForeground }}>Customer not found</Text>
+        <ScreenGlow />
+        <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>Customer not found</Text>
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 14, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <ScreenGlow />
+
+      <View style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
@@ -45,7 +51,7 @@ export default function CustomerDetailScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
         {/* Profile Card */}
-        <Card style={styles.profileCard}>
+        <GlassCard animValue={anims[0]} style={styles.profileCard}>
           <Avatar name={customer.name} size={64} />
           <Text style={[styles.name, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{customer.name}</Text>
           <Text style={[styles.mobile, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>{customer.mobile}</Text>
@@ -59,21 +65,21 @@ export default function CustomerDetailScreen() {
             </View>
           )}
           <View style={styles.statsRow}>
-            <View style={[styles.statBadge, { backgroundColor: colors.secondary }]}>
+            <View style={[styles.statBadge, { backgroundColor: colors.primary + '15' }]}>
               <Text style={[styles.statValue, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{customer.totalRepairs}</Text>
               <Text style={[styles.statLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Repairs</Text>
             </View>
-            <View style={[styles.statBadge, { backgroundColor: customer.dueAmount > 0 ? colors.warningLight : colors.successLight }]}>
+            <View style={[styles.statBadge, { backgroundColor: customer.dueAmount > 0 ? colors.warning + '15' : colors.success + '15' }]}>
               <Text style={[styles.statValue, { color: customer.dueAmount > 0 ? colors.warning : colors.success, fontFamily: 'Inter_700Bold' }]}>
                 {formatCurrency(customer.dueAmount)}
               </Text>
               <Text style={[styles.statLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Due</Text>
             </View>
           </View>
-        </Card>
+        </GlassCard>
 
         {/* Repair History */}
-        <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
+        <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
           REPAIR HISTORY ({customerRepairs.length})
         </Text>
 
@@ -92,7 +98,7 @@ export default function CustomerDetailScreen() {
             >
               <Card style={styles.repairCard}>
                 <View style={styles.repairRow}>
-                  <View style={[styles.repairIdBadge, { backgroundColor: colors.primary + '1A' }]}>
+                  <View style={[styles.repairIdBadge, { backgroundColor: colors.primary + '15' }]}>
                     <Text style={[styles.repairId, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{repair.repairId}</Text>
                   </View>
                   <RepairStatusBadge status={repair.status} />
@@ -122,26 +128,26 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1,
+    paddingHorizontal: 16, paddingBottom: 14,
   },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18 },
   scroll: { padding: 16, gap: 12 },
-  profileCard: { alignItems: 'center', gap: 6 },
+  profileCard: { alignItems: 'center', gap: 6, padding: 20 },
   name: { fontSize: 22, marginTop: 4 },
   mobile: { fontSize: 16 },
   email: { fontSize: 13 },
   addressRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   address: { fontSize: 12 },
-  statsRow: { flexDirection: 'row', gap: 12, marginTop: 10 },
-  statBadge: { flex: 1, borderRadius: 12, padding: 12, alignItems: 'center', gap: 2 },
+  statsRow: { flexDirection: 'row', gap: 12, marginTop: 10, alignSelf: 'stretch' },
+  statBadge: { flex: 1, borderRadius: 14, padding: 14, alignItems: 'center', gap: 2 },
   statValue: { fontSize: 18 },
   statLabel: { fontSize: 11 },
-  sectionTitle: { fontSize: 11, letterSpacing: 1 },
+  sectionTitle: { fontSize: 11, letterSpacing: 1, marginTop: 4 },
   emptyText: { textAlign: 'center', fontSize: 14 },
   repairCard: { gap: 6 },
   repairRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  repairIdBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  repairIdBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   repairId: { fontSize: 11 },
   repairDate: { fontSize: 11, marginLeft: 'auto' },
   deviceLine: { fontSize: 14 },

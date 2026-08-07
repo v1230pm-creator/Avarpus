@@ -17,6 +17,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { RepairStatusBadge, PriorityBadge, Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
+import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { RepairStatus } from '@/types';
 import { formatDate, formatCurrency, REPAIR_STATUS_LABELS } from '@/utils/helpers';
 
@@ -43,11 +44,13 @@ export default function RepairDetailScreen() {
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
+  const anims = useStaggerAnim(7);
   const repair = useMemo(() => repairs.find((r) => r.id === id), [repairs, id]);
 
   if (!repair) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
+        <ScreenGlow />
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
@@ -92,8 +95,10 @@ export default function RepairDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScreenGlow />
+
       {/* Header */}
-      <View style={[styles.header, { paddingTop: topPad + 14, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <FadeInView animValue={anims[0]} style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
@@ -102,11 +107,12 @@ export default function RepairDetailScreen() {
           <RepairStatusBadge status={repair.status} />
         </View>
         <View style={{ width: 44 }} />
-      </View>
+      </FadeInView>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
         {/* Status Update */}
         {canUpdateStatus && repair.status !== 'delivered' && repair.status !== 'cancelled' && (
+          <FadeInView animValue={anims[1]}>
           <Card style={styles.statusCard}>
             <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>UPDATE STATUS</Text>
             {nextStatus && (
@@ -132,9 +138,11 @@ export default function RepairDetailScreen() {
               </TouchableOpacity>
             )}
           </Card>
+          </FadeInView>
         )}
 
         {/* Priority */}
+        <FadeInView animValue={anims[2]}>
         <Card style={styles.priorityCard}>
           <View style={styles.priorityRow}>
             <PriorityBadge priority={repair.priority} />
@@ -146,8 +154,10 @@ export default function RepairDetailScreen() {
             </Text>
           </View>
         </Card>
+        </FadeInView>
 
         {/* Customer */}
+        <FadeInView animValue={anims[3]}>
         <Card>
           <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>CUSTOMER</Text>
           <InfoRow label="Name" value={repair.customerName} />
@@ -155,15 +165,17 @@ export default function RepairDetailScreen() {
           <View style={styles.divider} />
           <TouchableOpacity
             onPress={() => {}}
-            style={[styles.viewCustomerBtn, { backgroundColor: colors.secondary }]}
+            style={[styles.viewCustomerBtn, { backgroundColor: colors.primary + '15' }]}
           >
             <Text style={[styles.viewCustomerText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
               View Customer Profile
             </Text>
           </TouchableOpacity>
         </Card>
+        </FadeInView>
 
         {/* Device */}
+        <FadeInView animValue={anims[4]}>
         <Card>
           <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>DEVICE</Text>
           <InfoRow label="Type" value={repair.deviceType} />
@@ -180,15 +192,19 @@ export default function RepairDetailScreen() {
             </>
           )}
         </Card>
+        </FadeInView>
 
         {/* Technician */}
+        <FadeInView animValue={anims[5]}>
         <Card>
           <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>TECHNICIAN</Text>
           <InfoRow label="Assigned To" value={repair.technicianName ?? 'Not assigned'} />
         </Card>
+        </FadeInView>
 
         {/* Financials */}
         {canAccess('finance') || user?.role === 'reception' || user?.role === 'dealer' ? (
+          <FadeInView animValue={anims[6]}>
           <Card>
             <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>FINANCIALS</Text>
             <InfoRow label="Repair Charge" value={formatCurrency(repair.repairCharge)} />
@@ -202,14 +218,17 @@ export default function RepairDetailScreen() {
               color={balance > 0 ? colors.warning : colors.success}
             />
           </Card>
+          </FadeInView>
         ) : null}
 
         {/* Delivery */}
         {repair.deliveryDate && (
+          <FadeInView animValue={anims[6]}>
           <Card>
             <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>DELIVERY</Text>
             <InfoRow label="Delivered On" value={formatDate(repair.deliveryDate)} color={colors.success} />
           </Card>
+          </FadeInView>
         )}
       </ScrollView>
     </View>
@@ -220,7 +239,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1,
+    paddingHorizontal: 16, paddingBottom: 14,
   },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 10 },

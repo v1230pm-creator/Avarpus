@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  FlatList,
   Platform,
   ScrollView,
   StyleSheet,
@@ -15,19 +14,19 @@ import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { Card } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
-import { Badge } from '@/components/ui/Badge';
+import { GlassCard, ScreenGlow, useStaggerAnim, useIsDark } from '@/components/ui/Glass';
 import { FinanceEntry } from '@/types';
 import { formatCurrency, formatDate, getTodayStr } from '@/utils/helpers';
 
 const PERIODS = ['Today', 'Week', 'Month', 'All'] as const;
 type Period = (typeof PERIODS)[number];
 
-function TransactionItem({ entry }: { entry: FinanceEntry }) {
+function TransactionItem({ entry, isLast }: { entry: FinanceEntry; isLast: boolean }) {
   const colors = useColors();
   const isIncome = entry.type === 'income';
   return (
-    <View style={[styles.txItem, { borderBottomColor: colors.border }]}>
-      <View style={[styles.txIcon, { backgroundColor: isIncome ? colors.successLight : colors.destructive + '1A' }]}>
+    <View style={[styles.txItem, !isLast && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+      <View style={[styles.txIcon, { backgroundColor: isIncome ? colors.success + '15' : colors.destructive + '15' }]}>
         <Feather name={isIncome ? 'trending-up' : 'trending-down'} size={16} color={isIncome ? colors.success : colors.destructive} />
       </View>
       <View style={styles.txContent}>
@@ -48,12 +47,15 @@ function TransactionItem({ entry }: { entry: FinanceEntry }) {
 
 export default function FinanceScreen() {
   const colors = useColors();
+  const isDark = useIsDark();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { finance } = useData();
   const [period, setPeriod] = useState<Period>('Month');
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
+
+  const anims = useStaggerAnim(4);
 
   const filteredEntries = useMemo(() => {
     const now = new Date();
@@ -82,7 +84,9 @@ export default function FinanceScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 14, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <ScreenGlow />
+
+      <View style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
@@ -99,9 +103,12 @@ export default function FinanceScreen() {
               <TouchableOpacity
                 key={p}
                 onPress={() => setPeriod(p)}
-                style={[styles.periodTab, { backgroundColor: active ? colors.primary : colors.muted, borderColor: active ? colors.primary : colors.border }]}
+                style={[styles.periodTab, {
+                  backgroundColor: active ? colors.primary : (isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)'),
+                  borderColor: active ? colors.primary : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)'),
+                }]}
               >
-                <Text style={[styles.periodText, { color: active ? '#FFFFFF' : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_400Regular' }]}>
+                <Text style={[styles.periodText, { color: active ? '#FFFFFF' : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>
                   {p}
                 </Text>
               </TouchableOpacity>
@@ -115,7 +122,7 @@ export default function FinanceScreen() {
           <StatCard title="Expense" value={formatCurrency(stats.expense)} icon="trending-down" iconColor="error" style={styles.statCard} />
         </View>
 
-        <Card>
+        <GlassCard animValue={anims[0]} style={{ padding: 20 }}>
           <View style={styles.profitRow}>
             <View>
               <Text style={[styles.profitLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Net Profit</Text>
@@ -123,14 +130,14 @@ export default function FinanceScreen() {
                 {formatCurrency(stats.profit)}
               </Text>
             </View>
-            <View style={[styles.profitBadge, { backgroundColor: stats.profit >= 0 ? colors.successLight : colors.destructive + '22' }]}>
+            <View style={[styles.profitBadge, { backgroundColor: stats.profit >= 0 ? colors.success + '15' : colors.destructive + '15' }]}>
               <Feather name={stats.profit >= 0 ? 'trending-up' : 'trending-down'} size={24} color={stats.profit >= 0 ? colors.success : colors.destructive} />
             </View>
           </View>
-        </Card>
+        </GlassCard>
 
         {/* Transactions */}
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
           TRANSACTIONS ({filteredEntries.length})
         </Text>
 
@@ -141,11 +148,11 @@ export default function FinanceScreen() {
             </Text>
           </Card>
         ) : (
-          <View style={[styles.txList, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {filteredEntries.map((entry) => (
-              <TransactionItem key={entry.id} entry={entry} />
+          <GlassCard animValue={anims[1]} style={styles.txList}>
+            {filteredEntries.map((entry, i) => (
+              <TransactionItem key={entry.id} entry={entry} isLast={i === filteredEntries.length - 1} />
             ))}
-          </View>
+          </GlassCard>
         )}
       </ScrollView>
     </View>
@@ -154,12 +161,12 @@ export default function FinanceScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14 },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 22 },
   scroll: { padding: 16, gap: 14 },
   periodRow: { flexDirection: 'row', gap: 8 },
-  periodTab: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
+  periodTab: { flex: 1, paddingVertical: 10, borderRadius: 14, borderWidth: 1, alignItems: 'center' },
   periodText: { fontSize: 13 },
   statsRow: { flexDirection: 'row', gap: 12 },
   statCard: { flex: 1 },
@@ -168,8 +175,8 @@ const styles = StyleSheet.create({
   profitValue: { fontSize: 28, marginTop: 2 },
   profitBadge: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   sectionLabel: { fontSize: 11, letterSpacing: 1 },
-  txList: { borderWidth: 1, borderRadius: 16, overflow: 'hidden' },
-  txItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderBottomWidth: 1 },
+  txList: { overflow: 'hidden' },
+  txItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   txIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   txContent: { flex: 1, gap: 2 },
   txCategory: { fontSize: 14 },

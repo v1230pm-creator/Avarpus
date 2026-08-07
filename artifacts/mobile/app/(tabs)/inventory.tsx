@@ -14,6 +14,7 @@ import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { InventoryItem } from '@/types';
 import { formatCurrency } from '@/utils/helpers';
 
@@ -34,7 +35,16 @@ function InventoryCard({ item }: { item: InventoryItem }) {
   const isLow = item.quantity <= item.minStock;
   const isOut = item.quantity === 0;
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: isOut ? colors.destructive + '44' : isLow ? colors.warning + '44' : colors.border, borderRadius: colors.radius }]}>
+    <GlassCard
+      style={StyleSheet.flatten([
+        styles.card,
+        isOut
+          ? { borderColor: colors.destructive + '44' }
+          : isLow
+            ? { borderColor: colors.warning + '44' }
+            : null,
+      ])}
+    >
       <View style={styles.cardTop}>
         <View style={{ flex: 1, gap: 3 }}>
           <Text style={[styles.itemName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
@@ -81,7 +91,7 @@ function InventoryCard({ item }: { item: InventoryItem }) {
           </Text>
         </View>
       )}
-    </View>
+    </GlassCard>
   );
 }
 
@@ -107,25 +117,29 @@ export default function InventoryScreen() {
     return [...list].sort((a, b) => a.quantity - b.quantity);
   }, [inventory, category, search]);
 
+  const headerAnims = useStaggerAnim(3);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <ScreenGlow />
+
+      <FadeInView animValue={headerAnims[0]} style={[styles.header, { paddingTop: topPad + 16 }]}>
         <View style={styles.headerRow}>
           <View>
             <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Inventory</Text>
-            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
               {filtered.length} items{lowStockCount > 0 ? ` · ${lowStockCount} low stock` : ''}
             </Text>
           </View>
           {lowStockCount > 0 && (
-            <View style={[styles.alertBadge, { backgroundColor: colors.warningLight }]}>
+            <View style={[styles.alertBadge, { backgroundColor: colors.warning + '15' }]}>
               <Feather name="alert-triangle" size={14} color={colors.warning} />
               <Text style={[styles.alertBadgeText, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>{lowStockCount}</Text>
             </View>
           )}
         </View>
 
-        <View style={[styles.searchBar, { backgroundColor: colors.input, borderColor: colors.border }]}>
+        <GlassCard style={styles.searchBar}>
           <Feather name="search" size={16} color={colors.mutedForeground} />
           <TextInput
             value={search}
@@ -135,7 +149,7 @@ export default function InventoryScreen() {
             style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
           />
           {!!search && <TouchableOpacity onPress={() => setSearch('')}><Feather name="x" size={16} color={colors.mutedForeground} /></TouchableOpacity>}
-        </View>
+        </GlassCard>
 
         <FlatList
           horizontal
@@ -148,16 +162,17 @@ export default function InventoryScreen() {
             return (
               <TouchableOpacity
                 onPress={() => setCategory(item)}
-                style={[styles.filterTab, { backgroundColor: active ? colors.primary : colors.muted, borderColor: active ? colors.primary : colors.border }]}
+                activeOpacity={0.8}
+                style={[styles.filterTab, { backgroundColor: active ? colors.primary : colors.primary + '12', borderColor: active ? colors.primary : 'transparent' }]}
               >
-                <Text style={[styles.filterText, { color: active ? '#FFFFFF' : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_400Regular' }]}>
+                <Text style={[styles.filterText, { color: active ? '#FFFFFF' : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>
                   {item}
                 </Text>
               </TouchableOpacity>
             );
           }}
         />
-      </View>
+      </FadeInView>
 
       <FlatList
         data={filtered}
@@ -173,18 +188,18 @@ export default function InventoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, gap: 12 },
+  header: { paddingHorizontal: 16, paddingBottom: 12, gap: 14 },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 26 },
-  headerSub: { fontSize: 13 },
+  headerTitle: { fontSize: 28 },
+  headerSub: { fontSize: 13, marginTop: 2 },
   alertBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
   alertBadgeText: { fontSize: 13 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12 },
-  searchInput: { flex: 1, height: 44, fontSize: 14 },
-  filterTab: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
+  searchInput: { flex: 1, height: 46, fontSize: 14 },
+  filterTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   filterText: { fontSize: 13 },
-  list: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
-  card: { padding: 14, gap: 10, borderWidth: 1, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.04, shadowOffset: { width: 0, height: 1 }, shadowRadius: 4, elevation: 1 },
+  list: { paddingHorizontal: 16, paddingTop: 14, gap: 12 },
+  card: { padding: 16, gap: 10 },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   itemName: { fontSize: 15 },
   brand: { fontSize: 12 },
