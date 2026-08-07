@@ -1,0 +1,188 @@
+=====================================
+ADVANCED REPAIR FEATURES
+=====================================
+
+Build a complete enterprise-grade repair workflow.
+
+1. PHOTO & DOCUMENT MANAGEMENT
+- Capture device photos during receiving.
+- Front, Back, Left, Right, Top, Bottom.
+- Capture damaged area photos.
+
+- Upload purchase bill.
+- Upload customer ID (optional).
+- Store all images securely with Repair ID.
+
+2. CUSTOMER SIGNATURE
+- Digital signature while receiving.
+- Digital signature while delivery.
+- Save signatures permanently.
+
+3. QR & BARCODE
+- Auto generate QR Code.
+- Auto generate Barcode.
+- Scan QR to open repair details instantly.
+
+4. DEVICE CHECKLIST
+Checkboxes:
+✓ Power On
+✓ Display
+✓ Touch
+✓ Camera
+✓ Speaker
+✓ Microphone
+✓ Charging
+✓ Fingerprint
+✓ Face Unlock
+✓ WiFi
+✓ Bluetooth
+✓ SIM
+✓ Network
+✓ Battery Health
+✓ Vibration
+✓ Flash
+✓ Sensors
+✓ Volume Buttons
+✓ Power Button
+
+5. REPAIR APPROVAL
+If repair estimate changes:
+- Send approval request.
+- Record customer approval.
+- Save approval date and user.
+
+6. PARTS CONSUMPTION
+When parts are used:
+- Automatically deduct inventory.
+- Update stock.
+- Record technician.
+- Record supplier.
+- Record purchase cost.
+- Record selling price.
+
+7. WARRANTY
+Dealer selects:
+- No Warranty
+- 7 Days
+- 30 Days
+- 90 Days
+- 180 Days
+
+Auto calculate warranty expiry.
+
+8. PAYMENT
+Support:
+- Cash
+- UPI
+- Card
+- Bank Transfer
+- Mixed Payment
+
+Track:
+Advance
+Pending
+Paid
+Refund
+
+9. AUTO INVOICE
+Generate professional PDF invoice.
+
+Include:
+Company Logo
+Shop Details
+Customer Details
+Repair Details
+Parts Used
+Labour
+GST
+Discount
+Warranty
+QR Code
+Barcode
+
+10. JOB CARD
+Generate printable Job Card PDF.
+
+11. CUSTOMER SMS / EMAIL
+Automatically send:
+- Repair Received
+- Repair Started
+- Waiting Approval
+- Ready for Delivery
+- Delivered
+- Invoice
+- Warranty
+
+12. SEARCH
+Search by:
+Repair ID
+Customer Name
+Mobile
+IMEI
+Serial Number
+Invoice Number
+
+13. FILTER
+Filter:
+Status
+Brand
+Technician
+Date
+Priority
+Payment Status
+Warranty
+
+14. ACTIVITY LOG
+Record every action:
+User ID
+Name
+Role
+Date
+Time
+Device
+IP
+Action
+
+History cannot be edited or deleted.
+
+15. CUSTOMER HISTORY
+Show complete repair history:
+Previous Repairs
+Total Spending
+Warranty History
+Outstanding Balance
+Visit Count
+
+16. DASHBOARD LIVE COUNTERS
+Show:
+Today's Repairs
+Pending
+Ready
+Delivered
+Cancelled
+Profit
+Revenue
+Low Stock
+Technicians Working
+
+17. SECURITY
+Only Dealer can:
+Delete Repairs
+Edit Bills
+Change Prices
+Refund
+Export Data
+
+Technician and Staff permissions must follow RBAC.
+
+18. CLOUD BACKUP
+All repair records, photos, invoices, and documents must sync securely with the server automatically.
+
+19. OFFLINE MODE
+If internet is unavailable:
+- Save data locally.
+- Automatically sync when connection returns.
+- Prevent duplicate records.
+
+20. PERFORMANCE
+Optimize for thousands of repairs with fast search, pagination, and responsive performance.
