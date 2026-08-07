@@ -159,7 +159,10 @@ export default function RepairDetailScreen() {
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to mark as delivered.');
+      Alert.alert(
+        'Update failed',
+        err instanceof Error ? err.message : "Couldn't mark the repair as delivered. Please try again.",
+      );
     } finally {
       setUpdating(false);
       setShowDeliverySig(false);
@@ -193,7 +196,10 @@ export default function RepairDetailScreen() {
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      Alert.alert('Error', 'Failed to update status.');
+      Alert.alert(
+        'Update failed',
+        e instanceof Error ? e.message : "Couldn't update the repair status. Please try again.",
+      );
     } finally {
       setUpdating(false);
     }

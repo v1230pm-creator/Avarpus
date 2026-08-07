@@ -9,6 +9,7 @@ import {
 } from '@workspace/api-client-react';
 import { Repair, Customer, InventoryItem, Purchase, FinanceEntry } from '@/types';
 import { useAuth } from '@/context/AuthContext';
+import { toFriendlyError } from '@/utils/friendlyError';
 
 // Business data now lives server-side, scoped to the signed-in user's shop.
 // This context loads it from the API and keeps mutations in sync — nothing
@@ -117,9 +118,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       .catch(() => {}); // non-fatal: stats refresh on next full load
   }, []);
 
+  // Wrap a mutation so failures surface a short, user-friendly Error message
+  // (network vs server vs validation) that screens can show directly in an
+  // alert. The original error is preserved on `cause`.
+  const guarded = async <T,>(action: string, fn: () => Promise<T>): Promise<T> => {
+    try {
+      return await fn();
+    } catch (err) {
+      throw toFriendlyError(err, action);
+    }
+  };
+
   // The server assigns ids (and ticket numbers) — client-provided ids in the
   // input objects are ignored and replaced by the created entity.
-  const addRepair = async (r: Repair): Promise<Repair> => {
+  const addRepair = async (r: Repair): Promise<Repair> => guarded('save the repair', async () => {
     const res = await repairsCreate({
       customerId: r.customerId || undefined,
       customerName: r.customerName,
@@ -151,9 +163,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // refresh customers so those stats stay in sync on screen.
     refreshCustomers();
     return created;
-  };
+  });
 
-  const updateRepair = async (r: Repair) => {
+  const updateRepair = async (r: Repair) => guarded('update the repair', async () => {
     const res = await repairsUpdate(r.id, {
       customerName: r.customerName,
       mobile: r.mobile,
@@ -181,11 +193,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const updated = res.repair as Repair;
     setRepairs((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
     refreshCustomers();
-  };
+  });
 
   // dueAmount / totalRepairs are derived server-side from repairs — the
   // client never sends them.
-  const addCustomer = async (c: NewCustomer): Promise<Customer> => {
+  const addCustomer = async (c: NewCustomer): Promise<Customer> => guarded('save the customer', async () => {
     const res = await customersCreate({
       name: c.name,
       mobile: c.mobile,
@@ -195,9 +207,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const created = res.customer as Customer;
     setCustomers((prev) => [...prev, created]);
     return created;
-  };
+  });
 
-  const updateCustomer = async (c: Customer) => {
+  const updateCustomer = async (c: Customer) => guarded('update the customer', async () => {
     const res = await customersUpdate(c.id, {
       name: c.name,
       mobile: c.mobile,
@@ -206,9 +218,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
     const updated = res.customer as Customer;
     setCustomers((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
-  };
+  });
 
-  const addInventoryItem = async (i: InventoryItem) => {
+  const addInventoryItem = async (i: InventoryItem) => guarded('save the inventory item', async () => {
     const res = await inventoryCreate({
       name: i.name,
       category: i.category,
@@ -221,9 +233,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
     const created = res.item as InventoryItem;
     setInventory((prev) => [...prev, created]);
-  };
+  });
 
-  const updateInventoryItem = async (i: InventoryItem) => {
+  const updateInventoryItem = async (i: InventoryItem) => guarded('update the inventory item', async () => {
     const res = await inventoryUpdate(i.id, {
       name: i.name,
       category: i.category,
@@ -236,9 +248,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
     const updated = res.item as InventoryItem;
     setInventory((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
-  };
+  });
 
-  const addPurchase = async (p: Purchase) => {
+  const addPurchase = async (p: Purchase) => guarded('save the purchase', async () => {
     const res = await purchasesCreate({
       invoiceNo: p.invoiceNo,
       supplier: p.supplier,
@@ -253,9 +265,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
     const created = res.purchase as Purchase;
     setPurchases((prev) => [...prev, created]);
-  };
+  });
 
-  const addFinanceEntry = async (f: FinanceEntry) => {
+  const addFinanceEntry = async (f: FinanceEntry) => guarded('save the entry', async () => {
     const res = await financeCreate({
       type: f.type,
       category: f.category,
@@ -266,7 +278,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
     const created = res.entry as FinanceEntry;
     setFinance((prev) => [...prev, created]);
-  };
+  });
 
   const hasSampleData =
     repairs.some((r) => r.isSample) ||

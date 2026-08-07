@@ -212,7 +212,12 @@ export default function NewRepairScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setCreatedRepair(repair);
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Please try again.');
+      // The form state is untouched here, so the user can fix the issue
+      // (e.g. reconnect) and tap Save again without re-typing anything.
+      Alert.alert(
+        'Save failed',
+        err instanceof Error ? err.message : "Couldn't save the repair. Please try again. Your entries are still here.",
+      );
     } finally {
       setLoading(false);
     }
