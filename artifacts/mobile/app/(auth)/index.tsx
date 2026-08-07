@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 
@@ -228,6 +229,15 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {/* ── Logo ────────────────────────────────────────── */}
+          <Reanimated.View style={[styles.logoWrap, headerStyle]}>
+            <Image
+              source={require('@/assets/images/vmc-logo.png')}
+              style={styles.logoImg}
+              contentFit="contain"
+            />
+          </Reanimated.View>
+
           {/* ── Glass Card ──────────────────────────────────── */}
           <Reanimated.View style={[styles.cardOuter, cardStyle]}>
             {Platform.OS === 'ios' ? (
@@ -490,6 +500,10 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   glowCircle: { position: 'absolute', borderRadius: 999 },
   scroll: { paddingHorizontal: 24, gap: 22 },
+
+  // Logo
+  logoWrap: { alignItems: 'center' },
+  logoImg: { width: 220, height: 125 },
 
   // Header
   header: { alignItems: 'center', gap: 8 },
