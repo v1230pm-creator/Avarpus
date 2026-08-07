@@ -19,6 +19,13 @@ import {
 } from "../lib/authUtils";
 import type { Request } from "express";
 import { sendOtpEmail } from "../lib/mailer";
+import {
+  checkFailureLockout,
+  checkWindowLimit,
+  clearFailures,
+  recordFailure,
+  retryAfterText,
+} from "../lib/rateLimit";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 
@@ -55,6 +62,17 @@ router.post("/auth/login", asyncHandler(async (req, res) => {
     return;
   }
   const identifier = emailOrMobile.trim().toLowerCase();
+  // Throttle repeated failures per account identifier and per client IP.
+  const accountKey = `login:acct:${identifier}`;
+  const ipKey = `login:ip:${req.ip ?? "unknown"}`;
+  const lockout = [checkFailureLockout(accountKey), checkFailureLockout(ipKey)]
+    .find((s) => s.limited);
+  if (lockout) {
+    res.status(429).json({
+      message: `Too many failed attempts. Try again in ${retryAfterText(lockout.retryAfterMs)}.`,
+    });
+    return;
+  }
   const rows = await db
     .select()
     .from(usersTable)
@@ -64,9 +82,12 @@ router.post("/auth/login", asyncHandler(async (req, res) => {
     .limit(1);
   const user = rows[0];
   if (!user || !verifyPassword(password, user.passwordHash)) {
+    recordFailure(accountKey);
+    recordFailure(ipKey);
     res.status(401).json({ message: "Invalid credentials" });
     return;
   }
+  clearFailures(accountKey);
   if (!user.isActive) {
     res.status(403).json({ message: "Account pending admin approval" });
     return;
@@ -83,6 +104,16 @@ router.post("/auth/otp/request", asyncHandler(async (req, res) => {
   const { mobile } = req.body ?? {};
   if (typeof mobile !== "string" || !/^\d{10}$/.test(mobile)) {
     res.status(400).json({ message: "A valid 10-digit mobile number is required" });
+    return;
+  }
+  // Throttle OTP requests per mobile number and per IP to prevent email flooding.
+  const perMobile = checkWindowLimit(`otpreq:mobile:${mobile}`, 3, 15 * 60 * 1000);
+  const perIp = checkWindowLimit(`otpreq:ip:${req.ip ?? "unknown"}`, 10, 15 * 60 * 1000);
+  const throttled = [perMobile, perIp].find((s) => s.limited);
+  if (throttled) {
+    res.status(429).json({
+      message: `Too many code requests. Try again in ${retryAfterText(throttled.retryAfterMs)}.`,
+    });
     return;
   }
   const rows = await db
