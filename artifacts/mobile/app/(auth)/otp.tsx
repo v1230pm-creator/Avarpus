@@ -8,20 +8,28 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { authOtpRequest } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
+import { useAuth } from '@/context/AuthContext';
 
 export default function OTPScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { loginWithOtp } = useAuth();
+  const params = useLocalSearchParams<{ mobile?: string; sentTo?: string }>();
+  const mobile = typeof params.mobile === 'string' ? params.mobile : '';
+  const sentTo = '';
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(60);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const refs = useRef<(TextInput | null)[]>([]);
 
   useEffect(() => {
@@ -54,9 +62,28 @@ export default function OTPScreen() {
 
   const handleVerify = async () => {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
+    setError('');
+    const result = await loginWithOtp(mobile, otp.join(''));
     setLoading(false);
+    if (!result.success) {
+      setError(result.error ?? 'Verification failed. Please try again.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.replace('/(tabs)');
+  };
+
+  const handleResend = async () => {
+    if (timer > 0) return;
+    try {
+      await authOtpRequest({ mobile });
+      setTimer(60);
+      setOtp(['', '', '', '', '', '']);
+      setError('');
+    } catch (err: any) {
+      setError(err?.data?.message ?? 'Could not resend OTP. Please try again.');
+    }
   };
 
   const filled = otp.join('').length === 6;
@@ -76,7 +103,9 @@ export default function OTPScreen() {
               </View>
               <Text style={[styles.title, { fontFamily: 'Inter_700Bold' }]}>Verify Your Mobile</Text>
               <Text style={[styles.subtitle, { fontFamily: 'Inter_400Regular' }]}>
-                Enter the 6-digit OTP sent to your registered mobile number
+                {sentTo
+                  ? `Enter the 6-digit code sent to ${sentTo}`
+                  : 'Enter the 6-digit code sent to the email registered with this mobile number'}
               </Text>
             </View>
 
@@ -106,8 +135,15 @@ export default function OTPScreen() {
               ))}
             </View>
 
+            {!!error && (
+              <View style={styles.errorBox}>
+                <Feather name="alert-circle" size={14} color="#F87171" />
+                <Text style={[styles.errorText, { fontFamily: 'Inter_400Regular' }]}>{error}</Text>
+              </View>
+            )}
+
             <TouchableOpacity
-              onPress={() => { if (timer === 0) { setTimer(60); setOtp(['', '', '', '', '', '']); } }}
+              onPress={handleResend}
               disabled={timer > 0}
               style={{ alignItems: 'center' }}
             >
@@ -147,4 +183,10 @@ const styles = StyleSheet.create({
   otpRow: { flexDirection: 'row', justifyContent: 'center', gap: 10 },
   otpCell: { width: 48, height: 60, fontSize: 24, borderWidth: 1.5 },
   resendText: { fontSize: 14 },
+  errorBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#7F1D1D22', borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: '#EF444433',
+  },
+  errorText: { fontSize: 12, color: '#F87171', flex: 1 },
 });

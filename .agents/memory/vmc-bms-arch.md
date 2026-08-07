@@ -1,44 +1,29 @@
 ---
 name: VMC BMS Architecture
-description: Key decisions and structure for the VMC Electronic BMS Expo mobile app.
+description: Durable auth and architecture decisions for the VMC Electronic BMS project.
 ---
 
-## Data layer
-- All data lives in AsyncStorage via `utils/storage.ts` (typed `get/set/remove`).
-- `KEYS` object in `storage.ts` contains all storage keys (USERS, REPAIRS, CUSTOMERS, INVENTORY, PURCHASES, FINANCE).
-- `utils/seedData.ts` seeds 6 users, 6 customers, 8 repairs, 10 inventory items, 4 purchases, 8 finance entries on first launch (`seedIfNeeded()`).
-- `DataContext` exposes: `repairs, customers, inventory, purchases, finance, users` (arrays) + add/update functions.
-- `AuthContext` exposes: `user, isAuthenticated, isLoading, login, logout, canAccess(feature: string)`.
+# VMC Electronic BMS — Architecture
 
-**Why:** First-build rule in Expo skill = frontend-only; no backend/API needed until user requests it.
+## Auth (real, backend-driven)
+- **Sessions**: opaque 48-byte hex bearer tokens stored in a `sessions` table (PostgreSQL via drizzle). 30-day TTL.
+- **Passwords**: bcryptjs at rest; OTP codes and reset tokens stored as sha256 hashes only.
+- **OTP email delivery**: Resend via `@replit/connectors-sdk` proxy (`ReplitConnectors` instance created per call, never cached). Default `from` address comes from `MAIL_FROM` env var; falls back to `onboarding@resend.dev` (Resend's test sender). Set `MAIL_FROM` to a verified domain address once the domain is confirmed in Resend.
+- **Anti-enumeration rule**: OTP-request and forgot-request endpoints must return the same response body/status regardless of whether the identifier exists. Any email-send failure inside these handlers must be swallowed and logged — never propagated to the caller.
+- **Registration flow**: single email-OTP step only (not two-step email+phone). New accounts land as `role: reception, isActive: false` pending admin approval.
+- **Seed users**: api-server seeds 6 demo users with hashed passwords on boot if `users` table empty.
 
-## Navigation
-- Root `app/_layout.tsx` wraps with `AuthProvider` + `DataProvider`.
-- `app/index.tsx` redirects to `/(auth)` or `/(tabs)` based on `isAuthenticated`.
-- Auth stack: `/(auth)/index.tsx` (login), `/(auth)/otp.tsx`, `/(auth)/register.tsx`.
-- Tabs: 5 tabs (Dashboard, Repairs, Customers, Inventory, More). Each of Repairs/Customers/More is a nested Stack.
-- More stack screens: finance, staff, reports, settings, purchases.
+## Database schema & migrations
+- Tables: `users`, `sessions`, `otp_codes` — defined in `lib/db/src/schema/`.
+- Migrations: generated in `lib/db/migrations/` by `drizzle-kit generate`. The api-server build step copies `lib/db/migrations/` into `dist/migrations/` so the drizzle migrator can reach them at runtime.
+- **Startup sequence**: `migrate(db, { migrationsFolder })` runs before the server begins accepting requests and before seeding — server exits on migration failure. Migration SQL uses `CREATE TABLE IF NOT EXISTS` so it is safe to re-run against a pre-existing database.
 
-## Role permissions (canAccess map)
-- `super_admin`: everything
-- `dealer`: dashboard, repairs, inventory, customers, finance, staff, reports, settings, purchases, attendance, backup, profit, income, expense
-- `reception`: dashboard, repairs, customers
-- `technician`: dashboard, repairs_assigned, repairs_update
-- `store_manager`: dashboard, inventory, purchases
-- `accountant`: dashboard, finance, reports, income, expense, profit
+**Why:** The `drizzle-kit push` approach (previously used manually) leaves no migration journal. On a fresh database there was no automated step to create tables before seeding, so every auth call failed until someone ran push manually. The migrator + `dist/migrations/` copy pattern is reproducible across deploys.
 
-**How to apply:** Always gate UI sections with `canAccess('feature')`. Technicians see only their assigned repairs (filtered by `technicianId === user.id`).
+## Mobile → API connection
+- Base URL configured at app module level via `setBaseUrl` / `setAuthTokenGetter` from `@workspace/api-client-react`.
+- Bearer token stored in AsyncStorage key `vmc_auth_token`.
+- Boot flow: read token → `authMe` → set user; clear token on failure.
 
-## Color tokens
-Dark theme: bg=`#0B0E1A`, card=`#111827`, primary=`#1A56DB`.
-All screens use `useColors()` hook — never hardcode colors.
-Available extra tokens: `successLight`, `warningLight`, `infoLight`, `success`, `warning`, `info`, `destructive`.
-
-## Component API notes
-- `StatCard` `iconColor` accepts: `primary | success | warning | error | info | muted`.
-- `Badge` `variant` accepts: `default | success | warning | error | info | muted`.
-- `SelectInput` renders horizontal chips; use `labelMap` for human-readable labels.
-- `Button` has `size="lg"` and `fullWidth` props.
-
-## Shadow deprecation warning
-`shadow*` RN style props produce a console warning on web — cosmetic only, not an error. Acceptable for now.
+## Non-auth data
+- Repairs, customers, inventory etc. still seed to AsyncStorage via `utils/seedData.ts` — DataContext reads from there. Auth no longer reads `KEYS.USERS` for login decisions.

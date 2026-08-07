@@ -18,7 +18,6 @@ export const SEED_USERS: User[] = [
     isActive: true,
     joinDate: '2024-01-01',
     designation: 'Super Administrator',
-    password: 'Admin@123',
   },
   {
     id: 'u2',
@@ -29,7 +28,6 @@ export const SEED_USERS: User[] = [
     isActive: true,
     joinDate: '2024-01-15',
     designation: 'Owner / Dealer',
-    password: 'Dealer@123',
   },
   {
     id: 'u3',
@@ -40,7 +38,6 @@ export const SEED_USERS: User[] = [
     isActive: true,
     joinDate: '2024-02-01',
     designation: 'Reception Staff',
-    password: 'Staff@123',
   },
   {
     id: 'u4',
@@ -51,7 +48,6 @@ export const SEED_USERS: User[] = [
     isActive: true,
     joinDate: '2024-02-10',
     designation: 'Senior Technician',
-    password: 'Tech@123',
   },
   {
     id: 'u5',
@@ -62,7 +58,6 @@ export const SEED_USERS: User[] = [
     isActive: true,
     joinDate: '2024-03-01',
     designation: 'Store Manager',
-    password: 'Store@123',
   },
   {
     id: 'u6',
@@ -73,7 +68,6 @@ export const SEED_USERS: User[] = [
     isActive: true,
     joinDate: '2024-03-15',
     designation: 'Accountant',
-    password: 'Accts@123',
   },
 ];
 

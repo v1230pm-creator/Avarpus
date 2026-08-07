@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { authLogin, authLogout, authMe, authOtpVerify } from '@workspace/api-client-react';
 import { User, UserRole } from '@/types';
 import { storage, KEYS } from '@/utils/storage';
 import { seedIfNeeded } from '@/utils/seedData';
@@ -8,6 +9,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (emailOrMobile: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithOtp: (mobile: string, code: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   canAccess: (feature: string) => boolean;
 }
@@ -17,6 +19,7 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   isLoading: true,
   login: async () => ({ success: false }),
+  loginWithOtp: async () => ({ success: false }),
   logout: async () => {},
   canAccess: () => false,
 });
@@ -30,6 +33,17 @@ const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   accountant: ['dashboard', 'finance', 'reports', 'income', 'expense', 'profit'],
 };
 
+function apiErrorMessage(err: unknown, fallback: string): string {
+  const data = (err as { data?: { message?: string } })?.data;
+  if (data?.message) return data.message;
+  if (err instanceof Error && err.message && !/fetch/i.test(err.message)) return err.message;
+  return fallback;
+}
+
+function toUser(u: any): User {
+  return { ...u, role: u.role as UserRole } as User;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,29 +51,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       await seedIfNeeded();
-      const saved = await storage.get<User>(KEYS.CURRENT_USER);
-      if (saved) setUser(saved);
+      const token = await storage.get<string>(KEYS.AUTH_TOKEN);
+      if (token) {
+        try {
+          const res = await authMe();
+          setUser(toUser(res.user));
+        } catch {
+          // Session invalid or server unreachable — require sign-in
+          await storage.remove(KEYS.AUTH_TOKEN);
+        }
+      }
       setIsLoading(false);
     })();
   }, []);
 
+  const applySession = async (session: { token: string; user: any }) => {
+    await storage.set(KEYS.AUTH_TOKEN, session.token);
+    const u = toUser(session.user);
+    await storage.set(KEYS.CURRENT_USER, u);
+    setUser(u);
+  };
+
   const login = async (emailOrMobile: string, password: string) => {
-    const users = await storage.get<User[]>(KEYS.USERS);
-    if (!users) return { success: false, error: 'No users found' };
-    const found = users.find(
-      (u) =>
-        (u.email.toLowerCase() === emailOrMobile.toLowerCase() ||
-          u.mobile === emailOrMobile) &&
-        u.password === password &&
-        u.isActive,
-    );
-    if (!found) return { success: false, error: 'Invalid credentials' };
-    await storage.set(KEYS.CURRENT_USER, found);
-    setUser(found);
-    return { success: true };
+    try {
+      const session = await authLogin({ emailOrMobile, password });
+      await applySession(session);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: apiErrorMessage(err, 'Unable to sign in. Please try again.') };
+    }
+  };
+
+  const loginWithOtp = async (mobile: string, code: string) => {
+    try {
+      const session = await authOtpVerify({ mobile, code });
+      await applySession(session);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: apiErrorMessage(err, 'Verification failed. Please try again.') };
+    }
   };
 
   const logout = async () => {
+    try {
+      await authLogout();
+    } catch {
+      // Session may already be invalid server-side; clear local state regardless
+    }
+    await storage.remove(KEYS.AUTH_TOKEN);
     await storage.remove(KEYS.CURRENT_USER);
     setUser(null);
   };
@@ -67,11 +106,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const canAccess = (feature: string): boolean => {
     if (!user) return false;
     const perms = ROLE_PERMISSIONS[user.role];
+    if (!perms) return false;
     return perms.includes('*') || perms.includes(feature);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout, canAccess }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, loginWithOtp, logout, canAccess }}>
       {children}
     </AuthContext.Provider>
   );

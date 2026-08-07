@@ -20,12 +20,13 @@ import Reanimated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import {
+  authForgotRequest,
+  authForgotReset,
+  authForgotVerify,
+} from '@workspace/api-client-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { storage, KEYS } from '@/utils/storage';
-import { User } from '@/types';
-
-const DEMO_OTP = '123456';
 
 type Step = 'email' | 'otp' | 'reset' | 'done';
 
@@ -44,6 +45,7 @@ export default function ForgotPasswordScreen() {
 
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
+  const [resetToken, setResetToken] = useState('');
 
   const cardY = useSharedValue(28);
   const cardOp = useSharedValue(0);
@@ -78,12 +80,13 @@ export default function ForgotPasswordScreen() {
       return;
     }
     setLoading(true);
-    const users = (await storage.get<User[]>(KEYS.USERS)) ?? [];
-    const exists = users.some((u) => u.email === email.toLowerCase().trim());
-    setLoading(false);
-    if (!exists) {
-      setError('No account found with this email');
+    try {
+      await authForgotRequest({ email: email.trim().toLowerCase() });
+    } catch (err: any) {
+      setError(err?.data?.message ?? 'Could not send OTP. Please try again.');
       return;
+    } finally {
+      setLoading(false);
     }
     setError('');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -113,12 +116,15 @@ export default function ForgotPasswordScreen() {
     const entered = otp.join('');
     if (entered.length < 6) { setError('Enter the 6-digit OTP'); return; }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 700));
-    setLoading(false);
-    if (entered !== DEMO_OTP) {
-      setError('Incorrect OTP. Please try again.');
+    try {
+      const res = await authForgotVerify({ email: email.trim().toLowerCase(), code: entered });
+      setResetToken(res.resetToken);
+    } catch (err: any) {
+      setError(err?.data?.message ?? 'Incorrect OTP. Please try again.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
+    } finally {
+      setLoading(false);
     }
     setError('');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -139,12 +145,18 @@ export default function ForgotPasswordScreen() {
     if (pErr) { setError(pErr); return; }
     if (newPass !== confirmPass) { setError('Passwords do not match'); return; }
     setLoading(true);
-    const users = (await storage.get<User[]>(KEYS.USERS)) ?? [];
-    const updated = users.map((u) =>
-      u.email === email.toLowerCase().trim() ? { ...u, password: newPass } : u
-    );
-    await storage.set(KEYS.USERS, updated);
-    setLoading(false);
+    try {
+      await authForgotReset({
+        email: email.trim().toLowerCase(),
+        resetToken,
+        newPassword: newPass,
+      });
+    } catch (err: any) {
+      setError(err?.data?.message ?? 'Could not reset password. Please try again.');
+      return;
+    } finally {
+      setLoading(false);
+    }
     setError('');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setStep('done');
@@ -226,15 +238,18 @@ export default function ForgotPasswordScreen() {
                   </View>
                 )}
 
-                <View style={s.demoHint}>
-                  <Feather name="zap" size={13} color="#D4AF37" />
-                  <Text style={[s.demoHintText, { fontFamily: 'Inter_400Regular' }]}>
-                    Demo OTP: <Text style={{ fontFamily: 'Inter_700Bold', color: '#D4AF37' }}>{DEMO_OTP}</Text>
-                  </Text>
-                </View>
-
                 <TouchableOpacity
-                  onPress={() => { if (timer === 0) { setTimer(60); setOtp(['', '', '', '', '', '']); } }}
+                  onPress={async () => {
+                    if (timer > 0) return;
+                    try {
+                      await authForgotRequest({ email: email.trim().toLowerCase() });
+                      setTimer(60);
+                      setOtp(['', '', '', '', '', '']);
+                      setError('');
+                    } catch (err: any) {
+                      setError(err?.data?.message ?? 'Could not resend OTP.');
+                    }
+                  }}
                   disabled={timer > 0}
                   style={{ alignItems: 'center' }}
                 >

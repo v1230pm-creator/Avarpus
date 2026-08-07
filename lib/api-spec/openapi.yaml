@@ -10,7 +10,187 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
 paths:
+  /auth/login:
+    post:
+      operationId: authLogin
+      tags: [auth]
+      summary: Sign in with email/mobile and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+  /auth/otp/request:
+    post:
+      operationId: authOtpRequest
+      tags: [auth]
+      summary: Request a login OTP for a mobile number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpRequestInput"
+      responses:
+        "200":
+          description: OTP request accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                required: [message]
+  /auth/otp/verify:
+    post:
+      operationId: authOtpVerify
+      tags: [auth]
+      summary: Verify a login OTP and sign in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpVerifyInput"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+  /auth/register/start:
+    post:
+      operationId: authRegisterStart
+      tags: [auth]
+      summary: Start registration and send email OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterStartInput"
+      responses:
+        "200":
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /auth/register/verify:
+    post:
+      operationId: authRegisterVerify
+      tags: [auth]
+      summary: Verify email OTP and create the account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterVerifyInput"
+      responses:
+        "200":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /auth/forgot/request:
+    post:
+      operationId: authForgotRequest
+      tags: [auth]
+      summary: Request a password reset OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotRequestInput"
+      responses:
+        "200":
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /auth/forgot/verify:
+    post:
+      operationId: authForgotVerify
+      tags: [auth]
+      summary: Verify a password reset OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterVerifyInput"
+      responses:
+        "200":
+          description: Verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resetToken: { type: string }
+                required: [resetToken]
+  /auth/forgot/reset:
+    post:
+      operationId: authForgotReset
+      tags: [auth]
+      summary: Reset password with a reset token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotResetInput"
+      responses:
+        "200":
+          description: Password updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /auth/me:
+    get:
+      operationId: authMe
+      tags: [auth]
+      summary: Get the current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/AuthUser"
+                required: [user]
+  /auth/logout:
+    post:
+      operationId: authLogout
+      tags: [auth]
+      summary: Sign out and invalidate the session
+      responses:
+        "200":
+          description: Signed out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
   /healthz:
     get:
       operationId: healthCheck
@@ -26,6 +206,81 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    LoginInput:
+      type: object
+      properties:
+        emailOrMobile: { type: string }
+        password: { type: string }
+      required: [emailOrMobile, password]
+    ForgotRequestInput:
+      type: object
+      properties:
+        email: { type: string }
+      required: [email]
+    ForgotResetInput:
+      type: object
+      properties:
+        email: { type: string }
+        resetToken: { type: string }
+        newPassword: { type: string }
+      required: [email, resetToken, newPassword]
+    OtpRequestInput:
+      type: object
+      properties:
+        mobile: { type: string }
+      required: [mobile]
+    OtpVerifyInput:
+      type: object
+      properties:
+        mobile: { type: string }
+        code: { type: string }
+      required: [mobile, code]
+    RegisterStartInput:
+      type: object
+      properties:
+        name: { type: string }
+        businessName: { type: string }
+        email: { type: string }
+        mobile: { type: string }
+        password: { type: string }
+        gstNumber: { type: string }
+        shopAddress: { type: string }
+      required: [name, businessName, email, mobile, password, shopAddress]
+    RegisterVerifyInput:
+      type: object
+      properties:
+        email: { type: string }
+        code: { type: string }
+      required: [email, code]
+    Message:
+      type: object
+      properties:
+        message: { type: string }
+      required: [message]
+    AuthUser:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        mobile: { type: string }
+        role: { type: string }
+        isActive: { type: boolean }
+        designation: { type: string }
+        joinDate: { type: string }
+        businessName: { type: string }
+        gstNumber: { type: string }
+        shopAddress: { type: string }
+        profilePhoto: { type: string }
+        companyLogo: { type: string }
+      required: [id, name, email, mobile, role, isActive]
+    AuthSession:
+      type: object
+      properties:
+        token: { type: string }
+        user:
+          $ref: "#/components/schemas/AuthUser"
+      required: [token, user]
     HealthStatus:
       type: object
       properties:

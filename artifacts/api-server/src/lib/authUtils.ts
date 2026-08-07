@@ -1,0 +1,145 @@
+import crypto from "node:crypto";
+import bcrypt from "bcryptjs";
+import { and, eq, gt, isNull } from "drizzle-orm";
+import { db, otpCodesTable, sessionsTable, usersTable } from "@workspace/db";
+import type { DbUser } from "@workspace/db";
+
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const MAX_OTP_ATTEMPTS = 5;
+
+export function hashPassword(password: string): string {
+  return bcrypt.hashSync(password, 10);
+}
+
+export function verifyPassword(password: string, hash: string): boolean {
+  return bcrypt.compareSync(password, hash);
+}
+
+export function sha256(value: string): string {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+export function generateOtpCode(): string {
+  return crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+}
+
+export function generateToken(): string {
+  return crypto.randomBytes(48).toString("hex");
+}
+
+export async function createSession(userId: string): Promise<string> {
+  const token = generateToken();
+  await db.insert(sessionsTable).values({
+    token,
+    userId,
+    expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+  });
+  return token;
+}
+
+export async function getSessionUser(token: string): Promise<DbUser | null> {
+  const rows = await db
+    .select({ user: usersTable })
+    .from(sessionsTable)
+    .innerJoin(usersTable, eq(sessionsTable.userId, usersTable.id))
+    .where(
+      and(eq(sessionsTable.token, token), gt(sessionsTable.expiresAt, new Date())),
+    )
+    .limit(1);
+  return rows[0]?.user ?? null;
+}
+
+export async function deleteSession(token: string): Promise<void> {
+  await db.delete(sessionsTable).where(eq(sessionsTable.token, token));
+}
+
+export async function createOtp(
+  identifier: string,
+  purpose: string,
+  payload?: unknown,
+): Promise<string> {
+  const code = generateOtpCode();
+  // Invalidate previous outstanding codes for the same identifier/purpose
+  await db
+    .delete(otpCodesTable)
+    .where(
+      and(
+        eq(otpCodesTable.identifier, identifier),
+        eq(otpCodesTable.purpose, purpose),
+      ),
+    );
+  await db.insert(otpCodesTable).values({
+    identifier,
+    purpose,
+    codeHash: sha256(code),
+    payload: payload ?? null,
+    expiresAt: new Date(Date.now() + OTP_TTL_MS),
+  });
+  return code;
+}
+
+export type OtpResult =
+  | { ok: true; payload: unknown }
+  | { ok: false; error: string };
+
+export async function consumeOtp(
+  identifier: string,
+  purpose: string,
+  code: string,
+): Promise<OtpResult> {
+  const rows = await db
+    .select()
+    .from(otpCodesTable)
+    .where(
+      and(
+        eq(otpCodesTable.identifier, identifier),
+        eq(otpCodesTable.purpose, purpose),
+        isNull(otpCodesTable.consumedAt),
+        gt(otpCodesTable.expiresAt, new Date()),
+      ),
+    )
+    .limit(1);
+  const row = rows[0];
+  if (!row) return { ok: false, error: "Code expired or not found. Request a new one." };
+  if (row.attempts >= MAX_OTP_ATTEMPTS) {
+    return { ok: false, error: "Too many attempts. Request a new code." };
+  }
+  if (row.codeHash !== sha256(code)) {
+    await db
+      .update(otpCodesTable)
+      .set({ attempts: row.attempts + 1 })
+      .where(eq(otpCodesTable.id, row.id));
+    return { ok: false, error: "Incorrect code. Please try again." };
+  }
+  await db
+    .update(otpCodesTable)
+    .set({ consumedAt: new Date() })
+    .where(eq(otpCodesTable.id, row.id));
+  return { ok: true, payload: row.payload };
+}
+
+export function publicUser(u: DbUser) {
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    mobile: u.mobile,
+    role: u.role,
+    isActive: u.isActive,
+    designation: u.designation ?? undefined,
+    joinDate: u.joinDate ?? undefined,
+    businessName: u.businessName ?? undefined,
+    gstNumber: u.gstNumber ?? undefined,
+    shopAddress: u.shopAddress ?? undefined,
+    profilePhoto: u.profilePhoto ?? undefined,
+    companyLogo: u.companyLogo ?? undefined,
+  };
+}
+
+export function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***";
+  const visible = local.slice(0, 2);
+  return `${visible}${"*".repeat(Math.max(local.length - 2, 2))}@${domain}`;
+}

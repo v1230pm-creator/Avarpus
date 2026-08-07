@@ -27,6 +27,7 @@ import Reanimated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { authOtpRequest } from '@workspace/api-client-react';
 import { useAuth } from '@/context/AuthContext';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -192,14 +193,28 @@ export default function LoginScreen() {
     }
   };
 
-  const handleSendOtp = () => {
+  const [otpLoading, setOtpLoading] = useState(false);
+
+  const handleSendOtp = async () => {
     if (!mobile.trim() || mobile.length < 10) {
       setError('Please enter a valid 10-digit mobile number');
       return;
     }
     setError('');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/(auth)/otp');
+    setOtpLoading(true);
+    try {
+      const res = await authOtpRequest({ mobile: mobile.trim() });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      router.push({
+        pathname: '/(auth)/otp',
+        params: { mobile: mobile.trim() },
+      });
+    } catch (err: any) {
+      setError(err?.data?.message ?? 'Could not send OTP. Please try again.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setOtpLoading(false);
+    }
   };
 
   return (
@@ -395,7 +410,7 @@ export default function LoginScreen() {
                     </Text>
                   </View>
 
-                  <GradientButton title="Send OTP" onPress={handleSendOtp} loading={false} icon="send" />
+                  <GradientButton title="Send OTP" onPress={handleSendOtp} loading={otpLoading} icon="send" />
 
                   <TouchableOpacity
                     onPress={() => switchTab('email')}

@@ -32,6 +32,7 @@ export const storage = {
 export const KEYS = {
   USERS: 'vmc_users',
   CURRENT_USER: 'vmc_current_user',
+  AUTH_TOKEN: 'vmc_auth_token',
   REPAIRS: 'vmc_repairs',
   CUSTOMERS: 'vmc_customers',
   INVENTORY: 'vmc_inventory',

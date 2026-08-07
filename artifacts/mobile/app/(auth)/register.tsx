@@ -23,16 +23,12 @@ import Reanimated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { authRegisterStart, authRegisterVerify } from '@workspace/api-client-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { storage, KEYS } from '@/utils/storage';
-import { User } from '@/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Step = 'form' | 'email_otp' | 'phone_otp' | 'success';
-
-// ─── Mock OTP (demo – no real sending) ────────────────────────────────────────
-const DEMO_OTP = '123456';
+type Step = 'form' | 'email_otp' | 'success';
 
 // ─── OTP Cell component ───────────────────────────────────────────────────────
 function OtpInput({
@@ -87,7 +83,7 @@ const otpStyles = StyleSheet.create({
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 function StepBar({ current }: { current: number }) {
-  const steps = ['Details', 'Email OTP', 'Phone OTP'];
+  const steps = ['Details', 'Email OTP'];
   return (
     <View style={bar.wrap}>
       {steps.map((label, i) => (
@@ -167,13 +163,6 @@ export default function RegisterScreen() {
   const [emailError, setEmailError] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
 
-  // OTP state – phone
-  const [phoneOtp, setPhoneOtp] = useState(['', '', '', '', '', '']);
-  const phoneRefs = useRef<(TextInput | null)[]>([]);
-  const [phoneTimer, setPhoneTimer] = useState(60);
-  const [phoneError, setPhoneError] = useState('');
-  const [phoneLoading, setPhoneLoading] = useState(false);
-
   // Card animation
   const cardY = useSharedValue(32);
   const cardOp = useSharedValue(0);
@@ -204,13 +193,6 @@ export default function RegisterScreen() {
     return () => clearInterval(t);
   }, [step === 'email_otp']);
 
-  useEffect(() => {
-    if (step !== 'phone_otp') return;
-    setPhoneTimer(60);
-    const t = setInterval(() => setPhoneTimer((v) => (v > 0 ? v - 1 : 0)), 1000);
-    return () => clearInterval(t);
-  }, [step === 'phone_otp']);
-
   // ── Step 1: Validate & proceed to email OTP ───────────────────────────────
   const handleFormNext = async () => {
     const e: Record<string, string> = {};
@@ -229,13 +211,21 @@ export default function RegisterScreen() {
     if (Object.keys(e).length > 0) return;
 
     setFormLoading(true);
-    const users = (await storage.get<User[]>(KEYS.USERS)) ?? [];
-    const exists = users.some((u) => u.email === email.toLowerCase() || u.mobile === mobile);
-    setFormLoading(false);
-
-    if (exists) {
-      setErrors({ email: 'Account with this email or mobile already exists' });
+    try {
+      await authRegisterStart({
+        name: name.trim(),
+        businessName: businessName.trim(),
+        email: email.trim().toLowerCase(),
+        mobile: mobile.trim(),
+        password,
+        gstNumber: gstNumber.trim() || undefined,
+        shopAddress: shopAddress.trim(),
+      });
+    } catch (err: any) {
+      setErrors({ email: err?.data?.message ?? 'Could not send OTP. Please try again.' });
       return;
+    } finally {
+      setFormLoading(false);
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -279,67 +269,46 @@ export default function RegisterScreen() {
     setter(next);
   };
 
-  // ── Step 2: Verify email OTP ──────────────────────────────────────────────
+  // ── Step 2: Verify email OTP & create account ─────────────────────────────
   const handleEmailVerify = async () => {
     const entered = emailOtp.join('');
     if (entered.length < 6) { setEmailError('Enter the 6-digit OTP'); return; }
     setEmailLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setEmailLoading(false);
-    if (entered !== DEMO_OTP) {
-      setEmailError('Incorrect OTP. Please try again.');
+    try {
+      await authRegisterVerify({ email: email.trim().toLowerCase(), code: entered });
+    } catch (err: any) {
+      setEmailError(err?.data?.message ?? 'Verification failed. Please try again.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
+    } finally {
+      setEmailLoading(false);
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setPhoneOtp(['', '', '', '', '', '']);
-    setPhoneError('');
-    setStep('phone_otp');
-    animateIn();
-    setTimeout(() => phoneRefs.current[0]?.focus(), 400);
-  };
-
-  // ── Step 3: Verify phone OTP & create account ─────────────────────────────
-  const handlePhoneVerify = async () => {
-    const entered = phoneOtp.join('');
-    if (entered.length < 6) { setPhoneError('Enter the 6-digit OTP'); return; }
-    setPhoneLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setPhoneLoading(false);
-    if (entered !== DEMO_OTP) {
-      setPhoneError('Incorrect OTP. Please try again.');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      return;
-    }
-    // Create account — re-check uniqueness right before writing
-    const users = (await storage.get<User[]>(KEYS.USERS)) ?? [];
-    if (users.some((u) => u.email === email.toLowerCase().trim() || u.mobile === mobile.trim())) {
-      setPhoneError('Account with this email or mobile already exists');
-      return;
-    }
-    const newUser: User = {
-      id: `u${Date.now()}`,
-      name: name.trim(),
-      email: email.toLowerCase().trim(),
-      mobile: mobile.trim(),
-      role: 'reception',
-      isActive: false,
-      joinDate: new Date().toISOString().split('T')[0],
-      designation: 'Owner',
-      password,
-      businessName: businessName.trim(),
-      gstNumber: gstNumber.trim() || undefined,
-      shopAddress: shopAddress.trim(),
-      profilePhoto: profilePhoto || undefined,
-      companyLogo: companyLogo || undefined,
-    };
-    await storage.set(KEYS.USERS, [...users, newUser]);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setStep('success');
     animateIn();
   };
 
-  const stepIndex = step === 'form' ? 0 : step === 'email_otp' ? 1 : step === 'phone_otp' ? 2 : 3;
+  const handleResendEmailOtp = async () => {
+    if (emailTimer > 0) return;
+    try {
+      await authRegisterStart({
+        name: name.trim(),
+        businessName: businessName.trim(),
+        email: email.trim().toLowerCase(),
+        mobile: mobile.trim(),
+        password,
+        gstNumber: gstNumber.trim() || undefined,
+        shopAddress: shopAddress.trim(),
+      });
+      setEmailTimer(60);
+      setEmailOtp(['', '', '', '', '', '']);
+      setEmailError('');
+    } catch (err: any) {
+      setEmailError(err?.data?.message ?? 'Could not resend OTP. Please try again.');
+    }
+  };
+
+  const stepIndex = step === 'form' ? 0 : step === 'email_otp' ? 1 : 2;
 
   return (
     <LinearGradient colors={['#050912', '#091525', '#030710']} style={{ flex: 1 }}>
@@ -358,7 +327,7 @@ export default function RegisterScreen() {
             <TouchableOpacity
               onPress={() => {
                 if (step === 'form' || step === 'success') router.back();
-                else { setStep(step === 'phone_otp' ? 'email_otp' : 'form'); animateIn(); }
+                else { setStep('form'); animateIn(); }
               }}
               style={gs.backBtn}
             >
@@ -459,16 +428,8 @@ export default function RegisterScreen() {
                 </View>
               )}
 
-              {/* Demo hint */}
-              <View style={gs.demoHint}>
-                <Feather name="zap" size={13} color="#D4AF37" />
-                <Text style={[gs.demoHintText, { fontFamily: 'Inter_400Regular' }]}>
-                  Demo OTP: <Text style={{ fontFamily: 'Inter_700Bold', color: '#D4AF37' }}>{DEMO_OTP}</Text>
-                </Text>
-              </View>
-
               <TouchableOpacity
-                onPress={() => { if (emailTimer === 0) { setEmailTimer(60); setEmailOtp(['', '', '', '', '', '']); } }}
+                onPress={handleResendEmailOtp}
                 disabled={emailTimer > 0}
                 style={{ alignItems: 'center' }}
               >
@@ -477,65 +438,13 @@ export default function RegisterScreen() {
                 </Text>
               </TouchableOpacity>
 
-              <Button title="Verify Email OTP" onPress={handleEmailVerify}
+              <Button title="Verify & Create Account" onPress={handleEmailVerify}
                 loading={emailLoading} disabled={emailOtp.join('').length < 6}
                 fullWidth size="lg" />
             </Reanimated.View>
           )}
 
-          {/* ── STEP 3: Phone OTP ── */}
-          {step === 'phone_otp' && (
-            <Reanimated.View style={[gs.card, cardStyle]}>
-              <View style={gs.otpHeader}>
-                <View style={[gs.otpIconWrap, { backgroundColor: '#1E3A1022' }]}>
-                  <Feather name="smartphone" size={28} color="#10B981" />
-                </View>
-                <Text style={[gs.otpTitle, { fontFamily: 'Inter_700Bold' }]}>Verify Mobile</Text>
-                <Text style={[gs.otpSub, { fontFamily: 'Inter_400Regular' }]}>
-                  Enter the 6-digit OTP sent to
-                </Text>
-                <Text style={[gs.otpTarget, { fontFamily: 'Inter_600SemiBold' }]}>+91 {mobile}</Text>
-              </View>
-
-              <OtpInput
-                value={phoneOtp}
-                onChange={(v, i) => handleOtpChange(setPhoneOtp, phoneRefs, phoneOtp, v, i)}
-                onBack={(i) => handleOtpBack(setPhoneOtp, phoneOtp, i)}
-                inputRef={phoneRefs}
-              />
-
-              {!!phoneError && (
-                <View style={gs.errorBox}>
-                  <Feather name="alert-circle" size={13} color="#F87171" />
-                  <Text style={[gs.errorText, { fontFamily: 'Inter_400Regular' }]}>{phoneError}</Text>
-                </View>
-              )}
-
-              {/* Demo hint */}
-              <View style={gs.demoHint}>
-                <Feather name="zap" size={13} color="#D4AF37" />
-                <Text style={[gs.demoHintText, { fontFamily: 'Inter_400Regular' }]}>
-                  Demo OTP: <Text style={{ fontFamily: 'Inter_700Bold', color: '#D4AF37' }}>{DEMO_OTP}</Text>
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                onPress={() => { if (phoneTimer === 0) { setPhoneTimer(60); setPhoneOtp(['', '', '', '', '', '']); } }}
-                disabled={phoneTimer > 0}
-                style={{ alignItems: 'center' }}
-              >
-                <Text style={[gs.timerText, { color: phoneTimer > 0 ? '#475569' : '#60A5FA', fontFamily: 'Inter_500Medium' }]}>
-                  {phoneTimer > 0 ? `Resend OTP in ${phoneTimer}s` : 'Resend OTP'}
-                </Text>
-              </TouchableOpacity>
-
-              <Button title="Verify & Create Account" onPress={handlePhoneVerify}
-                loading={phoneLoading} disabled={phoneOtp.join('').length < 6}
-                fullWidth size="lg" />
-            </Reanimated.View>
-          )}
-
-          {/* ── STEP 4: Success ── */}
+          {/* ── STEP 3: Success ── */}
           {step === 'success' && (
             <Reanimated.View style={[gs.successCard, cardStyle]}>
               <LinearGradient
@@ -555,7 +464,6 @@ export default function RegisterScreen() {
               <View style={gs.successSteps}>
                 {[
                   { icon: 'mail', color: '#3B82F6', label: 'Email verified' },
-                  { icon: 'smartphone', color: '#10B981', label: 'Mobile verified' },
                   { icon: 'user-check', color: '#D4AF37', label: 'Pending admin approval' },
                 ].map((item, i) => (
                   <View key={i} style={gs.successStep}>

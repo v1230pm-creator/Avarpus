@@ -1,5 +1,9 @@
+import path from "path";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import app from "./app";
+import { db } from "@workspace/db";
 import { logger } from "./lib/logger";
+import { seedUsersIfEmpty } from "./lib/seed";
 
 const rawPort = process.env["PORT"];
 
@@ -15,11 +19,29 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+// Run DB migrations (idempotent) then start the server.
+// __dirname is set to the dist/ folder by the esbuild banner, so migrations
+// are available at dist/migrations/ after the build copies them.
+const migrationsFolder = path.resolve(__dirname, "migrations");
 
-  logger.info({ port }, "Server listening");
-});
+migrate(db, { migrationsFolder })
+  .then(() => {
+    logger.info("Database migrations applied");
+
+    app.listen(port, (err) => {
+      if (err) {
+        logger.error({ err }, "Error listening on port");
+        process.exit(1);
+      }
+
+      logger.info({ port }, "Server listening");
+
+      seedUsersIfEmpty().catch((err) => {
+        logger.error({ err }, "Failed to seed initial users");
+      });
+    });
+  })
+  .catch((err) => {
+    logger.error({ err }, "Database migration failed — server will not start");
+    process.exit(1);
+  });

@@ -13,8 +13,13 @@ import {
 } from '@expo-google-fonts/inter';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { setAuthTokenGetter, setBaseUrl } from '@workspace/api-client-react';
 import { AuthProvider } from '@/context/AuthContext';
 import { DataProvider } from '@/context/DataContext';
+import { storage, KEYS } from '@/utils/storage';
+
+setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+setAuthTokenGetter(() => storage.get<string>(KEYS.AUTH_TOKEN));
 
 SplashScreen.preventAutoHideAsync();
 
