@@ -113,7 +113,7 @@ function RememberMeRow({ checked, onToggle, onForgot }: { checked: boolean; onTo
 }
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, signedOutNotice, clearSignedOutNotice } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -182,6 +182,7 @@ export default function LoginScreen() {
     }
     setLoading(true);
     setError('');
+    clearSignedOutNotice();
     const result = await login(email.trim(), password, rememberMe);
     setLoading(false);
     if (!result.success) {
@@ -300,6 +301,14 @@ export default function LoginScreen() {
                   }]}>Mobile OTP</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Signed-out notice (e.g. session revoked from another device) */}
+              {!!signedOutNotice && !error && (
+                <View style={[styles.otpInfo, { borderColor: '#2563EB33' }]}>
+                  <Feather name="info" size={13} color="#60A5FA" />
+                  <Text style={[styles.otpInfoText, { fontFamily: 'Inter_400Regular' }]}>{signedOutNotice}</Text>
+                </View>
+              )}
 
               {/* Error */}
               {!!error && (

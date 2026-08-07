@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { Redirect } from 'expo-router';
+import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { isLockEnabled, isUnlocked, subscribeLockState } from '@/utils/appLock';
 import { InactivityGuard } from '@/components/InactivityGuard';
@@ -137,6 +138,7 @@ function ClassicTabLayout() {
 
 export default function TabLayout() {
   const colors = useColors();
+  const { isAuthenticated, isLoading } = useAuth();
   const [lockCheck, setLockCheck] = useState<'pending' | 'locked' | 'open'>(
     isUnlocked() ? 'open' : 'pending',
   );
@@ -172,6 +174,12 @@ export default function TabLayout() {
     });
     return unsubscribe;
   }, []);
+
+  // If auth state clears while inside the tabs (e.g. this device's session
+  // was revoked and an API call came back 401), route back to sign-in.
+  if (!isLoading && !isAuthenticated) {
+    return <Redirect href="/(auth)" />;
+  }
 
   if (lockCheck === 'pending') {
     return (

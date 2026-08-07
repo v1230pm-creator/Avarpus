@@ -8,6 +8,8 @@ export type BodyType<T> = T;
 
 export type AuthTokenGetter = () => Promise<string | null> | string | null;
 
+export type UnauthorizedHandler = (error: ApiError) => void;
+
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
@@ -17,6 +19,20 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _unauthorizedHandler: UnauthorizedHandler | null = null;
+
+/**
+ * Register a handler invoked whenever an authenticated request (one that had
+ * a bearer token attached) receives an HTTP 401 response. Useful for
+ * globally signing the user out when their session is revoked server-side.
+ *
+ * The handler runs before the ApiError is thrown to the caller; exceptions
+ * inside the handler are swallowed so they never mask the original error.
+ * Pass `null` to clear the handler.
+ */
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  _unauthorizedHandler = handler;
+}
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -351,10 +367,12 @@ export async function customFetch<T = unknown>(
 
   // Attach bearer token when an auth getter is configured and no
   // Authorization header has been explicitly provided.
+  let sentAuthToken = false;
   if (_authTokenGetter && !headers.has("authorization")) {
     const token = await _authTokenGetter();
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
+      sentAuthToken = true;
     }
   }
 
@@ -364,7 +382,21 @@ export async function customFetch<T = unknown>(
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
-    throw new ApiError(response, errorData, requestInfo);
+    const error = new ApiError(response, errorData, requestInfo);
+
+    // A 401 on a request that carried a bearer token means the session was
+    // revoked or expired — notify the global handler (if any) so the app can
+    // clear auth state. Requests without a token (e.g. login attempts) do
+    // not trigger the handler.
+    if (response.status === 401 && sentAuthToken && _unauthorizedHandler) {
+      try {
+        _unauthorizedHandler(error);
+      } catch {
+        // Never let handler errors mask the original ApiError.
+      }
+    }
+
+    throw error;
   }
 
   return (await parseSuccessBody(response, responseType, requestInfo)) as T;
