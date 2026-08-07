@@ -14,5 +14,6 @@ export interface Customer {
   address?: string;
   dueAmount: number;
   totalRepairs: number;
+  isSample: boolean;
   createdAt: string;
 }

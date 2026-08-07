@@ -19,5 +19,6 @@ export interface Purchase {
   paymentStatus: string;
   paymentMethod: string;
   date: string;
+  isSample: boolean;
   createdAt: string;
 }

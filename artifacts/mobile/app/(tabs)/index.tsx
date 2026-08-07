@@ -367,13 +367,110 @@ const QuickActionFAB = () => {
   );
 };
 
+// Shown when the shop has no data at all: lets a new dealer explore the app
+// with clearly-labelled, one-tap-removable sample data.
+const EmptyShopState = () => {
+  const colors = useColors();
+  const { loadSampleData } = useData();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onLoad = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await loadSampleData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load sample data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
+      <GlassCard style={{ width: '100%', padding: 24, alignItems: 'center' }}>
+        <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: colors.primary + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+          <Feather name="inbox" size={26} color={colors.primary} />
+        </View>
+        <Text style={{ fontSize: 17, color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 6 }}>
+          Your shop is empty
+        </Text>
+        <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 19, marginBottom: 18 }}>
+          Add your first repair or customer — or load sample data to explore the dashboard, reports and lists. Sample data is clearly labelled and can be removed anytime with one tap.
+        </Text>
+        <TouchableOpacity
+          onPress={onLoad}
+          disabled={loading}
+          activeOpacity={0.8}
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 8,
+            backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12,
+            opacity: loading ? 0.7 : 1,
+          }}
+        >
+          <Feather name={loading ? 'loader' : 'database'} size={16} color="#FFFFFF" />
+          <Text style={{ fontSize: 14, color: '#FFFFFF', fontFamily: 'Inter_600SemiBold' }}>
+            {loading ? 'Loading sample data…' : 'Load sample data'}
+          </Text>
+        </TouchableOpacity>
+        {!!error && (
+          <Text style={{ fontSize: 12, color: colors.destructive, fontFamily: 'Inter_500Medium', marginTop: 10, textAlign: 'center' }}>
+            {error}
+          </Text>
+        )}
+      </GlassCard>
+    </View>
+  );
+};
+
+// Banner shown while sample data is loaded, with a one-tap clear.
+const SampleDataBanner = () => {
+  const colors = useColors();
+  const { clearSampleData } = useData();
+  const [clearing, setClearing] = useState(false);
+
+  const onClear = async () => {
+    setClearing(true);
+    try {
+      await clearSampleData();
+    } catch {
+      // Non-fatal — the banner stays and the user can retry.
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  return (
+    <View style={{
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      backgroundColor: colors.warning + '15', borderWidth: 1, borderColor: colors.warning + '33',
+      padding: 12, borderRadius: 14,
+    }}>
+      <Feather name="database" size={16} color={colors.warning} />
+      <Text style={{ flex: 1, fontSize: 12, color: colors.foreground, fontFamily: 'Inter_500Medium', lineHeight: 17 }}>
+        You're viewing sample data. Clear it anytime — your real records won't be touched.
+      </Text>
+      <TouchableOpacity
+        onPress={onClear}
+        disabled={clearing}
+        style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: colors.warning + '55', backgroundColor: colors.warning + '11' }}
+      >
+        <Text style={{ fontSize: 12, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>
+          {clearing ? 'Clearing…' : 'Clear'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 // --- Main Screen ---
 
 export default function DashboardScreen() {
   const colors = useColors();
   const router = useRouter();
   const { canAccess } = useAuth();
-  const { repairs, customers, inventory, finance, isLoading, loadError, loadAll } = useData();
+  const { repairs, customers, inventory, finance, isLoading, loadError, loadAll, hasSampleData } = useData();
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
@@ -507,7 +604,10 @@ export default function DashboardScreen() {
           <QuickActions />
         </Animated.View>
 
+        {!hasAnyData && !isLoading && !loadError && <EmptyShopState />}
+
         <View style={{ paddingHorizontal: 20, paddingTop: 16, gap: 20 }}>
+          {hasSampleData && <SampleDataBanner />}
           
           <Animated.View style={{ opacity: cardAnims[1], transform: [{ translateY: cardAnims[1].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
             <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: isDark ? colors.primary + '15' : colors.primary + '11', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.primary + '22' }}>

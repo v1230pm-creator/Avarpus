@@ -34,5 +34,6 @@ export interface Repair {
   deliverySignaturePath?: string;
   warrantyDays: number;
   warrantyExpiry?: string;
+  isSample: boolean;
   createdAt: string;
 }

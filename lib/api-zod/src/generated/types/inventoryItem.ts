@@ -16,5 +16,6 @@ export interface InventoryItem {
   purchasePrice: number;
   sellingPrice: number;
   supplier?: string;
+  isSample: boolean;
   createdAt: string;
 }

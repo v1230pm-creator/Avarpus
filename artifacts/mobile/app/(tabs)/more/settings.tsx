@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { useData } from '@/context/DataContext';
 import {
   DEFAULT_INACTIVITY_MINUTES,
   INACTIVITY_OPTIONS,
@@ -57,6 +58,37 @@ export default function SettingsScreen() {
   const [sessionsError, setSessionsError] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [revokingOthers, setRevokingOthers] = useState(false);
+
+  // Sample data
+  const { hasSampleData, loadSampleData, clearSampleData } = useData();
+  const [sampleBusy, setSampleBusy] = useState(false);
+  const [sampleError, setSampleError] = useState<string | null>(null);
+
+  const onLoadSample = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSampleBusy(true);
+    setSampleError(null);
+    try {
+      await loadSampleData();
+    } catch (e) {
+      setSampleError(e instanceof Error ? e.message : 'Could not load sample data');
+    } finally {
+      setSampleBusy(false);
+    }
+  };
+
+  const onClearSample = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSampleBusy(true);
+    setSampleError(null);
+    try {
+      await clearSampleData();
+    } catch (e) {
+      setSampleError(e instanceof Error ? e.message : 'Could not clear sample data');
+    } finally {
+      setSampleBusy(false);
+    }
+  };
 
   const loadSessions = () => {
     authSessions()
@@ -318,6 +350,62 @@ export default function SettingsScreen() {
         </FadeInView>
 
         <FadeInView animValue={anims[3]} style={styles.section}>
+        {/* Sample data */}
+        <View style={[styles.sectionHeader, { borderLeftColor: colors.primary }]}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Sample Data</Text>
+        </View>
+
+        <Card>
+          <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+            {hasSampleData ? 'Sample data is loaded' : 'Explore with sample data'}
+          </Text>
+          <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            {hasSampleData
+              ? 'Demo repairs, customers, stock and finance entries are mixed into your shop. Clearing removes only the sample records — your real data is untouched.'
+              : 'Load labelled demo repairs, customers, stock and finance entries into your shop to try the dashboard and reports. You can remove them anytime with one tap.'}
+          </Text>
+          <View style={styles.dangerActions}>
+            {hasSampleData ? (
+              <TouchableOpacity
+                onPress={onClearSample}
+                disabled={sampleBusy}
+                style={[styles.dangerBtn, { backgroundColor: colors.destructive + '11', borderColor: colors.destructive + '33', opacity: sampleBusy ? 0.6 : 1 }]}
+              >
+                {sampleBusy ? (
+                  <ActivityIndicator size="small" color={colors.destructive} />
+                ) : (
+                  <>
+                    <Feather name="trash-2" size={16} color={colors.destructive} />
+                    <Text style={[styles.dangerBtnText, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>Clear sample data</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={onLoadSample}
+                disabled={sampleBusy}
+                style={[styles.dangerBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '22', opacity: sampleBusy ? 0.6 : 1 }]}
+              >
+                {sampleBusy ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <>
+                    <Feather name="database" size={16} color={colors.primary} />
+                    <Text style={[styles.dangerBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Load sample data</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+          {!!sampleError && (
+            <Text style={[styles.historyEmpty, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>
+              {sampleError}
+            </Text>
+          )}
+        </Card>
+        </FadeInView>
+
+        <FadeInView animValue={anims[4]} style={styles.section}>
         {/* Danger Zone */}
         <View style={[styles.sectionHeader, { borderLeftColor: colors.destructive }]}>
           <Text style={[styles.sectionTitle, { color: colors.destructive, fontFamily: 'Inter_700Bold' }]}>Data Management</Text>

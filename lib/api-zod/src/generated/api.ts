@@ -314,6 +314,7 @@ export const CustomersListResponse = zod.object({
   "address": zod.string().optional(),
   "dueAmount": zod.number(),
   "totalRepairs": zod.number(),
+  "isSample": zod.boolean(),
   "createdAt": zod.string()
 }))
 })
@@ -338,6 +339,7 @@ export const CustomersCreateResponse = zod.object({
   "address": zod.string().optional(),
   "dueAmount": zod.number(),
   "totalRepairs": zod.number(),
+  "isSample": zod.boolean(),
   "createdAt": zod.string()
 })
 })
@@ -366,6 +368,7 @@ export const CustomersUpdateResponse = zod.object({
   "address": zod.string().optional(),
   "dueAmount": zod.number(),
   "totalRepairs": zod.number(),
+  "isSample": zod.boolean(),
   "createdAt": zod.string()
 })
 })
@@ -402,6 +405,7 @@ export const RepairsListResponse = zod.object({
   "deliverySignaturePath": zod.string().optional(),
   "warrantyDays": zod.number(),
   "warrantyExpiry": zod.string().optional(),
+  "isSample": zod.boolean(),
   "createdAt": zod.string()
 }))
 })
@@ -464,6 +468,7 @@ export const RepairsCreateResponse = zod.object({
   "deliverySignaturePath": zod.string().optional(),
   "warrantyDays": zod.number(),
   "warrantyExpiry": zod.string().optional(),
+  "isSample": zod.boolean(),
   "createdAt": zod.string()
 })
 })
@@ -530,6 +535,7 @@ export const RepairsUpdateResponse = zod.object({
   "deliverySignaturePath": zod.string().optional(),
   "warrantyDays": zod.number(),
   "warrantyExpiry": zod.string().optional(),
+  "isSample": zod.boolean(),
   "createdAt": zod.string()
 })
 })
@@ -643,6 +649,7 @@ export const InventoryListResponse = zod.object({
   "purchasePrice": zod.number(),
   "sellingPrice": zod.number(),
   "supplier": zod.string().optional(),
+  "isSample": zod.boolean(),
   "createdAt": zod.string()
 }))
 })
@@ -673,6 +680,7 @@ export const InventoryCreateResponse = zod.object({
   "purchasePrice": zod.number(),
   "sellingPrice": zod.number(),
   "supplier": zod.string().optional(),
+  "isSample": zod.boolean(),
   "createdAt": zod.string()
 })
 })
@@ -707,6 +715,7 @@ export const InventoryUpdateResponse = zod.object({
   "purchasePrice": zod.number(),
   "sellingPrice": zod.number(),
   "supplier": zod.string().optional(),
+  "isSample": zod.boolean(),
   "createdAt": zod.string()
 })
 })
@@ -729,6 +738,7 @@ export const PurchasesListResponse = zod.object({
   "paymentStatus": zod.string(),
   "paymentMethod": zod.string(),
   "date": zod.string(),
+  "isSample": zod.boolean(),
   "createdAt": zod.string()
 }))
 })
@@ -764,6 +774,7 @@ export const PurchasesCreateResponse = zod.object({
   "paymentStatus": zod.string(),
   "paymentMethod": zod.string(),
   "date": zod.string(),
+  "isSample": zod.boolean(),
   "createdAt": zod.string()
 })
 })
@@ -781,6 +792,7 @@ export const FinanceListResponse = zod.object({
   "description": zod.string(),
   "paymentMethod": zod.string(),
   "date": zod.string(),
+  "isSample": zod.boolean(),
   "createdAt": zod.string()
 }))
 })
@@ -807,8 +819,25 @@ export const FinanceCreateResponse = zod.object({
   "description": zod.string(),
   "paymentMethod": zod.string(),
   "date": zod.string(),
+  "isSample": zod.boolean(),
   "createdAt": zod.string()
 })
+})
+
+
+/**
+ * @summary Seed labelled sample data into the caller's shop
+ */
+export const SampleDataLoadResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Remove all sample data from the caller's shop
+ */
+export const SampleDataClearResponse = zod.object({
+  "message": zod.string()
 })
 
 

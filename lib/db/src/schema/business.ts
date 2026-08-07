@@ -1,4 +1,5 @@
 import {
+  boolean,
   doublePrecision,
   integer,
   jsonb,
@@ -24,6 +25,7 @@ export const customersTable = pgTable("customers", {
   address: text("address"),
   dueAmount: doublePrecision("due_amount").notNull().default(0),
   totalRepairs: integer("total_repairs").notNull().default(0),
+  isSample: boolean("is_sample").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -62,6 +64,7 @@ export const repairsTable = pgTable("repairs", {
   deliverySignaturePath: text("delivery_signature_path"),
   warrantyDays: integer("warranty_days").notNull().default(0), // 0 = no warranty
   warrantyExpiry: text("warranty_expiry"), // ISO date, computed on delivery
+  isSample: boolean("is_sample").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -80,6 +83,7 @@ export const inventoryItemsTable = pgTable("inventory_items", {
   purchasePrice: doublePrecision("purchase_price").notNull().default(0),
   sellingPrice: doublePrecision("selling_price").notNull().default(0),
   supplier: text("supplier"),
+  isSample: boolean("is_sample").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -101,6 +105,7 @@ export const purchasesTable = pgTable("purchases", {
   paymentStatus: text("payment_status").notNull().default("unpaid"), // paid | unpaid | partial
   paymentMethod: text("payment_method").notNull(),
   date: text("date").notNull(), // ISO date (yyyy-mm-dd)
+  isSample: boolean("is_sample").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -115,6 +120,7 @@ export const financeEntriesTable = pgTable("finance_entries", {
   category: text("category").notNull(),
   amount: doublePrecision("amount").notNull(),
   description: text("description").notNull(),
+  isSample: boolean("is_sample").notNull().default(false),
   paymentMethod: text("payment_method").notNull(),
   date: text("date").notNull(), // ISO date (yyyy-mm-dd)
   createdAt: timestamp("created_at", { withTimezone: true })

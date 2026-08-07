@@ -693,6 +693,35 @@ paths:
                   entry:
                     $ref: "#/components/schemas/FinanceEntry"
                 required: [entry]
+  /sample-data:
+    post:
+      operationId: sampleDataLoad
+      tags: [business]
+      summary: Seed labelled sample data into the caller's shop
+      responses:
+        "200":
+          description: Sample data loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "409":
+          description: Sample data already loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+    delete:
+      operationId: sampleDataClear
+      tags: [business]
+      summary: Remove all sample data from the caller's shop
+      responses:
+        "200":
+          description: Sample data cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
   /healthz:
     get:
       operationId: healthCheck
@@ -826,8 +855,9 @@ components:
         address: { type: string }
         dueAmount: { type: number }
         totalRepairs: { type: number }
+        isSample: { type: boolean }
         createdAt: { type: string }
-      required: [id, name, mobile, dueAmount, totalRepairs, createdAt]
+      required: [id, name, mobile, dueAmount, totalRepairs, isSample, createdAt]
     CustomerInput:
       type: object
       properties:
@@ -866,8 +896,9 @@ components:
         deliverySignaturePath: { type: string }
         warrantyDays: { type: number }
         warrantyExpiry: { type: string }
+        isSample: { type: boolean }
         createdAt: { type: string }
-      required: [id, repairId, customerName, mobile, deviceType, brand, model, problem, status, priority, repairCharge, partsCharge, advance, receiveDate, expectedDate, warrantyDays, createdAt]
+      required: [id, repairId, customerName, mobile, deviceType, brand, model, problem, status, priority, repairCharge, partsCharge, advance, receiveDate, expectedDate, warrantyDays, isSample, createdAt]
     RepairInput:
       type: object
       properties:
@@ -956,8 +987,9 @@ components:
         purchasePrice: { type: number }
         sellingPrice: { type: number }
         supplier: { type: string }
+        isSample: { type: boolean }
         createdAt: { type: string }
-      required: [id, name, category, brand, quantity, minStock, purchasePrice, sellingPrice, createdAt]
+      required: [id, name, category, brand, quantity, minStock, purchasePrice, sellingPrice, isSample, createdAt]
     InventoryItemInput:
       type: object
       properties:
@@ -984,8 +1016,9 @@ components:
         paymentStatus: { type: string }
         paymentMethod: { type: string }
         date: { type: string }
+        isSample: { type: boolean }
         createdAt: { type: string }
-      required: [id, purchaseId, invoiceNo, supplier, itemName, quantity, purchasePrice, total, paymentStatus, paymentMethod, date, createdAt]
+      required: [id, purchaseId, invoiceNo, supplier, itemName, quantity, purchasePrice, total, paymentStatus, paymentMethod, date, isSample, createdAt]
     PurchaseInput:
       type: object
       properties:
@@ -1009,8 +1042,9 @@ components:
         description: { type: string }
         paymentMethod: { type: string }
         date: { type: string }
+        isSample: { type: boolean }
         createdAt: { type: string }
-      required: [id, type, category, amount, description, paymentMethod, date, createdAt]
+      required: [id, type, category, amount, description, paymentMethod, date, isSample, createdAt]
     FinanceEntryInput:
       type: object
       properties:

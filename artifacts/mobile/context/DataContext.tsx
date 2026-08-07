@@ -5,6 +5,7 @@ import {
   inventoryList, inventoryCreate, inventoryUpdate,
   purchasesList, purchasesCreate,
   financeList, financeCreate,
+  sampleDataLoad, sampleDataClear,
 } from '@workspace/api-client-react';
 import { Repair, Customer, InventoryItem, Purchase, FinanceEntry } from '@/types';
 import { useAuth } from '@/context/AuthContext';
@@ -35,6 +36,12 @@ interface DataContextType {
   updateInventoryItem: (i: InventoryItem) => Promise<void>;
   addPurchase: (p: Purchase) => Promise<void>;
   addFinanceEntry: (f: FinanceEntry) => Promise<void>;
+  /** True when any loaded record is flagged as sample data. */
+  hasSampleData: boolean;
+  /** Seed labelled demo data into this shop, then reload everything. */
+  loadSampleData: () => Promise<void>;
+  /** Remove every sample-flagged record from this shop, then reload. */
+  clearSampleData: () => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType>({
@@ -50,6 +57,9 @@ const DataContext = createContext<DataContextType>({
   updateInventoryItem: async () => {},
   addPurchase: async () => {},
   addFinanceEntry: async () => {},
+  hasSampleData: false,
+  loadSampleData: async () => {},
+  clearSampleData: async () => {},
 });
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
@@ -258,12 +268,30 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setFinance((prev) => [...prev, created]);
   };
 
+  const hasSampleData =
+    repairs.some((r) => r.isSample) ||
+    customers.some((c) => c.isSample) ||
+    inventory.some((i) => i.isSample) ||
+    purchases.some((p) => p.isSample) ||
+    finance.some((f) => f.isSample);
+
+  const loadSampleData = async () => {
+    await sampleDataLoad();
+    await loadAll();
+  };
+
+  const clearSampleData = async () => {
+    await sampleDataClear();
+    await loadAll();
+  };
+
   return (
     <DataContext.Provider value={{
       repairs, customers, inventory, purchases, finance,
       isLoading, loadError,
       loadAll, addRepair, updateRepair, addCustomer, updateCustomer,
       addInventoryItem, updateInventoryItem, addPurchase, addFinanceEntry,
+      hasSampleData, loadSampleData, clearSampleData,
     }}>
       {children}
     </DataContext.Provider>

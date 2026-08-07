@@ -14,5 +14,6 @@ export interface FinanceEntry {
   description: string;
   paymentMethod: string;
   date: string;
+  isSample: boolean;
   createdAt: string;
 }

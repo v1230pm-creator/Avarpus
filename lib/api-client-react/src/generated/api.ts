@@ -2582,6 +2582,148 @@ export const useFinanceCreate = <TError = ErrorType<unknown>,
       return useMutation(getFinanceCreateMutationOptions(options));
     }
 
+export const getSampleDataLoadUrl = () => {
+
+
+
+
+  return `/api/sample-data`
+}
+
+/**
+ * @summary Seed labelled sample data into the caller's shop
+ */
+export const sampleDataLoad = async ( options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
+
+  return customFetch<Message>(getSampleDataLoadUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSampleDataLoadMutationOptions = <TError = ErrorType<Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sampleDataLoad>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sampleDataLoad>>, TError,void, TContext> => {
+
+const mutationKey = ['sampleDataLoad'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sampleDataLoad>>, void> = () => {
+
+
+          return  sampleDataLoad(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SampleDataLoadMutationResult = NonNullable<Awaited<ReturnType<typeof sampleDataLoad>>>
+
+    export type SampleDataLoadMutationError = ErrorType<Message>
+
+    /**
+ * @summary Seed labelled sample data into the caller's shop
+ */
+export const useSampleDataLoad = <TError = ErrorType<Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sampleDataLoad>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sampleDataLoad>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getSampleDataLoadMutationOptions(options));
+    }
+
+export const getSampleDataClearUrl = () => {
+
+
+
+
+  return `/api/sample-data`
+}
+
+/**
+ * @summary Remove all sample data from the caller's shop
+ */
+export const sampleDataClear = async ( options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
+
+  return customFetch<Message>(getSampleDataClearUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getSampleDataClearMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sampleDataClear>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sampleDataClear>>, TError,void, TContext> => {
+
+const mutationKey = ['sampleDataClear'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sampleDataClear>>, void> = () => {
+
+
+          return  sampleDataClear(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SampleDataClearMutationResult = NonNullable<Awaited<ReturnType<typeof sampleDataClear>>>
+
+    export type SampleDataClearMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove all sample data from the caller's shop
+ */
+export const useSampleDataClear = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sampleDataClear>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sampleDataClear>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getSampleDataClearMutationOptions(options));
+    }
+
 export const getHealthCheckUrl = () => {
 
 

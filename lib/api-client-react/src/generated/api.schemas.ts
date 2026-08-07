@@ -117,6 +117,7 @@ export interface Customer {
   address?: string;
   dueAmount: number;
   totalRepairs: number;
+  isSample: boolean;
   createdAt: string;
 }
 
@@ -156,6 +157,7 @@ export interface Repair {
   deliverySignaturePath?: string;
   warrantyDays: number;
   warrantyExpiry?: string;
+  isSample: boolean;
   createdAt: string;
 }
 
@@ -272,6 +274,7 @@ export interface InventoryItem {
   purchasePrice: number;
   sellingPrice: number;
   supplier?: string;
+  isSample: boolean;
   createdAt: string;
 }
 
@@ -299,6 +302,7 @@ export interface Purchase {
   paymentStatus: string;
   paymentMethod: string;
   date: string;
+  isSample: boolean;
   createdAt: string;
 }
 
@@ -323,6 +327,7 @@ export interface FinanceEntry {
   description: string;
   paymentMethod: string;
   date: string;
+  isSample: boolean;
   createdAt: string;
 }
 

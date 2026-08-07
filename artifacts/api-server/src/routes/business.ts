@@ -55,6 +55,7 @@ function customerOut(c: typeof customersTable.$inferSelect) {
     address: c.address ?? undefined,
     dueAmount: c.dueAmount,
     totalRepairs: c.totalRepairs,
+    isSample: c.isSample,
     createdAt: iso(c.createdAt),
   };
 }
@@ -229,6 +230,7 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
     deliverySignaturePath: r.deliverySignaturePath ?? undefined,
     warrantyDays: r.warrantyDays,
     warrantyExpiry: r.warrantyExpiry ?? undefined,
+    isSample: r.isSample,
     createdAt: iso(r.createdAt),
   };
 }
@@ -597,6 +599,7 @@ function inventoryOut(i: typeof inventoryItemsTable.$inferSelect) {
     purchasePrice: i.purchasePrice,
     sellingPrice: i.sellingPrice,
     supplier: i.supplier ?? undefined,
+    isSample: i.isSample,
     createdAt: iso(i.createdAt),
   };
 }
@@ -700,6 +703,7 @@ function purchaseOut(p: typeof purchasesTable.$inferSelect) {
     paymentStatus: p.paymentStatus,
     paymentMethod: p.paymentMethod,
     date: p.date,
+    isSample: p.isSample,
     createdAt: iso(p.createdAt),
   };
 }
@@ -774,6 +778,7 @@ function financeOut(f: typeof financeEntriesTable.$inferSelect) {
     description: f.description,
     paymentMethod: f.paymentMethod,
     date: f.date,
+    isSample: f.isSample,
     createdAt: iso(f.createdAt),
   };
 }
@@ -819,6 +824,227 @@ router.post(
       })
       .returning();
     res.json({ entry: financeOut(created) });
+  }),
+);
+
+// ── Sample data ────────────────────────────────────────────────────────────
+// One-tap demo dataset so a new dealer can explore the app before entering
+// real records. Every seeded row is flagged is_sample=true and scoped to the
+// caller's own shop, so it can be removed with one tap without touching any
+// real data.
+
+const dateStr = (daysAgo: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return d.toISOString().split("T")[0];
+};
+const ts = (daysAgo: number, hour = 10) => {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  d.setHours(hour, 0, 0, 0);
+  return d;
+};
+
+router.post(
+  "/sample-data",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const user = (req as AuthedRequest).user;
+
+    // Refuse to double-seed: one sample set per shop at a time.
+    const [existing] = await db
+      .select({ id: repairsTable.id })
+      .from(repairsTable)
+      .where(and(eq(repairsTable.shopId, shopId), eq(repairsTable.isSample, true)))
+      .limit(1);
+    if (existing) {
+      res.status(409).json({ message: "Sample data is already loaded. Clear it before loading again." });
+      return;
+    }
+
+    await db.transaction(async (tx) => {
+      // Customers
+      const customerSeeds = [
+        { name: "Ramesh Kumar (Sample)", mobile: "9876500001", email: "ramesh.sample@example.com", address: "12 MG Road, Bengaluru" },
+        { name: "Priya Sharma (Sample)", mobile: "9876500002", email: "priya.sample@example.com", address: "45 Park Street, Bengaluru" },
+        { name: "Abdul Rahim (Sample)", mobile: "9876500003", address: "8 Market Lane, Bengaluru" },
+        { name: "Sunita Devi (Sample)", mobile: "9876500004", address: "23 Temple Road, Bengaluru" },
+        { name: "Vikram Singh (Sample)", mobile: "9876500005", email: "vikram.sample@example.com", address: "67 Lake View, Bengaluru" },
+      ];
+      const customers = await tx
+        .insert(customersTable)
+        .values(customerSeeds.map((c, i) => ({ ...c, shopId, isSample: true, createdAt: ts(9 - i) })))
+        .returning();
+
+      // Repairs — statuses spread across the pipeline, dates across the last
+      // week so the dashboard chart and pipeline have something to show.
+      const [{ count }] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(repairsTable)
+        .where(eq(repairsTable.shopId, shopId));
+      const repairSeeds = [
+        { c: 0, deviceType: "Mobile", brand: "Samsung", model: "Galaxy S21", problem: "Cracked screen replacement", status: "delivered", priority: "normal", repairCharge: 3500, partsCharge: 4200, advance: 2000, days: 8, delivered: 5 },
+        { c: 1, deviceType: "Mobile", brand: "Apple", model: "iPhone 12", problem: "Battery draining fast", status: "delivered", priority: "high", repairCharge: 1200, partsCharge: 2800, advance: 4000, days: 7, delivered: 4 },
+        { c: 2, deviceType: "Laptop", brand: "Dell", model: "Inspiron 15", problem: "Not powering on", status: "ready", priority: "urgent", repairCharge: 2500, partsCharge: 1800, advance: 1000, days: 5 },
+        { c: 3, deviceType: "TV", brand: "LG", model: "43UM7300", problem: "No display, sound OK", status: "repairing", priority: "normal", repairCharge: 1800, partsCharge: 2200, advance: 500, days: 4 },
+        { c: 4, deviceType: "Mobile", brand: "Xiaomi", model: "Redmi Note 10", problem: "Charging port not working", status: "waiting_parts", priority: "normal", repairCharge: 600, partsCharge: 450, advance: 0, days: 3 },
+        { c: 0, deviceType: "Tablet", brand: "Samsung", model: "Galaxy Tab A8", problem: "Touch not responding", status: "diagnosing", priority: "low", repairCharge: 0, partsCharge: 0, advance: 0, days: 1 },
+        { c: 1, deviceType: "Mobile", brand: "OnePlus", model: "Nord CE 3", problem: "Speaker crackling", status: "received", priority: "normal", repairCharge: 0, partsCharge: 0, advance: 0, days: 0 },
+      ] as const;
+      let n = count;
+      for (const s of repairSeeds) {
+        n += 1;
+        const cust = customers[s.c];
+        const [row] = await tx
+          .insert(repairsTable)
+          .values({
+            shopId,
+            repairId: `VMC-${String(n).padStart(3, "0")}`,
+            customerId: cust.id,
+            customerName: cust.name,
+            mobile: cust.mobile,
+            deviceType: s.deviceType,
+            brand: s.brand,
+            model: s.model,
+            problem: s.problem,
+            status: s.status,
+            priority: s.priority,
+            repairCharge: s.repairCharge,
+            partsCharge: s.partsCharge,
+            advance: s.advance,
+            receiveDate: dateStr(s.days),
+            expectedDate: dateStr(Math.max(s.days - 3, 0)),
+            deliveryDate: "delivered" in s && (s as { delivered?: number }).delivered !== undefined ? dateStr((s as { delivered: number }).delivered) : null,
+            notes: "Sample data",
+            warrantyDays: s.status === "delivered" ? 30 : 0,
+            warrantyExpiry: null,
+            isSample: true,
+            createdAt: ts(s.days),
+          })
+          .returning();
+        await logRepairEvent(tx, {
+          shopId,
+          repairId: row.id,
+          user,
+          action: "created",
+          details: { ticket: row.repairId, status: row.status, priority: row.priority, sample: true },
+        });
+      }
+      for (const cust of customers) {
+        await syncCustomerStats(tx, shopId, cust.id);
+      }
+
+      // Inventory (one item deliberately below min stock)
+      await tx.insert(inventoryItemsTable).values(
+        [
+          { name: "iPhone 12 Battery", category: "spare_part", brand: "Apple", quantity: 8, minStock: 3, purchasePrice: 1800, sellingPrice: 2800, supplier: "Sri Balaji Distributors" },
+          { name: "Samsung S21 Display", category: "spare_part", brand: "Samsung", quantity: 2, minStock: 3, purchasePrice: 3200, sellingPrice: 4200, supplier: "Sri Balaji Distributors" },
+          { name: "USB-C Fast Charger 25W", category: "accessory", brand: "Samsung", quantity: 15, minStock: 5, purchasePrice: 650, sellingPrice: 999, supplier: "Metro Mobile Parts" },
+          { name: "Tempered Glass (Universal)", category: "accessory", brand: "Generic", quantity: 40, minStock: 10, purchasePrice: 30, sellingPrice: 149, supplier: "Metro Mobile Parts" },
+          { name: "Bluetooth Earbuds Pro", category: "product", brand: "boAt", quantity: 6, minStock: 2, purchasePrice: 1100, sellingPrice: 1799, supplier: "Metro Mobile Parts" },
+        ].map((i, idx) => ({ ...i, shopId, isSample: true, createdAt: ts(6 - idx) })),
+      );
+
+      // Purchases
+      const [{ count: pCount }] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(purchasesTable)
+        .where(eq(purchasesTable.shopId, shopId));
+      await tx.insert(purchasesTable).values(
+        [
+          { invoiceNo: "INV-2201", supplier: "Sri Balaji Distributors", supplierMobile: "9812340001", itemName: "iPhone 12 Battery x10", quantity: 10, purchasePrice: 1800, total: 18000, paymentStatus: "paid", paymentMethod: "UPI", days: 6 },
+          { invoiceNo: "INV-2214", supplier: "Sri Balaji Distributors", supplierMobile: "9812340001", itemName: "Samsung S21 Display x5", quantity: 5, purchasePrice: 3200, total: 16000, paymentStatus: "partial", paymentMethod: "Bank Transfer", days: 4 },
+          { invoiceNo: "INV-0987", supplier: "Metro Mobile Parts", supplierMobile: "9812340002", itemName: "Chargers & accessories", quantity: 25, purchasePrice: 400, total: 10000, paymentStatus: "unpaid", paymentMethod: "Credit", days: 2 },
+        ].map((p, idx) => ({
+          shopId,
+          purchaseId: `PUR-${String(pCount + idx + 1).padStart(3, "0")}`,
+          invoiceNo: p.invoiceNo,
+          supplier: p.supplier,
+          supplierMobile: p.supplierMobile,
+          itemName: p.itemName,
+          quantity: p.quantity,
+          purchasePrice: p.purchasePrice,
+          total: p.total,
+          paymentStatus: p.paymentStatus,
+          paymentMethod: p.paymentMethod,
+          date: dateStr(p.days),
+          isSample: true,
+          createdAt: ts(p.days),
+        })),
+      );
+
+      // Finance — income/expense spread across the week including today
+      await tx.insert(financeEntriesTable).values(
+        [
+          { type: "income", category: "Repair Charges", amount: 7700, description: "Galaxy S21 screen replacement (VMC sample)", paymentMethod: "UPI", days: 5 },
+          { type: "income", category: "Repair Charges", amount: 4000, description: "iPhone 12 battery replacement (sample)", paymentMethod: "Cash", days: 4 },
+          { type: "income", category: "Accessory Sales", amount: 1799, description: "Bluetooth earbuds sale (sample)", paymentMethod: "Card", days: 2 },
+          { type: "expense", category: "Parts Purchase", amount: 18000, description: "Battery stock from distributor (sample)", paymentMethod: "UPI", days: 6 },
+          { type: "expense", category: "Utilities", amount: 2400, description: "Electricity bill (sample)", paymentMethod: "UPI", days: 3 },
+          { type: "income", category: "Repair Charges", amount: 1500, description: "Advance received for Dell laptop (sample)", paymentMethod: "Cash", days: 1 },
+          { type: "income", category: "Accessory Sales", amount: 999, description: "Fast charger sale (sample)", paymentMethod: "UPI", days: 0 },
+          { type: "expense", category: "Shop Rent", amount: 5000, description: "Weekly rent share (sample)", paymentMethod: "Bank Transfer", days: 0 },
+        ].map((f) => ({
+          shopId,
+          type: f.type,
+          category: f.category,
+          amount: f.amount,
+          description: f.description,
+          paymentMethod: f.paymentMethod,
+          date: dateStr(f.days),
+          isSample: true,
+          createdAt: ts(f.days, 12),
+        })),
+      );
+    });
+
+    res.json({ message: "Sample data loaded" });
+  }),
+);
+
+router.delete(
+  "/sample-data",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    await db.transaction(async (tx) => {
+      // Repairs first (cascades their events/photos), then the rest.
+      await tx
+        .delete(repairsTable)
+        .where(and(eq(repairsTable.shopId, shopId), eq(repairsTable.isSample, true)));
+      // A dealer may have created *real* repairs against a sample customer.
+      // Deleting that customer would null the real repair's link — so promote
+      // any still-referenced sample customer to a real record instead, and
+      // recompute its derived stats now that its sample repairs are gone.
+      const referenced = await tx
+        .selectDistinct({ id: customersTable.id })
+        .from(customersTable)
+        .innerJoin(repairsTable, eq(repairsTable.customerId, customersTable.id))
+        .where(and(eq(customersTable.shopId, shopId), eq(customersTable.isSample, true)));
+      for (const { id } of referenced) {
+        await tx
+          .update(customersTable)
+          .set({ isSample: false })
+          .where(and(eq(customersTable.id, id), eq(customersTable.shopId, shopId)));
+        await syncCustomerStats(tx, shopId, id);
+      }
+      await tx
+        .delete(customersTable)
+        .where(and(eq(customersTable.shopId, shopId), eq(customersTable.isSample, true)));
+      await tx
+        .delete(inventoryItemsTable)
+        .where(and(eq(inventoryItemsTable.shopId, shopId), eq(inventoryItemsTable.isSample, true)));
+      await tx
+        .delete(purchasesTable)
+        .where(and(eq(purchasesTable.shopId, shopId), eq(purchasesTable.isSample, true)));
+      await tx
+        .delete(financeEntriesTable)
+        .where(and(eq(financeEntriesTable.shopId, shopId), eq(financeEntriesTable.isSample, true)));
+    });
+    res.json({ message: "Sample data cleared" });
   }),
 );
 
