@@ -246,25 +246,6 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ── Header ─────────────────────────────────────── */}
-          <Reanimated.View style={[styles.header, headerStyle]}>
-            <Text style={[styles.tagline, { fontFamily: 'Inter_400Regular' }]}>Business Management System</Text>
-            <View style={styles.versionRow}>
-              <View style={styles.versionDot} />
-              <Text style={[styles.version, { fontFamily: 'Inter_500Medium' }]}>Version 1.0</Text>
-              <View style={styles.versionDot} />
-            </View>
-          </Reanimated.View>
-
-          {/* ── Security Badges ─────────────────────────────── */}
-          <Reanimated.View style={[styles.secRow, badgesStyle]}>
-            <SecurityBadge icon="shield" label="Secure Login" />
-            <View style={styles.secDivider} />
-            <SecurityBadge icon="lock" label="Encrypted Data" />
-            <View style={styles.secDivider} />
-            <SecurityBadge icon="check-circle" label="OTP Verified" />
-          </Reanimated.View>
-
           {/* ── Glass Card ──────────────────────────────────── */}
           <Reanimated.View style={[styles.cardOuter, cardStyle]}>
             {Platform.OS === 'ios' ? (
