@@ -339,7 +339,7 @@ export default function LoginScreen() {
                     activeOpacity={0.7}
                   >
                     <Feather name="smartphone" size={15} color="#60A5FA" />
-                    <Text style={[styles.altBtnText, { fontFamily: 'Inter_500Medium' }]}>Continue with OTP instead</Text>
+                    <Text style={[styles.altBtnText, { fontFamily: 'Inter_500Medium' }]}>Login with OTP</Text>
                   </TouchableOpacity>
                 </View>
               )}
