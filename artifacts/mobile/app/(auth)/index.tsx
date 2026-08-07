@@ -14,7 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { Image } from 'expo-image';
+
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -248,15 +248,11 @@ export default function LoginScreen() {
         >
           {/* ── Header ─────────────────────────────────────── */}
           <Reanimated.View style={[styles.header, headerStyle]}>
-            <View style={styles.logoWrap}>
-              <View style={styles.logoRing}>
-                <LinearGradient colors={['#1D4ED8', '#2563EB']} style={styles.logoGradient}>
-                  <Image source={require('@/assets/images/icon.png')} style={styles.logo} contentFit="cover" />
-                </LinearGradient>
-              </View>
-              {/* Gold glow dot */}
+            {/* Text-only VMC monogram */}
+            <LinearGradient colors={['#1D4ED8', '#3B82F6']} style={styles.monogram}>
+              <Text style={[styles.monogramText, { fontFamily: 'Inter_700Bold' }]}>VMC</Text>
               <View style={styles.goldDot} />
-            </View>
+            </LinearGradient>
 
             <Text style={[styles.appName, { fontFamily: 'Inter_700Bold' }]}>VMC Electronic</Text>
             <Text style={[styles.tagline, { fontFamily: 'Inter_400Regular' }]}>Business Management System</Text>
@@ -590,16 +586,14 @@ const styles = StyleSheet.create({
 
   // Header
   header: { alignItems: 'center', gap: 8 },
-  logoWrap: { position: 'relative', marginBottom: 4 },
-  logoRing: {
-    width: 86, height: 86, borderRadius: 22,
-    borderWidth: 1.5, borderColor: '#2563EB55',
-    overflow: 'hidden',
-    shadowColor: '#2563EB', shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 0 },
-    elevation: 10,
+  monogram: {
+    width: 72, height: 72, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+    position: 'relative',
+    shadowColor: '#2563EB', shadowOpacity: 0.45, shadowRadius: 18, shadowOffset: { width: 0, height: 0 },
+    elevation: 10, marginBottom: 4,
   },
-  logoGradient: { flex: 1, padding: 2 },
-  logo: { width: '100%', height: '100%', borderRadius: 18 },
+  monogramText: { fontSize: 22, color: '#FFFFFF', letterSpacing: 1 },
   goldDot: {
     position: 'absolute', top: -3, right: -3,
     width: 14, height: 14, borderRadius: 7,
