@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
-import { and, eq, gt, isNull, ne } from "drizzle-orm";
+import { and, eq, gt, lt, isNull, ne } from "drizzle-orm";
 import { db, loginEventsTable, otpCodesTable, sessionsTable, usersTable } from "@workspace/db";
 import type { DbUser } from "@workspace/db";
 import { desc } from "drizzle-orm";
@@ -196,6 +196,36 @@ export async function consumeOtp(
     .set({ consumedAt: new Date() })
     .where(eq(otpCodesTable.id, row.id));
   return { ok: true, payload: row.payload };
+}
+
+// Retention window for login history rows.
+const LOGIN_EVENT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
+
+// Delete expired sessions, expired/consumed OTP codes, and old login events.
+// Returns counts so callers can log what was pruned.
+export async function cleanupExpiredAuthData(): Promise<{
+  sessions: number;
+  otpCodes: number;
+  loginEvents: number;
+}> {
+  const now = new Date();
+  const sessions = await db
+    .delete(sessionsTable)
+    .where(lt(sessionsTable.expiresAt, now))
+    .returning({ id: sessionsTable.id });
+  const otpCodes = await db
+    .delete(otpCodesTable)
+    .where(lt(otpCodesTable.expiresAt, now))
+    .returning({ id: otpCodesTable.id });
+  const loginEvents = await db
+    .delete(loginEventsTable)
+    .where(lt(loginEventsTable.createdAt, new Date(now.getTime() - LOGIN_EVENT_RETENTION_MS)))
+    .returning({ id: loginEventsTable.id });
+  return {
+    sessions: sessions.length,
+    otpCodes: otpCodes.length,
+    loginEvents: loginEvents.length,
+  };
 }
 
 export function publicUser(u: DbUser) {

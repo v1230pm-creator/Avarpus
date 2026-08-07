@@ -4,6 +4,19 @@ import app from "./app";
 import { db } from "@workspace/db";
 import { logger } from "./lib/logger";
 import { seedUsersIfEmpty } from "./lib/seed";
+import { cleanupExpiredAuthData } from "./lib/authUtils";
+
+const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // daily
+
+function runAuthCleanup(): void {
+  cleanupExpiredAuthData()
+    .then((counts) => {
+      logger.info({ counts }, "Auth data cleanup completed");
+    })
+    .catch((err) => {
+      logger.error({ err }, "Auth data cleanup failed");
+    });
+}
 
 const rawPort = process.env["PORT"];
 
@@ -39,6 +52,11 @@ migrate(db, { migrationsFolder })
       seedUsersIfEmpty().catch((err) => {
         logger.error({ err }, "Failed to seed initial users");
       });
+
+      // Prune expired sessions/OTP codes and old login events on boot,
+      // then daily. unref() so the timer never blocks process shutdown.
+      runAuthCleanup();
+      setInterval(runAuthCleanup, CLEANUP_INTERVAL_MS).unref();
     });
   })
   .catch((err) => {
