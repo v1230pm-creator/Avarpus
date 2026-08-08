@@ -5,6 +5,7 @@ import { hashPassword, publicUser } from "../lib/authUtils";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireRole } from "../middlewares/requireRole";
 import { asyncHandler } from "../lib/asyncHandler";
+import { sendStaffApprovedEmail, sendStaffRejectedEmail } from "../lib/mailer";
 import type { Request } from "express";
 
 const router: IRouter = Router();
@@ -163,6 +164,13 @@ router.patch(
       .set({ isActive: true })
       .where(eq(usersTable.id, check.target.id))
       .returning();
+    // Notify the staff member. Email failures must never block the approval.
+    sendStaffApprovedEmail(updated.email, updated.name).catch((err) => {
+      console.error(
+        `[staff] Failed to send approval email to ${updated.email}:`,
+        err,
+      );
+    });
     res.json({ user: publicUser(updated) });
   }),
 );
@@ -185,7 +193,16 @@ router.delete(
       });
       return;
     }
+    // Capture recipient details, delete first, then notify asynchronously.
+    // Email failures are logged but never block (or precede) the rejection.
+    const { email: targetEmail, name: targetName } = check.target;
     await db.delete(usersTable).where(eq(usersTable.id, check.target.id));
+    sendStaffRejectedEmail(targetEmail, targetName).catch((err) => {
+      console.error(
+        `[staff] Failed to send rejection email to ${targetEmail}:`,
+        err,
+      );
+    });
     res.json({ message: "Registration rejected and account removed" });
   }),
 );
