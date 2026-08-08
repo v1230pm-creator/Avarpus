@@ -1,7 +1,8 @@
 // API-level tests proving cross-shop isolation: a user from shop B must be
 // rejected (404/400) when reading or writing shop A's customers, repairs,
-// photos, timeline events, and parts — and list endpoints must never leak
-// another shop's rows.
+// photos, timeline events, parts, inventory items, purchases, finance
+// entries, returns/refunds, and approval requests — and list endpoints must
+// never leak another shop's rows.
 // Usage: pnpm run build && node scripts/test-shop-isolation.mjs
 //
 // Seeds two throwaway dealer shops directly in the database (same pattern as
@@ -185,6 +186,170 @@ async function run(A, B) {
     rAfter && rAfter.status !== "cancelled" && rAfter.notes !== "HACKED",
     rAfter,
   );
+
+  // ── Inventory ─────────────────────────────────────────────────────────────
+  const inv = await api("POST", "/inventory", A.token, {
+    name: "Shop A Screen",
+    brand: "BrandA",
+    category: "spare_part",
+    quantity: 5,
+    purchasePrice: 100,
+    sellingPrice: 150,
+  });
+  check("shop A creates its inventory item", inv.status === 200 && inv.json.item?.id, inv);
+  const invA = inv.json.item.id;
+
+  const binv = await api("GET", "/inventory", B.token);
+  check(
+    "shop B inventory list excludes shop A's item",
+    binv.status === 200 && !(binv.json.items ?? []).some((i) => i.id === invA),
+    binv,
+  );
+  const xinv = await api("PATCH", `/inventory/${invA}`, B.token, { name: "HACKED", quantity: 0 });
+  check("shop B PATCH shop A inventory item -> 404", xinv.status === 404, xinv);
+
+  // ── Purchases ─────────────────────────────────────────────────────────────
+  const pur = await api("POST", "/purchases", A.token, {
+    supplier: "Shop A Supplier",
+    itemName: "Shop A Purchase Item",
+    quantity: 2,
+    purchasePrice: 50,
+    total: 100,
+  });
+  check("shop A creates its purchase", pur.status === 200 && pur.json.purchase?.id, pur);
+  const purA = pur.json.purchase.id;
+
+  const bpur = await api("GET", "/purchases", B.token);
+  check(
+    "shop B purchase list excludes shop A's purchase",
+    bpur.status === 200 && !(bpur.json.purchases ?? []).some((p) => p.id === purA),
+    bpur,
+  );
+  const xpur = await api("PATCH", `/purchases/${purA}`, B.token, { supplier: "HACKED", total: 0 });
+  check("shop B PATCH shop A purchase -> 404", xpur.status === 404, xpur);
+
+  // ── Finance ───────────────────────────────────────────────────────────────
+  const fin = await api("POST", "/finance", A.token, {
+    type: "expense",
+    category: "Rent",
+    amount: 500,
+    description: "Shop A rent",
+  });
+  check("shop A creates its finance entry", fin.status === 200 && fin.json.entry?.id, fin);
+  const finA = fin.json.entry.id;
+
+  const bfin = await api("GET", "/finance", B.token);
+  check(
+    "shop B finance list excludes shop A's entry",
+    bfin.status === 200 && !(bfin.json.entries ?? []).some((e) => e.id === finA),
+    bfin,
+  );
+  const xfin = await api("PATCH", `/finance/${finA}`, B.token, { amount: 0, category: "HACKED" });
+  check("shop B PATCH shop A finance entry -> 404", xfin.status === 404, xfin);
+
+  // ── Returns & refunds ─────────────────────────────────────────────────────
+  // A return case requires a delivered repair — mark shop A's repair
+  // delivered directly in the DB (delivery OTP flow is out of scope here).
+  await pool.query(`UPDATE repairs SET status = 'delivered', delivery_date = CURRENT_DATE WHERE id = $1`, [repA]);
+
+  const xret = await api("POST", `/repairs/${repA}/returns`, B.token, {
+    reason: "same_problem",
+    complaint: "cross-shop return attempt",
+  });
+  check("shop B POST return on shop A repair -> 404", xret.status === 404, xret);
+
+  const ret = await api("POST", `/repairs/${repA}/returns`, A.token, {
+    reason: "same_problem",
+    complaint: "device stopped working again",
+  });
+  check("shop A opens a return case", ret.status === 200 && ret.json.return?.id, ret);
+  const retA = ret.json.return.id;
+
+  const bret = await api("GET", "/returns", B.token);
+  check(
+    "shop B returns list excludes shop A's case",
+    bret.status === 200 && !(bret.json.returns ?? []).some((r) => r.id === retA),
+    bret,
+  );
+  const xretg = await api("GET", `/returns/${retA}`, B.token);
+  check("shop B GET shop A return -> 404", xretg.status === 404, xretg);
+  const xretp = await api("PATCH", `/returns/${retA}`, B.token, { status: "inspection", notes: "HACKED" });
+  check("shop B PATCH shop A return -> 404", xretp.status === 404, xretp);
+  const xretpart = await api("POST", `/returns/${retA}/parts`, B.token, {
+    partName: "HACK part",
+    quantity: 1,
+    unitCost: 10,
+  });
+  check("shop B POST part on shop A return -> 404", xretpart.status === 404, xretpart);
+  const xrefund = await api("POST", `/returns/${retA}/refunds`, B.token, {
+    amount: 50,
+    reason: "cross-shop refund attempt",
+  });
+  check("shop B POST refund on shop A return -> 404", xrefund.status === 404, xrefund);
+
+  // Shop A (dealer) requests a refund — auto-approved for dealers.
+  const ref = await api("POST", `/returns/${retA}/refunds`, A.token, {
+    amount: 100,
+    reason: "customer compensation",
+  });
+  check("shop A creates its refund", ref.status === 200 && ref.json.refund?.id, ref);
+  const refA = ref.json.refund.id;
+
+  const bref = await api("GET", "/refunds", B.token);
+  check(
+    "shop B refund list excludes shop A's refund",
+    bref.status === 200 && !(bref.json.refunds ?? []).some((r) => r.id === refA),
+    bref,
+  );
+  const xrefa = await api("POST", `/refunds/${refA}/approve`, B.token);
+  check("shop B approve shop A refund -> 404", xrefa.status === 404, xrefa);
+  const xrefr = await api("POST", `/refunds/${refA}/reject`, B.token, { reason: "HACK" });
+  check("shop B reject shop A refund -> 404", xrefr.status === 404, xrefr);
+  const xrefm = await api("POST", `/refunds/${refA}/mark-paid`, B.token, { referenceNo: "HACK-1" });
+  check("shop B mark-paid shop A refund -> 404", xrefm.status === 404, xrefm);
+
+  // ── Approval requests ─────────────────────────────────────────────────────
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+  const apr = await api("POST", "/approvals", A.token, {
+    recordType: "finance",
+    mode: "create",
+    payload: { type: "expense", category: "Misc", amount: 10 },
+    requestedDate: yesterday,
+    reason: "backdated entry",
+  });
+  check("shop A creates its approval request", apr.status === 200 && apr.json.approval?.id, apr);
+  const aprA = apr.json.approval.id;
+
+  const bapr = await api("GET", "/approvals", B.token);
+  check(
+    "shop B approvals list excludes shop A's request",
+    bapr.status === 200 && !(bapr.json.approvals ?? []).some((a) => a.id === aprA),
+    bapr,
+  );
+  const xapra = await api("POST", `/approvals/${aprA}/approve`, B.token);
+  check("shop B approve shop A approval -> 404", xapra.status === 404, xapra);
+  const xaprr = await api("POST", `/approvals/${aprA}/reject`, B.token, { reason: "HACK" });
+  check("shop B reject shop A approval -> 404", xaprr.status === 404, xaprr);
+
+  // ── Verify nothing was mutated by the rejected cross-shop attempts ────────
+  const invAfter = await api("GET", "/inventory", A.token);
+  const iAfter = (invAfter.json.items ?? []).find((i) => i.id === invA);
+  check("shop A inventory item unchanged after attacks", iAfter?.name === "Shop A Screen" && iAfter?.quantity === 5, iAfter);
+  const purAfter = await api("GET", "/purchases", A.token);
+  const pAfter = (purAfter.json.purchases ?? []).find((p) => p.id === purA);
+  check("shop A purchase unchanged after attacks", pAfter?.supplier === "Shop A Supplier" && pAfter?.total === 100, pAfter);
+  const finAfter = await api("GET", "/finance", A.token);
+  const fAfter = (finAfter.json.entries ?? []).find((e) => e.id === finA);
+  check("shop A finance entry unchanged after attacks", fAfter?.amount === 500 && fAfter?.category === "Rent", fAfter);
+  const retAfter = await api("GET", `/returns/${retA}`, A.token);
+  check(
+    "shop A return unchanged after attacks",
+    retAfter.status === 200 && retAfter.json.return?.notes !== "HACKED" && (retAfter.json.parts ?? []).length === 0,
+    retAfter.json.return,
+  );
+  const aprAfter = await api("GET", "/approvals", A.token);
+  const aAfter = (aprAfter.json.approvals ?? []).find((a) => a.id === aprA);
+  check("shop A approval request still pending after attacks", aAfter?.status === "pending", aAfter);
 }
 
 async function main() {
