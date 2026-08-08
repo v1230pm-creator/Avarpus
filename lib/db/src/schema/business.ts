@@ -6,6 +6,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { shopsTable } from "./auth";
@@ -192,6 +193,113 @@ export const approvalRequestsTable = pgTable("approval_requests", {
     .notNull()
     .defaultNow(),
 });
+
+// ── Return / Rework / Refund workflow ──────────────────────────────────────
+// A delivered repair can come back. The original repair row is never edited
+// or deleted — a return case links to it and carries its own lifecycle.
+export const repairReturnsTable = pgTable("repair_returns", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  shopId: uuid("shop_id")
+    .notNull()
+    .references(() => shopsTable.id, { onDelete: "cascade" }),
+  returnId: text("return_id").notNull(), // e.g. RET-VMC-005-01
+  repairId: uuid("repair_id")
+    .notNull()
+    .references(() => repairsTable.id, { onDelete: "cascade" }),
+  customerId: uuid("customer_id").references(() => customersTable.id, {
+    onDelete: "set null",
+  }),
+  // Lifecycle: return_received → inspection → rework_approved → in_repair →
+  // ready → delivered → closed (dealer can close from any state)
+  status: text("status").notNull().default("return_received"),
+  returnDate: text("return_date").notNull(), // ISO date (yyyy-mm-dd)
+  daysAfterDelivery: integer("days_after_delivery"),
+  reason: text("reason").notNull(), // same_problem|stopped_working|repair_failed|new_problem|complaint|warranty_rework|refund_requested|other
+  complaint: text("complaint").notNull(),
+  deviceCondition: text("device_condition"),
+  underWarranty: boolean("under_warranty").notNull().default(false),
+  receivedById: uuid("received_by_id"),
+  receivedByName: text("received_by_name"),
+  // Inspection / resolution
+  resolution: text("resolution"), // rework|parts_replacement|no_fault_found|cannot_repair|refund|partial_refund|customer_declined|other
+  technicianId: uuid("technician_id"),
+  technicianName: text("technician_name"),
+  diagnosis: text("diagnosis"),
+  workPerformed: text("work_performed"),
+  partsCost: doublePrecision("parts_cost").notNull().default(0),
+  labourCost: doublePrecision("labour_cost").notNull().default(0),
+  customerPayable: doublePrecision("customer_payable").notNull().default(0),
+  notes: text("notes"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (t) => [
+  // Backstop against duplicate RET-…-NN ids under concurrent creation.
+  uniqueIndex("repair_returns_shop_return_id_unique").on(t.shopId, t.returnId),
+]);
+
+// Parts consumed during a rework — inventory is deducted when a row is added.
+// Append-only: refunds do NOT restock parts automatically.
+export const returnPartsTable = pgTable("return_parts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  shopId: uuid("shop_id")
+    .notNull()
+    .references(() => shopsTable.id, { onDelete: "cascade" }),
+  returnId: uuid("return_id")
+    .notNull()
+    .references(() => repairReturnsTable.id, { onDelete: "cascade" }),
+  inventoryItemId: uuid("inventory_item_id"),
+  partName: text("part_name").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  unitCost: doublePrecision("unit_cost").notNull().default(0),
+  addedById: uuid("added_by_id"),
+  addedByName: text("added_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Refunds are separate financial transactions — the original payment/repair
+// charges are never edited. Staff can only request (pending_approval);
+// dealer/owner approves, rejects and marks paid.
+export const refundsTable = pgTable("refunds", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  shopId: uuid("shop_id")
+    .notNull()
+    .references(() => shopsTable.id, { onDelete: "cascade" }),
+  repairId: uuid("repair_id")
+    .notNull()
+    .references(() => repairsTable.id, { onDelete: "cascade" }),
+  returnId: uuid("return_id")
+    .notNull()
+    .references(() => repairReturnsTable.id, { onDelete: "cascade" }),
+  customerId: uuid("customer_id").references(() => customersTable.id, {
+    onDelete: "set null",
+  }),
+  amount: doublePrecision("amount").notNull(),
+  originalPaid: doublePrecision("original_paid").notNull().default(0),
+  method: text("method").notNull().default("Cash"), // Cash|UPI|Bank Transfer|Card|Other
+  status: text("status").notNull().default("pending_approval"), // pending_approval|approved|paid|rejected
+  reason: text("reason").notNull(),
+  referenceNo: text("reference_no"),
+  requestedById: uuid("requested_by_id"),
+  requestedByName: text("requested_by_name"),
+  approvedById: uuid("approved_by_id"),
+  approvedByName: text("approved_by_name"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  paidById: uuid("paid_by_id"),
+  paidByName: text("paid_by_name"),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type DbRepairReturn = typeof repairReturnsTable.$inferSelect;
+export type DbReturnPart = typeof returnPartsTable.$inferSelect;
+export type DbRefund = typeof refundsTable.$inferSelect;
 
 export type DbApprovalRequest = typeof approvalRequestsTable.$inferSelect;
 

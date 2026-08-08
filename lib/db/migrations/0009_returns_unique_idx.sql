@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "repair_returns_shop_return_id_unique" ON "repair_returns" USING btree ("shop_id","return_id");

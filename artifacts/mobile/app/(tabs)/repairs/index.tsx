@@ -22,6 +22,8 @@ import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/
 import { Repair } from '@/types';
 import { formatDate, formatCurrency } from '@/utils/helpers';
 
+import { useReturnsList } from '@workspace/api-client-react';
+
 const FILTERS = ['All', 'Active', 'Ready', 'Delivered', 'Cancelled'] as const;
 type Filter = (typeof FILTERS)[number];
 
@@ -72,6 +74,9 @@ export default function RepairsScreen() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('All');
   const [refreshing, setRefreshing] = useState(false);
+
+  const { data: returnsData } = useReturnsList();
+  const openReturnsCount = (returnsData?.returns || []).filter(r => r.status !== 'closed').length;
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -124,16 +129,30 @@ export default function RepairsScreen() {
               {filtered.length} jobs
             </Text>
           </View>
-          {canCreateRepair && (
+          <View style={{ flexDirection: 'row', gap: 8 }}>
             <TouchableOpacity
-              onPress={() => router.push('/(tabs)/repairs/new')}
+              onPress={() => router.push('/(tabs)/repairs/returns')}
               activeOpacity={0.85}
-              style={[styles.addBtn, { backgroundColor: colors.primary }]}
+              style={[styles.addBtn, { backgroundColor: colors.warning + '15', borderWidth: 1, borderColor: colors.warning + '33', paddingHorizontal: 12 }]}
             >
-              <Feather name="plus" size={18} color="#FFFFFF" />
-              <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>New</Text>
+              <Feather name="corner-up-left" size={18} color={colors.warning} />
+              {openReturnsCount > 0 && (
+                <View style={{ backgroundColor: colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, marginLeft: 4 }}>
+                  <Text style={{ fontSize: 10, color: '#000', fontFamily: 'Inter_700Bold' }}>{openReturnsCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
-          )}
+            {canCreateRepair && (
+              <TouchableOpacity
+                onPress={() => router.push('/(tabs)/repairs/new')}
+                activeOpacity={0.85}
+                style={[styles.addBtn, { backgroundColor: colors.primary }]}
+              >
+                <Feather name="plus" size={18} color="#FFFFFF" />
+                <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>New</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* Search */}

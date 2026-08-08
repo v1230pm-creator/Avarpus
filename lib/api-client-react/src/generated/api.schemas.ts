@@ -280,6 +280,140 @@ export interface UploadUrlResponse {
   metadata?: UploadUrlRequest;
 }
 
+export type RepairReturnStatus = typeof RepairReturnStatus[keyof typeof RepairReturnStatus];
+
+
+export const RepairReturnStatus = {
+  return_received: 'return_received',
+  inspection: 'inspection',
+  rework_approved: 'rework_approved',
+  in_repair: 'in_repair',
+  ready: 'ready',
+  delivered: 'delivered',
+  closed: 'closed',
+} as const;
+
+export interface RepairReturn {
+  id: string;
+  returnId: string;
+  repairId: string;
+  repairTicket?: string;
+  customerId?: string;
+  customerName?: string;
+  mobile?: string;
+  deviceType?: string;
+  brand?: string;
+  model?: string;
+  status: RepairReturnStatus;
+  returnDate: string;
+  daysAfterDelivery?: number;
+  reason: string;
+  complaint: string;
+  deviceCondition?: string;
+  underWarranty: boolean;
+  receivedByName?: string;
+  resolution?: string;
+  technicianId?: string;
+  technicianName?: string;
+  diagnosis?: string;
+  workPerformed?: string;
+  partsCost: number;
+  labourCost: number;
+  customerPayable: number;
+  notes?: string;
+  completedAt?: string;
+  createdAt: string;
+}
+
+export interface ReturnCreateInput {
+  returnDate?: string;
+  reason: string;
+  complaint: string;
+  deviceCondition?: string;
+}
+
+export interface ReturnUpdateInput {
+  status?: string;
+  resolution?: string;
+  technicianId?: string;
+  technicianName?: string;
+  diagnosis?: string;
+  workPerformed?: string;
+  labourCost?: number;
+  customerPayable?: number;
+  notes?: string;
+  deviceCondition?: string;
+}
+
+export interface ReturnPart {
+  id: string;
+  returnId: string;
+  inventoryItemId?: string;
+  partName: string;
+  quantity: number;
+  unitCost: number;
+  addedByName?: string;
+  createdAt: string;
+}
+
+export interface ReturnPartInput {
+  inventoryItemId?: string;
+  partName?: string;
+  quantity: number;
+  unitCost?: number;
+}
+
+export type RefundStatus = typeof RefundStatus[keyof typeof RefundStatus];
+
+
+export const RefundStatus = {
+  pending_approval: 'pending_approval',
+  approved: 'approved',
+  paid: 'paid',
+  rejected: 'rejected',
+} as const;
+
+export interface Refund {
+  id: string;
+  repairId: string;
+  repairTicket?: string;
+  returnId: string;
+  returnCaseId?: string;
+  customerId?: string;
+  customerName?: string;
+  amount: number;
+  originalPaid: number;
+  method: string;
+  status: RefundStatus;
+  reason: string;
+  referenceNo?: string;
+  requestedByName?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+  paidByName?: string;
+  paidAt?: string;
+  rejectionReason?: string;
+  createdAt: string;
+}
+
+export interface RefundCreateInput {
+  amount: number;
+  method?: string;
+  reason: string;
+}
+
+export interface RefundApproveInput {
+  amount?: number;
+}
+
+export interface RefundRejectInput {
+  reason: string;
+}
+
+export interface RefundMarkPaidInput {
+  referenceNo?: string;
+}
+
 export type ApprovalRequestRecordType = typeof ApprovalRequestRecordType[keyof typeof ApprovalRequestRecordType];
 
 
@@ -508,6 +642,49 @@ export type RepairPhotosAdd200 = {
 
 export type RepairEventsList200 = {
   events: RepairEvent[];
+};
+
+export type ReturnsCreate200 = {
+  return: RepairReturn;
+};
+
+export type ReturnsList200 = {
+  returns: RepairReturn[];
+};
+
+export type ReturnsGet200 = {
+  return: RepairReturn;
+  parts: ReturnPart[];
+  refunds: Refund[];
+};
+
+export type ReturnsUpdate200 = {
+  return: RepairReturn;
+};
+
+export type ReturnPartsAdd200 = {
+  part: ReturnPart;
+};
+
+export type RefundsCreate200 = {
+  refund: Refund;
+};
+
+export type RefundsList200 = {
+  refunds: Refund[];
+  pendingCount: number;
+};
+
+export type RefundsApprove200 = {
+  refund: Refund;
+};
+
+export type RefundsReject200 = {
+  refund: Refund;
+};
+
+export type RefundsMarkPaid200 = {
+  refund: Refund;
 };
 
 export type ApprovalsList200 = {

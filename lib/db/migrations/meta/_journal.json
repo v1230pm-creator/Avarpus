@@ -57,6 +57,20 @@
       "when": 1786156944112,
       "tag": "0007_approval_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786158404781,
+      "tag": "0008_returns_refunds",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786159270549,
+      "tag": "0009_returns_unique_idx",
+      "breakpoints": true
     }
   ]
 }

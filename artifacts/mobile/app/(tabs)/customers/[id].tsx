@@ -12,6 +12,8 @@ import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
 import { CustomerFormSheet } from '@/components/forms/CustomerFormSheet';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 
+import { useReturnsList, useRefundsList } from '@workspace/api-client-react';
+
 export default function CustomerDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -28,7 +30,16 @@ export default function CustomerDetailScreen() {
     [repairs, id],
   );
 
-  const anims = useStaggerAnim(2);
+  const { data: returnsData } = useReturnsList();
+  const { data: refundsData } = useRefundsList();
+  const customerReturns = useMemo(() => {
+    return (returnsData?.returns || []).filter(r => r.customerId === id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [returnsData, id]);
+  const customerRefunds = useMemo(() => {
+    return (refundsData?.refunds || []).filter(rf => rf.customerId === id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [refundsData, id]);
+
+  const anims = useStaggerAnim(4);
 
   if (!customer) {
     return (
@@ -124,6 +135,48 @@ export default function CustomerDetailScreen() {
               </Card>
             </TouchableOpacity>
           ))
+        )}
+        {/* Returns History */}
+        {customerReturns.length > 0 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold', marginTop: 12 }]}>
+              RETURNS & REWORK ({customerReturns.length})
+            </Text>
+            {customerReturns.map((ret) => (
+              <TouchableOpacity
+                key={ret.id}
+                onPress={() => router.push(`/(tabs)/repairs/return/${ret.id}` as any)}
+                activeOpacity={0.8}
+              >
+                <Card style={styles.repairCard}>
+                  <View style={styles.repairRow}>
+                    <View style={[styles.repairIdBadge, { backgroundColor: colors.warning + '15' }]}>
+                      <Text style={[styles.repairId, { color: colors.warning, fontFamily: 'Inter_700Bold' }]}>{ret.returnId}</Text>
+                    </View>
+                    <View style={[styles.repairIdBadge, { backgroundColor: ret.status === 'closed' ? colors.success + '15' : colors.warning + '15' }]}>
+                      <Text style={{ fontSize: 11, color: ret.status === 'closed' ? colors.success : colors.warning, fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }}>
+                        {ret.status.replace(/_/g, ' ')}
+                      </Text>
+                    </View>
+                    <Text style={[styles.repairDate, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                      {formatDate(ret.createdAt)}
+                    </Text>
+                  </View>
+                  <Text style={[styles.deviceLine, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>
+                    {ret.brand} {ret.model}
+                  </Text>
+                  <Text style={[styles.problemLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+                    Reason: {ret.reason.replace(/_/g, ' ')}
+                  </Text>
+                  {customerRefunds.filter(rf => rf.returnCaseId === ret.id).map(rf => (
+                    <Text key={rf.id} style={{ fontSize: 13, color: colors.info, fontFamily: 'Inter_600SemiBold', marginTop: 4 }}>
+                      Refund: {formatCurrency(rf.amount)} ({rf.status.replace('_', ' ')})
+                    </Text>
+                  ))}
+                </Card>
+              </TouchableOpacity>
+            ))}
+          </>
         )}
       </ScrollView>
 

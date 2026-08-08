@@ -649,6 +649,430 @@ export const RepairEventsListResponse = zod.object({
 
 
 /**
+ * @summary Open a return/rework case for a delivered repair
+ */
+export const ReturnsCreateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ReturnsCreateBody = zod.object({
+  "returnDate": zod.string().optional(),
+  "reason": zod.string(),
+  "complaint": zod.string(),
+  "deviceCondition": zod.string().optional()
+})
+
+export const ReturnsCreateResponse = zod.object({
+  "return": zod.object({
+  "id": zod.string(),
+  "returnId": zod.string(),
+  "repairId": zod.string(),
+  "repairTicket": zod.string().optional(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "mobile": zod.string().optional(),
+  "deviceType": zod.string().optional(),
+  "brand": zod.string().optional(),
+  "model": zod.string().optional(),
+  "status": zod.enum(['return_received', 'inspection', 'rework_approved', 'in_repair', 'ready', 'delivered', 'closed']),
+  "returnDate": zod.string(),
+  "daysAfterDelivery": zod.number().optional(),
+  "reason": zod.string(),
+  "complaint": zod.string(),
+  "deviceCondition": zod.string().optional(),
+  "underWarranty": zod.boolean(),
+  "receivedByName": zod.string().optional(),
+  "resolution": zod.string().optional(),
+  "technicianId": zod.string().optional(),
+  "technicianName": zod.string().optional(),
+  "diagnosis": zod.string().optional(),
+  "workPerformed": zod.string().optional(),
+  "partsCost": zod.number(),
+  "labourCost": zod.number(),
+  "customerPayable": zod.number(),
+  "notes": zod.string().optional(),
+  "completedAt": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary List the shop's return/rework cases
+ */
+export const ReturnsListResponse = zod.object({
+  "returns": zod.array(zod.object({
+  "id": zod.string(),
+  "returnId": zod.string(),
+  "repairId": zod.string(),
+  "repairTicket": zod.string().optional(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "mobile": zod.string().optional(),
+  "deviceType": zod.string().optional(),
+  "brand": zod.string().optional(),
+  "model": zod.string().optional(),
+  "status": zod.enum(['return_received', 'inspection', 'rework_approved', 'in_repair', 'ready', 'delivered', 'closed']),
+  "returnDate": zod.string(),
+  "daysAfterDelivery": zod.number().optional(),
+  "reason": zod.string(),
+  "complaint": zod.string(),
+  "deviceCondition": zod.string().optional(),
+  "underWarranty": zod.boolean(),
+  "receivedByName": zod.string().optional(),
+  "resolution": zod.string().optional(),
+  "technicianId": zod.string().optional(),
+  "technicianName": zod.string().optional(),
+  "diagnosis": zod.string().optional(),
+  "workPerformed": zod.string().optional(),
+  "partsCost": zod.number(),
+  "labourCost": zod.number(),
+  "customerPayable": zod.number(),
+  "notes": zod.string().optional(),
+  "completedAt": zod.string().optional(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Get a return case with its parts and refunds
+ */
+export const ReturnsGetParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ReturnsGetResponse = zod.object({
+  "return": zod.object({
+  "id": zod.string(),
+  "returnId": zod.string(),
+  "repairId": zod.string(),
+  "repairTicket": zod.string().optional(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "mobile": zod.string().optional(),
+  "deviceType": zod.string().optional(),
+  "brand": zod.string().optional(),
+  "model": zod.string().optional(),
+  "status": zod.enum(['return_received', 'inspection', 'rework_approved', 'in_repair', 'ready', 'delivered', 'closed']),
+  "returnDate": zod.string(),
+  "daysAfterDelivery": zod.number().optional(),
+  "reason": zod.string(),
+  "complaint": zod.string(),
+  "deviceCondition": zod.string().optional(),
+  "underWarranty": zod.boolean(),
+  "receivedByName": zod.string().optional(),
+  "resolution": zod.string().optional(),
+  "technicianId": zod.string().optional(),
+  "technicianName": zod.string().optional(),
+  "diagnosis": zod.string().optional(),
+  "workPerformed": zod.string().optional(),
+  "partsCost": zod.number(),
+  "labourCost": zod.number(),
+  "customerPayable": zod.number(),
+  "notes": zod.string().optional(),
+  "completedAt": zod.string().optional(),
+  "createdAt": zod.string()
+}),
+  "parts": zod.array(zod.object({
+  "id": zod.string(),
+  "returnId": zod.string(),
+  "inventoryItemId": zod.string().optional(),
+  "partName": zod.string(),
+  "quantity": zod.number(),
+  "unitCost": zod.number(),
+  "addedByName": zod.string().optional(),
+  "createdAt": zod.string()
+})),
+  "refunds": zod.array(zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "repairTicket": zod.string().optional(),
+  "returnId": zod.string(),
+  "returnCaseId": zod.string().optional(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "amount": zod.number(),
+  "originalPaid": zod.number(),
+  "method": zod.string(),
+  "status": zod.enum(['pending_approval', 'approved', 'paid', 'rejected']),
+  "reason": zod.string(),
+  "referenceNo": zod.string().optional(),
+  "requestedByName": zod.string().optional(),
+  "approvedByName": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidByName": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "rejectionReason": zod.string().optional(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Update a return case (status, inspection, resolution; some transitions dealer-only)
+ */
+export const ReturnsUpdateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ReturnsUpdateBody = zod.object({
+  "status": zod.string().optional(),
+  "resolution": zod.string().optional(),
+  "technicianId": zod.string().optional(),
+  "technicianName": zod.string().optional(),
+  "diagnosis": zod.string().optional(),
+  "workPerformed": zod.string().optional(),
+  "labourCost": zod.number().optional(),
+  "customerPayable": zod.number().optional(),
+  "notes": zod.string().optional(),
+  "deviceCondition": zod.string().optional()
+})
+
+export const ReturnsUpdateResponse = zod.object({
+  "return": zod.object({
+  "id": zod.string(),
+  "returnId": zod.string(),
+  "repairId": zod.string(),
+  "repairTicket": zod.string().optional(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "mobile": zod.string().optional(),
+  "deviceType": zod.string().optional(),
+  "brand": zod.string().optional(),
+  "model": zod.string().optional(),
+  "status": zod.enum(['return_received', 'inspection', 'rework_approved', 'in_repair', 'ready', 'delivered', 'closed']),
+  "returnDate": zod.string(),
+  "daysAfterDelivery": zod.number().optional(),
+  "reason": zod.string(),
+  "complaint": zod.string(),
+  "deviceCondition": zod.string().optional(),
+  "underWarranty": zod.boolean(),
+  "receivedByName": zod.string().optional(),
+  "resolution": zod.string().optional(),
+  "technicianId": zod.string().optional(),
+  "technicianName": zod.string().optional(),
+  "diagnosis": zod.string().optional(),
+  "workPerformed": zod.string().optional(),
+  "partsCost": zod.number(),
+  "labourCost": zod.number(),
+  "customerPayable": zod.number(),
+  "notes": zod.string().optional(),
+  "completedAt": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Record a part used in rework (deducts inventory)
+ */
+export const ReturnPartsAddParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ReturnPartsAddBody = zod.object({
+  "inventoryItemId": zod.string().optional(),
+  "partName": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitCost": zod.number().optional()
+})
+
+export const ReturnPartsAddResponse = zod.object({
+  "part": zod.object({
+  "id": zod.string(),
+  "returnId": zod.string(),
+  "inventoryItemId": zod.string().optional(),
+  "partName": zod.string(),
+  "quantity": zod.number(),
+  "unitCost": zod.number(),
+  "addedByName": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Request a refund for a return (staff → pending approval; dealer → approved)
+ */
+export const RefundsCreateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RefundsCreateBody = zod.object({
+  "amount": zod.number(),
+  "method": zod.string().optional(),
+  "reason": zod.string()
+})
+
+export const RefundsCreateResponse = zod.object({
+  "refund": zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "repairTicket": zod.string().optional(),
+  "returnId": zod.string(),
+  "returnCaseId": zod.string().optional(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "amount": zod.number(),
+  "originalPaid": zod.number(),
+  "method": zod.string(),
+  "status": zod.enum(['pending_approval', 'approved', 'paid', 'rejected']),
+  "reason": zod.string(),
+  "referenceNo": zod.string().optional(),
+  "requestedByName": zod.string().optional(),
+  "approvedByName": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidByName": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "rejectionReason": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary List the shop's refunds
+ */
+export const RefundsListResponse = zod.object({
+  "refunds": zod.array(zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "repairTicket": zod.string().optional(),
+  "returnId": zod.string(),
+  "returnCaseId": zod.string().optional(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "amount": zod.number(),
+  "originalPaid": zod.number(),
+  "method": zod.string(),
+  "status": zod.enum(['pending_approval', 'approved', 'paid', 'rejected']),
+  "reason": zod.string(),
+  "referenceNo": zod.string().optional(),
+  "requestedByName": zod.string().optional(),
+  "approvedByName": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidByName": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "rejectionReason": zod.string().optional(),
+  "createdAt": zod.string()
+})),
+  "pendingCount": zod.number()
+})
+
+
+/**
+ * @summary Approve a pending refund, optionally adjusting the amount (dealer only)
+ */
+export const RefundsApproveParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RefundsApproveBody = zod.object({
+  "amount": zod.number().optional()
+})
+
+export const RefundsApproveResponse = zod.object({
+  "refund": zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "repairTicket": zod.string().optional(),
+  "returnId": zod.string(),
+  "returnCaseId": zod.string().optional(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "amount": zod.number(),
+  "originalPaid": zod.number(),
+  "method": zod.string(),
+  "status": zod.enum(['pending_approval', 'approved', 'paid', 'rejected']),
+  "reason": zod.string(),
+  "referenceNo": zod.string().optional(),
+  "requestedByName": zod.string().optional(),
+  "approvedByName": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidByName": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "rejectionReason": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Reject a pending refund with a reason (dealer only)
+ */
+export const RefundsRejectParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RefundsRejectBody = zod.object({
+  "reason": zod.string()
+})
+
+export const RefundsRejectResponse = zod.object({
+  "refund": zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "repairTicket": zod.string().optional(),
+  "returnId": zod.string(),
+  "returnCaseId": zod.string().optional(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "amount": zod.number(),
+  "originalPaid": zod.number(),
+  "method": zod.string(),
+  "status": zod.enum(['pending_approval', 'approved', 'paid', 'rejected']),
+  "reason": zod.string(),
+  "referenceNo": zod.string().optional(),
+  "requestedByName": zod.string().optional(),
+  "approvedByName": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidByName": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "rejectionReason": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Mark an approved refund as paid — records the REFUND expense in finance (dealer only)
+ */
+export const RefundsMarkPaidParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RefundsMarkPaidBody = zod.object({
+  "referenceNo": zod.string().optional()
+})
+
+export const RefundsMarkPaidResponse = zod.object({
+  "refund": zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "repairTicket": zod.string().optional(),
+  "returnId": zod.string(),
+  "returnCaseId": zod.string().optional(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "amount": zod.number(),
+  "originalPaid": zod.number(),
+  "method": zod.string(),
+  "status": zod.enum(['pending_approval', 'approved', 'paid', 'rejected']),
+  "reason": zod.string(),
+  "referenceNo": zod.string().optional(),
+  "requestedByName": zod.string().optional(),
+  "approvedByName": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidByName": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "rejectionReason": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
  * @summary List backdated-entry approval requests (dealer sees all of the shop's; staff see their own)
  */
 export const ApprovalsListResponse = zod.object({

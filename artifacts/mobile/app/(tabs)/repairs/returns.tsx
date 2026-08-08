@@ -1,0 +1,213 @@
+import React, { useMemo, useState } from 'react';
+import {
+  FlatList,
+  Platform,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
+import { useAuth } from '@/context/AuthContext';
+import { useColors } from '@/hooks/useColors';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
+import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { formatDate } from '@/utils/helpers';
+import { useReturnsList } from '@workspace/api-client-react';
+
+const FILTERS = ['All', 'Active', 'Closed'] as const;
+type Filter = (typeof FILTERS)[number];
+
+export default function ReturnsListScreen() {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { user } = useAuth();
+  const { data, isLoading, error, refetch, isRefetching } = useReturnsList();
+  
+  const returns = data?.returns || [];
+
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<Filter>('All');
+
+  const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
+
+  const filtered = useMemo(() => {
+    let list = returns;
+    if (user?.role === 'technician') {
+      list = list.filter((r) => r.technicianId === user.id);
+    }
+    if (filter === 'Active') list = list.filter((r) => r.status !== 'closed');
+    else if (filter === 'Closed') list = list.filter((r) => r.status === 'closed');
+    
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((r) =>
+        r.customerName?.toLowerCase().includes(q) ||
+        r.returnId.toLowerCase().includes(q) ||
+        r.repairTicket?.toLowerCase().includes(q) ||
+        r.brand?.toLowerCase().includes(q) ||
+        r.model?.toLowerCase().includes(q) ||
+        r.mobile?.includes(q)
+      );
+    }
+    return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [returns, filter, search, user]);
+
+  const headerAnims = useStaggerAnim(3);
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScreenGlow />
+
+      <FadeInView animValue={headerAnims[0]} style={[styles.header, { paddingTop: topPad + 16 }]}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Feather name="arrow-left" size={22} color={colors.foreground} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Returns & Rework</Text>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
+              {filtered.length} cases
+            </Text>
+          </View>
+        </View>
+
+        <GlassCard style={styles.searchBar}>
+          <Feather name="search" size={16} color={colors.mutedForeground} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search return cases..."
+            placeholderTextColor={colors.mutedForeground}
+            style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+          />
+          {!!search && (
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <Feather name="x" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          )}
+        </GlassCard>
+
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={FILTERS}
+          keyExtractor={(f) => f}
+          contentContainerStyle={{ gap: 8 }}
+          renderItem={({ item }) => {
+            const active = filter === item;
+            return (
+              <TouchableOpacity
+                onPress={() => setFilter(item)}
+                activeOpacity={0.8}
+                style={[styles.filterTab, {
+                  backgroundColor: active ? colors.primary : colors.primary + '12',
+                  borderColor: active ? colors.primary : 'transparent',
+                }]}
+              >
+                <Text style={[styles.filterText, {
+                  color: active ? '#FFFFFF' : colors.mutedForeground,
+                  fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium',
+                }]}>{item}</Text>
+              </TouchableOpacity>
+            );
+          }}
+          style={{ paddingBottom: 2 }}
+        />
+      </FadeInView>
+
+      {isLoading && returns.length === 0 ? (
+        <DataLoadingState />
+      ) : error && returns.length === 0 ? (
+        <DataErrorState onRetry={() => refetch()} />
+      ) : (
+      <>
+        {!!error && <DataErrorBanner onRetry={() => refetch()} />}
+        <FlatList
+          data={filtered}
+          keyExtractor={(r) => r.id}
+          contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
+          ListEmptyComponent={
+            <EmptyState
+              icon="corner-up-left"
+              title="No returns found"
+              description={search ? 'Try a different search term' : 'No return cases match the current filter'}
+            />
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity onPress={() => router.push(`/(tabs)/repairs/return/${item.id}`)} activeOpacity={0.8}>
+              <GlassCard style={styles.card}>
+                <View style={styles.cardTop}>
+                  <View style={[styles.returnIdBadge, { backgroundColor: colors.warning + '15' }]}>
+                    <Text style={[styles.returnId, { color: colors.warning, fontFamily: 'Inter_700Bold' }]}>{item.returnId}</Text>
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: item.status === 'closed' ? colors.success + '15' : colors.warning + '15' }]}>
+                    <Text style={{ fontSize: 11, color: item.status === 'closed' ? colors.success : colors.warning, fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }}>
+                      {item.status.replace(/_/g, ' ')}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={[styles.customerName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{item.customerName || 'Unknown'}</Text>
+                <Text style={[styles.deviceLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  {item.brand} {item.model}
+                </Text>
+                <Text style={[styles.problem, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+                  Reason: {item.reason.replace(/_/g, ' ')}
+                </Text>
+                <View style={styles.cardBottom}>
+                  {item.underWarranty ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Feather name="shield" size={12} color={colors.success} />
+                      <Text style={{ fontSize: 11, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>Warranty</Text>
+                    </View>
+                  ) : (
+                    <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>Out of Warranty</Text>
+                  )}
+                  <View style={styles.cardBottomRight}>
+                    <Text style={[styles.dateText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                      {formatDate(item.createdAt)}
+                    </Text>
+                  </View>
+                </View>
+              </GlassCard>
+            </TouchableOpacity>
+          )}
+        />
+      </>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  header: { paddingHorizontal: 16, paddingBottom: 12, gap: 14 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 24 },
+  headerSub: { fontSize: 13, marginTop: 2 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
+  searchInput: { flex: 1, height: 46, fontSize: 14 },
+  filterTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  filterText: { fontSize: 13 },
+  list: { paddingHorizontal: 16, paddingTop: 14, gap: 12 },
+  card: { padding: 16, gap: 7 },
+  cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  returnIdBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  returnId: { fontSize: 11 },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  customerName: { fontSize: 15 },
+  deviceLine: { fontSize: 13 },
+  problem: { fontSize: 12 },
+  cardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  cardBottomRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  dateText: { fontSize: 12 },
+});

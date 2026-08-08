@@ -543,6 +543,248 @@ paths:
                     items:
                       $ref: "#/components/schemas/RepairEvent"
                 required: [events]
+  /repairs/{id}/returns:
+    post:
+      operationId: returnsCreate
+      tags: [business]
+      summary: Open a return/rework case for a delivered repair
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnCreateInput"
+      responses:
+        "200":
+          description: Created return case
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  return: { $ref: "#/components/schemas/RepairReturn" }
+                required: [return]
+  /returns:
+    get:
+      operationId: returnsList
+      tags: [business]
+      summary: List the shop's return/rework cases
+      responses:
+        "200":
+          description: Return cases, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  returns:
+                    type: array
+                    items: { $ref: "#/components/schemas/RepairReturn" }
+                required: [returns]
+  /returns/{id}:
+    get:
+      operationId: returnsGet
+      tags: [business]
+      summary: Get a return case with its parts and refunds
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Return case detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  return: { $ref: "#/components/schemas/RepairReturn" }
+                  parts:
+                    type: array
+                    items: { $ref: "#/components/schemas/ReturnPart" }
+                  refunds:
+                    type: array
+                    items: { $ref: "#/components/schemas/Refund" }
+                required: [return, parts, refunds]
+    patch:
+      operationId: returnsUpdate
+      tags: [business]
+      summary: Update a return case (status, inspection, resolution; some transitions dealer-only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnUpdateInput"
+      responses:
+        "200":
+          description: Updated return case
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  return: { $ref: "#/components/schemas/RepairReturn" }
+                required: [return]
+  /returns/{id}/parts:
+    post:
+      operationId: returnPartsAdd
+      tags: [business]
+      summary: Record a part used in rework (deducts inventory)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnPartInput"
+      responses:
+        "200":
+          description: Added part
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  part: { $ref: "#/components/schemas/ReturnPart" }
+                required: [part]
+  /returns/{id}/refunds:
+    post:
+      operationId: refundsCreate
+      tags: [business]
+      summary: Request a refund for a return (staff → pending approval; dealer → approved)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefundCreateInput"
+      responses:
+        "200":
+          description: Created refund
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  refund: { $ref: "#/components/schemas/Refund" }
+                required: [refund]
+  /refunds:
+    get:
+      operationId: refundsList
+      tags: [business]
+      summary: List the shop's refunds
+      responses:
+        "200":
+          description: Refunds, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  refunds:
+                    type: array
+                    items: { $ref: "#/components/schemas/Refund" }
+                  pendingCount: { type: number }
+                required: [refunds, pendingCount]
+  /refunds/{id}/approve:
+    post:
+      operationId: refundsApprove
+      tags: [business]
+      summary: Approve a pending refund, optionally adjusting the amount (dealer only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefundApproveInput"
+      responses:
+        "200":
+          description: Approved refund
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  refund: { $ref: "#/components/schemas/Refund" }
+                required: [refund]
+  /refunds/{id}/reject:
+    post:
+      operationId: refundsReject
+      tags: [business]
+      summary: Reject a pending refund with a reason (dealer only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefundRejectInput"
+      responses:
+        "200":
+          description: Rejected refund
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  refund: { $ref: "#/components/schemas/Refund" }
+                required: [refund]
+  /refunds/{id}/mark-paid:
+    post:
+      operationId: refundsMarkPaid
+      tags: [business]
+      summary: Mark an approved refund as paid — records the REFUND expense in finance (dealer only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefundMarkPaidInput"
+      responses:
+        "200":
+          description: Paid refund
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  refund: { $ref: "#/components/schemas/Refund" }
+                required: [refund]
   /approvals:
     get:
       operationId: approvalsList
@@ -1164,6 +1406,124 @@ components:
         objectPath: { type: string }
         metadata:
           $ref: '#/components/schemas/UploadUrlRequest'
+    RepairReturn:
+      type: object
+      properties:
+        id: { type: string }
+        returnId: { type: string }
+        repairId: { type: string }
+        repairTicket: { type: string }
+        customerId: { type: string }
+        customerName: { type: string }
+        mobile: { type: string }
+        deviceType: { type: string }
+        brand: { type: string }
+        model: { type: string }
+        status: { type: string, enum: [return_received, inspection, rework_approved, in_repair, ready, delivered, closed] }
+        returnDate: { type: string }
+        daysAfterDelivery: { type: number }
+        reason: { type: string }
+        complaint: { type: string }
+        deviceCondition: { type: string }
+        underWarranty: { type: boolean }
+        receivedByName: { type: string }
+        resolution: { type: string }
+        technicianId: { type: string }
+        technicianName: { type: string }
+        diagnosis: { type: string }
+        workPerformed: { type: string }
+        partsCost: { type: number }
+        labourCost: { type: number }
+        customerPayable: { type: number }
+        notes: { type: string }
+        completedAt: { type: string }
+        createdAt: { type: string }
+      required: [id, returnId, repairId, status, returnDate, reason, complaint, underWarranty, partsCost, labourCost, customerPayable, createdAt]
+    ReturnCreateInput:
+      type: object
+      properties:
+        returnDate: { type: string }
+        reason: { type: string }
+        complaint: { type: string }
+        deviceCondition: { type: string }
+      required: [reason, complaint]
+    ReturnUpdateInput:
+      type: object
+      properties:
+        status: { type: string }
+        resolution: { type: string }
+        technicianId: { type: string }
+        technicianName: { type: string }
+        diagnosis: { type: string }
+        workPerformed: { type: string }
+        labourCost: { type: number }
+        customerPayable: { type: number }
+        notes: { type: string }
+        deviceCondition: { type: string }
+    ReturnPart:
+      type: object
+      properties:
+        id: { type: string }
+        returnId: { type: string }
+        inventoryItemId: { type: string }
+        partName: { type: string }
+        quantity: { type: number }
+        unitCost: { type: number }
+        addedByName: { type: string }
+        createdAt: { type: string }
+      required: [id, returnId, partName, quantity, unitCost, createdAt]
+    ReturnPartInput:
+      type: object
+      properties:
+        inventoryItemId: { type: string }
+        partName: { type: string }
+        quantity: { type: number }
+        unitCost: { type: number }
+      required: [quantity]
+    Refund:
+      type: object
+      properties:
+        id: { type: string }
+        repairId: { type: string }
+        repairTicket: { type: string }
+        returnId: { type: string }
+        returnCaseId: { type: string }
+        customerId: { type: string }
+        customerName: { type: string }
+        amount: { type: number }
+        originalPaid: { type: number }
+        method: { type: string }
+        status: { type: string, enum: [pending_approval, approved, paid, rejected] }
+        reason: { type: string }
+        referenceNo: { type: string }
+        requestedByName: { type: string }
+        approvedByName: { type: string }
+        approvedAt: { type: string }
+        paidByName: { type: string }
+        paidAt: { type: string }
+        rejectionReason: { type: string }
+        createdAt: { type: string }
+      required: [id, repairId, returnId, amount, originalPaid, method, status, reason, createdAt]
+    RefundCreateInput:
+      type: object
+      properties:
+        amount: { type: number }
+        method: { type: string }
+        reason: { type: string }
+      required: [amount, reason]
+    RefundApproveInput:
+      type: object
+      properties:
+        amount: { type: number }
+    RefundRejectInput:
+      type: object
+      properties:
+        reason: { type: string }
+      required: [reason]
+    RefundMarkPaidInput:
+      type: object
+      properties:
+        referenceNo: { type: string }
     ApprovalRequest:
       type: object
       properties:

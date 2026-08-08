@@ -29,7 +29,7 @@ import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { RepairStatus } from '@/types';
 import { formatDate, formatCurrency, REPAIR_STATUS_LABELS } from '@/utils/helpers';
 import { storage, KEYS } from '@/utils/storage';
-import { useRepairPhotosList, getRepairPhotosListQueryKey, useRepairEventsList, getRepairEventsListQueryKey, requestUploadUrl, repairPhotosAdd } from '@workspace/api-client-react';
+import { useRepairPhotosList, getRepairPhotosListQueryKey, useRepairEventsList, getRepairEventsListQueryKey, requestUploadUrl, repairPhotosAdd, useReturnsList, getReturnsListQueryKey } from '@workspace/api-client-react';
 import { fetch as expoFetch } from 'expo/fetch';
 import { File as ExpoFile } from 'expo-file-system';
 
@@ -92,6 +92,8 @@ export default function RepairDetailScreen() {
 
   const { data: photosData } = useRepairPhotosList(id as string, { query: { enabled: !!id, queryKey: getRepairPhotosListQueryKey(id as string) } });
   const { data: eventsData } = useRepairEventsList(id as string, { query: { enabled: !!id, queryKey: getRepairEventsListQueryKey(id as string) } });
+  const { data: returnsData } = useReturnsList({ query: { queryKey: getReturnsListQueryKey() } });
+  const repairReturns = useMemo(() => returnsData?.returns?.filter(r => r.repairId === id) || [], [returnsData, id]);
 
   const getAbsoluteUrl = (path: string) => `https://${process.env.EXPO_PUBLIC_DOMAIN}/api/storage${path}`;
 
@@ -296,12 +298,12 @@ export default function RepairDetailScreen() {
           </TouchableOpacity>
         </FadeInView>
 
-        {/* Status Update */}
-        {canUpdateStatus && repair.status !== 'delivered' && repair.status !== 'cancelled' && (
+        {/* Actions */}
+        {((canUpdateStatus && repair.status !== 'delivered' && repair.status !== 'cancelled') || repair.status === 'delivered') && (
           <FadeInView animValue={anims[2]}>
           <Card style={styles.statusCard}>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>UPDATE STATUS</Text>
-            {nextStatus && (
+            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>ACTIONS</Text>
+            {canUpdateStatus && (repair.status as string) !== 'delivered' && (repair.status as string) !== 'cancelled' && nextStatus && (
               <TouchableOpacity
                 onPress={() => handleStatusUpdate(nextStatus)}
                 disabled={updating}
@@ -313,10 +315,44 @@ export default function RepairDetailScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={() => handleStatusUpdate('cancelled')} style={[styles.cancelBtn, { borderColor: colors.destructive }]}>
-              <Text style={[styles.cancelBtnText, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>Cancel Repair</Text>
-            </TouchableOpacity>
+            {canUpdateStatus && (repair.status as string) !== 'delivered' && (repair.status as string) !== 'cancelled' && (
+              <TouchableOpacity onPress={() => handleStatusUpdate('cancelled')} style={[styles.cancelBtn, { borderColor: colors.destructive }]}>
+                <Text style={[styles.cancelBtnText, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>Cancel Repair</Text>
+              </TouchableOpacity>
+            )}
+            {repair.status === 'delivered' && (
+              <TouchableOpacity onPress={() => router.push(`/(tabs)/repairs/return/new?repairId=${repair.id}` as any)} style={[styles.nextStatusBtn, { backgroundColor: colors.warning, borderRadius: colors.radius - 2 }]}>
+                <Feather name="corner-up-left" size={18} color="#FFFFFF" />
+                <Text style={[styles.nextStatusText, { fontFamily: 'Inter_600SemiBold' }]}>Return / Rework</Text>
+              </TouchableOpacity>
+            )}
           </Card>
+          </FadeInView>
+        )}
+
+        {/* Returns */}
+        {repairReturns.length > 0 && (
+          <FadeInView animValue={anims[3]}>
+            <Card style={{ gap: 10 }}>
+              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>RETURN CASES</Text>
+              {repairReturns.map(ret => (
+                <TouchableOpacity
+                  key={ret.id}
+                  onPress={() => router.push(`/(tabs)/repairs/return/${ret.id}` as any)}
+                  style={{ padding: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <View>
+                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{ret.returnId}</Text>
+                    <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 2 }}>{formatDate(ret.createdAt)}</Text>
+                  </View>
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.warning + '22' }}>
+                    <Text style={{ fontSize: 11, color: colors.warning, fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }}>
+                      {ret.status.replace(/_/g, ' ')}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </Card>
           </FadeInView>
         )}
 

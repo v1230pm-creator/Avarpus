@@ -5,6 +5,7 @@ import staffRouter from "./staff";
 import businessRouter from "./business";
 import storageRouter from "./storage";
 import approvalsRouter from "./approvals";
+import returnsRouter from "./returns";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(staffRouter);
 router.use(businessRouter);
 router.use(storageRouter);
 router.use(approvalsRouter);
+router.use(returnsRouter);
 
 export default router;

@@ -24,7 +24,7 @@ import { BarChart } from '@/components/charts/BarChart';
 import { RepairStatusBadge, PriorityBadge, SampleBadge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { formatCurrency, formatDate, getGreeting, getTodayStr, ROLE_LABELS } from '@/utils/helpers';
-import { useApprovalsList } from '@workspace/api-client-react';
+import { useApprovalsList, useReturnsList, useRefundsList } from '@workspace/api-client-react';
 
 // --- Shared Helper ---
 const getStatusColor = (status: string, colors: any) => {
@@ -474,6 +474,8 @@ export default function DashboardScreen() {
   const { user, canAccess } = useAuth();
   const { repairs, customers, inventory, finance, isLoading, loadError, loadAll, hasSampleData } = useData();
   const { data: approvalsData } = useApprovalsList();
+  const { data: returnsData } = useReturnsList();
+  const { data: refundsData } = useRefundsList();
   const pendingCount = approvalsData?.pendingCount || 0;
   const showApprovalsBadge = pendingCount > 0 && (user?.role === 'dealer' || user?.role === 'super_admin');
   const [refreshing, setRefreshing] = useState(false);
@@ -500,6 +502,14 @@ export default function DashboardScreen() {
     const todayRepairs = repairs.filter(r => r.createdAt.startsWith(today));
     const yesterdayRepairs = repairs.filter(r => r.createdAt.startsWith(yesterday));
     
+    const returnsList = returnsData?.returns || [];
+    const refundsList = refundsData?.refunds || [];
+    
+    const todayReturns = returnsList.filter(r => r.createdAt.startsWith(today));
+    const openReturns = returnsList.filter(r => !['closed', 'delivered'].includes(r.status));
+    const pendingRefunds = refundsList.filter(rf => rf.status === 'pending_approval');
+    const refundsPaid = refundsList.filter(rf => rf.status === 'paid').reduce((acc, rf) => acc + rf.amount, 0);
+
     const pending = repairs.filter(r => !['delivered', 'cancelled'].includes(r.status));
     const ready = repairs.filter(r => r.status === 'ready');
     const lowStock = inventory.filter(i => i.quantity <= i.minStock);
@@ -529,9 +539,13 @@ export default function DashboardScreen() {
       incomeTrend: todayIncome - yesterdayIncome,
       todayProfit,
       profitTrend: todayProfit - yesterdayProfit,
-      pendingPayments
+      pendingPayments,
+      todayReturns: todayReturns.length,
+      openReturns: openReturns.length,
+      pendingRefunds: pendingRefunds.length,
+      refundsPaid
     };
-  }, [repairs, customers, inventory, finance, today]);
+  }, [repairs, customers, inventory, finance, today, returnsData, refundsData]);
 
   const cardAnims = useRef([...Array(15)].map(() => new Animated.Value(0))).current;
 
@@ -664,6 +678,24 @@ export default function DashboardScreen() {
                 <StatBox title="Today's Profit" value={stats.todayProfit} trend={stats.profitTrend} icon="dollar-sign" color={colors.primary} animValue={cardAnims[7]} isCurrency />
                 <StatBox title="Pending Payments" value={stats.pendingPayments} icon="credit-card" color={colors.warning} animValue={cardAnims[8]} isCurrency />
               </>
+            )}
+
+            {showRepairs && (
+              <View style={{ width: '100%', marginTop: 12, marginBottom: 4 }}>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Returns & Rework</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                  <StatBox title="Today's Returns" value={stats.todayReturns} icon="corner-down-left" color={colors.warning} animValue={cardAnims[9]} />
+                  <StatBox title="Open Cases" value={stats.openReturns} icon="folder" color={colors.info} animValue={cardAnims[10]} />
+                  {user?.role === 'dealer' || user?.role === 'super_admin' ? (
+                    <TouchableOpacity onPress={() => router.push('/(tabs)/repairs/returns')} style={{ width: '48%' }}>
+                      <StatBox title="Pending Refunds" value={stats.pendingRefunds} icon="clock" color={stats.pendingRefunds > 0 ? colors.destructive : colors.mutedForeground} animValue={cardAnims[11]} />
+                    </TouchableOpacity>
+                  ) : null}
+                  {showFinance && (
+                    <StatBox title="Refunds Paid" value={stats.refundsPaid} icon="credit-card" color={colors.success} animValue={cardAnims[12]} isCurrency />
+                  )}
+                </View>
+              </View>
             )}
             
             <StatBox title="Low Stock Items" value={stats.lowStock} icon="alert-triangle" color={stats.lowStock > 0 ? colors.destructive : colors.success} animValue={cardAnims[9]} />
