@@ -6,7 +6,7 @@ import { FormSheet } from '@/components/ui/FormSheet';
 import { useColors } from '@/hooks/useColors';
 import { useData } from '@/context/DataContext';
 import { Purchase } from '@/types';
-import { formatCurrency, getTodayStr } from '@/utils/helpers';
+import { formatCurrency, getTodayStr, isValidDateStr } from '@/utils/helpers';
 
 const STATUS_OPTIONS = ['paid', 'unpaid', 'partial'];
 const STATUS_LABELS: Record<string, string> = { paid: 'Paid', unpaid: 'Unpaid', partial: 'Partial' };
@@ -31,6 +31,7 @@ export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
   const [purchasePrice, setPurchasePrice] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('unpaid');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [date, setDate] = useState(getTodayStr());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
@@ -44,6 +45,7 @@ export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
       setPurchasePrice(purchase ? String(purchase.purchasePrice) : '');
       setPaymentStatus(purchase?.paymentStatus ?? 'unpaid');
       setPaymentMethod(purchase?.paymentMethod ?? 'Cash');
+      setDate(purchase?.date ?? getTodayStr());
       setErrors({});
     }
   }, [visible, purchase]);
@@ -65,6 +67,8 @@ export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
     if (!Number.isFinite(qty) || qty <= 0) e.quantity = 'Enter a quantity of 1 or more';
     const price = parseFloat(purchasePrice);
     if (!Number.isFinite(price) || price < 0) e.purchasePrice = 'Enter a valid unit price';
+    if (!isValidDateStr(date.trim())) e.date = 'Enter a valid date as YYYY-MM-DD';
+    else if (date.trim() > getTodayStr()) e.date = 'Date cannot be in the future';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -83,11 +87,12 @@ export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
         total,
         paymentStatus: paymentStatus as Purchase['paymentStatus'],
         paymentMethod,
+        date: date.trim(),
       };
       if (purchase) {
         await updatePurchase({ ...purchase, ...payload });
       } else {
-        await addPurchase({ id: '', purchaseId: '', createdAt: '', date: getTodayStr(), ...payload });
+        await addPurchase({ id: '', purchaseId: '', createdAt: '', ...payload });
       }
       onClose();
     } catch (err) {
@@ -112,6 +117,7 @@ export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
       <Input label="Invoice No *" value={invoiceNo} onChangeText={setInvoiceNo} placeholder="e.g. INV-1024" autoCapitalize="characters" error={errors.invoiceNo} />
       <Input label="Supplier *" value={supplier} onChangeText={setSupplier} placeholder="Supplier name" error={errors.supplier} />
       <Input label="Supplier Mobile" value={supplierMobile} onChangeText={setSupplierMobile} placeholder="Optional" keyboardType="phone-pad" maxLength={10} error={errors.supplierMobile} />
+      <Input label="Date *" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} error={errors.date} />
       <Input label="Item *" value={itemName} onChangeText={setItemName} placeholder="What was purchased" error={errors.itemName} />
       <View style={styles.row}>
         <Input label="Quantity *" value={quantity} onChangeText={setQuantity} placeholder="0" keyboardType="number-pad" error={errors.quantity} containerStyle={styles.half} />

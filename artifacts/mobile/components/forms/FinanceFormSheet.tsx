@@ -5,7 +5,7 @@ import { SelectInput } from '@/components/ui/SelectInput';
 import { FormSheet } from '@/components/ui/FormSheet';
 import { useData } from '@/context/DataContext';
 import { FinanceEntry } from '@/types';
-import { getTodayStr } from '@/utils/helpers';
+import { getTodayStr, isValidDateStr } from '@/utils/helpers';
 
 const TYPE_OPTIONS = ['income', 'expense'];
 const TYPE_LABELS: Record<string, string> = { income: 'Income', expense: 'Expense' };
@@ -26,6 +26,7 @@ export function FinanceFormSheet({ visible, onClose, entry }: Props) {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [date, setDate] = useState(getTodayStr());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
@@ -36,6 +37,7 @@ export function FinanceFormSheet({ visible, onClose, entry }: Props) {
       setAmount(entry ? String(entry.amount) : '');
       setDescription(entry?.description ?? '');
       setPaymentMethod(entry?.paymentMethod ?? 'Cash');
+      setDate(entry?.date ?? getTodayStr());
       setErrors({});
     }
   }, [visible, entry]);
@@ -45,6 +47,8 @@ export function FinanceFormSheet({ visible, onClose, entry }: Props) {
     if (!category.trim()) e.category = 'Category is required';
     const amt = parseFloat(amount);
     if (!Number.isFinite(amt) || amt <= 0) e.amount = 'Enter an amount greater than 0';
+    if (!isValidDateStr(date.trim())) e.date = 'Enter a valid date as YYYY-MM-DD';
+    else if (date.trim() > getTodayStr()) e.date = 'Date cannot be in the future';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -59,11 +63,12 @@ export function FinanceFormSheet({ visible, onClose, entry }: Props) {
         amount: parseFloat(amount),
         description: description.trim(),
         paymentMethod,
+        date: date.trim(),
       };
       if (entry) {
         await updateFinanceEntry({ ...entry, ...payload });
       } else {
-        await addFinanceEntry({ id: '', createdAt: '', date: getTodayStr(), ...payload });
+        await addFinanceEntry({ id: '', createdAt: '', ...payload });
       }
       onClose();
     } catch (err) {
@@ -87,6 +92,7 @@ export function FinanceFormSheet({ visible, onClose, entry }: Props) {
     >
       <SelectInput label="Type" options={TYPE_OPTIONS} value={type} onChange={setType} labelMap={TYPE_LABELS} />
       <Input label="Category *" value={category} onChangeText={setCategory} placeholder="e.g. Repair Charges, Utilities" error={errors.category} />
+      <Input label="Date *" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} error={errors.date} />
       <Input label="Amount *" value={amount} onChangeText={setAmount} placeholder="0" keyboardType="decimal-pad" error={errors.amount} />
       <Input label="Description" value={description} onChangeText={setDescription} placeholder="Optional note" />
       <SelectInput label="Payment Method" options={PAYMENT_METHODS} value={paymentMethod} onChange={setPaymentMethod} />
