@@ -11,6 +11,7 @@ export default function MoreLayout() {
       <Stack.Screen name="staff-add" />
       <Stack.Screen name="reports" />
       <Stack.Screen name="settings" />
+      <Stack.Screen name="security" />
       <Stack.Screen name="purchases" />
     </Stack>
   );

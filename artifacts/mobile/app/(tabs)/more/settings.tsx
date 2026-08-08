@@ -209,6 +209,20 @@ export default function SettingsScreen() {
           <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Security &amp; Session</Text>
         </View>
 
+        <TouchableOpacity onPress={() => router.push('/(tabs)/more/security')} activeOpacity={0.8}>
+          <Card>
+            <View style={styles.configRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>App lock (PIN &amp; biometric)</Text>
+                <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  Change your PIN, toggle biometric unlock, or turn off the lock.
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </View>
+          </Card>
+        </TouchableOpacity>
+
         <Card>
           <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Auto-lock after inactivity</Text>
           <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>

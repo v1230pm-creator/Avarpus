@@ -60,6 +60,19 @@ export async function clearMpin(): Promise<void> {
   await AsyncStorage.removeItem(LEGACY_MPIN_KEY);
 }
 
+/**
+ * Turns off the app lock entirely (biometric flag + PIN).
+ *
+ * Failure-safe ordering: the biometric flag is removed first, then the PIN.
+ * If the second step fails the user is left with a working PIN lock — never a
+ * biometric-only lock, which can become unusable if biometric enrollment or
+ * hardware availability changes.
+ */
+export async function disableAppLock(): Promise<void> {
+  await AsyncStorage.removeItem(BIOMETRIC_ENABLED_KEY);
+  await clearMpin();
+}
+
 /** True when a PIN or biometric unlock has been configured. */
 export async function isLockEnabled(): Promise<boolean> {
   const [mpin, bio] = await Promise.all([

@@ -1,6 +1,7 @@
 - [VMC BMS Architecture](vmc-bms-arch.md) — Expo app now API-backed: auth AND business data (repairs/customers/inventory/purchases/finance) live server-side, shop-scoped; no on-device seed data.
 - [Drizzle journal drift](drizzle-journal-drift.md) — boot fails with "relation already exists" when DB drifts from the migration journal; backfill journal rows, don't drop tables.
 - [App lock enforcement](app-lock.md) — lock must be enforced at the tabs route boundary and fail closed; reviewers reject index-only redirects and any Skip path visible before lock config is confirmed.
+- [Lock-state mutations](lock-state-mutations.md) — reviewers require cancel-safe (token + in-flight ref) and failure-safe (biometric flag removed before PIN) lock changes; use disableAppLock().
 - [Stale api-client d.ts](api-client-dist-types.md) — mobile typecheck reads lib types from dist declarations; rebuild them after changing lib exports or you get phantom TS2305 errors.
 - [Role naming](role-naming.md) — the privileged role is `super_admin` everywhere; introducing an `admin` role breaks client permissions/labels.
 - [Registration & staff model](registration-model.md) — public signup is dealer-only (server-forced); staff only via RBAC /staff endpoints; demo seeding off by default.
