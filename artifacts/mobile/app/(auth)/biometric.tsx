@@ -28,10 +28,12 @@ import Reanimated, {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   BIOMETRIC_ENABLED_KEY,
+  disableAppLock,
   getStoredMpin,
   setUnlocked,
   storeMpin,
 } from '@/utils/appLock';
+import { useAuth } from '@/context/AuthContext';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -48,6 +50,7 @@ const PAD = [
 export default function BiometricScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { logout } = useAuth();
 
   const [mode, setMode] = useState<Mode>('loading');
   const [hasBiometric, setHasBiometric] = useState(false);
@@ -214,6 +217,41 @@ export default function BiometricScreen() {
     }
   };
 
+  const [forgotBusy, setForgotBusy] = useState(false);
+
+  const performForgotPin = async () => {
+    if (forgotBusy) return;
+    setForgotBusy(true);
+    try {
+      // Clear the local lock (biometric flag first, then PIN), then sign out.
+      await disableAppLock();
+      await logout();
+      setUnlocked(false);
+      router.replace('/(auth)');
+    } catch {
+      setMpinError('Could not reset the PIN. Try again.');
+      setForgotBusy(false);
+    }
+  };
+
+  const handleForgotPin = () => {
+    if (Platform.OS === 'web') {
+      // eslint-disable-next-line no-alert
+      if (window.confirm('Reset your PIN? You will be signed out and must log in again with your account credentials, then set a new PIN.')) {
+        performForgotPin();
+      }
+      return;
+    }
+    Alert.alert(
+      'Forgot PIN?',
+      'You will be signed out and must log in again with your account credentials, then set a new PIN.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign Out & Reset PIN', style: 'destructive', onPress: performForgotPin },
+      ],
+    );
+  };
+
   const skipAll = () => {
     // Skipping is only allowed during first-time setup (no lock configured yet).
     setUnlocked(true);
@@ -289,6 +327,18 @@ export default function BiometricScreen() {
                 </Text>
               </View>
               <Feather name="chevron-right" size={18} color="#3B82F6" />
+            </TouchableOpacity>
+
+            {/* Recovery: always available, even when biometric hardware/enrollment is unavailable */}
+            <TouchableOpacity
+              onPress={handleForgotPin}
+              activeOpacity={0.7}
+              disabled={forgotBusy}
+              style={styles.forgotBtnCentered}
+            >
+              <Text style={[styles.forgotText, { fontFamily: 'Inter_500Medium' }]}>
+                {forgotBusy ? 'Signing out…' : "Can't unlock? Sign out & reset"}
+              </Text>
             </TouchableOpacity>
           </Reanimated.View>
         )}
@@ -404,6 +454,13 @@ export default function BiometricScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
+              {mode === 'enter_mpin' && (
+                <TouchableOpacity onPress={handleForgotPin} activeOpacity={0.7} disabled={forgotBusy}>
+                  <Text style={[styles.forgotText, { fontFamily: 'Inter_500Medium' }]}>
+                    {forgotBusy ? 'Signing out…' : 'Forgot PIN?'}
+                  </Text>
+                </TouchableOpacity>
+              )}
               {mode !== 'enter_mpin' && (
                 <TouchableOpacity onPress={() => setMode('choose')} activeOpacity={0.7}>
                   <Text style={[styles.backText, { fontFamily: 'Inter_400Regular' }]}>← Back</Text>
@@ -490,4 +547,6 @@ const styles = StyleSheet.create({
   bioBtnSmall: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
   bioBtnText: { fontSize: 13, color: '#3B82F6' },
   backText: { fontSize: 13, color: '#475569' },
+  forgotText: { fontSize: 13, color: '#94A3B8' },
+  forgotBtnCentered: { alignItems: 'center', paddingVertical: 10 },
 });
