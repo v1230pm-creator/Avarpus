@@ -266,7 +266,7 @@ export default function RepairsScreen() {
             </Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            {canCreateRepair && filter !== 'Delivered' && (
+            {canCreateRepair && filter !== 'Delivered' && filter !== 'Repair' && (
               <TouchableOpacity
                 onPress={() => router.push('/(tabs)/repairs/new')}
                 activeOpacity={0.85}
@@ -443,8 +443,8 @@ export default function RepairsScreen() {
               icon="tool"
               title="No repairs found"
               description={search ? 'Try a different search term' : 'No repairs match the current filter'}
-              actionLabel={canCreateRepair && filter !== 'Delivered' ? 'Create Repair' : undefined}
-              onAction={canCreateRepair && filter !== 'Delivered' ? () => router.push('/(tabs)/repairs/new') : undefined}
+              actionLabel={canCreateRepair && filter !== 'Delivered' && filter !== 'Repair' ? 'Create Repair' : undefined}
+              onAction={canCreateRepair && filter !== 'Delivered' && filter !== 'Repair' ? () => router.push('/(tabs)/repairs/new') : undefined}
             />
           }
           ListFooterComponent={
