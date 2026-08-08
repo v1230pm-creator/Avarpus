@@ -339,7 +339,16 @@ export default function NewRepairScreen() {
       try {
         repair = await addRepair({ ...newRepair, clientRequestId } as any);
       } catch (addError: any) {
-        if (addError.message && (addError.message.includes('Network request failed') || addError.message.includes('fetch'))) {
+        // DataContext wraps failures with toFriendlyError, preserving the
+        // original error on `cause` — inspect both to detect network drops.
+        const cause = addError?.cause;
+        const isNetworkError =
+          addError instanceof TypeError ||
+          cause instanceof TypeError ||
+          /network request failed|failed to fetch/i.test(
+            (cause instanceof Error ? cause.message : '') || addError?.message || '',
+          );
+        if (isNetworkError) {
           await offlineQueue.add(apiPayload, clientRequestId);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           Alert.alert('Saved Offline', 'Network request failed. The repair was saved offline and will sync automatically when network is available.\n\nPhotos and signatures will need to be re-added after sync.', [

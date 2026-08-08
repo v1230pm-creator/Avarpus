@@ -104,9 +104,12 @@ jest.mock('expo-sharing', () => ({ isAvailableAsync: jest.fn(async () => false),
 jest.mock('expo-network', () => ({
   getNetworkStateAsync: jest.fn(async () => ({ isConnected: true, isInternetReachable: true })),
 }));
-const mockOfflineQueueAdd = jest.fn(async () => {});
+const mockOfflineQueueAdd = jest.fn(async (..._a: unknown[]) => {});
 jest.mock('@/utils/offlineQueue', () => ({
-  offlineQueue: { add: mockOfflineQueueAdd, flush: jest.fn(async () => ({ success: 0, failed: 0 })) },
+  offlineQueue: {
+    add: (...a: unknown[]) => mockOfflineQueueAdd(...a),
+    flush: jest.fn(async () => ({ success: 0, failed: 0 })),
+  },
 }));
 jest.mock('react-native-signature-canvas', () => {
   const { View } = require('react-native');
@@ -249,7 +252,7 @@ describe('failed save shows the alert and keeps entered values', () => {
     mockLists.customers = [
       { id: 'c1', name: 'Asha Kumar', mobile: '9876543210', email: '', address: '', dueAmount: 0, totalRepairs: 0 },
     ];
-    mockRepairsCreate.mockRejectedValue(new TypeError('Network request failed'));
+    mockRepairsCreate.mockRejectedValue(new Error('boom'));
     const { unmount } = await renderIntake();
     await fillRequiredFields();
     type('e.g. Broken cover, mixed cables...', 'Charger, Cover');
@@ -270,6 +273,41 @@ describe('failed save shows the alert and keeps entered values', () => {
     expect(mockBack).not.toHaveBeenCalled();
     expect(mockOfflineQueueAdd).not.toHaveBeenCalled();
     expect(screen.queryByText(/^repair:/)).toBeNull();
+    unmount();
+  });
+
+  it('network drop mid-save queues the repair offline and shows Saved Offline', async () => {
+    mockLists.customers = [
+      { id: 'c1', name: 'Asha Kumar', mobile: '9876543210', email: '', address: '', dueAmount: 0, totalRepairs: 0 },
+    ];
+    // fetch rejects with a TypeError when the connection drops mid-request.
+    // DataContext wraps it in a friendly Error, preserving it on `cause` —
+    // the screen must still detect it and fall back to the offline queue.
+    mockRepairsCreate.mockRejectedValue(new TypeError('Network request failed'));
+    const { unmount } = await renderIntake();
+    await fillRequiredFields();
+    await reviewConfirmAndSubmit();
+
+    await waitFor(() =>
+      expect(alertSpy).toHaveBeenCalledWith(
+        'Saved Offline',
+        expect.stringContaining('saved offline'),
+        expect.anything(),
+      ),
+    );
+    expect(mockOfflineQueueAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerName: 'Asha Kumar',
+        mobile: '9876543210',
+        brand: 'Samsung',
+        model: 'Galaxy S23',
+        problem: 'Screen cracked, no display',
+      }),
+      expect.any(String),
+    );
+    // No plain failure alert and no success screen — the offline path won.
+    expect(alertSpy).not.toHaveBeenCalledWith('Save failed', expect.anything());
+    expect(screen.queryByText('Job Card Created')).toBeNull();
     unmount();
   });
 
