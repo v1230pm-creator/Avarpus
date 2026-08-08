@@ -32,6 +32,7 @@ import { Repair } from '@/types';
 import {
   getTodayStr,
   getNextWeekStr,
+  isValidDateStr,
   DEVICE_TYPES,
   BRANDS,
   PRIORITIES,
@@ -116,6 +117,8 @@ export default function NewRepairScreen() {
   const [advance, setAdvance] = useState('');
   const [notes, setNotes] = useState('');
   const [warrantyDays, setWarrantyDays] = useState('0');
+  const [receiveDate, setReceiveDate] = useState(getTodayStr());
+  const [expectedDate, setExpectedDate] = useState(getNextWeekStr());
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
   
   const [photos, setPhotos] = useState<{ uri: string, kind: string }[]>([]);
@@ -137,6 +140,12 @@ export default function NewRepairScreen() {
     if (!brand.trim()) e.brand = 'Required';
     if (!model.trim()) e.model = 'Required';
     if (!problem.trim()) e.problem = 'Required';
+    if (!isValidDateStr(receiveDate.trim())) e.receiveDate = 'Enter a valid date as YYYY-MM-DD';
+    else if (receiveDate.trim() > getTodayStr()) e.receiveDate = 'Date cannot be in the future';
+    if (!isValidDateStr(expectedDate.trim())) e.expectedDate = 'Enter a valid date as YYYY-MM-DD';
+    else if (isValidDateStr(receiveDate.trim()) && expectedDate.trim() < receiveDate.trim()) {
+      e.expectedDate = 'Cannot be before the receive date';
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -186,8 +195,8 @@ export default function NewRepairScreen() {
         technicianId: techId, technicianName: techName,
         status: 'received', priority: priority as Repair['priority'],
         repairCharge: parseFloat(repairCharge) || 0, partsCharge: 0,
-        advance: parseFloat(advance) || 0, receiveDate: getTodayStr(),
-        expectedDate: getNextWeekStr(), notes: notes.trim() || undefined,
+        advance: parseFloat(advance) || 0, receiveDate: receiveDate.trim(),
+        expectedDate: expectedDate.trim(), notes: notes.trim() || undefined,
         checklist, warrantyDays: parseInt(warrantyDays, 10) || 0,
         createdAt: new Date().toISOString(),
       };
@@ -390,6 +399,8 @@ export default function NewRepairScreen() {
               style={{ height: 90, textAlignVertical: 'top', paddingTop: 12 } as any}
               error={errors.problem}
             />
+            <Input label="Receive Date *" value={receiveDate} onChangeText={setReceiveDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} leftIcon="calendar" error={errors.receiveDate} />
+            <Input label="Expected Delivery *" value={expectedDate} onChangeText={setExpectedDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} leftIcon="calendar" error={errors.expectedDate} />
             <SelectInput label="Priority" options={PRIORITIES} value={priority} onChange={setPriority} labelMap={PRIORITY_LABELS} />
             <SelectInput label="Warranty Offered" options={WARRANTY_OPTIONS.map(o => o.value)} value={warrantyDays} onChange={setWarrantyDays} labelMap={WARRANTY_OPTIONS.reduce((acc, curr) => ({...acc, [curr.value]: curr.label}), {})} />
           </View>
