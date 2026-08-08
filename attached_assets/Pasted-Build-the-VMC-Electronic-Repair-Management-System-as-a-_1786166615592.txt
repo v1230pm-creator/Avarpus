@@ -1,0 +1,1234 @@
+Build the VMC Electronic Repair Management System as a REAL, FULLY FUNCTIONAL production feature.
+
+IMPORTANT:
+This must NOT be a mockup, static UI, fake/demo workflow, local-only implementation, or placeholder.
+
+Before changing code:
+1. Inspect the existing project.
+2. Inspect the existing database/schema.
+3. Inspect the existing authentication system.
+4. Inspect existing Dealer/Staff roles and permissions.
+5. Inspect existing Customer, Inventory, Finance, Payment and Repair modules.
+6. Reuse the existing architecture and database.
+7. Do NOT create duplicate databases, duplicate authentication, duplicate customer systems, or duplicate repair systems.
+8. Integrate this feature into the existing VMC Electronic application.
+9. Preserve existing working features.
+10. Use real server-side database operations.
+11. All important permissions MUST be enforced on the backend/server, not only in the frontend.
+
+==================================================
+VMC ELECTRONIC — REPAIR MANAGEMENT
+==================================================
+
+Create exactly these 4 main tabs:
+
+1. Received
+2. Repair
+3. Delivered
+4. After-Sales Service
+
+All four tabs must be synchronized through the same original Repair ID.
+
+Main workflow:
+
+RECEIVED
+   ↓
+REPAIR
+   ↓
+DELIVERED
+   ↓
+AFTER-SALES SERVICE (only if customer returns)
+
+Do not create unrelated duplicate repair records.
+
+==================================================
+1. RECEIVED TAB
+==================================================
+
+Purpose:
+This is where any authorized Dealer/Staff receives a customer's phone/device.
+
+Create a prominent:
+
+"+ Receive Phone"
+
+button.
+
+When clicked, open a professional multi-step Receive Phone form.
+
+--------------------------------
+CUSTOMER DETAILS
+--------------------------------
+
+Fields:
+
+- Customer Name
+- Mobile Number
+- Alternate Mobile Number
+- Email (optional)
+- Address (optional)
+
+If the customer already exists:
+- Search by mobile number.
+- Load existing customer profile.
+- Do not create a duplicate customer.
+
+If customer does not exist:
+- Create a new Customer ID automatically.
+
+--------------------------------
+DEVICE DETAILS
+--------------------------------
+
+Fields:
+
+- Device Type
+- Brand
+- Model
+- IMEI 1
+- IMEI 2
+- Serial Number
+- Color
+- Storage
+- RAM
+- Device Password/Pattern (optional and securely handled)
+- SIM Present
+- Memory Card Present
+
+--------------------------------
+CUSTOMER COMPLAINT
+--------------------------------
+
+Fields:
+
+- Customer reported problem
+- Detailed complaint
+- Priority:
+  Low
+  Normal
+  High
+  Urgent
+
+--------------------------------
+DEVICE CONDITION
+--------------------------------
+
+Create a complete checklist:
+
+- Power On
+- Display
+- Touch
+- Camera
+- Front Camera
+- Rear Camera
+- Speaker
+- Microphone
+- Charging
+- Battery
+- Wi-Fi
+- Bluetooth
+- SIM
+- Network
+- Fingerprint
+- Face Unlock
+- Vibration
+- Flash
+- Sensors
+- Volume Buttons
+- Power Button
+
+Physical condition:
+
+- Screen damage
+- Back panel damage
+- Frame damage
+- Camera glass damage
+- Water/liquid damage
+- Existing scratches
+- Other damage
+
+--------------------------------
+ACCESSORIES RECEIVED
+--------------------------------
+
+Checkboxes:
+
+- Charger
+- Cable
+- Adapter
+- Box
+- SIM Tray
+- SIM
+- Memory Card
+- Cover
+- Earphones
+- Other
+
+--------------------------------
+PHOTOS / DOCUMENTS
+--------------------------------
+
+Allow staff/dealer to capture or upload:
+
+- Front photo
+- Back photo
+- Left side
+- Right side
+- Top
+- Bottom
+- Damage photos
+- IMEI/Serial photo
+- Other documents
+
+Store these securely and link them to the Repair ID.
+
+--------------------------------
+RECEIVING INFORMATION
+--------------------------------
+
+Automatically generate:
+
+Repair ID
+Job Card Number
+
+Example:
+
+VMC-REP-000001
+
+Automatically store:
+
+- Dealer ID
+- Shop ID
+- Received By User ID
+- Received By Name
+- Received By Role
+- Date
+- Exact Time
+
+The user receiving the device must permanently be associated with the Repair ID.
+
+--------------------------------
+CUSTOMER CONFIRMATION
+--------------------------------
+
+Show a summary before final submission.
+
+Customer can confirm:
+"I have submitted the device and the above condition/details are correct."
+
+Capture:
+- Customer signature
+OR
+- Customer OTP confirmation
+
+Then create the Repair record.
+
+Initial status:
+
+RECEIVED
+
+Generate:
+- QR Code
+- Barcode
+- Job Card
+
+The QR Code must open the repair record/status page for authorized users.
+
+==================================================
+2. REPAIR TAB
+==================================================
+
+Show all devices currently being processed.
+
+Repair cards/table must show:
+
+- Repair ID
+- Customer
+- Mobile
+- Brand
+- Model
+- Complaint
+- Priority
+- Received Date
+- Received By
+- Technician
+- Current Status
+- Expected Delivery
+- Customer Amount
+- Payment Status
+
+--------------------------------
+REPAIR STATUS
+--------------------------------
+
+Use:
+
+Received
+Diagnosing
+Waiting for Customer Approval
+Waiting for Parts
+In Repair
+Testing
+Repair Completed
+Cannot Repair
+
+Dealer can configure permitted status transitions if required.
+
+--------------------------------
+TECHNICIAN ASSIGNMENT
+--------------------------------
+
+Dealer/authorized manager can assign a technician.
+
+Store:
+
+- Technician ID
+- Technician Name
+- Assigned By
+- Assignment Date/Time
+
+Technician should see assigned repairs in their dashboard.
+
+--------------------------------
+DIAGNOSIS
+--------------------------------
+
+Technician can enter:
+
+- Diagnosis
+- Fault found
+- Required repair
+- Recommended parts
+- Estimated labour
+- Estimated total
+- Internal notes
+
+--------------------------------
+CUSTOMER APPROVAL
+--------------------------------
+
+If estimated repair cost changes or exceeds the original estimate:
+
+Create:
+
+CUSTOMER APPROVAL REQUIRED
+
+Record:
+
+- Estimated amount
+- New amount
+- Reason
+- Requested by
+- Date/time
+
+Customer approval can be:
+
+- OTP
+- Signature
+- Manual Dealer confirmation
+
+Store approval permanently.
+
+--------------------------------
+PARTS USED
+--------------------------------
+
+Allow technician/authorized staff to add parts.
+
+For each part:
+
+- Part ID
+- Part name
+- SKU
+- Quantity
+- Purchase cost
+- Customer selling price
+- Supplier
+- Warranty if applicable
+
+When a part is confirmed as USED:
+
+AUTOMATICALLY deduct quantity from the real inventory.
+
+Create a stock movement record:
+
+- Repair ID
+- Part ID
+- Quantity
+- Used By
+- Date/time
+
+Do not deduct stock merely because a part was planned.
+
+--------------------------------
+LABOUR / SERVICE
+--------------------------------
+
+Fields:
+
+- Labour charge
+- Service charge
+- Other charge
+- Discount
+- Tax/GST if configured
+
+Calculate:
+
+Parts Customer Price
++
+Labour
++
+Other Charges
+-
+Discount
++
+Tax
+=
+Final Customer Amount
+
+Also calculate internal cost separately.
+
+IMPORTANT:
+Staff should NOT automatically see Dealer-only profit/margin information unless the Dealer has granted permission.
+
+--------------------------------
+PAYMENT
+--------------------------------
+
+Allow:
+
+- No payment
+- Advance
+- Partial payment
+- Full payment
+
+Payment methods:
+
+- Cash
+- UPI
+- Card
+- Bank Transfer
+- Other
+
+Store every transaction separately.
+
+Do not overwrite previous payments.
+
+--------------------------------
+TESTING
+--------------------------------
+
+Before Repair Completed, show final testing checklist:
+
+- Power
+- Display
+- Touch
+- Charging
+- Camera
+- Speaker
+- Microphone
+- Network
+- Wi-Fi
+- Bluetooth
+- Fingerprint
+- Face Unlock
+- Sensors
+- Buttons
+- Battery
+- Customer complaint resolved
+
+Technician must confirm testing.
+
+--------------------------------
+REPAIR PHOTOS
+--------------------------------
+
+Allow:
+
+- Before repair photos
+- During repair photos
+- After repair photos
+
+All linked to the same Repair ID.
+
+--------------------------------
+REPAIR COMPLETION
+--------------------------------
+
+When repair is successfully completed:
+
+Status:
+
+REPAIR COMPLETED
+
+Automatically move/show the repair in:
+
+DELIVERED → Ready for Pickup
+
+Do not delete it from Repair history.
+
+==================================================
+3. DELIVERED TAB
+==================================================
+
+Purpose:
+
+This tab handles customer pickup and final handover.
+
+Separate the tab into:
+
+A. Ready for Pickup
+B. Delivered
+
+--------------------------------
+READY FOR PICKUP
+--------------------------------
+
+Show repairs where:
+
+Repair Completed = true
+AND
+Device has not yet been handed over.
+
+Display:
+
+- Repair ID
+- Customer
+- Mobile
+- Device
+- Repair details
+- Final amount
+- Advance
+- Balance
+- Payment status
+- Warranty
+- Ready date
+
+Actions:
+
+- View Repair
+- View Invoice
+- Send Customer Notification
+- Collect Payment
+- Hand Over Device
+
+--------------------------------
+CUSTOMER NOTIFICATION
+--------------------------------
+
+Provide notification option when device becomes ready.
+
+Message should contain:
+
+Customer Name
+Device
+Repair ID
+Ready for Pickup
+Amount Due
+Shop information
+
+Use the application's existing email/SMS/notification infrastructure if available.
+
+Do not add fake notification functionality.
+
+--------------------------------
+FINAL BILL
+--------------------------------
+
+Before handover show:
+
+- Parts
+- Labour
+- Other charges
+- Discount
+- Tax
+- Total
+- Advance paid
+- Previous payments
+- Balance due
+
+Do not expose internal purchase cost/profit to staff unless permission allows it.
+
+--------------------------------
+PAYMENT COLLECTION
+--------------------------------
+
+Allow final payment:
+
+Cash
+UPI
+Card
+Bank Transfer
+Other
+
+Create a real financial transaction.
+
+Never overwrite previous payment records.
+
+--------------------------------
+CUSTOMER HANDOVER
+--------------------------------
+
+Create a large:
+
+"Hand Over to Customer"
+
+button.
+
+Before final confirmation show:
+
+CUSTOMER HANDOVER CHECKLIST
+
+- Device powered on
+- Display checked
+- Touch checked
+- Charging checked
+- Camera checked
+- Speaker checked
+- Network checked
+- Accessories returned
+- Customer inspected device
+- Customer accepted repair
+
+Customer confirmation:
+
+- Digital signature
+OR
+- OTP confirmation
+
+Then record:
+
+- Delivered By User ID
+- Delivered By Name
+- Delivered By Role
+- Date
+- Exact Time
+- Customer confirmation
+- Payment status
+
+Set:
+
+Repair Status = DELIVERED
+
+Lock important original repair and financial information from ordinary staff editing.
+
+If a change is required after delivery:
+
+Dealer/Owner approval is required.
+
+--------------------------------
+WARRANTY
+--------------------------------
+
+At delivery allow authorized Dealer to select:
+
+- No Warranty
+- 7 Days
+- 15 Days
+- 30 Days
+- 90 Days
+- 180 Days
+- Custom
+
+Automatically calculate:
+
+Warranty Start Date
+Warranty Expiry Date
+
+Store warranty information with the Repair ID.
+
+--------------------------------
+INVOICE
+--------------------------------
+
+Generate a professional PDF invoice.
+
+Include:
+
+VMC Electronic
+Shop details
+Customer
+Repair ID
+Device
+Work performed
+Parts
+Labour
+Discount
+Tax
+Total
+Payment
+Balance
+Warranty
+Date
+QR/Barcode
+
+Do not create fake PDFs. Generate real downloadable documents from actual database data.
+
+==================================================
+4. AFTER-SALES SERVICE TAB
+==================================================
+
+Purpose:
+
+This is ONLY for a device that has already been delivered and later returns.
+
+Never delete or overwrite the original Repair record.
+
+Search original Repair ID by:
+
+- Repair ID
+- Customer mobile
+- Customer name
+- IMEI
+- Serial number
+
+Show original history.
+
+--------------------------------
+CREATE AFTER-SALES CASE
+--------------------------------
+
+Generate:
+
+After-Sales Case ID
+
+Example:
+
+AS-VMC-REP-000001-01
+
+Link it permanently to the original Repair ID.
+
+--------------------------------
+RETURN DETAILS
+--------------------------------
+
+Record:
+
+- Original Repair ID
+- Original Delivery Date
+- Return Date
+- Days Since Delivery (automatic)
+- Customer
+- Device
+- Original repair
+- Original amount paid
+- Customer complaint
+- Return reason
+- Device condition
+- New photos
+- Received By User ID
+- Received By Name
+- Received By Role
+
+Return reasons:
+
+- Same problem returned
+- Repair failed
+- Phone stopped working
+- New problem
+- Warranty service
+- Customer complaint
+- Refund requested
+- Other
+
+--------------------------------
+AFTER-SALES STATUS
+--------------------------------
+
+Use:
+
+Returned
+Inspection
+Rework Required
+Warranty Service
+Waiting for Parts
+In Rework
+Testing
+Repaired
+Refund Requested
+Refund Approved
+Refund Paid
+No Fault Found
+Cannot Repair
+Customer Declined
+Closed
+
+--------------------------------
+INSPECTION
+--------------------------------
+
+Technician records:
+
+- Diagnosis
+- Same problem?
+- New problem?
+- Cause
+- Recommended solution
+- Parts required
+- Labour required
+- Additional cost
+
+--------------------------------
+REWORK
+--------------------------------
+
+If rework is approved:
+
+Use the existing Repair ID + new After-Sales Case ID.
+
+Do NOT create an unrelated repair.
+
+Record:
+
+- Technician
+- Work performed
+- Parts used
+- Parts cost
+- Labour
+- Additional expense
+- Customer charge
+- Warranty status
+- Completion date
+
+If parts are actually used:
+Automatically deduct them from inventory.
+
+--------------------------------
+REFUND
+--------------------------------
+
+If refund is required:
+
+Create a separate REFUND financial transaction.
+
+Never delete the original payment.
+
+Show:
+
+Original payment
+Refund requested
+Refund amount
+Reason
+Requested By
+Approved By
+Paid By
+Payment method
+Reference/transaction number
+Date/time
+
+Refund methods:
+
+Cash
+UPI
+Bank Transfer
+Card
+Other
+
+--------------------------------
+STAFF REFUND PERMISSION
+--------------------------------
+
+Staff can:
+
+- Receive returned phone
+- Create After-Sales case
+- Add complaint
+- Upload photos
+- Add diagnosis
+- Add rework details
+- Request refund
+
+Staff CANNOT:
+
+- Approve their own refund
+- Change original payment
+- Delete original repair
+- Delete financial history
+- Finalize refund
+- Change protected financial records
+
+When staff requests refund or financial adjustment:
+
+Show:
+
+"Dealer/Owner Approval Required"
+
+Create a pending approval request.
+
+--------------------------------
+DEALER APPROVAL
+--------------------------------
+
+Dealer/Owner dashboard should show:
+
+Pending After-Sales Approvals
+
+Each request:
+
+- Customer
+- Repair ID
+- After-Sales Case ID
+- Original amount
+- Requested refund
+- Reason
+- Staff name/ID
+- Date/time
+- Photos/documents
+
+Buttons:
+
+APPROVE
+REJECT
+
+If rejected:
+Require rejection reason.
+
+If approved:
+Record:
+
+Approved By
+Approved At
+Approved Amount
+
+Then refund can be marked as paid.
+
+Dealer/Owner does not require approval for their own actions.
+
+==================================================
+COMPLETE REPAIR TIMELINE
+==================================================
+
+Every Repair ID must have a timeline.
+
+Example:
+
+08 Aug 10:32
+DEVICE RECEIVED
+By Rahul
+Staff ID ST-014
+
+08 Aug 12:10
+DIAGNOSIS
+By Amit
+Technician ID TECH-008
+
+09 Aug 03:25
+REPAIR COMPLETED
+By Amit
+
+09 Aug 05:40
+CUSTOMER HANDOVER
+By Rahul
+
+17 Aug 11:15
+AFTER-SALES RETURN
+By Rahul
+
+17 Aug 01:20
+REWORK APPROVED
+By Dealer
+
+18 Aug 04:30
+REWORK COMPLETED
+By Amit
+
+Every event stores:
+
+- User ID
+- User name
+- Role
+- Date/time
+- Action
+- Related record ID
+
+==================================================
+CUSTOMER PROFILE
+==================================================
+
+Customer profile must show:
+
+- Total Repairs
+- Active Repairs
+- Delivered Repairs
+- After-Sales Cases
+- Refunds
+- Total Payments
+- Outstanding Balance
+- Warranty Cases
+
+Show chronological history.
+
+==================================================
+SEARCH & FILTER
+==================================================
+
+Global Repair Search:
+
+Repair ID
+Customer Name
+Mobile
+IMEI
+Serial Number
+Brand
+Model
+Technician
+Received By
+Status
+Payment Status
+Warranty
+Date Range
+
+Filters must work using REAL database queries.
+
+Use pagination for large datasets.
+
+==================================================
+BACKDATED ENTRY APPROVAL
+==================================================
+
+If STAFF tries to create or edit a record with a date earlier than today:
+
+DO NOT save immediately.
+
+Show:
+
+"Backdated Entry — Dealer Approval Required"
+
+Require:
+
+- Reason
+- Requested Date
+
+Create approval request.
+
+Dealer can:
+
+Approve
+Reject
+
+If approved:
+Store:
+
+Requested Date
+Actual Entry Date/Time
+Requested By
+Approved By
+Approved At
+
+Staff must never bypass this through the API.
+
+Dealer/Owner can create legitimate backdated entries without approval.
+
+Future dates should be blocked where logically invalid.
+
+==================================================
+ROLE & PERMISSIONS
+==================================================
+
+Use existing authentication.
+
+ONE LOGIN SCREEN ONLY.
+
+System automatically detects:
+
+Dealer/Owner
+Staff
+Technician
+
+Do not create separate registration/login systems.
+
+Public registration creates ONLY Dealer/Shop Owner accounts.
+
+Staff accounts are created by Dealer.
+
+Permissions:
+
+DEALER/OWNER:
+Full shop management.
+
+STAFF:
+Only assigned modules/actions.
+
+TECHNICIAN:
+Repair-related operations according to assigned permissions.
+
+Financial information and profit must be permission-controlled.
+
+Every permission must be checked on the server/backend.
+
+==================================================
+MULTI-SHOP DATA ISOLATION
+==================================================
+
+This is CRITICAL.
+
+VMC Electronic is a multi-shop application.
+
+Every record must belong to the correct:
+
+Shop ID / Dealer ID / Tenant ID
+
+Shop A must NEVER be able to see:
+
+Shop B customers
+Shop B repairs
+Shop B inventory
+Shop B payments
+Shop B staff
+Shop B reports
+
+Enforce tenant isolation at the backend/database query level.
+
+Never rely only on frontend filtering.
+
+==================================================
+AUDIT & SECURITY
+==================================================
+
+Never silently delete important records.
+
+For important updates store:
+
+- User ID
+- Name
+- Role
+- Shop ID
+- Date/time
+- IP/device where appropriate
+- Old value
+- New value
+- Reason
+- Approval information
+
+Financial records must be append-only or properly audited.
+
+==================================================
+REAL DATABASE / API REQUIREMENT
+==================================================
+
+Do not use:
+
+- Fake arrays
+- Hardcoded repairs
+- Fake customers
+- Demo payment records
+- Local-only business data
+- Mock API responses
+
+Use the existing real database and backend APIs.
+
+All create/update/delete/read operations must work through the real server.
+
+Handle:
+
+- Loading states
+- Validation
+- Error states
+- Empty states
+- Network errors
+- Duplicate submissions
+- Concurrent updates
+
+Prevent duplicate repair/payment/refund records.
+
+==================================================
+OFFLINE SUPPORT
+==================================================
+
+If the existing application supports offline mode:
+
+- Allow safe temporary intake storage.
+- Sync to server when connection returns.
+- Prevent duplicate Repair IDs.
+- Handle conflicts safely.
+
+Do not claim an operation was permanently saved until server synchronization succeeds.
+
+==================================================
+UI REQUIREMENTS
+==================================================
+
+Keep the existing VMC Electronic premium dashboard design.
+
+Repair page:
+
+Top navigation:
+
+[ Received ] [ Repair ] [ Delivered ] [ After-Sales Service ]
+
+Use premium cards, status badges, search, filters and clear action buttons.
+
+Mobile:
+Tabs can horizontally scroll.
+
+Desktop:
+Show all four tabs.
+
+Use smooth transitions but do not sacrifice performance.
+
+The UI must be usable by a real shop technician with minimal training.
+
+Buttons should have clear labels such as:
+
++ Receive Phone
+Assign Technician
+Start Diagnosis
+Add Part
+Request Approval
+Complete Repair
+Ready for Pickup
+Collect Payment
+Hand Over to Customer
+Create After-Sales Case
+Request Refund
+Approve Refund
+Reject Refund
+
+==================================================
+REAL-WORLD TESTING
+==================================================
+
+After implementation, test the complete workflow with a real database test record:
+
+1. Create Dealer
+2. Create Staff
+3. Staff receives phone
+4. Generate Repair ID
+5. Add customer
+6. Add device
+7. Upload photos
+8. Assign technician
+9. Add diagnosis
+10. Add part
+11. Confirm inventory deduction
+12. Complete repair
+13. Move to Delivered
+14. Collect payment
+15. Confirm customer handover
+16. Generate invoice
+17. Set warranty
+18. Return the same device after several days
+19. Create After-Sales Case
+20. Link it to original Repair ID
+21. Add rework
+22. Request refund
+23. Verify Dealer approval
+24. Approve refund
+25. Record refund transaction
+26. Verify original payment remains unchanged
+27. Verify complete timeline
+28. Verify audit log
+29. Verify Staff cannot bypass Dealer approval
+30. Verify another shop cannot access any of this shop's data.
+
+Fix all errors found during testing.
+
+IMPORTANT FINAL REQUIREMENT:
+
+Do not just create the UI.
+
+Actually implement the database schema, backend APIs, validation, permissions, business logic, inventory integration, payment transactions, approval workflow, audit trail and frontend.
+
+When finished, verify that the entire workflow works end-to-end using real persisted data.
+
+Do not mark the task complete if any button only looks functional but does not perform the actual server/database operation.
