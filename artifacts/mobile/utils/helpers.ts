@@ -57,8 +57,15 @@ export const PRIORITY_LABELS: Record<string, string> = { low: 'Low', normal: 'No
 
 export const REPAIR_STATUSES = ['received', 'diagnosing', 'waiting_parts', 'repairing', 'testing', 'customer_approval', 'cannot_repair', 'ready', 'delivered', 'cancelled'];
 export const REPAIR_STATUS_LABELS: Record<string, string> = {
-  received: 'Received', diagnosing: 'Diagnosing', waiting_parts: 'Waiting Parts',
-  repairing: 'Repairing', testing: 'Testing', ready: 'Ready for Pickup',
+  received: 'Received', diagnosing: 'Diagnosing', waiting_parts: 'Waiting for Parts',
+  repairing: 'In Repair', testing: 'Testing', ready: 'Repair Completed (Ready)',
   delivered: 'Delivered', cancelled: 'Cancelled',
   cannot_repair: 'Cannot Repair', customer_approval: 'Customer Approval Required'
 };
+
+export function getReturnStatusColor(status: string, colors: any) {
+  if (['repaired', 'closed', 'refund_paid'].includes(status)) return colors.success;
+  if (['returned', 'inspection'].includes(status)) return colors.info;
+  if (['no_fault_found', 'cannot_repair', 'customer_declined', 'refund_approved'].includes(status)) return colors.destructive;
+  return colors.warning;
+}

@@ -21,7 +21,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { Repair } from '@/types';
-import { formatDate, formatCurrency } from '@/utils/helpers';
+import { formatDate, formatCurrency, getReturnStatusColor } from '@/utils/helpers';
 
 import { useReturnsList } from '@workspace/api-client-react';
 
@@ -142,7 +142,8 @@ export default function RepairsScreen() {
         r.repairId.toLowerCase().includes(q) ||
         r.brand.toLowerCase().includes(q) ||
         r.model.toLowerCase().includes(q) ||
-        r.mobile.includes(q)
+        r.mobile.includes(q) ||
+        r.imei?.toLowerCase().includes(q)
       );
     }
     return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -161,7 +162,8 @@ export default function RepairsScreen() {
         r.repairTicket?.toLowerCase().includes(q) ||
         r.brand?.toLowerCase().includes(q) ||
         r.model?.toLowerCase().includes(q) ||
-        r.mobile?.includes(q)
+        r.mobile?.includes(q) ||
+        r.imei?.toLowerCase().includes(q)
       );
     }
     return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -281,8 +283,8 @@ export default function RepairsScreen() {
                   <View style={[styles.repairIdBadge, { backgroundColor: colors.warning + '15' }]}>
                     <Text style={[styles.repairId, { color: colors.warning, fontFamily: 'Inter_700Bold' }]}>{item.returnId}</Text>
                   </View>
-                  <View style={[{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: item.status === 'closed' ? colors.success + '15' : colors.warning + '15' }]}>
-                    <Text style={{ fontSize: 11, color: item.status === 'closed' ? colors.success : colors.warning, fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }}>
+                  <View style={[{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: getReturnStatusColor(item.status, colors) + '15' }]}>
+                    <Text style={{ fontSize: 11, color: getReturnStatusColor(item.status, colors), fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }}>
                       {item.status.replace(/_/g, ' ')}
                     </Text>
                   </View>

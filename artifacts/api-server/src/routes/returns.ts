@@ -31,26 +31,42 @@ type AuthedRequest = Request & { user: DbUser };
 
 const DEALER_ROLES = ["dealer", "super_admin"];
 const RETURN_STATUSES = [
-  "return_received",
+  "returned",
   "inspection",
-  "rework_approved",
-  "in_repair",
-  "ready",
-  "delivered",
+  "rework_required",
+  "warranty_service",
+  "waiting_for_parts",
+  "repaired",
+  "refund_requested",
+  "refund_approved",
+  "refund_paid",
+  "no_fault_found",
+  "cannot_repair",
+  "customer_declined",
   "closed",
 ] as const;
 // Explicit state machine — a target status is only reachable from the listed
 // current states. Dealer-only transitions are additionally gated by role.
+// refund_* statuses are NOT reachable via PATCH — they are set exclusively by
+// the refund endpoints (request/approve/mark-paid) so the case status always
+// mirrors the real refund transaction.
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  inspection: ["return_received"],
-  rework_approved: ["inspection"], // dealer only
-  in_repair: ["rework_approved"],
-  ready: ["in_repair"],
-  delivered: ["ready"],
-  closed: ["return_received", "inspection", "rework_approved", "in_repair", "ready", "delivered"], // dealer only
+  inspection: ["returned"],
+  rework_required: ["inspection", "warranty_service", "waiting_for_parts"], // dealer only
+  warranty_service: ["inspection", "rework_required", "waiting_for_parts"],
+  waiting_for_parts: ["rework_required", "warranty_service"],
+  repaired: ["rework_required", "warranty_service", "waiting_for_parts"],
+  no_fault_found: ["inspection"],
+  cannot_repair: ["inspection", "rework_required", "warranty_service", "waiting_for_parts"],
+  customer_declined: ["inspection", "rework_required", "warranty_service", "waiting_for_parts", "cannot_repair"],
+  closed: RETURN_STATUSES.filter((s) => s !== "closed"),
 };
+// Statuses set only through the refund flow, never via a direct PATCH.
+const REFUND_FLOW_STATUSES = ["refund_requested", "refund_approved", "refund_paid"];
 // Transitions only the dealer/owner may perform.
-const DEALER_ONLY_STATUSES = ["rework_approved", "closed"];
+const DEALER_ONLY_STATUSES = ["rework_required", "closed"];
+// Terminal outcomes that stamp a completion time.
+const COMPLETING_STATUSES = ["repaired", "no_fault_found", "cannot_repair", "customer_declined", "refund_paid", "closed"];
 const RETURN_REASONS = [
   "same_problem",
   "stopped_working",
@@ -110,6 +126,13 @@ function returnOut(r: DbRepairReturn, repair?: DbRepair | null) {
     deviceType: repair?.deviceType ?? undefined,
     brand: repair?.brand ?? undefined,
     model: repair?.model ?? undefined,
+    imei: repair?.imei ?? undefined,
+    // Original repair history (read-only reference — the original record is
+    // never duplicated or edited by the after-sales case).
+    originalProblem: repair?.problem ?? undefined,
+    originalReceiveDate: repair?.receiveDate ?? undefined,
+    originalDeliveryDate: repair?.deliveryDate ?? undefined,
+    originalAmount: repair ? Math.max(repair.repairCharge + repair.partsCharge, 0) : undefined,
     status: r.status,
     returnDate: r.returnDate,
     daysAfterDelivery: r.daysAfterDelivery ?? undefined,
@@ -227,7 +250,7 @@ router.post(
     const created = await db.transaction(async (tx) => {
       // Lock the repair row to serialize concurrent return openings for the
       // same repair — combined with the unique (shop_id, return_id) index
-      // this prevents duplicate RET-…-NN ids.
+      // this prevents duplicate AS-…-NN ids.
       await tx
         .select({ id: repairsTable.id })
         .from(repairsTable)
@@ -241,10 +264,10 @@ router.post(
         .insert(repairReturnsTable)
         .values({
           shopId,
-          returnId: `RET-${repair.repairId}-${String(count + 1).padStart(2, "0")}`,
+          returnId: `AS-${repair.repairId}-${String(count + 1).padStart(2, "0")}`,
           repairId: repair.id,
           customerId: repair.customerId,
-          status: "return_received",
+          status: "returned",
           returnDate,
           daysAfterDelivery,
           reason,
@@ -363,13 +386,18 @@ router.patch(
         return;
       }
       if (status !== ret.status) {
+        // Refund statuses are managed by the refund endpoints only.
+        if (REFUND_FLOW_STATUSES.includes(status)) {
+          res.status(400).json({ message: "Refund statuses are set through the refund request/approval flow." });
+          return;
+        }
         // Reopening a closed case and dealer-only targets require dealer.
         if ((DEALER_ONLY_STATUSES.includes(status) || reopening) && !isDealer(req)) {
           res.status(403).json({ message: "Dealer/Owner approval required." });
           return;
         }
         // Enforce the state machine — no skipping steps (e.g. staff jumping
-        // from return_received straight to in_repair past rework approval).
+        // from returned straight to repaired past inspection/rework approval).
         if (!reopening && !(ALLOWED_TRANSITIONS[status] ?? []).includes(ret.status)) {
           res.status(400).json({
             message: `Cannot move from '${ret.status.replace(/_/g, " ")}' to '${status.replace(/_/g, " ")}'.`,
@@ -377,7 +405,7 @@ router.patch(
           return;
         }
         patch.status = status;
-        if (status === "delivered" || status === "closed") patch.completedAt = new Date();
+        if (COMPLETING_STATUSES.includes(status)) patch.completedAt = new Date();
         events.push({
           action: reopening ? "return_reopened" : "return_status_changed",
           details: { returnId: ret.returnId, from: ret.status, to: status },
@@ -415,17 +443,36 @@ router.patch(
       return;
     }
 
+    // All checks above ran against an unlocked read — re-verify under a row
+    // lock and only write if the status hasn't moved since (CAS). This
+    // serializes PATCH with concurrent close/refund/parts operations so a
+    // stale transition can never overwrite a newer state (e.g. a close
+    // clobbering refund_requested, or edits landing on a just-closed case).
     const updated = await db.transaction(async (tx) => {
       const [row] = await tx
         .update(repairReturnsTable)
         .set(patch)
-        .where(and(eq(repairReturnsTable.id, ret.id), eq(repairReturnsTable.shopId, shopId)))
+        .where(
+          and(
+            eq(repairReturnsTable.id, ret.id),
+            eq(repairReturnsTable.shopId, shopId),
+            eq(repairReturnsTable.status, ret.status),
+          ),
+        )
         .returning();
+      if (!row) throw new Error("STATUS_MOVED");
       for (const ev of events) {
         await logEvent(tx, { shopId, repairId: ret.repairId, user: me, action: ev.action, details: ev.details });
       }
       return row;
+    }).catch((err) => {
+      if (err instanceof Error && err.message === "STATUS_MOVED") return null;
+      throw err;
     });
+    if (!updated) {
+      res.status(409).json({ message: "This case was just updated by someone else — please refresh and retry." });
+      return;
+    }
     res.json({ return: returnOut(updated, repair) });
   }),
 );
@@ -616,6 +663,12 @@ router.post(
           ...(dealer ? { approvedById: me.id, approvedByName: me.name, approvedAt: new Date() } : {}),
         })
         .returning();
+      // Mirror the refund transaction onto the case status (spec statuses
+      // refund_requested / refund_approved are transaction-driven only).
+      await tx
+        .update(repairReturnsTable)
+        .set({ status: dealer ? "refund_approved" : "refund_requested" })
+        .where(and(eq(repairReturnsTable.id, ret.id), eq(repairReturnsTable.shopId, shopId)));
       await logEvent(tx, {
         shopId,
         repairId: ret.repairId,
@@ -738,6 +791,18 @@ router.post(
           originalPaid: Math.max(claimed.originalPaid - committedOther, 0),
         });
       }
+      if (claimed.returnId) {
+        await tx
+          .update(repairReturnsTable)
+          .set({ status: "refund_approved" })
+          .where(
+            and(
+              eq(repairReturnsTable.id, claimed.returnId),
+              eq(repairReturnsTable.shopId, shopId),
+              eq(repairReturnsTable.status, "refund_requested"),
+            ),
+          );
+      }
       await logEvent(tx, {
         shopId,
         repairId: claimed.repairId,
@@ -782,6 +847,20 @@ router.post(
         rejectionReason: reason,
       });
       if ("error" in claimed) return claimed;
+      if (claimed.returnId) {
+        // A rejected request drops the case back to inspection so work can
+        // continue (only if the case was sitting in refund_requested).
+        await tx
+          .update(repairReturnsTable)
+          .set({ status: "inspection" })
+          .where(
+            and(
+              eq(repairReturnsTable.id, claimed.returnId),
+              eq(repairReturnsTable.shopId, shopId),
+              eq(repairReturnsTable.status, "refund_requested"),
+            ),
+          );
+      }
       await logEvent(tx, {
         shopId,
         repairId: claimed.repairId,
@@ -832,6 +911,18 @@ router.post(
         paymentMethod: claimed.method,
         date: todayStr(),
       });
+      if (claimed.returnId) {
+        await tx
+          .update(repairReturnsTable)
+          .set({ status: "refund_paid", completedAt: new Date() })
+          .where(
+            and(
+              eq(repairReturnsTable.id, claimed.returnId),
+              eq(repairReturnsTable.shopId, shopId),
+              eq(repairReturnsTable.status, "refund_approved"),
+            ),
+          );
+      }
       await logEvent(tx, {
         shopId,
         repairId: claimed.repairId,

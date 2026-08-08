@@ -18,6 +18,11 @@ export interface RepairReturn {
   deviceType?: string;
   brand?: string;
   model?: string;
+  imei?: string;
+  originalProblem?: string;
+  originalReceiveDate?: string;
+  originalDeliveryDate?: string;
+  originalAmount?: number;
   status: RepairReturnStatus;
   returnDate: string;
   daysAfterDelivery?: number;

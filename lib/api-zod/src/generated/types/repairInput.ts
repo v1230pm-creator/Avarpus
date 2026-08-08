@@ -18,6 +18,9 @@ export interface RepairInput {
   alternateMobile?: string;
   accessories?: string;
   problem?: string;
+  deviceCondition?: string;
+  diagnosis?: string;
+  workPerformed?: string;
   technicianId?: string;
   technicianName?: string;
   status?: string;

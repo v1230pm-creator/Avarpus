@@ -195,7 +195,7 @@ const PipelineCard = ({ animValue }: any) => {
   const stages = [
     { label: 'Received', key: 'received', color: colors.statusReceived, count: counts.received },
     { label: 'In Repair', key: 'inRepair', color: colors.statusDiagnosing, count: counts.inRepair },
-    { label: 'Ready', key: 'ready', color: colors.statusReady, count: counts.ready },
+    { label: 'Ready for Delivery', key: 'ready', color: colors.statusReady, count: counts.ready },
   ];
 
   return (
@@ -504,8 +504,8 @@ export default function DashboardScreen() {
     const refundsList = refundsData?.refunds || [];
     
     const todayReturns = returnsList.filter(r => r.createdAt.startsWith(today));
-    const openReturns = returnsList.filter(r => !['closed', 'delivered'].includes(r.status));
-    const pendingRefunds = refundsList.filter(rf => rf.status === 'pending_approval');
+    const openReturns = returnsList.filter(r => r.status !== 'closed');
+    const pendingRefunds = refundsData?.pendingCount || 0;
     const refundsPaid = refundsList.filter(rf => rf.status === 'paid').reduce((acc, rf) => acc + rf.amount, 0);
 
     const pending = repairs.filter(r => !['delivered', 'cancelled'].includes(r.status));
@@ -540,7 +540,7 @@ export default function DashboardScreen() {
       pendingPayments,
       todayReturns: todayReturns.length,
       openReturns: openReturns.length,
-      pendingRefunds: pendingRefunds.length,
+      pendingRefunds: pendingRefunds,
       refundsPaid
     };
   }, [repairs, customers, inventory, finance, today, returnsData, refundsData]);
@@ -666,11 +666,11 @@ export default function DashboardScreen() {
               <>
                 <StatBox title="Received" value={repairs.filter(r => r.status === 'received').length} icon="inbox" color={colors.statusReceived} animValue={cardAnims[3]} />
                 <StatBox title="In Repair" value={repairs.filter(r => ['diagnosing', 'waiting_parts', 'repairing', 'testing', 'cannot_repair', 'customer_approval'].includes(r.status)).length} icon="tool" color={colors.statusDiagnosing} animValue={cardAnims[4]} />
-                <StatBox title="Ready" value={repairs.filter(r => r.status === 'ready').length} icon="check-circle" color={colors.statusReady} animValue={cardAnims[5]} />
+                <StatBox title="Ready for Delivery" value={repairs.filter(r => r.status === 'ready').length} icon="check-circle" color={colors.statusReady} animValue={cardAnims[5]} />
                 <StatBox title="Delivered" value={repairs.filter(r => r.status === 'delivered').length} icon="package" color={colors.statusDelivered} animValue={cardAnims[6]} />
                 <StatBox title="After-Sales Cases" value={stats.openReturns} icon="corner-up-left" color={colors.warning} animValue={cardAnims[7]} />
                 {(user?.role === 'dealer' || user?.role === 'super_admin') && (
-                  <StatBox title="Refund Approvals" value={stats.pendingRefunds} icon="dollar-sign" color={colors.destructive} animValue={cardAnims[8]} />
+                  <StatBox title="Pending Refund Approvals" value={stats.pendingRefunds} icon="dollar-sign" color={colors.destructive} animValue={cardAnims[8]} />
                 )}
               </>
             )}

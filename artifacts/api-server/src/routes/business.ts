@@ -263,6 +263,9 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
     alternateMobile: r.alternateMobile ?? undefined,
     accessories: r.accessories ?? undefined,
     problem: r.problem,
+    deviceCondition: r.deviceCondition ?? undefined,
+    diagnosis: r.diagnosis ?? undefined,
+    workPerformed: r.workPerformed ?? undefined,
     technicianId: r.technicianId ?? undefined,
     technicianName: r.technicianName ?? undefined,
     status: r.status,
@@ -284,6 +287,8 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
     deliveredById: r.deliveredById ?? undefined,
     deliveredByName: r.deliveredByName ?? undefined,
     paymentMethod: r.paymentMethod ?? undefined,
+    repairStartedAt: r.repairStartedAt ? iso(r.repairStartedAt) : undefined,
+    repairCompletedAt: r.repairCompletedAt ? iso(r.repairCompletedAt) : undefined,
     isSample: r.isSample,
     createdAt: iso(r.createdAt),
   };
@@ -322,6 +327,15 @@ router.post(
       return;
     }
     const status = REPAIR_STATUSES.includes(b.status) ? b.status : "received";
+    // Creating a repair directly as "delivered" gets the same server-side
+    // stamping as the PATCH handover — no client-controlled delivery facts.
+    const creatorIsDealer = ["dealer", "super_admin"].includes((req as AuthedRequest).user.role);
+    const createDeliveredOn =
+      status === "delivered"
+        ? creatorIsDealer && str(b.deliveryDate)
+          ? (str(b.deliveryDate) as string)
+          : new Date().toISOString().split("T")[0]
+        : null;
     const priority = REPAIR_PRIORITIES.includes(b.priority) ? b.priority : "normal";
     if (backdateBlocked(req, res, str(b.receiveDate))) return;
 
@@ -360,6 +374,7 @@ router.post(
           alternateMobile: str(b.alternateMobile),
           accessories: str(b.accessories),
           problem,
+          deviceCondition: str(b.deviceCondition),
           technicianId: str(b.technicianId),
           technicianName: str(b.technicianName),
           status,
@@ -369,7 +384,7 @@ router.post(
           advance: num(b.advance),
           receiveDate: str(b.receiveDate) ?? new Date().toISOString().split("T")[0],
           expectedDate: str(b.expectedDate) ?? new Date().toISOString().split("T")[0],
-          deliveryDate: str(b.deliveryDate),
+          deliveryDate: createDeliveredOn ?? str(b.deliveryDate),
           notes: str(b.notes),
           checklist: checklistOrNull(b.checklist),
           receivingSignaturePath: ownedObjectPath(shopId, b.receivingSignaturePath),
@@ -378,6 +393,12 @@ router.post(
           // for the intake step, not client-supplied.
           receivedById: (req as AuthedRequest).user.id,
           receivedByName: (req as AuthedRequest).user.name,
+          ...(createDeliveredOn
+            ? {
+                deliveredById: (req as AuthedRequest).user.id,
+                deliveredByName: (req as AuthedRequest).user.name,
+              }
+            : {}),
         })
         .returning();
       await logRepairEvent(tx, {
@@ -426,6 +447,9 @@ router.patch(
     if (b.accessories !== undefined) patch.accessories = str(b.accessories);
     if (b.paymentMethod !== undefined) patch.paymentMethod = str(b.paymentMethod);
     if (b.problem !== undefined) patch.problem = str(b.problem) ?? undefined;
+    if (b.deviceCondition !== undefined) patch.deviceCondition = str(b.deviceCondition);
+    if (b.diagnosis !== undefined) patch.diagnosis = str(b.diagnosis);
+    if (b.workPerformed !== undefined) patch.workPerformed = str(b.workPerformed);
     if (b.technicianId !== undefined) patch.technicianId = str(b.technicianId);
     if (b.technicianName !== undefined) patch.technicianName = str(b.technicianName);
     if (b.repairCharge !== undefined) patch.repairCharge = num(b.repairCharge);
@@ -498,14 +522,38 @@ router.patch(
       patch.deliveredById = meUser.id;
       patch.deliveredByName = meUser.name;
     }
-    // Warranty expiry is computed when the repair is delivered.
+    // Stamp repair start/completion times server-side on status transitions.
+    const WORK_STATUSES = ["diagnosing", "waiting_parts", "repairing", "testing"];
+    if (
+      patch.status !== undefined &&
+      patch.status !== existing.status &&
+      WORK_STATUSES.includes(patch.status) &&
+      !existing.repairStartedAt
+    ) {
+      patch.repairStartedAt = new Date();
+    }
+    if (
+      patch.status !== undefined &&
+      patch.status !== existing.status &&
+      ["ready", "delivered"].includes(patch.status) &&
+      !existing.repairCompletedAt
+    ) {
+      patch.repairCompletedAt = new Date();
+    }
+    // Delivery date is always stamped on handover (warranty or not) — the
+    // after-sales "days since delivery" calculation depends on it. Staff
+    // cannot supply/backdate it; only the dealer/owner may set an explicit
+    // date (their authority), otherwise the server clock wins.
     const effectiveWarrantyDays = patch.warrantyDays ?? existing.warrantyDays;
-    if (patch.status === "delivered" && effectiveWarrantyDays > 0) {
-      const deliveredOn = patch.deliveryDate ?? existing.deliveryDate ?? new Date().toISOString().split("T")[0];
-      const expiry = new Date(`${deliveredOn}T00:00:00Z`);
-      expiry.setUTCDate(expiry.getUTCDate() + effectiveWarrantyDays);
-      patch.warrantyExpiry = expiry.toISOString().split("T")[0];
-      if (patch.deliveryDate === undefined && !existing.deliveryDate) patch.deliveryDate = deliveredOn;
+    if (patch.status === "delivered" && existing.status !== "delivered") {
+      const deliveredOn =
+        dealerRole && patch.deliveryDate ? patch.deliveryDate : new Date().toISOString().split("T")[0];
+      patch.deliveryDate = deliveredOn;
+      if (effectiveWarrantyDays > 0) {
+        const expiry = new Date(`${deliveredOn}T00:00:00Z`);
+        expiry.setUTCDate(expiry.getUTCDate() + effectiveWarrantyDays);
+        patch.warrantyExpiry = expiry.toISOString().split("T")[0];
+      }
     }
     let updated: typeof repairsTable.$inferSelect;
     try {

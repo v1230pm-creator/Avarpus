@@ -50,6 +50,9 @@ export const repairsTable = pgTable("repairs", {
   alternateMobile: text("alternate_mobile"),
   accessories: text("accessories"), // accessories received with the device
   problem: text("problem").notNull(),
+  deviceCondition: text("device_condition"), // physical condition noted at intake
+  diagnosis: text("diagnosis"), // technician's diagnosis during repair
+  workPerformed: text("work_performed"), // summary of the actual repair work
   technicianId: uuid("technician_id"),
   technicianName: text("technician_name"),
   status: text("status").notNull().default("received"),
@@ -73,6 +76,9 @@ export const repairsTable = pgTable("repairs", {
   deliveredById: uuid("delivered_by_id"),
   deliveredByName: text("delivered_by_name"),
   paymentMethod: text("payment_method"), // recorded at handover (Cash/UPI/…)
+  // Stamped server-side on status transitions (start of work / completion)
+  repairStartedAt: timestamp("repair_started_at", { withTimezone: true }),
+  repairCompletedAt: timestamp("repair_completed_at", { withTimezone: true }),
   isSample: boolean("is_sample").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -219,7 +225,7 @@ export const repairReturnsTable = pgTable("repair_returns", {
   }),
   // Lifecycle: return_received → inspection → rework_approved → in_repair →
   // ready → delivered → closed (dealer can close from any state)
-  status: text("status").notNull().default("return_received"),
+  status: text("status").notNull().default("returned"),
   returnDate: text("return_date").notNull(), // ISO date (yyyy-mm-dd)
   daysAfterDelivery: integer("days_after_delivery"),
   reason: text("reason").notNull(), // same_problem|stopped_working|repair_failed|new_problem|complaint|warranty_rework|refund_requested|other

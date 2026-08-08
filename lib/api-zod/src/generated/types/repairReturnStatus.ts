@@ -10,11 +10,17 @@ export type RepairReturnStatus = typeof RepairReturnStatus[keyof typeof RepairRe
 
 
 export const RepairReturnStatus = {
-  return_received: 'return_received',
+  returned: 'returned',
   inspection: 'inspection',
-  rework_approved: 'rework_approved',
-  in_repair: 'in_repair',
-  ready: 'ready',
-  delivered: 'delivered',
+  rework_required: 'rework_required',
+  warranty_service: 'warranty_service',
+  waiting_for_parts: 'waiting_for_parts',
+  repaired: 'repaired',
+  refund_requested: 'refund_requested',
+  refund_approved: 'refund_approved',
+  refund_paid: 'refund_paid',
+  no_fault_found: 'no_fault_found',
+  cannot_repair: 'cannot_repair',
+  customer_declined: 'customer_declined',
   closed: 'closed',
 } as const;

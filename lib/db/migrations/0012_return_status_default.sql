@@ -1,0 +1,1 @@
+ALTER TABLE "repair_returns" ALTER COLUMN "status" SET DEFAULT 'returned';

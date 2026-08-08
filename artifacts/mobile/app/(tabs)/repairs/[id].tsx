@@ -30,7 +30,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { RepairStatus } from '@/types';
-import { formatDate, formatCurrency, REPAIR_STATUS_LABELS, REPAIR_STATUSES } from '@/utils/helpers';
+import { formatDate, formatCurrency, REPAIR_STATUS_LABELS, REPAIR_STATUSES, getReturnStatusColor } from '@/utils/helpers';
 import { storage, KEYS } from '@/utils/storage';
 import { 
   useRepairPhotosList, getRepairPhotosListQueryKey, 
@@ -105,6 +105,12 @@ export default function RepairDetailScreen() {
   const [editRepairCharge, setEditRepairCharge] = useState('');
   const [editAdvance, setEditAdvance] = useState('');
   
+  // Service Edits
+  const [showServiceEdit, setShowServiceEdit] = useState(false);
+  const [editProblem, setEditProblem] = useState('');
+  const [editDiagnosis, setEditDiagnosis] = useState('');
+  const [editWorkPerformed, setEditWorkPerformed] = useState('');
+
   const qrRef = useRef<any>(null);
 
   useEffect(() => {
@@ -294,6 +300,25 @@ export default function RepairDetailScreen() {
     }
   };
 
+  const handleSaveService = async () => {
+    setUpdating(true);
+    try {
+      await updateRepair({
+        ...repair,
+        problem: editProblem,
+        diagnosis: editDiagnosis,
+        workPerformed: editWorkPerformed
+      });
+      setShowServiceEdit(false);
+      await loadAll();
+      queryClient.invalidateQueries();
+    } catch (e: any) {
+       Alert.alert('Error', e.message);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const generatePDF = async () => {
     try {
       let qrBase64 = '';
@@ -424,8 +449,8 @@ export default function RepairDetailScreen() {
                     <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{ret.returnId}</Text>
                     <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 2 }}>{formatDate(ret.createdAt)}</Text>
                   </View>
-                  <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.warning + '22' }}>
-                    <Text style={{ fontSize: 11, color: colors.warning, fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }}>
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: getReturnStatusColor(ret.status, colors) + '22' }}>
+                    <Text style={{ fontSize: 11, color: getReturnStatusColor(ret.status, colors), fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }}>
                       {ret.status.replace(/_/g, ' ')}
                     </Text>
                   </View>
@@ -447,6 +472,16 @@ export default function RepairDetailScreen() {
               Expected: {formatDate(repair.expectedDate)}
             </Text>
           </View>
+          {(repair.repairStartedAt || repair.repairCompletedAt) && (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+              {repair.repairStartedAt && (
+                <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Started: {new Date(repair.repairStartedAt).toLocaleDateString()}</Text>
+              )}
+              {repair.repairCompletedAt && (
+                <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Completed: {new Date(repair.repairCompletedAt).toLocaleDateString()}</Text>
+              )}
+            </View>
+          )}
         </Card>
         </FadeInView>
 
@@ -458,19 +493,23 @@ export default function RepairDetailScreen() {
           {repair.imei && <InfoRow label="IMEI" value={repair.imei} />}
           <InfoRow label="Alternate Mobile" value={repair.alternateMobile || 'N/A'} />
           <InfoRow label="Accessories" value={repair.accessories || 'None'} />
+          {repair.deviceCondition && <InfoRow label="Device Condition" value={repair.deviceCondition} />}
           <InfoRow label="Received By" value={repair.receivedByName || 'System'} />
           {repair.status === 'delivered' && (
             <>
               <InfoRow label="Delivered By" value={repair.deliveredByName || 'N/A'} />
               <InfoRow label="Payment Method" value={repair.paymentMethod || 'N/A'} />
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Payment Status</Text>
+                <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, backgroundColor: (repair.repairCharge + repair.partsCharge - repair.advance) <= 0 ? colors.success + '22' : repair.advance > 0 ? colors.warning + '22' : colors.destructive + '22' }}>
+                  <Text style={{ fontSize: 10, color: (repair.repairCharge + repair.partsCharge - repair.advance) <= 0 ? colors.success : repair.advance > 0 ? colors.warning : colors.destructive, fontWeight: 'bold' }}>
+                    {(repair.repairCharge + repair.partsCharge - repair.advance) <= 0 ? 'PAID' : repair.advance > 0 ? 'PARTIAL' : 'PENDING'}
+                  </Text>
+                </View>
+              </View>
             </>
           )}
 
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          
-          <Text style={[styles.problemTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Problem</Text>
-          <Text style={[styles.problemText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{repair.problem}</Text>
-          
           {repair.checklist && Object.keys(repair.checklist).length > 0 && (
             <>
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -487,6 +526,37 @@ export default function RepairDetailScreen() {
               </View>
             </>
           )}
+        </Card>
+        </FadeInView>
+
+        {/* Service Details */}
+        <FadeInView animValue={anims[4]}>
+        <Card>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>SERVICE DETAILS</Text>
+            {repair.status !== 'delivered' && repair.status !== 'cancelled' && (
+              <TouchableOpacity onPress={() => {
+                setEditProblem(repair.problem || '');
+                setEditDiagnosis(repair.diagnosis || '');
+                setEditWorkPerformed(repair.workPerformed || '');
+                setShowServiceEdit(true);
+              }}>
+                <Feather name="edit-2" size={16} color={colors.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <Text style={[styles.problemTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginTop: 10 }]}>Problem Reported</Text>
+          <Text style={[styles.problemText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{repair.problem}</Text>
+          
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <Text style={[styles.problemTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Diagnosis</Text>
+          <Text style={[styles.problemText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{repair.diagnosis || 'Pending'}</Text>
+          
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <Text style={[styles.problemTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Work Performed</Text>
+          <Text style={[styles.problemText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{repair.workPerformed || 'Pending'}</Text>
+
         </Card>
         </FadeInView>
 
@@ -555,7 +625,7 @@ export default function RepairDetailScreen() {
                 <Feather name="edit-2" size={16} color={colors.primary} />
               </TouchableOpacity>
             </View>
-            <InfoRow label="Repair Charge" value={formatCurrency(repair.repairCharge)} />
+            <InfoRow label="Labour / Repair Charge" value={formatCurrency(repair.repairCharge)} />
             <InfoRow label="Parts Charge" value={formatCurrency(repair.partsCharge)} />
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <InfoRow label="Total Charge" value={formatCurrency(repair.repairCharge + repair.partsCharge)} bold />
@@ -663,10 +733,16 @@ export default function RepairDetailScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground, marginBottom: 4 }]}>Delivery Handover</Text>
+            
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.primary + '11', padding: 12, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: colors.primary + '22' }}>
+              <Feather name="check-circle" size={16} color={colors.primary} />
+              <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_600SemiBold', flex: 1 }}>Verify device fully working before handover</Text>
+            </View>
+
             <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 16 }}>Review final amounts and collect payment before signature.</Text>
             
             <View style={{ backgroundColor: colors.card, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 16 }}>
-              <InfoRow label="Repair Charge" value={formatCurrency(repair.repairCharge)} />
+              <InfoRow label="Labour / Repair Charge" value={formatCurrency(repair.repairCharge)} />
               <InfoRow label="Parts Charge" value={formatCurrency(repair.partsCharge)} />
               <View style={styles.divider} />
               <InfoRow label="Total" value={formatCurrency(repair.repairCharge + repair.partsCharge)} />
@@ -756,10 +832,10 @@ export default function RepairDetailScreen() {
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Financials</Text>
             <Text style={{ fontSize: 12, color: colors.mutedForeground, marginBottom: 12 }}>
-              Only repair charge and advance can be manually adjusted. Parts charge is computed automatically.
+              Only repair/labour charge and advance can be manually adjusted. Parts charge is computed automatically.
             </Text>
 
-            <Text style={[styles.label, { color: colors.foreground }]}>Repair Charge</Text>
+            <Text style={[styles.label, { color: colors.foreground }]}>Labour / Repair Charge</Text>
             <TextInput value={editRepairCharge} onChangeText={setEditRepairCharge} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
             
             <Text style={[styles.label, { color: colors.foreground }]}>Advance Paid</Text>
@@ -768,6 +844,29 @@ export default function RepairDetailScreen() {
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
               <Button title="Cancel" variant="outline" onPress={() => setShowFinancialEdit(false)} style={{ flex: 1 }} />
               <Button title="Save" onPress={handleSaveFinancials} loading={updating} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Service Edit Modal */}
+      <Modal visible={showServiceEdit} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Service Details</Text>
+
+            <Text style={[styles.label, { color: colors.foreground }]}>Problem Reported</Text>
+            <TextInput value={editProblem} onChangeText={setEditProblem} multiline numberOfLines={3} style={[styles.input, { color: colors.foreground, borderColor: colors.border, height: 80, textAlignVertical: 'top' }]} />
+            
+            <Text style={[styles.label, { color: colors.foreground }]}>Diagnosis</Text>
+            <TextInput value={editDiagnosis} onChangeText={setEditDiagnosis} multiline numberOfLines={3} style={[styles.input, { color: colors.foreground, borderColor: colors.border, height: 80, textAlignVertical: 'top' }]} />
+            
+            <Text style={[styles.label, { color: colors.foreground }]}>Work Performed</Text>
+            <TextInput value={editWorkPerformed} onChangeText={setEditWorkPerformed} multiline numberOfLines={3} style={[styles.input, { color: colors.foreground, borderColor: colors.border, height: 80, textAlignVertical: 'top' }]} />
+
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <Button title="Cancel" variant="outline" onPress={() => setShowServiceEdit(false)} style={{ flex: 1 }} />
+              <Button title="Save" onPress={handleSaveService} loading={updating} style={{ flex: 1 }} />
             </View>
           </View>
         </View>

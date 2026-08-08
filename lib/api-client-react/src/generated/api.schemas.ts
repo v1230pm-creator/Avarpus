@@ -163,6 +163,9 @@ export interface Repair {
   alternateMobile?: string;
   accessories?: string;
   problem: string;
+  deviceCondition?: string;
+  diagnosis?: string;
+  workPerformed?: string;
   technicianId?: string;
   technicianName?: string;
   status: string;
@@ -184,6 +187,8 @@ export interface Repair {
   deliveredById?: string;
   deliveredByName?: string;
   paymentMethod?: string;
+  repairStartedAt?: string;
+  repairCompletedAt?: string;
   isSample: boolean;
   createdAt: string;
 }
@@ -201,6 +206,9 @@ export interface RepairInput {
   alternateMobile?: string;
   accessories?: string;
   problem?: string;
+  deviceCondition?: string;
+  diagnosis?: string;
+  workPerformed?: string;
   technicianId?: string;
   technicianName?: string;
   status?: string;
@@ -313,12 +321,18 @@ export type RepairReturnStatus = typeof RepairReturnStatus[keyof typeof RepairRe
 
 
 export const RepairReturnStatus = {
-  return_received: 'return_received',
+  returned: 'returned',
   inspection: 'inspection',
-  rework_approved: 'rework_approved',
-  in_repair: 'in_repair',
-  ready: 'ready',
-  delivered: 'delivered',
+  rework_required: 'rework_required',
+  warranty_service: 'warranty_service',
+  waiting_for_parts: 'waiting_for_parts',
+  repaired: 'repaired',
+  refund_requested: 'refund_requested',
+  refund_approved: 'refund_approved',
+  refund_paid: 'refund_paid',
+  no_fault_found: 'no_fault_found',
+  cannot_repair: 'cannot_repair',
+  customer_declined: 'customer_declined',
   closed: 'closed',
 } as const;
 
@@ -333,6 +347,11 @@ export interface RepairReturn {
   deviceType?: string;
   brand?: string;
   model?: string;
+  imei?: string;
+  originalProblem?: string;
+  originalReceiveDate?: string;
+  originalDeliveryDate?: string;
+  originalAmount?: number;
   status: RepairReturnStatus;
   returnDate: string;
   daysAfterDelivery?: number;

@@ -10,7 +10,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { RepairStatusBadge, SampleBadge } from '@/components/ui/Badge';
 import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
 import { CustomerFormSheet } from '@/components/forms/CustomerFormSheet';
-import { formatCurrency, formatDate } from '@/utils/helpers';
+import { formatCurrency, formatDate, getReturnStatusColor } from '@/utils/helpers';
 
 import { useReturnsList, useRefundsList } from '@workspace/api-client-react';
 
@@ -42,7 +42,7 @@ export default function CustomerDetailScreen() {
   const timeline = useMemo(() => {
     const arr: any[] = [];
     customerRepairs.forEach(r => {
-      let stage = 'Repair';
+      let stage = 'In Repair';
       if (r.status === 'received') stage = 'Received';
       else if (r.status === 'delivered') stage = 'Delivered';
       else if (r.status === 'cancelled') stage = 'Cancelled';

@@ -113,6 +113,7 @@ export default function NewRepairScreen() {
   const [model, setModel] = useState('');
   const [imei, setImei] = useState('');
   const [accessories, setAccessories] = useState('');
+  const [deviceCondition, setDeviceCondition] = useState('');
   const [problem, setProblem] = useState('');
   const [priority, setPriority] = useState('normal');
   const [repairCharge, setRepairCharge] = useState('');
@@ -207,6 +208,7 @@ export default function NewRepairScreen() {
         deviceType, brand: brand.trim(), model: model.trim(),
         imei: imei.trim() || undefined, problem: problem.trim(),
         accessories: accessories.trim() || undefined,
+        deviceCondition: deviceCondition.trim() || undefined,
         technicianId: techId, technicianName: techName,
         status: 'received', priority: priority as Repair['priority'],
         repairCharge: parseFloat(repairCharge) || 0, partsCharge: 0,
@@ -427,12 +429,12 @@ export default function NewRepairScreen() {
             <Input label="Model *" value={model} onChangeText={setModel} placeholder="e.g. Galaxy S23" leftIcon="smartphone" error={errors.model} />
             <Input label="IMEI / Serial" value={imei} onChangeText={setImei} placeholder="Optional" leftIcon="hash" keyboardType="number-pad" />
             <Input label="Accessories Received" value={accessories} onChangeText={setAccessories} placeholder="e.g. Charger, Cover, SIM tray" leftIcon="box" />
+            <Input label="Device Condition" value={deviceCondition} onChangeText={setDeviceCondition} placeholder="e.g. Screen cracked, scratches" leftIcon="smartphone" />
           </View>
 
           {/* Problem */}
           <View style={styles.section}>
             <SectionHeader title="Service Details" />
-            <Input label="Received By" value={user?.name || 'System'} editable={false} leftIcon="user" />
             <Input
               label="Problem Description *"
               value={problem}
@@ -533,6 +535,12 @@ export default function NewRepairScreen() {
                 <Text style={[styles.sigBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Capture Signature</Text>
               </TouchableOpacity>
             )}
+          </View>
+
+          <View style={{ alignItems: 'center', marginTop: 10 }}>
+            <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+              Received by: {user?.name || 'System'}
+            </Text>
           </View>
 
           <Button

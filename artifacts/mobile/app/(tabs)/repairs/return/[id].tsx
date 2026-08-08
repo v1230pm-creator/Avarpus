@@ -21,7 +21,7 @@ import { useColors } from '@/hooks/useColors';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
-import { formatCurrency, formatDate } from '@/utils/helpers';
+import { formatCurrency, formatDate, getReturnStatusColor } from '@/utils/helpers';
 import {
   useReturnsGet,
   getReturnsGetQueryKey,
@@ -34,15 +34,6 @@ import {
   RepairReturnStatus
 } from '@workspace/api-client-react';
 
-const STATUS_FLOW: RepairReturnStatus[] = [
-  'return_received',
-  'inspection',
-  'rework_approved',
-  'in_repair',
-  'ready',
-  'delivered',
-  'closed',
-];
 
 const RESOLUTIONS = [
   'rework',
@@ -90,6 +81,7 @@ export default function ReturnDetailScreen() {
   const [editResolution, setEditResolution] = useState('');
   const [editLabour, setEditLabour] = useState('');
   const [editPayable, setEditPayable] = useState('');
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
 
   // Add Part
   const [showAddPart, setShowAddPart] = useState(false);
@@ -121,13 +113,34 @@ export default function ReturnDetailScreen() {
     );
   }
 
-  const currentIdx = STATUS_FLOW.indexOf(ret?.status as RepairReturnStatus);
-  const nextStatus = currentIdx >= 0 && currentIdx < STATUS_FLOW.length - 1 ? STATUS_FLOW[currentIdx + 1] : null;
-  
-  const canSetNext = nextStatus && (
-    isDealer || 
-    !['rework_approved', 'closed'].includes(nextStatus)
-  );
+
+  const getAvailableStatuses = (): RepairReturnStatus[] => {
+    if (!ret) return [];
+    const st = ret.status as RepairReturnStatus;
+    let allowed: RepairReturnStatus[] = [];
+    switch (st) {
+      case 'returned': allowed = ['inspection']; break;
+      case 'inspection': allowed = ['rework_required', 'warranty_service', 'no_fault_found', 'cannot_repair', 'customer_declined']; break;
+      case 'rework_required': allowed = ['warranty_service', 'waiting_for_parts', 'repaired', 'cannot_repair', 'customer_declined']; break;
+      case 'warranty_service': allowed = ['rework_required', 'waiting_for_parts', 'repaired', 'cannot_repair', 'customer_declined']; break;
+      case 'waiting_for_parts': allowed = ['rework_required', 'warranty_service', 'repaired', 'cannot_repair', 'customer_declined']; break;
+      case 'cannot_repair': allowed = ['customer_declined']; break;
+      case 'closed': allowed = ['inspection']; break;
+      default: allowed = []; break;
+    }
+    
+    if (st !== 'closed') {
+      allowed.push('closed');
+    }
+
+    if (!isDealer) {
+      allowed = allowed.filter(s => s !== 'rework_required' && s !== 'closed');
+    }
+
+    return allowed;
+  };
+
+  const availableStatuses = getAvailableStatuses();
 
   const handleStatusUpdate = async (newStatus: RepairReturnStatus) => {
     if (updating) return;
@@ -241,9 +254,9 @@ export default function ReturnDetailScreen() {
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={[styles.returnId, { color: colors.warning, fontFamily: 'Inter_700Bold' }]}>{ret.returnId}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: colors.warning + '15' }]}>
-            <Text style={{ fontSize: 11, color: colors.warning, fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }}>
+          <Text style={[styles.returnId, { color: getReturnStatusColor(ret.status, colors), fontFamily: 'Inter_700Bold' }]}>{ret.returnId}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: getReturnStatusColor(ret.status, colors) + '15' }]}>
+            <Text style={{ fontSize: 11, color: getReturnStatusColor(ret.status, colors), fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }}>
               {ret.status.replace(/_/g, ' ')}
             </Text>
           </View>
@@ -257,30 +270,19 @@ export default function ReturnDetailScreen() {
         <FadeInView animValue={anims[1]}>
           <Card>
             <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>STATUS</Text>
-            {nextStatus && (
-              <View style={{ gap: 8, marginTop: 8 }}>
-                <Button 
-                  title={nextStatus === 'closed' ? 'Close Return Case' : `Move to: ${nextStatus.replace(/_/g, ' ')}`}
-                  onPress={() => handleStatusUpdate(nextStatus)}
-                  loading={updating}
-                  disabled={!canSetNext}
-                  style={{ backgroundColor: canSetNext ? colors.success : colors.muted }}
-                />
-                {!canSetNext && (
-                  <Text style={{ fontSize: 12, color: colors.warning, textAlign: 'center' }}>
-                    Dealer/Owner approval required for this step.
-                  </Text>
-                )}
-              </View>
-            )}
-            {ret.status === 'closed' && isDealer && (
-              <Button 
-                title="Reopen Case"
-                onPress={() => handleStatusUpdate('in_repair')}
-                loading={updating}
-                variant="outline"
-                style={{ marginTop: 8 }}
-              />
+            {availableStatuses.length > 0 ? (
+              <TouchableOpacity
+                onPress={() => setShowStatusPicker(true)}
+                disabled={updating}
+                style={{ backgroundColor: colors.success, borderRadius: colors.radius - 2, padding: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8 }}
+              >
+                <Feather name="edit" size={18} color="#FFFFFF" />
+                <Text style={{ color: '#FFFFFF', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Update Status</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={{ fontSize: 13, color: colors.mutedForeground, fontStyle: 'italic', marginTop: 8 }}>
+                No further status updates available.
+              </Text>
             )}
           </Card>
         </FadeInView>
@@ -288,14 +290,32 @@ export default function ReturnDetailScreen() {
         {/* Case Info */}
         <FadeInView animValue={anims[2]}>
           <Card>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>CASE INFO</Text>
-            <InfoRow label="Original Ticket" value={ret.repairTicket || 'N/A'} bold />
-            <InfoRow label="Customer" value={ret.customerName || 'N/A'} />
-            <InfoRow label="Device" value={`${ret.brand} ${ret.model}`} />
+            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>AFTER-SALES CASE</Text>
             <InfoRow label="Reason" value={ret.reason.replace(/_/g, ' ')} />
             <InfoRow label="Complaint" value={ret.complaint} />
             <InfoRow label="Condition" value={ret.deviceCondition || 'N/A'} />
             <InfoRow label="Received By" value={ret.receivedByName || 'N/A'} />
+          </Card>
+        </FadeInView>
+
+        {/* Original Repair Info */}
+        <FadeInView animValue={anims[2]}>
+          <Card>
+            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>ORIGINAL REPAIR</Text>
+            <InfoRow label="Ticket" value={ret.repairTicket || 'N/A'} bold />
+            <InfoRow label="Customer" value={ret.customerName || 'N/A'} />
+            <InfoRow label="Device" value={`${ret.brand} ${ret.model}`} />
+            {ret.imei && <InfoRow label="IMEI" value={ret.imei} />}
+            {ret.originalProblem && <InfoRow label="Problem" value={ret.originalProblem} />}
+            {ret.originalReceiveDate && <InfoRow label="Received" value={formatDate(ret.originalReceiveDate)} />}
+            {ret.originalDeliveryDate && <InfoRow label="Delivered" value={formatDate(ret.originalDeliveryDate)} />}
+            {ret.originalAmount !== undefined && <InfoRow label="Amount" value={formatCurrency(ret.originalAmount)} />}
+            {ret.daysAfterDelivery !== undefined && (
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Days Since Delivery</Text>
+                <Text style={[styles.infoValue, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>{ret.daysAfterDelivery} Days</Text>
+              </View>
+            )}
           </Card>
         </FadeInView>
 
@@ -523,6 +543,29 @@ export default function ReturnDetailScreen() {
           </View>
         </View>
       </Modal>
+      {/* Status Picker Modal */}
+      <Modal visible={showStatusPicker} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground, marginBottom: 16 }]}>Update Status</Text>
+            <View style={{ gap: 8 }}>
+              {availableStatuses.map(s => (
+                <TouchableOpacity
+                  key={s}
+                  onPress={() => { setShowStatusPicker(false); handleStatusUpdate(s); }}
+                  style={{ padding: 14, borderRadius: 8, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}
+                >
+                  <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: "Inter_500Medium", textTransform: "capitalize" }}>
+                    {s.replace(/_/g, " ")}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Button title="Cancel" variant="outline" onPress={() => setShowStatusPicker(false)} style={{ marginTop: 16 }} />
+          </View>
+        </View>
+      </Modal>
+
 
     </View>
   );

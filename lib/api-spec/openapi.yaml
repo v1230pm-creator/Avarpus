@@ -1365,6 +1365,9 @@ components:
         alternateMobile: { type: string }
         accessories: { type: string }
         problem: { type: string }
+        deviceCondition: { type: string }
+        diagnosis: { type: string }
+        workPerformed: { type: string }
         technicianId: { type: string }
         technicianName: { type: string }
         status: { type: string }
@@ -1388,6 +1391,8 @@ components:
         deliveredById: { type: string }
         deliveredByName: { type: string }
         paymentMethod: { type: string }
+        repairStartedAt: { type: string }
+        repairCompletedAt: { type: string }
         isSample: { type: boolean }
         createdAt: { type: string }
       required: [id, repairId, customerName, mobile, deviceType, brand, model, problem, status, priority, repairCharge, partsCharge, advance, receiveDate, expectedDate, warrantyDays, isSample, createdAt]
@@ -1404,6 +1409,9 @@ components:
         alternateMobile: { type: string }
         accessories: { type: string }
         problem: { type: string }
+        deviceCondition: { type: string }
+        diagnosis: { type: string }
+        workPerformed: { type: string }
         technicianId: { type: string }
         technicianName: { type: string }
         status: { type: string }
@@ -1499,7 +1507,12 @@ components:
         deviceType: { type: string }
         brand: { type: string }
         model: { type: string }
-        status: { type: string, enum: [return_received, inspection, rework_approved, in_repair, ready, delivered, closed] }
+        imei: { type: string }
+        originalProblem: { type: string }
+        originalReceiveDate: { type: string }
+        originalDeliveryDate: { type: string }
+        originalAmount: { type: number }
+        status: { type: string, enum: [returned, inspection, rework_required, warranty_service, waiting_for_parts, repaired, refund_requested, refund_approved, refund_paid, no_fault_found, cannot_repair, customer_declined, closed] }
         returnDate: { type: string }
         daysAfterDelivery: { type: number }
         reason: { type: string }

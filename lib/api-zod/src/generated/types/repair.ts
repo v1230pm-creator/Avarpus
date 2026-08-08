@@ -20,6 +20,9 @@ export interface Repair {
   alternateMobile?: string;
   accessories?: string;
   problem: string;
+  deviceCondition?: string;
+  diagnosis?: string;
+  workPerformed?: string;
   technicianId?: string;
   technicianName?: string;
   status: string;
@@ -41,6 +44,8 @@ export interface Repair {
   deliveredById?: string;
   deliveredByName?: string;
   paymentMethod?: string;
+  repairStartedAt?: string;
+  repairCompletedAt?: string;
   isSample: boolean;
   createdAt: string;
 }

@@ -49,7 +49,10 @@ export interface Repair {
   model: string;
   imei?: string;
   accessories?: string;
+  deviceCondition?: string;
   problem: string;
+  diagnosis?: string;
+  workPerformed?: string;
   technicianId?: string;
   technicianName?: string;
   status: RepairStatus;
@@ -60,6 +63,8 @@ export interface Repair {
   receiveDate: string;
   expectedDate: string;
   deliveryDate?: string;
+  repairStartedAt?: string;
+  repairCompletedAt?: string;
   notes?: string;
   checklist?: Record<string, boolean>;
   warrantyDays?: number;
