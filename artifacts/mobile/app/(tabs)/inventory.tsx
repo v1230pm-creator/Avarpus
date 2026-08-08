@@ -84,9 +84,11 @@ function InventoryCard({ item, onPress }: { item: InventoryItem; onPress: () => 
         </View>
         <View style={styles.priceInfo}>
           <Text style={[styles.price, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{formatCurrency(item.sellingPrice)}</Text>
-          <Text style={[styles.costPrice, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            Cost: {formatCurrency(item.purchasePrice)}
-          </Text>
+          {item.canSeeCosts !== false && (
+            <Text style={[styles.costPrice, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              Cost: {formatCurrency(item.purchasePrice)}
+            </Text>
+          )}
         </View>
       </View>
 

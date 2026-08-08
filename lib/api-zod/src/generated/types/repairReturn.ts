@@ -39,6 +39,7 @@ export interface RepairReturn {
   partsCost: number;
   labourCost: number;
   customerPayable: number;
+  canSeeCosts?: boolean;
   notes?: string;
   completedAt?: string;
   createdAt: string;

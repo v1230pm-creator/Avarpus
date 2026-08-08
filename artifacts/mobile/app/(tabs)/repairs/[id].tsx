@@ -37,7 +37,11 @@ import {
   useRepairEventsList, getRepairEventsListQueryKey, 
   requestUploadUrl, repairPhotosAdd, 
   useReturnsList, getReturnsListQueryKey,
-  useRepairPartsList, getRepairPartsListQueryKey, repairPartsAdd
+  useRepairPartsList, getRepairPartsListQueryKey, repairPartsAdd,
+  useRepairPaymentsList, getRepairPaymentsListQueryKey, repairPaymentsCreate,
+  useStaffList, getStaffListQueryKey, repairAssignTechnician,
+  useRepairTesting, repairTesting, useEstimateApprovalsList, getEstimateApprovalsListQueryKey, estimateApprovalsCreate,
+  estimateApprovalsDecide, deliveryOtpSend, deliveryOtpVerify, repairNotifyReady, estimateApprovalsSendOtp
 } from '@workspace/api-client-react';
 import { fetch as expoFetch } from 'expo/fetch';
 import { File as ExpoFile } from 'expo-file-system';
@@ -103,8 +107,40 @@ export default function RepairDetailScreen() {
   // Financial Edits
   const [showFinancialEdit, setShowFinancialEdit] = useState(false);
   const [editRepairCharge, setEditRepairCharge] = useState('');
-  const [editAdvance, setEditAdvance] = useState('');
+  const [editServiceCharge, setEditServiceCharge] = useState('');
+  const [editOtherCharge, setEditOtherCharge] = useState('');
+  const [editDiscount, setEditDiscount] = useState('');
+  const [editTaxPercent, setEditTaxPercent] = useState('');
+
+  // Payment Collection
+  const [showPayment, setShowPayment] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [paymentKind, setPaymentKind] = useState('partial');
+  const [paymentNote, setPaymentNote] = useState('');
   
+  // Technician Assignment
+  const [showAssign, setShowAssign] = useState(false);
+  
+  // Testing Checklist
+  const [showTesting, setShowTesting] = useState(false);
+  const [testingChecklist, setTestingChecklist] = useState<Record<string, boolean>>({});
+  
+  // Estimate Approval
+  const [showApproval, setShowApproval] = useState(false);
+  const [newEstimate, setNewEstimate] = useState('');
+  const [approvalReason, setApprovalReason] = useState('');
+  const [showOtp, setShowOtp] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  
+  // Delivery OTP
+  const [showDeliveryOtp, setShowDeliveryOtp] = useState(false);
+  const [deliveryOtpCode, setDeliveryOtpCode] = useState('');
+  
+  // Warranty
+  const [deliveryWarranty, setDeliveryWarranty] = useState('0');
+  const [customWarrantyDays, setCustomWarrantyDays] = useState('');
+
   // Service Edits
   const [showServiceEdit, setShowServiceEdit] = useState(false);
   const [editProblem, setEditProblem] = useState('');
@@ -127,8 +163,15 @@ export default function RepairDetailScreen() {
   const { data: returnsData } = useReturnsList({ query: { queryKey: getReturnsListQueryKey() } });
   const { data: partsData, refetch: partsRefetch } = useRepairPartsList(id as string, { query: { enabled: !!id, queryKey: getRepairPartsListQueryKey(id as string) } });
   
+  const { data: paymentsData, refetch: paymentsRefetch } = useRepairPaymentsList(id as string, { query: { enabled: !!id, queryKey: getRepairPaymentsListQueryKey(id as string) } });
+  const { data: staffData } = useStaffList({ query: { queryKey: getStaffListQueryKey() } });
+  const { data: approvalsData, refetch: approvalsRefetch } = useEstimateApprovalsList(id as string, { query: { enabled: !!id, queryKey: getEstimateApprovalsListQueryKey(id as string) } });
+
   const repairReturns = useMemo(() => returnsData?.returns?.filter(r => r.repairId === id) || [], [returnsData, id]);
   const parts = partsData?.parts || [];
+  const payments = paymentsData?.payments || [];
+  const approvals = approvalsData?.estimateApprovals || [];
+  const technicians = staffData?.staff?.filter(s => s.role === 'technician') || [];
 
   const getAbsoluteUrl = (path: string) => `https://${process.env.EXPO_PUBLIC_DOMAIN}/api/storage${path}`;
 
@@ -179,9 +222,10 @@ export default function RepairDetailScreen() {
       
       const deliveryDate = new Date().toISOString().split('T')[0];
       let warrantyExpiry = undefined;
-      if (repair.warrantyDays && repair.warrantyDays > 0) {
+      const wd = deliveryWarranty === 'Custom' ? parseInt(customWarrantyDays || '0') : parseInt(deliveryWarranty);
+      if (wd > 0) {
         const exp = new Date();
-        exp.setDate(exp.getDate() + repair.warrantyDays);
+        exp.setDate(exp.getDate() + wd);
         warrantyExpiry = exp.toISOString().split('T')[0];
       }
 
@@ -190,6 +234,7 @@ export default function RepairDetailScreen() {
         status: 'delivered',
         deliveryDate,
         warrantyExpiry,
+        warrantyDays: wd,
         deliverySignaturePath: sigPath,
         paymentMethod: handoverPaymentMethod,
       });
@@ -236,7 +281,12 @@ export default function RepairDetailScreen() {
       setShowStatusPicker(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
-      Alert.alert('Update failed', e.message || "Couldn't update the repair status.");
+      if (e?.code === 'TESTING_REQUIRED' || e?.message?.includes('TESTING_REQUIRED')) {
+        setShowStatusPicker(false);
+        setTimeout(() => setShowTesting(true), 350);
+      } else {
+        Alert.alert('Update failed', e.message || "Couldn't update the repair status.");
+      }
     } finally {
       setUpdating(false);
     }
@@ -288,7 +338,10 @@ export default function RepairDetailScreen() {
       await updateRepair({
         ...repair,
         repairCharge: Number(editRepairCharge),
-        advance: Number(editAdvance)
+        serviceCharge: Number(editServiceCharge),
+        otherCharge: Number(editOtherCharge),
+        discount: Number(editDiscount),
+        taxPercent: Number(editTaxPercent)
       });
       setShowFinancialEdit(false);
       await loadAll();
@@ -428,6 +481,23 @@ export default function RepairDetailScreen() {
                 </Text>
               </TouchableOpacity>
             )}
+            {repair.status === 'ready' && (
+              <TouchableOpacity onPress={async () => {
+                try {
+                  await repairNotifyReady(repair.id);
+                  Alert.alert('Success', 'Customer notified via email.');
+                  await loadAll();
+                  queryClient.invalidateQueries();
+                } catch(e: any) {
+                  Alert.alert('Notice', e.message || 'Email service not configured for this address');
+                }
+              }} style={[styles.nextStatusBtn, { backgroundColor: colors.info, borderRadius: colors.radius - 2, marginBottom: 8 }]}>
+                <Feather name="bell" size={18} color="#FFFFFF" />
+                <Text style={[styles.nextStatusText, { fontFamily: 'Inter_600SemiBold' }]}>
+                  Notify Customer
+                </Text>
+              </TouchableOpacity>
+            )}
             {repair.status === 'delivered' && (
               <TouchableOpacity onPress={() => router.push(`/(tabs)/repairs/return/new?repairId=${repair.id}` as any)} style={[styles.nextStatusBtn, { backgroundColor: colors.warning, borderRadius: colors.radius - 2 }]}>
                 <Feather name="corner-up-left" size={18} color="#FFFFFF" />
@@ -494,9 +564,22 @@ export default function RepairDetailScreen() {
         <Card>
           <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>DEVICE DETAILS</Text>
           <InfoRow label="Brand & Model" value={`${repair.brand} ${repair.model}`} bold />
-          {repair.imei && <InfoRow label="IMEI" value={repair.imei} />}
+          <InfoRow label="Color / Storage / RAM" value={[repair.color, repair.storage, repair.ram].filter(Boolean).join(' · ') || 'N/A'} />
+          {repair.imei && <InfoRow label="IMEI 1" value={repair.imei} />}
+          {repair.imei2 && <InfoRow label="IMEI 2" value={repair.imei2} />}
+          {repair.serialNumber && <InfoRow label="Serial No" value={repair.serialNumber} />}
+          
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 4, marginBottom: 4 }}>
+            <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: repair.simPresent ? colors.primary + '22' : colors.card, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ fontSize: 11, color: repair.simPresent ? colors.primary : colors.mutedForeground }}>SIM: {repair.simPresent ? 'YES' : 'NO'}</Text>
+            </View>
+            <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: repair.memoryCardPresent ? colors.primary + '22' : colors.card, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ fontSize: 11, color: repair.memoryCardPresent ? colors.primary : colors.mutedForeground }}>SD Card: {repair.memoryCardPresent ? 'YES' : 'NO'}</Text>
+            </View>
+          </View>
+
           <InfoRow label="Alternate Mobile" value={repair.alternateMobile || 'N/A'} />
-          <InfoRow label="Accessories" value={repair.accessories || 'None'} />
+          <InfoRow label="Accessories" value={(repair.accessoriesList?.length ? repair.accessoriesList.join(', ') : 'None') + (repair.accessories ? ` (${repair.accessories})` : '')} />
           {repair.deviceCondition && <InfoRow label="Device Condition" value={repair.deviceCondition} />}
           <InfoRow label="Received By" value={repair.receivedByName || 'System'} />
           {repair.status === 'delivered' && (
@@ -510,6 +593,23 @@ export default function RepairDetailScreen() {
                     {(repair.repairCharge + repair.partsCharge - repair.advance) <= 0 ? 'PAID' : repair.advance > 0 ? 'PARTIAL' : 'PENDING'}
                   </Text>
                 </View>
+              </View>
+            </>
+          )}
+
+          {repair.physicalCondition && Object.keys(repair.physicalCondition).length > 0 && (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <Text style={[styles.problemTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginBottom: 8 }]}>Physical Condition</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {Object.keys(repair.physicalCondition).map(k => (
+                  <View key={k} style={[styles.checkBadge, { backgroundColor: repair.physicalCondition![k] ? colors.destructive + '15' : colors.card, borderColor: colors.border, borderWidth: 1 }]}>
+                    {repair.physicalCondition![k] && <Feather name="alert-circle" size={12} color={colors.destructive} />}
+                    <Text style={{ fontSize: 11, color: repair.physicalCondition![k] ? colors.destructive : colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>
+                      {k.replace(/_/g, ' ').replace(/\w/g, l => l.toUpperCase())}
+                    </Text>
+                  </View>
+                ))}
               </View>
             </>
           )}
@@ -538,7 +638,13 @@ export default function RepairDetailScreen() {
         <Card>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>SERVICE DETAILS</Text>
-            {repair.status !== 'delivered' && repair.status !== 'cancelled' && (
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              {(user?.role === 'dealer' || user?.role === 'super_admin') && repair.status !== 'delivered' && repair.status !== 'cancelled' && (
+                <TouchableOpacity onPress={() => setShowAssign(true)}>
+                  <Feather name="user-plus" size={16} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+              {repair.status !== 'delivered' && repair.status !== 'cancelled' && (
               <TouchableOpacity onPress={() => {
                 setEditProblem(repair.problem || '');
                 setEditDiagnosis(repair.diagnosis || '');
@@ -548,7 +654,18 @@ export default function RepairDetailScreen() {
                 <Feather name="edit-2" size={16} color={colors.primary} />
               </TouchableOpacity>
             )}
+            </View>
           </View>
+          
+          {repair.technicianId && (
+            <View style={{ marginBottom: 12, padding: 12, backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Assigned Technician</Text>
+              <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>{repair.technicianName}</Text>
+              {repair.assignedByName && (
+                <Text style={{ fontSize: 10, color: colors.mutedForeground, marginTop: 2 }}>Assigned by {repair.assignedByName} on {repair.assignedAt ? formatDate(repair.assignedAt) : ''}</Text>
+              )}
+            </View>
+          )}
           
           <Text style={[styles.problemTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginTop: 10 }]}>Problem Reported</Text>
           <Text style={[styles.problemText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{repair.problem}</Text>
@@ -582,11 +699,15 @@ export default function RepairDetailScreen() {
                 <View key={p.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                   <View>
                     <Text style={{ fontSize: 14, color: colors.foreground }}>{p.partName}</Text>
-                    <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Qty: {p.quantity} @ {formatCurrency(p.unitCost)}</Text>
+                    <Text style={{ fontSize: 12, color: colors.mutedForeground }}>
+                      Qty: {p.quantity} {p.canSeeCosts !== false ? `@ ${formatCurrency(p.unitCost)}` : ''}
+                    </Text>
                   </View>
-                  <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>
-                    {formatCurrency(p.quantity * p.unitCost)}
-                  </Text>
+                  {p.canSeeCosts !== false && (
+                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>
+                      {formatCurrency(p.quantity * p.unitCost)}
+                    </Text>
+                  )}
                 </View>
               ))
             )}
@@ -623,7 +744,10 @@ export default function RepairDetailScreen() {
               <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>FINANCIALS & WARRANTY</Text>
               <TouchableOpacity onPress={() => {
                 setEditRepairCharge(repair.repairCharge.toString());
-                setEditAdvance(repair.advance.toString());
+                setEditServiceCharge((repair.serviceCharge || 0).toString());
+                setEditOtherCharge((repair.otherCharge || 0).toString());
+                setEditDiscount((repair.discount || 0).toString());
+                setEditTaxPercent((repair.taxPercent || 0).toString());
                 setShowFinancialEdit(true);
               }}>
                 <Feather name="edit-2" size={16} color={colors.primary} />
@@ -631,11 +755,35 @@ export default function RepairDetailScreen() {
             </View>
             <InfoRow label="Labour / Repair Charge" value={formatCurrency(repair.repairCharge)} />
             <InfoRow label="Parts Charge" value={formatCurrency(repair.partsCharge)} />
+            {(repair.serviceCharge || 0) > 0 && <InfoRow label="Service Charge" value={formatCurrency(repair.serviceCharge!)} />}
+            {(repair.otherCharge || 0) > 0 && <InfoRow label="Other Charge" value={formatCurrency(repair.otherCharge!)} />}
+            {(repair.discount || 0) > 0 && <InfoRow label="Discount" value={`-${formatCurrency(repair.discount!)}`} color={colors.success} />}
+            {(repair.taxPercent || 0) > 0 && <InfoRow label={`Tax (${repair.taxPercent}%)`} value={formatCurrency(((repair.repairCharge + repair.partsCharge + (repair.serviceCharge||0) + (repair.otherCharge||0) - (repair.discount||0)) * (repair.taxPercent!)) / 100)} />}
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <InfoRow label="Total Charge" value={formatCurrency(repair.repairCharge + repair.partsCharge)} bold />
-            <InfoRow label="Advance Paid" value={formatCurrency(repair.advance)} color={colors.success} />
-            <InfoRow label="Balance Due" value={formatCurrency(balance)} color={balance > 0 ? colors.warning : colors.success} bold />
+            <InfoRow label="Total Amount" value={formatCurrency(repair.totalAmount || (repair.repairCharge + repair.partsCharge))} bold />
+            <InfoRow label="Paid Amount" value={formatCurrency(repair.paidAmount || repair.advance)} color={colors.success} />
+            <InfoRow label="Balance Due" value={formatCurrency(repair.balance !== undefined ? repair.balance : Math.max(0, repair.repairCharge + repair.partsCharge - repair.advance))} color={(repair.balance || Math.max(0, repair.repairCharge + repair.partsCharge - repair.advance)) > 0 ? colors.warning : colors.success} bold />
             
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+              <Button title="Payment" onPress={() => setShowPayment(true)} variant="outline" size="sm" style={{ flex: 1 }} />
+              <Button title="New Estimate" onPress={() => setShowApproval(true)} variant="outline" size="sm" style={{ flex: 1 }} />
+            </View>
+            
+            {payments.length > 0 && (
+              <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <Text style={[styles.problemTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginBottom: 8 }]}>Payment Ledger</Text>
+                {payments.map(pmt => (
+                  <View key={pmt.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
+                    <View>
+                      <Text style={{ fontSize: 13, color: colors.foreground }}>{pmt.method} ({pmt.kind})</Text>
+                      <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{formatDate(pmt.createdAt)} · {pmt.recordedByName}</Text>
+                    </View>
+                    <Text style={{ fontSize: 14, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(pmt.amount)}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <InfoRow label="Warranty Offered" value={`${repair.warrantyDays} Days`} />
             {repair.warrantyExpiry && (
@@ -655,7 +803,157 @@ export default function RepairDetailScreen() {
           </FadeInView>
         )}
 
-        {/* Signatures */}
+        
+        {/* Estimate Approvals */}
+        {approvals.length > 0 && (
+          <FadeInView animValue={anims[6]}>
+            <Card>
+              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>ESTIMATE APPROVALS</Text>
+              {approvals.map(app => (
+                <View key={app.id} style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>₹{app.oldAmount} → ₹{app.newAmount}</Text>
+                    <Text style={{ fontSize: 12, color: app.status === 'pending' ? colors.warning : app.status === 'approved' ? colors.success : colors.destructive, textTransform: 'uppercase', fontFamily: 'Inter_700Bold' }}>{app.status}</Text>
+                  </View>
+                  <Text style={{ fontSize: 13, color: colors.mutedForeground }}>{app.reason}</Text>
+                  
+                  {app.status === 'pending' && (
+                    <View style={{ marginTop: 10, gap: 10 }}>
+                      {showOtp ? (
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          <TextInput value={otpCode} onChangeText={setOtpCode} keyboardType="numeric" placeholder="OTP Code" style={[styles.input, { flex: 1, height: 36, minHeight: 36 }]} />
+                          <Button title="Verify" onPress={async () => {
+                            if (!otpCode) return;
+                            try {
+                              await estimateApprovalsDecide(app.id, { decision: 'approved', method: 'otp', otpCode: otpCode });
+                              setShowOtp(false);
+                              setOtpCode('');
+                              await loadAll();
+                              await approvalsRefetch();
+                              queryClient.invalidateQueries();
+                            } catch (e: any) { Alert.alert('Error', e.message); }
+                          }} size="sm" />
+                          <Button title="Cancel" variant="outline" onPress={() => setShowOtp(false)} size="sm" />
+                        </View>
+                      ) : (
+                        <>
+                          <View style={{ flexDirection: 'row', gap: 8 }}>
+                            <Button title="Approve (Dealer)" onPress={async () => {
+                              try {
+                                await estimateApprovalsDecide(app.id, { decision: 'approved', method: 'dealer' });
+                                await loadAll();
+                                await approvalsRefetch();
+                                queryClient.invalidateQueries();
+                              } catch (e: any) { Alert.alert('Error', e.message); }
+                            }} size="sm" style={{ flex: 1 }} />
+                            <Button title="Reject" variant="outline" onPress={async () => {
+                              try {
+                                await estimateApprovalsDecide(app.id, { decision: 'rejected', method: 'dealer' });
+                                await loadAll();
+                                await approvalsRefetch();
+                                queryClient.invalidateQueries();
+                              } catch (e: any) { Alert.alert('Error', e.message); }
+                            }} size="sm" style={{ flex: 1 }} />
+                          </View>
+                          <Button title="Send OTP to Customer" variant="outline" onPress={async () => {
+                            try {
+                              await estimateApprovalsSendOtp(app.id);
+                              setShowOtp(true);
+                            } catch (e: any) { Alert.alert('Error', e.message); }
+                          }} size="sm" />
+                        </>
+                      )}
+                    </View>
+                  )}
+                </View>
+              ))}
+            </Card>
+          </FadeInView>
+        )}
+
+        
+      {/* Delivery OTP Modal */}
+      <Modal visible={showDeliveryOtp} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Verify Delivery OTP</Text>
+            <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 16 }}>Sent to customer email.</Text>
+            
+            <TextInput value={deliveryOtpCode} onChangeText={setDeliveryOtpCode} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} placeholder="OTP Code" />
+
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <Button title="Cancel" variant="outline" onPress={() => setShowDeliveryOtp(false)} style={{ flex: 1 }} />
+              <Button title="Verify & Deliver" onPress={async () => {
+                if (!deliveryOtpCode) return;
+                setUpdating(true);
+                try {
+                  await deliveryOtpVerify(repair.id, { code: deliveryOtpCode });
+                  
+                  // Setup warranty
+                  const deliveryDate = new Date().toISOString().split('T')[0];
+                  let warrantyExpiry = undefined;
+                  const wd = deliveryWarranty === 'Custom' ? parseInt(customWarrantyDays || '0') : parseInt(deliveryWarranty);
+                  if (wd > 0) {
+                    const exp = new Date();
+                    exp.setDate(exp.getDate() + wd);
+                    warrantyExpiry = exp.toISOString().split('T')[0];
+                  }
+
+                  await updateRepair({
+                    ...repair,
+                    status: 'delivered',
+                    deliveryDate,
+                    warrantyExpiry,
+                    warrantyDays: wd,
+                    paymentMethod: handoverPaymentMethod,
+                    otpVerified: true
+                  });
+                  
+                  setShowDeliveryOtp(false);
+                  await loadAll();
+                  queryClient.invalidateQueries();
+                } catch (e: any) {
+                  Alert.alert('Error', e.message);
+                } finally {
+                  setUpdating(false);
+                }
+              }} loading={updating} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Assign Technician Modal */}
+      <Modal visible={showAssign} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Assign Technician</Text>
+            
+            <ScrollView style={{ maxHeight: 300 }}>
+              {technicians.map(tech => (
+                <TouchableOpacity key={tech.id} onPress={async () => {
+                  setUpdating(true);
+                  try {
+                    await repairAssignTechnician(repair.id, { technicianId: tech.id });
+                    setShowAssign(false);
+                    await loadAll();
+                    queryClient.invalidateQueries();
+                  } catch(e: any) { Alert.alert('Error', e.message); }
+                  finally { setUpdating(false); }
+                }} style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ color: colors.foreground, fontSize: 15 }}>{tech.name}</Text>
+                  {repair.technicianId === tech.id && <Feather name="check" size={16} color={colors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <Button title="Cancel" variant="outline" onPress={() => setShowAssign(false)} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+{/* Signatures */}
         {(repair.receivingSignaturePath || repair.deliverySignaturePath) && (
           <FadeInView animValue={anims[7]}>
             <Card>
@@ -772,10 +1070,51 @@ export default function RepairDetailScreen() {
               ))}
             </View>
             
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Button title="Cancel" variant="outline" onPress={() => setShowDeliveryHandover(false)} style={{ flex: 1 }} />
-              <Button title="Proceed to Signature" onPress={handleHandoverProceed} style={{ flex: 1 }} />
+
+            <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_500Medium', marginBottom: 8 }}>Warranty (Days)</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+              {(user?.role === 'dealer' || user?.role === 'super_admin' ? ['0', '7', '15', '30', '90', '180', 'Custom'] : ['0', '7', '15', '30', '90', '180']).map(w => (
+                <TouchableOpacity
+                  key={w}
+                  onPress={() => setDeliveryWarranty(w)}
+                  style={{
+                    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
+                    borderWidth: 1, borderColor: deliveryWarranty === w ? colors.primary : colors.border,
+                    backgroundColor: deliveryWarranty === w ? colors.primary : colors.card
+                  }}
+                >
+                  <Text style={{ color: deliveryWarranty === w ? '#FFF' : colors.foreground, fontSize: 13, fontFamily: 'Inter_500Medium' }}>
+                    {w === '0' ? 'None' : w}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
+            
+            {deliveryWarranty === 'Custom' && (
+              <View style={{ marginBottom: 20 }}>
+                <Text style={[styles.label, { color: colors.foreground }]}>Custom Days (1-3650)</Text>
+                <TextInput 
+                  value={customWarrantyDays} 
+                  onChangeText={setCustomWarrantyDays} 
+                  keyboardType="numeric" 
+                  style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} 
+                  placeholder="e.g. 365"
+                />
+              </View>
+            )}
+
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+              <Button title="Cancel" variant="outline" onPress={() => setShowDeliveryHandover(false)} style={{ flex: 1 }} />
+              <Button title="Send OTP" variant="outline" onPress={async () => {
+                try {
+                  await deliveryOtpSend(repair.id);
+                  setShowDeliveryHandover(false);
+                  setTimeout(() => setShowDeliveryOtp(true), 350);
+                } catch(e: any) { Alert.alert('Error', e.message); }
+              }} style={{ flex: 1 }} />
+            </View>
+            <Button title="Proceed to Signature (No OTP)" onPress={handleHandoverProceed} style={{ width: '100%' }} />
+
           </View>
         </View>
       </Modal>
@@ -830,20 +1169,178 @@ export default function RepairDetailScreen() {
         </View>
       </Modal>
 
-      {/* Financial Edit Modal */}
+      
+      {/* Collect Payment Modal */}
+      <Modal visible={showPayment} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Collect Payment</Text>
+            
+            <Text style={[styles.label, { color: colors.foreground }]}>Amount</Text>
+            <TextInput value={paymentAmount} onChangeText={setPaymentAmount} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+            
+            <Text style={[styles.label, { color: colors.foreground }]}>Method</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+              {['Cash', 'UPI', 'Card', 'Bank Transfer', 'Other'].map(m => (
+                <TouchableOpacity key={m} onPress={() => setPaymentMethod(m)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: paymentMethod === m ? colors.primary : colors.card, borderWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ color: paymentMethod === m ? '#FFF' : colors.foreground }}>{m}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={[styles.label, { color: colors.foreground }]}>Type</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+              {['advance', 'partial', 'final'].map(k => (
+                <TouchableOpacity key={k} onPress={() => setPaymentKind(k)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: paymentKind === k ? colors.primary : colors.card, borderWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ color: paymentKind === k ? '#FFF' : colors.foreground, textTransform: 'capitalize' }}>{k}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={[styles.label, { color: colors.foreground }]}>Note / Reference</Text>
+            <TextInput value={paymentNote} onChangeText={setPaymentNote} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <Button title="Cancel" variant="outline" onPress={() => setShowPayment(false)} style={{ flex: 1 }} />
+              <Button title="Save Payment" onPress={async () => {
+                if (!paymentAmount) return Alert.alert('Required', 'Please enter amount');
+                setUpdating(true);
+                try {
+                  await repairPaymentsCreate(repair.id, {
+                    amount: Number(paymentAmount),
+                    method: paymentMethod,
+                    kind: paymentKind as any,
+                    note: paymentNote || undefined
+                  });
+                  setShowPayment(false);
+                  setPaymentAmount('');
+                  setPaymentNote('');
+                  await loadAll();
+                  await paymentsRefetch();
+                  queryClient.invalidateQueries();
+                } catch (e: any) {
+                  Alert.alert('Payment Failed', e.message || 'Could not record payment. Overpayment?');
+                } finally {
+                  setUpdating(false);
+                }
+              }} loading={updating} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+
+      {/* Testing Modal */}
+      <Modal visible={showTesting} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Final Testing Checklist</Text>
+            
+            <ScrollView style={{ maxHeight: 400, marginVertical: 10 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                {CHECKLIST_ITEMS.map((item) => {
+                  const checked = testingChecklist[item.id] || false;
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      activeOpacity={0.7}
+                      onPress={() => setTestingChecklist(prev => ({ ...prev, [item.id]: !checked }))}
+                      style={{ width: '48%', flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, gap: 10, backgroundColor: colors.card, borderColor: checked ? colors.primary : colors.border }}
+                    >
+                      <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: checked ? colors.primary : 'transparent', borderColor: checked ? colors.primary : colors.muted }}>
+                        {checked && <Feather name="check" size={14} color="#FFF" />}
+                      </View>
+                      <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_500Medium', flex: 1 }} numberOfLines={1}>{item.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <Button title="Cancel" variant="outline" onPress={() => setShowTesting(false)} style={{ flex: 1 }} />
+              <Button title="Confirm & Set Ready" onPress={async () => {
+                setUpdating(true);
+                try {
+                  await repairTesting(repair.id, { checklist: testingChecklist, confirm: true });
+                  setShowTesting(false);
+                  await loadAll();
+                  queryClient.invalidateQueries();
+                } catch (e: any) {
+                  Alert.alert('Testing Failed', e.message);
+                } finally {
+                  setUpdating(false);
+                }
+              }} loading={updating} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+
+      {/* Estimate Approval Modal */}
+      <Modal visible={showApproval} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Request Customer Approval</Text>
+            
+            <Text style={[styles.label, { color: colors.foreground }]}>New Estimate Amount (₹)</Text>
+            <TextInput value={newEstimate} onChangeText={setNewEstimate} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+            
+            <Text style={[styles.label, { color: colors.foreground }]}>Reason for Change</Text>
+            <TextInput value={approvalReason} onChangeText={setApprovalReason} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <Button title="Cancel" variant="outline" onPress={() => setShowApproval(false)} style={{ flex: 1 }} />
+              <Button title="Submit Request" onPress={async () => {
+                if (!newEstimate || !approvalReason) return Alert.alert('Required', 'Please fill all fields');
+                setUpdating(true);
+                try {
+                  await estimateApprovalsCreate(repair.id, {
+                    newAmount: Number(newEstimate),
+                    reason: approvalReason
+                  });
+                  setShowApproval(false);
+                  setNewEstimate('');
+                  setApprovalReason('');
+                  await loadAll();
+                  await approvalsRefetch();
+                  queryClient.invalidateQueries();
+                } catch (e: any) {
+                  Alert.alert('Request Failed', e.message);
+                } finally {
+                  setUpdating(false);
+                }
+              }} loading={updating} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+{/* Financial Edit Modal */}
       <Modal visible={showFinancialEdit} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Financials</Text>
             <Text style={{ fontSize: 12, color: colors.mutedForeground, marginBottom: 12 }}>
-              Only repair/labour charge and advance can be manually adjusted. Parts charge is computed automatically.
+              Parts charge is computed automatically. Advances are recorded via Payments.
             </Text>
 
-            <Text style={[styles.label, { color: colors.foreground }]}>Labour / Repair Charge</Text>
-            <TextInput value={editRepairCharge} onChangeText={setEditRepairCharge} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
-            
-            <Text style={[styles.label, { color: colors.foreground }]}>Advance Paid</Text>
-            <TextInput value={editAdvance} onChangeText={setEditAdvance} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+            <ScrollView style={{ maxHeight: 300 }}>
+              <Text style={[styles.label, { color: colors.foreground }]}>Labour / Repair Charge</Text>
+              <TextInput value={editRepairCharge} onChangeText={setEditRepairCharge} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+              
+              <Text style={[styles.label, { color: colors.foreground }]}>Service Charge</Text>
+              <TextInput value={editServiceCharge} onChangeText={setEditServiceCharge} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+              
+              <Text style={[styles.label, { color: colors.foreground }]}>Other Charge</Text>
+              <TextInput value={editOtherCharge} onChangeText={setEditOtherCharge} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+              
+              <Text style={[styles.label, { color: colors.foreground }]}>Discount</Text>
+              <TextInput value={editDiscount} onChangeText={setEditDiscount} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+              
+              <Text style={[styles.label, { color: colors.foreground }]}>Tax %</Text>
+              <TextInput value={editTaxPercent} onChangeText={setEditTaxPercent} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+            </ScrollView>
             
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
               <Button title="Cancel" variant="outline" onPress={() => setShowFinancialEdit(false)} style={{ flex: 1 }} />

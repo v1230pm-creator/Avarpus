@@ -11,6 +11,7 @@ import type { ReturnPart } from './returnPart';
 
 export type ReturnsGet200 = {
   return: RepairReturn;
+  canSeeCosts?: boolean;
   parts: ReturnPart[];
   refunds: Refund[];
 };

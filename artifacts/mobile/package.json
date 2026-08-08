@@ -65,6 +65,7 @@
   "dependencies": {
     "expo-file-system": "^19.0.23",
     "expo-local-authentication": "~17.0.8",
+    "expo-network": "^57.0.1",
     "expo-print": "^57.0.1",
     "expo-secure-store": "^15.0.8",
     "expo-sharing": "^57.0.10",

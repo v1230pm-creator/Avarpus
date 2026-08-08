@@ -1,0 +1,50 @@
+--- artifacts/mobile/app/(tabs)/repairs/index.tsx
++++ artifacts/mobile/app/(tabs)/repairs/index.tsx
+@@ -25,12 +25,12 @@
+ import { useReturnsList } from '@workspace/api-client-react';
+ 
+-const FILTERS = ['Received', 'Repair', 'Delivered', 'After-Sales Service'] as const;
++const FILTERS = ['Received', 'Repair', 'Ready', 'Delivered', 'After-Sales Service'] as const;
+ type Filter = (typeof FILTERS)[number];
+ 
+-function RepairCard({ repair, onPress, variant }: { repair: Repair; onPress: () => void; variant: 'received' | 'repair' | 'delivered' }) {
++function RepairCard({ repair, onPress, variant }: { repair: Repair; onPress: () => void; variant: 'received' | 'repair' | 'ready' | 'delivered' }) {
+   const colors = useColors();
+   const balance = Math.max(0, repair.repairCharge + repair.partsCharge - repair.advance);
+   const total = repair.repairCharge + repair.partsCharge;
+@@ -71,6 +71,19 @@
+           </View>
+         )}
+ 
++        {variant === 'ready' && (
++          <View style={{ marginTop: 4 }}>
++             <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Total: {formatCurrency(total)} | Adv: {formatCurrency(repair.advance)}</Text>
++             {balance > 0 && <Text style={{ fontSize: 12, color: colors.warning, fontWeight: 'bold' }}>Due: {formatCurrency(balance)}</Text>}
++             <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
++               <TouchableOpacity onPress={onPress} style={{ flex: 1, backgroundColor: colors.primary, paddingVertical: 6, borderRadius: 6, alignItems: 'center' }}>
++                 <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>Hand Over</Text>
++               </TouchableOpacity>
++             </View>
++          </View>
++        )}
++
+         {variant === 'delivered' && (
+           <View style={{ marginTop: 4 }}>
+              <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Total: {formatCurrency(total)} | Adv: {formatCurrency(repair.advance)}</Text>
+@@ -131,7 +144,8 @@
+     
+     if (filter === 'Received') list = list.filter((r) => r.status === 'received');
+-    else if (filter === 'Repair') list = list.filter((r) => ['diagnosing', 'waiting_parts', 'repairing', 'testing', 'ready', 'customer_approval', 'cannot_repair'].includes(r.status));
++    else if (filter === 'Repair') list = list.filter((r) => ['diagnosing', 'waiting_parts', 'repairing', 'testing', 'customer_approval', 'cannot_repair'].includes(r.status));
++    else if (filter === 'Ready') list = list.filter((r) => r.status === 'ready');
+     else if (filter === 'Delivered') list = list.filter((r) => r.status === 'delivered' || (showCancelled && r.status === 'cancelled'));
+     else list = []; // After-sales handled separately
+ 
+@@ -332,7 +346,7 @@
+           }
+           renderItem={({ item }) => {
+-            const variant = filter === 'Received' ? 'received' : filter === 'Repair' ? 'repair' : 'delivered';
++            const variant = filter === 'Received' ? 'received' : filter === 'Repair' ? 'repair' : filter === 'Ready' ? 'ready' : 'delivered';
+             return <RepairCard repair={item} onPress={() => router.push(`/(tabs)/repairs/${item.id}`)} variant={variant} />;
+           }}
+         />

@@ -1,0 +1,48 @@
+--- artifacts/mobile/app/(tabs)/repairs/new.tsx
++++ artifacts/mobile/app/(tabs)/repairs/new.tsx
+@@ -41,7 +41,7 @@
+ } from '@/utils/helpers';
+ import { requestUploadUrl, repairPhotosAdd, approvalsCreate } from '@workspace/api-client-react';
+ import { fetch as expoFetch } from 'expo/fetch';
+ import { File as ExpoFile } from 'expo-file-system';
+ 
+ const CHECKLIST_ITEMS = [
+   { id: 'power_on', label: 'Power On' },
+@@ -64,6 +64,30 @@
+   { id: 'power_button', label: 'Power Button' },
+ ];
+ 
++const PHYSICAL_CONDITION_ITEMS = [
++  { id: 'screen_damage', label: 'Screen Damage' },
++  { id: 'back_panel_damage', label: 'Back Panel Damage' },
++  { id: 'frame_damage', label: 'Frame Damage' },
++  { id: 'camera_glass_damage', label: 'Camera Glass Damage' },
++  { id: 'water_liquid_damage', label: 'Water/Liquid Damage' },
++  { id: 'existing_scratches', label: 'Existing Scratches' },
++  { id: 'other', label: 'Other' },
++];
++
++const ACCESSORY_ITEMS = [
++  { id: 'Charger', label: 'Charger' },
++  { id: 'Cable', label: 'Cable' },
++  { id: 'Adapter', label: 'Adapter' },
++  { id: 'Box', label: 'Box' },
++  { id: 'SIM Tray', label: 'SIM Tray' },
++  { id: 'SIM', label: 'SIM' },
++  { id: 'Memory Card', label: 'Memory Card' },
++  { id: 'Cover', label: 'Cover' },
++  { id: 'Earphones', label: 'Earphones' },
++  { id: 'Other', label: 'Other' },
++];
++
+ const WARRANTY_OPTIONS = [
+   { label: 'No Warranty', value: '0' },
+   { label: '7 Days', value: '7' },
+@@ -75,6 +99,7 @@
+ const PHOTO_KINDS = [
+   { id: 'front', label: 'Front' },
+   { id: 'back', label: 'Back' },
++  { id: 'imei', label: 'IMEI / Serial' },
+   { id: 'left', label: 'Left Edge' },
+   { id: 'right', label: 'Right Edge' },
+   { id: 'top', label: 'Top Edge' },

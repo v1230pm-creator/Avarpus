@@ -1,0 +1,40 @@
+--- artifacts/mobile/app/(tabs)/repairs/index.tsx
++++ artifacts/mobile/app/(tabs)/repairs/index.tsx
+@@ -107,6 +107,7 @@
+   const [filter, setFilter] = useState<Filter>('Received');
+   const [showCancelled, setShowCancelled] = useState(false);
+   const [page, setPage] = useState(1);
++  const [accumulatedRepairs, setAccumulatedRepairs] = useState<Repair[]>([]);
+ 
+   React.useEffect(() => {
+     const timer = setTimeout(() => setDebouncedSearch(search), 300);
+@@ -143,6 +144,14 @@
+       queryKey: getRepairsListQueryKey(repairsParams)
+     } 
+   });
++
++  React.useEffect(() => {
++    if (repairsData?.repairs) {
++      if (page === 1) setAccumulatedRepairs(repairsData.repairs as Repair[]);
++      else setAccumulatedRepairs(prev => {
++        const newItems = (repairsData.repairs as Repair[]).filter(r => !prev.find(p => p.id === r.id));
++        return [...prev, ...newItems];
++      });
++    }
++  }, [repairsData, page]);
+ 
+   const onRefresh = async () => {
+@@ -282,10 +291,10 @@
+         />
+       ) : (
+         <FlatList
+-          data={(repairsData?.repairs || []) as Repair[]}
++          data={accumulatedRepairs}
+           keyExtractor={(r) => r.id}
+           contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
+           showsVerticalScrollIndicator={false}
+-          refreshControl={<RefreshControl refreshing={repairsLoading && !repairsFetching} onRefresh={onRefresh} tintColor={colors.primary} />}
++          refreshControl={<RefreshControl refreshing={repairsLoading && page === 1} onRefresh={onRefresh} tintColor={colors.primary} />}
+           ListEmptyComponent={
+             <EmptyState
+               icon="tool"

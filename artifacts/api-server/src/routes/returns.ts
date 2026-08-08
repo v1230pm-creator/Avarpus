@@ -9,6 +9,7 @@ import {
   refundsTable,
   inventoryItemsTable,
   financeEntriesTable,
+  stockMovementsTable,
   type DbUser,
   type DbRepairReturn,
   type DbRefund,
@@ -30,6 +31,12 @@ const router: IRouter = Router();
 type AuthedRequest = Request & { user: DbUser };
 
 const DEALER_ROLES = ["dealer", "super_admin"];
+// Cost visibility: only privileged roles see internal costs (partsCost and
+// return-part unitCost). Customer-facing prices (labourCost, customerPayable)
+// are always shown.
+function isPrivileged(req: Request): boolean {
+  return DEALER_ROLES.includes((req as AuthedRequest).user.role);
+}
 const RETURN_STATUSES = [
   "returned",
   "inspection",
@@ -114,7 +121,7 @@ function isDealer(req: Request): boolean {
 
 type ReturnWithRepair = { ret: DbRepairReturn; repair: DbRepair | null };
 
-function returnOut(r: DbRepairReturn, repair?: DbRepair | null) {
+function returnOut(r: DbRepairReturn, repair: DbRepair | null | undefined, canSeeCosts: boolean) {
   return {
     id: r.id,
     returnId: r.returnId,
@@ -146,9 +153,12 @@ function returnOut(r: DbRepairReturn, repair?: DbRepair | null) {
     technicianName: r.technicianName ?? undefined,
     diagnosis: r.diagnosis ?? undefined,
     workPerformed: r.workPerformed ?? undefined,
-    partsCost: r.partsCost,
+    // partsCost is an INTERNAL cost — zeroed for non-privileged roles.
+    partsCost: canSeeCosts ? r.partsCost : 0,
+    // labourCost & customerPayable are customer-facing prices — always shown.
     labourCost: r.labourCost,
     customerPayable: r.customerPayable,
+    canSeeCosts,
     notes: r.notes ?? undefined,
     completedAt: r.completedAt ? iso(r.completedAt) : undefined,
     createdAt: iso(r.createdAt),
@@ -287,7 +297,7 @@ router.post(
       });
       return row;
     });
-    res.json({ return: returnOut(created, repair) });
+    res.json({ return: returnOut(created, repair, isPrivileged(req)) });
   }),
 );
 
@@ -305,7 +315,8 @@ router.get(
       .leftJoin(repairsTable, eq(repairReturnsTable.repairId, repairsTable.id))
       .where(eq(repairReturnsTable.shopId, shopId))
       .orderBy(desc(repairReturnsTable.createdAt));
-    res.json({ returns: rows.map((r) => returnOut(r.ret, r.repair)) });
+    const canSeeCosts = isPrivileged(req);
+    res.json({ returns: rows.map((r) => returnOut(r.ret, r.repair, canSeeCosts)) });
   }),
 );
 
@@ -329,15 +340,19 @@ router.get(
         .where(and(eq(refundsTable.returnId, found.ret.id), eq(refundsTable.shopId, shopId)))
         .orderBy(desc(refundsTable.createdAt)),
     ]);
+    const canSeeCosts = isPrivileged(req);
     res.json({
-      return: returnOut(found.ret, found.repair),
+      return: returnOut(found.ret, found.repair, canSeeCosts),
+      canSeeCosts,
       parts: parts.map((p) => ({
         id: p.id,
         returnId: p.returnId,
         inventoryItemId: p.inventoryItemId ?? undefined,
         partName: p.partName,
         quantity: p.quantity,
-        unitCost: p.unitCost,
+        // return-part unitCost is an INTERNAL cost — zeroed for staff.
+        unitCost: canSeeCosts ? p.unitCost : 0,
+        canSeeCosts,
         addedByName: p.addedByName ?? undefined,
         createdAt: iso(p.createdAt),
       })),
@@ -439,7 +454,7 @@ router.patch(
     if (b.customerPayable !== undefined) patch.customerPayable = Math.max(num(b.customerPayable), 0);
 
     if (!Object.keys(patch).length) {
-      res.json({ return: returnOut(ret, repair) });
+      res.json({ return: returnOut(ret, repair, isPrivileged(req)) });
       return;
     }
 
@@ -473,7 +488,7 @@ router.patch(
       res.status(409).json({ message: "This case was just updated by someone else — please refresh and retry." });
       return;
     }
-    res.json({ return: returnOut(updated, repair) });
+    res.json({ return: returnOut(updated, repair, isPrivileged(req)) });
   }),
 );
 
@@ -524,6 +539,21 @@ router.post(
           if (b.unitCost === undefined) unitCost = item.purchasePrice;
         }
         if (!partName) throw new Error("PART_NAME_REQUIRED");
+        // Append the stock movement ledger row (negative = consumed) in the
+        // same tx as the deduction. Only when a tracked item was deducted.
+        if (inventoryItemId) {
+          await tx.insert(stockMovementsTable).values({
+            shopId,
+            inventoryItemId,
+            itemName: partName,
+            quantityChange: -quantity,
+            reason: "return_part",
+            repairId: ret.repairId,
+            returnId: ret.id,
+            byId: me.id,
+            byName: me.name,
+          });
+        }
         const [row] = await tx
           .insert(returnPartsTable)
           .values({
@@ -551,10 +581,11 @@ router.post(
           repairId: ret.repairId,
           user: me,
           action: "return_part_used",
-          details: { returnId: ret.returnId, partName, quantity, unitCost, inventoryItemId },
+          details: { returnId: ret.returnId, partName, quantity, inventoryItemId },
         });
         return row;
       });
+      const canSeeCosts = isPrivileged(req);
       res.json({
         part: {
           id: created.id,
@@ -562,7 +593,9 @@ router.post(
           inventoryItemId: created.inventoryItemId ?? undefined,
           partName: created.partName,
           quantity: created.quantity,
-          unitCost: created.unitCost,
+          // return-part unitCost is an INTERNAL cost — zeroed for staff.
+          unitCost: canSeeCosts ? created.unitCost : 0,
+          canSeeCosts,
           addedByName: created.addedByName ?? undefined,
           createdAt: iso(created.createdAt),
         },

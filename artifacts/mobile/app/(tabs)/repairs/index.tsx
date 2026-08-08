@@ -9,12 +9,12 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
-import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { RepairStatusBadge, PriorityBadge, SampleBadge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -22,13 +22,16 @@ import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/
 import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { Repair } from '@/types';
 import { formatDate, formatCurrency, getReturnStatusColor } from '@/utils/helpers';
+import * as Network from 'expo-network';
+import { offlineQueue, QueuedRepair } from '@/utils/offlineQueue';
+import { useQueryClient } from '@tanstack/react-query';
 
-import { useReturnsList } from '@workspace/api-client-react';
+import { useReturnsList, useRepairsList, getRepairsListQueryKey } from '@workspace/api-client-react';
 
-const FILTERS = ['Received', 'Repair', 'Delivered', 'After-Sales Service'] as const;
+const FILTERS = ['Received', 'Repair', 'Ready', 'Delivered', 'After-Sales Service'] as const;
 type Filter = (typeof FILTERS)[number];
 
-function RepairCard({ repair, onPress, variant }: { repair: Repair; onPress: () => void; variant: 'received' | 'repair' | 'delivered' }) {
+function RepairCard({ repair, onPress, variant }: { repair: Repair; onPress: () => void; variant: 'received' | 'repair' | 'ready' | 'delivered' }) {
   const colors = useColors();
   const balance = Math.max(0, repair.repairCharge + repair.partsCharge - repair.advance);
   const total = repair.repairCharge + repair.partsCharge;
@@ -71,6 +74,24 @@ function RepairCard({ repair, onPress, variant }: { repair: Repair; onPress: () 
           </View>
         )}
 
+        {variant === 'ready' && (
+          <View style={{ marginTop: 4 }}>
+             <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Total: {formatCurrency(total)} | Adv: {formatCurrency(repair.advance)}</Text>
+             {balance > 0 && <Text style={{ fontSize: 12, color: colors.warning, fontWeight: 'bold' }}>Due: {formatCurrency(balance)}</Text>}
+             <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+               <TouchableOpacity onPress={onPress} style={{ flex: 1, backgroundColor: colors.info, paddingVertical: 6, borderRadius: 6, alignItems: 'center' }}>
+                 <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>Notify</Text>
+               </TouchableOpacity>
+               <TouchableOpacity onPress={onPress} style={{ flex: 1, backgroundColor: colors.warning, paddingVertical: 6, borderRadius: 6, alignItems: 'center' }}>
+                 <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>Payment</Text>
+               </TouchableOpacity>
+               <TouchableOpacity onPress={onPress} style={{ flex: 1, backgroundColor: colors.primary, paddingVertical: 6, borderRadius: 6, alignItems: 'center' }}>
+                 <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>Hand Over</Text>
+               </TouchableOpacity>
+             </View>
+          </View>
+        )}
+
         {variant === 'delivered' && (
           <View style={{ marginTop: 4 }}>
              <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Total: {formatCurrency(total)} | Adv: {formatCurrency(repair.advance)}</Text>
@@ -105,49 +126,103 @@ export default function RepairsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { canAccess, user } = useAuth();
-  const { repairs, isLoading, loadError, loadAll } = useData();
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('Received');
   const [showCancelled, setShowCancelled] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
+  const [techOnly, setTechOnly] = useState(true);
+  const [page, setPage] = useState(1);
+  const [accumulatedRepairs, setAccumulatedRepairs] = useState<Repair[]>([]);
+  
+  const queryClient = useQueryClient();
+  const [offlineItems, setOfflineItems] = useState<QueuedRepair[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isConnected, setIsConnected] = useState(true);
 
-  const { data: returnsData, isLoading: returnsLoading, error: returnsError, refetch: returnsRefetch } = useReturnsList();
+  const loadOfflineQueue = async () => {
+    const q = await offlineQueue.getQueue();
+    setOfflineItems(q);
+  };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await Promise.all([loadAll(), returnsRefetch()]);
-    } finally {
-      setRefreshing(false);
+  const handleSync = async () => {
+    if (isSyncing || offlineItems.length === 0) return;
+    const net = await Network.getNetworkStateAsync();
+    if (!net.isConnected) return;
+    
+    setIsSyncing(true);
+    const { success, failed } = await offlineQueue.flush();
+    setIsSyncing(false);
+    await loadOfflineQueue();
+    if (success > 0) {
+      setPage(1);
+      queryClient.invalidateQueries();
     }
   };
 
+  React.useEffect(() => {
+    loadOfflineQueue();
+    Network.getNetworkStateAsync().then(state => setIsConnected(!!state.isConnected));
+  }, []);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [filter, debouncedSearch, showCancelled, techOnly]);
+
+  const { data: returnsData, isLoading: returnsLoading, error: returnsError, refetch: returnsRefetch } = useReturnsList();
+
+  const getStatusQuery = () => {
+    if (filter === 'Received') return 'received';
+    if (filter === 'Repair') return 'diagnosing,waiting_parts,repairing,testing,customer_approval,cannot_repair';
+    if (filter === 'Ready') return 'ready';
+    if (filter === 'Delivered') return showCancelled ? 'delivered,cancelled' : 'delivered';
+    return undefined;
+  };
+
+  const repairsParams: any = {
+    q: debouncedSearch || undefined,
+    status: getStatusQuery(),
+    page,
+    limit: 20,
+  };
+  
+  if (user?.role === 'technician' && techOnly) {
+    repairsParams.technicianId = 'me';
+  }
+
+  const { 
+    data: repairsData, 
+    isLoading: repairsLoading, 
+    error: repairsError, 
+    refetch: repairsRefetch,
+    isFetching: repairsFetching
+  } = useRepairsList(repairsParams, { 
+    query: { 
+      enabled: filter !== 'After-Sales Service',
+      queryKey: getRepairsListQueryKey(repairsParams)
+    } 
+  });
+
+  React.useEffect(() => {
+    if (repairsData?.repairs) {
+      if (page === 1) setAccumulatedRepairs(repairsData.repairs as Repair[]);
+      else setAccumulatedRepairs(prev => {
+        const newItems = (repairsData.repairs as Repair[]).filter(r => !prev.find(p => p.id === r.id));
+        return [...prev, ...newItems];
+      });
+    }
+  }, [repairsData, page]);
+
+  const onRefresh = async () => {
+    if (filter === 'After-Sales Service') await returnsRefetch();
+    else await repairsRefetch();
+  };
+
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
-
-  const filteredRepairs = useMemo(() => {
-    let list = repairs;
-    if (user?.role === 'technician') {
-      list = list.filter((r) => r.technicianId === user.id);
-    }
-    
-    if (filter === 'Received') list = list.filter((r) => r.status === 'received');
-    else if (filter === 'Repair') list = list.filter((r) => ['diagnosing', 'waiting_parts', 'repairing', 'testing', 'ready', 'customer_approval', 'cannot_repair'].includes(r.status));
-    else if (filter === 'Delivered') list = list.filter((r) => r.status === 'delivered' || (showCancelled && r.status === 'cancelled'));
-    else list = []; // After-sales handled separately
-
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter((r) =>
-        r.customerName.toLowerCase().includes(q) ||
-        r.repairId.toLowerCase().includes(q) ||
-        r.brand.toLowerCase().includes(q) ||
-        r.model.toLowerCase().includes(q) ||
-        r.mobile.includes(q) ||
-        r.imei?.toLowerCase().includes(q)
-      );
-    }
-    return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [repairs, filter, search, user, showCancelled]);
 
   const filteredReturns = useMemo(() => {
     if (filter !== 'After-Sales Service') return [];
@@ -173,9 +248,9 @@ export default function RepairsScreen() {
 
   const headerAnims = useStaggerAnim(3);
 
-  const totalCount = filter === 'After-Sales Service' ? filteredReturns.length : filteredRepairs.length;
-  const isGlobalLoading = filter === 'After-Sales Service' ? returnsLoading : isLoading;
-  const isGlobalError = filter === 'After-Sales Service' ? returnsError : loadError;
+  const totalCount = filter === 'After-Sales Service' ? filteredReturns.length : repairsData?.total || 0;
+  const isGlobalLoading = filter === 'After-Sales Service' ? returnsLoading : repairsLoading;
+  const isGlobalError = filter === 'After-Sales Service' ? returnsError : repairsError;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -221,6 +296,39 @@ export default function RepairsScreen() {
           )}
         </GlassCard>
 
+
+        {/* Offline Sync Banner */}
+        {offlineItems.length > 0 && (
+          <View style={{ backgroundColor: colors.warning + '22', borderWidth: 1, borderColor: colors.warning + '44', padding: 12, borderRadius: 8, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>
+                {offlineItems.length} repair{offlineItems.length > 1 ? 's' : ''} saved offline
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.warning, marginTop: 2 }}>
+                Photos/signatures will need to be re-added once synced.
+              </Text>
+              {offlineItems.some(i => i.status === 'failed') && (
+                <Text style={{ fontSize: 11, color: colors.destructive, marginTop: 2 }}>
+                  Some items failed to sync due to errors.
+                </Text>
+              )}
+            </View>
+            <TouchableOpacity 
+              onPress={handleSync} 
+              disabled={isSyncing || !isConnected}
+              style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: (isSyncing || !isConnected) ? colors.muted : colors.warning, borderRadius: 6 }}
+            >
+              {isSyncing ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={{ color: '#FFF', fontSize: 12, fontFamily: 'Inter_600SemiBold' }}>
+                  {isConnected ? 'Sync Now' : 'Offline'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+        
         {/* Filter Tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 2 }}>
           {FILTERS.map((item) => {
@@ -244,6 +352,14 @@ export default function RepairsScreen() {
           })}
         </ScrollView>
         
+        {user?.role === 'technician' && (
+          <TouchableOpacity onPress={() => setTechOnly(!techOnly)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+            <View style={{ width: 16, height: 16, borderRadius: 4, borderWidth: 1, borderColor: colors.primary, backgroundColor: techOnly ? colors.primary : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+              {techOnly && <Feather name="check" size={12} color="#FFF" />}
+            </View>
+            <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: 'Inter_500Medium' }}>Assigned to me only</Text>
+          </TouchableOpacity>
+        )}
         {filter === 'Delivered' && (
           <TouchableOpacity onPress={() => setShowCancelled(!showCancelled)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
             <View style={{ width: 16, height: 16, borderRadius: 4, borderWidth: 1, borderColor: colors.primary, backgroundColor: showCancelled ? colors.primary : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
@@ -268,7 +384,7 @@ export default function RepairsScreen() {
           keyExtractor={(r) => r.id}
           contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+          refreshControl={<RefreshControl refreshing={returnsLoading} onRefresh={onRefresh} tintColor={colors.primary} />}
           ListEmptyComponent={
             <EmptyState
               icon="corner-up-left"
@@ -317,11 +433,11 @@ export default function RepairsScreen() {
         />
       ) : (
         <FlatList
-          data={filteredRepairs}
+          data={accumulatedRepairs}
           keyExtractor={(r) => r.id}
           contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+          refreshControl={<RefreshControl refreshing={repairsLoading && page === 1} onRefresh={onRefresh} tintColor={colors.primary} />}
           ListEmptyComponent={
             <EmptyState
               icon="tool"
@@ -331,8 +447,19 @@ export default function RepairsScreen() {
               onAction={canCreateRepair ? () => router.push('/(tabs)/repairs/new') : undefined}
             />
           }
+          ListFooterComponent={
+             repairsFetching && (repairsData?.repairs?.length || 0) > 0 ? (
+               <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} />
+             ) : null
+          }
+          onEndReached={() => {
+             if (repairsData?.total && accumulatedRepairs.length < repairsData.total && !repairsFetching) {
+               setPage(p => p + 1);
+             }
+          }}
+          onEndReachedThreshold={0.5}
           renderItem={({ item }) => {
-            const variant = filter === 'Received' ? 'received' : filter === 'Repair' ? 'repair' : 'delivered';
+            const variant = filter === 'Received' ? 'received' : filter === 'Repair' ? 'repair' : filter === 'Ready' ? 'ready' : 'delivered';
             return <RepairCard repair={item} onPress={() => router.push(`/(tabs)/repairs/${item.id}`)} variant={variant} />;
           }}
         />

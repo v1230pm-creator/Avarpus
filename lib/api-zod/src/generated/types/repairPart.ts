@@ -14,6 +14,7 @@ export interface RepairPart {
   quantity: number;
   unitCost: number;
   totalCost: number;
+  canSeeCosts?: boolean;
   addedByName?: string;
   createdAt: string;
 }

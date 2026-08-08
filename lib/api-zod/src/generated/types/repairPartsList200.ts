@@ -9,4 +9,5 @@ import type { RepairPart } from './repairPart';
 
 export type RepairPartsList200 = {
   parts: RepairPart[];
+  canSeeCosts?: boolean;
 };

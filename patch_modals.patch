@@ -1,0 +1,34 @@
+--- artifacts/mobile/app/(tabs)/repairs/[id].tsx
++++ artifacts/mobile/app/(tabs)/repairs/[id].tsx
+@@ -905,15 +905,24 @@
+           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Financials</Text>
+             <Text style={{ fontSize: 12, color: colors.mutedForeground, marginBottom: 12 }}>
+-              Only repair/labour charge and advance can be manually adjusted. Parts charge is computed automatically.
++              Parts charge is computed automatically. Advances are recorded via Payments.
+             </Text>
+ 
+-            <Text style={[styles.label, { color: colors.foreground }]}>Labour / Repair Charge</Text>
+-            <TextInput value={editRepairCharge} onChangeText={setEditRepairCharge} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+-            
+-            <Text style={[styles.label, { color: colors.foreground }]}>Advance Paid</Text>
+-            <TextInput value={editAdvance} onChangeText={setEditAdvance} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
++            <ScrollView style={{ maxHeight: 300 }}>
++              <Text style={[styles.label, { color: colors.foreground }]}>Labour / Repair Charge</Text>
++              <TextInput value={editRepairCharge} onChangeText={setEditRepairCharge} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
++              
++              <Text style={[styles.label, { color: colors.foreground }]}>Service Charge</Text>
++              <TextInput value={editServiceCharge} onChangeText={setEditServiceCharge} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
++              
++              <Text style={[styles.label, { color: colors.foreground }]}>Other Charge</Text>
++              <TextInput value={editOtherCharge} onChangeText={setEditOtherCharge} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
++              
++              <Text style={[styles.label, { color: colors.foreground }]}>Discount</Text>
++              <TextInput value={editDiscount} onChangeText={setEditDiscount} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
++              
++              <Text style={[styles.label, { color: colors.foreground }]}>Tax %</Text>
++              <TextInput value={editTaxPercent} onChangeText={setEditTaxPercent} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
++            </ScrollView>
+             
+             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+               <Button title="Cancel" variant="outline" onPress={() => setShowFinancialEdit(false)} style={{ flex: 1 }} />

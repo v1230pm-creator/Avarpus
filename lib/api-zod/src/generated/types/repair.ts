@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { RepairChecklist } from './repairChecklist';
+import type { RepairPhysicalCondition } from './repairPhysicalCondition';
+import type { RepairTestingChecklist } from './repairTestingChecklist';
 
 export interface Repair {
   id: string;
@@ -17,19 +19,46 @@ export interface Repair {
   brand: string;
   model: string;
   imei?: string;
+  imei2?: string;
+  serialNumber?: string;
+  color?: string;
+  storage?: string;
+  ram?: string;
+  devicePassword?: string;
+  simPresent: boolean;
+  memoryCardPresent: boolean;
   alternateMobile?: string;
   accessories?: string;
+  accessoriesList?: string[];
+  physicalCondition?: RepairPhysicalCondition;
   problem: string;
   deviceCondition?: string;
   diagnosis?: string;
   workPerformed?: string;
   technicianId?: string;
   technicianName?: string;
+  assignedById?: string;
+  assignedByName?: string;
+  assignedAt?: string;
   status: string;
   priority: string;
   repairCharge: number;
   partsCharge: number;
+  serviceCharge: number;
+  otherCharge: number;
+  discount: number;
+  taxPercent: number;
   advance: number;
+  totalAmount: number;
+  paidAmount: number;
+  balance: number;
+  testingChecklist?: RepairTestingChecklist;
+  testingConfirmedById?: string;
+  testingConfirmedByName?: string;
+  testingConfirmedAt?: string;
+  readyAt?: string;
+  customerNotifiedAt?: string;
+  clientRequestId?: string;
   receiveDate: string;
   expectedDate: string;
   deliveryDate?: string;

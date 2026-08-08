@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   doublePrecision,
@@ -47,19 +48,48 @@ export const repairsTable = pgTable("repairs", {
   brand: text("brand").notNull(),
   model: text("model").notNull(),
   imei: text("imei"),
+  imei2: text("imei2"),
+  serialNumber: text("serial_number"),
+  color: text("color"),
+  storage: text("storage"),
+  ram: text("ram"),
+  devicePassword: text("device_password"), // optional; shown only to shop users
+  simPresent: boolean("sim_present").notNull().default(false),
+  memoryCardPresent: boolean("memory_card_present").notNull().default(false),
   alternateMobile: text("alternate_mobile"),
-  accessories: text("accessories"), // accessories received with the device
+  accessories: text("accessories"), // free-text accessories (legacy)
+  accessoriesList: jsonb("accessories_list"), // string[] of checked accessories
+  physicalCondition: jsonb("physical_condition"), // { [item: string]: boolean } damage checklist
   problem: text("problem").notNull(),
   deviceCondition: text("device_condition"), // physical condition noted at intake
   diagnosis: text("diagnosis"), // technician's diagnosis during repair
   workPerformed: text("work_performed"), // summary of the actual repair work
   technicianId: uuid("technician_id"),
   technicianName: text("technician_name"),
+  assignedById: uuid("assigned_by_id"),
+  assignedByName: text("assigned_by_name"),
+  assignedAt: timestamp("assigned_at", { withTimezone: true }),
   status: text("status").notNull().default("received"),
   priority: text("priority").notNull().default("normal"),
+  // Charges breakdown: repairCharge = labour; final =
+  // labour + parts + service + other − discount + tax
   repairCharge: doublePrecision("repair_charge").notNull().default(0),
   partsCharge: doublePrecision("parts_charge").notNull().default(0),
+  serviceCharge: doublePrecision("service_charge").notNull().default(0),
+  otherCharge: doublePrecision("other_charge").notNull().default(0),
+  discount: doublePrecision("discount").notNull().default(0),
+  taxPercent: doublePrecision("tax_percent").notNull().default(0),
+  // Cached sum of repair_payments rows — the ledger is the source of truth.
   advance: doublePrecision("advance").notNull().default(0),
+  // Final testing gate before repair can be marked ready/completed
+  testingChecklist: jsonb("testing_checklist"), // { [item: string]: boolean }
+  testingConfirmedById: uuid("testing_confirmed_by_id"),
+  testingConfirmedByName: text("testing_confirmed_by_name"),
+  testingConfirmedAt: timestamp("testing_confirmed_at", { withTimezone: true }),
+  readyAt: timestamp("ready_at", { withTimezone: true }),
+  customerNotifiedAt: timestamp("customer_notified_at", { withTimezone: true }),
+  // Idempotency key for offline-queued intake sync (client-generated)
+  clientRequestId: text("client_request_id"),
   receiveDate: text("receive_date").notNull(), // ISO date (yyyy-mm-dd)
   expectedDate: text("expected_date").notNull(),
   deliveryDate: text("delivery_date"),
@@ -83,7 +113,12 @@ export const repairsTable = pgTable("repairs", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (t) => [
+  // Offline sync dedupe: a client-generated id may only create one repair.
+  uniqueIndex("repairs_shop_client_request_id_unique")
+    .on(t.shopId, t.clientRequestId)
+    .where(sql`${t.clientRequestId} IS NOT NULL`),
+]);
 
 export const inventoryItemsTable = pgTable("inventory_items", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -97,6 +132,7 @@ export const inventoryItemsTable = pgTable("inventory_items", {
   minStock: integer("min_stock").notNull().default(0),
   purchasePrice: doublePrecision("purchase_price").notNull().default(0),
   sellingPrice: doublePrecision("selling_price").notNull().default(0),
+  sku: text("sku"),
   supplier: text("supplier"),
   isSample: boolean("is_sample").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -331,6 +367,109 @@ export const refundsTable = pgTable("refunds", {
     .notNull()
     .defaultNow(),
 });
+
+// ── Payments ledger ─────────────────────────────────────────────────────────
+// Every customer payment (advance / partial / final) is its own append-only
+// row; repairs.advance is only a cached SUM of these rows, updated in the
+// same transaction. Rows are never edited or deleted — corrections happen
+// via refunds.
+export const repairPaymentsTable = pgTable("repair_payments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  shopId: uuid("shop_id")
+    .notNull()
+    .references(() => shopsTable.id, { onDelete: "cascade" }),
+  repairId: uuid("repair_id")
+    .notNull()
+    .references(() => repairsTable.id, { onDelete: "cascade" }),
+  customerId: uuid("customer_id").references(() => customersTable.id, {
+    onDelete: "set null",
+  }),
+  amount: doublePrecision("amount").notNull(),
+  method: text("method").notNull().default("Cash"), // Cash|UPI|Card|Bank Transfer|Other
+  kind: text("kind").notNull().default("advance"), // advance | partial | final
+  note: text("note"),
+  referenceNo: text("reference_no"),
+  receivedById: uuid("received_by_id"),
+  receivedByName: text("received_by_name"),
+  isSample: boolean("is_sample").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Append-only inventory movement ledger. Written in the same transaction as
+// the stock change (repair part used, rework part used, purchase received,
+// manual adjustment).
+export const stockMovementsTable = pgTable("stock_movements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  shopId: uuid("shop_id")
+    .notNull()
+    .references(() => shopsTable.id, { onDelete: "cascade" }),
+  inventoryItemId: uuid("inventory_item_id"),
+  itemName: text("item_name").notNull(),
+  quantityChange: integer("quantity_change").notNull(), // negative = consumed
+  reason: text("reason").notNull(), // repair_part|return_part|purchase|adjustment
+  repairId: uuid("repair_id"),
+  returnId: uuid("return_id"),
+  byId: uuid("by_id"),
+  byName: text("by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Customer approval for estimate changes ("Waiting for Customer Approval").
+// Confirmation can be email OTP, captured signature, or manual dealer
+// confirmation; the decision is stored permanently.
+export const estimateApprovalsTable = pgTable("estimate_approvals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  shopId: uuid("shop_id")
+    .notNull()
+    .references(() => shopsTable.id, { onDelete: "cascade" }),
+  repairId: uuid("repair_id")
+    .notNull()
+    .references(() => repairsTable.id, { onDelete: "cascade" }),
+  oldAmount: doublePrecision("old_amount").notNull(),
+  newAmount: doublePrecision("new_amount").notNull(),
+  reason: text("reason").notNull(),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  method: text("method"), // otp | signature | dealer
+  signaturePath: text("signature_path"),
+  requestedById: uuid("requested_by_id"),
+  requestedByName: text("requested_by_name"),
+  decidedById: uuid("decided_by_id"),
+  decidedByName: text("decided_by_name"),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Short-lived email OTP codes for customer confirmations (estimate approval,
+// delivery handover). Only the bcrypt hash is stored.
+export const customerOtpCodesTable = pgTable("customer_otp_codes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  shopId: uuid("shop_id")
+    .notNull()
+    .references(() => shopsTable.id, { onDelete: "cascade" }),
+  purpose: text("purpose").notNull(), // estimate_approval | delivery_confirmation | intake_confirmation
+  targetId: uuid("target_id").notNull(), // repair or estimate-approval row id
+  codeHash: text("code_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  // Marks a verified OTP as spent so it cannot confirm an action twice.
+  // Set in the same transaction that acts on the verification.
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type DbRepairPayment = typeof repairPaymentsTable.$inferSelect;
+export type DbStockMovement = typeof stockMovementsTable.$inferSelect;
+export type DbEstimateApproval = typeof estimateApprovalsTable.$inferSelect;
+export type DbCustomerOtpCode = typeof customerOtpCodesTable.$inferSelect;
 
 export type DbRepairReturn = typeof repairReturnsTable.$inferSelect;
 export type DbReturnPart = typeof returnPartsTable.$inferSelect;

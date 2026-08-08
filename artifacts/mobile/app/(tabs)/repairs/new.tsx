@@ -20,6 +20,9 @@ import SignatureScreen from 'react-native-signature-canvas';
 import QRCode from 'react-native-qrcode-svg';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as Network from 'expo-network';
+import { offlineQueue } from '@/utils/offlineQueue';
+import { generateUUID } from '@/utils/helpers';
 
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
@@ -64,6 +67,29 @@ const CHECKLIST_ITEMS = [
   { id: 'power_button', label: 'Power Button' },
 ];
 
+const PHYSICAL_CONDITION_ITEMS = [
+  { id: 'screen_damage', label: 'Screen Damage' },
+  { id: 'back_panel_damage', label: 'Back Panel Damage' },
+  { id: 'frame_damage', label: 'Frame Damage' },
+  { id: 'camera_glass_damage', label: 'Camera Glass Damage' },
+  { id: 'water_liquid_damage', label: 'Water/Liquid Damage' },
+  { id: 'existing_scratches', label: 'Existing Scratches' },
+  { id: 'other', label: 'Other' },
+];
+
+const ACCESSORY_ITEMS = [
+  { id: 'Charger', label: 'Charger' },
+  { id: 'Cable', label: 'Cable' },
+  { id: 'Adapter', label: 'Adapter' },
+  { id: 'Box', label: 'Box' },
+  { id: 'SIM Tray', label: 'SIM Tray' },
+  { id: 'SIM', label: 'SIM' },
+  { id: 'Memory Card', label: 'Memory Card' },
+  { id: 'Cover', label: 'Cover' },
+  { id: 'Earphones', label: 'Earphones' },
+  { id: 'Other', label: 'Other' },
+];
+
 const WARRANTY_OPTIONS = [
   { label: 'No Warranty', value: '0' },
   { label: '7 Days', value: '7' },
@@ -75,6 +101,7 @@ const WARRANTY_OPTIONS = [
 const PHOTO_KINDS = [
   { id: 'front', label: 'Front' },
   { id: 'back', label: 'Back' },
+  { id: 'imei', label: 'IMEI / Serial' },
   { id: 'left', label: 'Left Edge' },
   { id: 'right', label: 'Right Edge' },
   { id: 'top', label: 'Top Edge' },
@@ -104,20 +131,36 @@ export default function NewRepairScreen() {
   const anims = useStaggerAnim(2);
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
+  const [step, setStep] = useState(1);
+
   const [customerName, setCustomerName] = useState('');
   const [mobile, setMobile] = useState('');
   const [alternateMobile, setAlternateMobile] = useState('');
+  const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
+  
   const [deviceType, setDeviceType] = useState('Smartphone');
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
   const [imei, setImei] = useState('');
-  const [accessories, setAccessories] = useState('');
+  const [imei2, setImei2] = useState('');
+  const [serialNumber, setSerialNumber] = useState('');
+  const [colorAttr, setColorAttr] = useState('');
+  const [storage, setStorage] = useState('');
+  const [ram, setRam] = useState('');
+  const [devicePassword, setDevicePassword] = useState('');
+  const [showDevicePassword, setShowDevicePassword] = useState(false);
+  const [simPresent, setSimPresent] = useState(false);
+  const [memoryCardPresent, setMemoryCardPresent] = useState(false);
+  
+  const [accessoriesList, setAccessoriesList] = useState<string[]>([]);
+  const [otherAccessories, setOtherAccessories] = useState('');
+  const [physicalCondition, setPhysicalCondition] = useState<Record<string, boolean>>({});
   const [deviceCondition, setDeviceCondition] = useState('');
   const [problem, setProblem] = useState('');
+  
   const [priority, setPriority] = useState('normal');
   const [repairCharge, setRepairCharge] = useState('');
-  const [advance, setAdvance] = useState('');
   const [notes, setNotes] = useState('');
   const [warrantyDays, setWarrantyDays] = useState('0');
   const [receiveDate, setReceiveDate] = useState(getTodayStr());
@@ -128,12 +171,13 @@ export default function NewRepairScreen() {
   
   const [photos, setPhotos] = useState<{ uri: string, kind: string }[]>([]);
   const [receivingSignatureUri, setReceivingSignatureUri] = useState<string | null>(null);
+  const [customerConfirmed, setCustomerConfirmed] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [showSignature, setShowSignature] = useState(false);
-  const [showPhotoKindModal, setShowPhotoKindModal] = useState<string | null>(null); // holds URI until kind is selected
+  const [showPhotoKindModal, setShowPhotoKindModal] = useState<string | null>(null);
 
   const [createdRepair, setCreatedRepair] = useState<Repair | null>(null);
   const qrRef = useRef<any>(null);
@@ -161,6 +205,14 @@ export default function NewRepairScreen() {
     return Object.keys(e).length === 0;
   };
 
+  const handleReview = () => {
+    if (validate()) {
+      setStep(2);
+    } else {
+      Alert.alert('Validation Error', 'Please check the required fields.');
+    }
+  };
+
   const uploadToGcs = async (fileUri: string, mimeType: string) => {
     try {
       const fileInfo = await FileSystem.getInfoAsync(fileUri);
@@ -178,41 +230,45 @@ export default function NewRepairScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!validate()) {
-      Alert.alert('Validation Error', 'Please check the required fields.');
+    if (!customerConfirmed) {
+      Alert.alert('Required', 'Please confirm that the details are correct.');
       return;
     }
     setLoading(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      // For backdated (approval) requests the customer must NOT be created
-      // yet — the server creates/links the customer only if the dealer
-      // approves. Only look up an existing one here.
       let customerId = customers.find((c) => c.mobile === mobile)?.id;
       if (!customerId && !isBackdated) {
         const created = await addCustomer({
           name: customerName.trim(), mobile: mobile.trim(),
+          email: email.trim() || undefined,
           address: address.trim() || undefined,
         });
         customerId = created.id;
       }
 
-      const techId = user?.role === 'technician' ? user.id : undefined;
-      const techName = user?.role === 'technician' ? user.name : undefined;
 
       const basePayload = {
         customerId,
         customerName: customerName.trim(), mobile: mobile.trim(),
         alternateMobile: alternateMobile.trim() || undefined,
         deviceType, brand: brand.trim(), model: model.trim(),
-        imei: imei.trim() || undefined, problem: problem.trim(),
-        accessories: accessories.trim() || undefined,
+        imei: imei.trim() || undefined,
+        imei2: imei2.trim() || undefined,
+        serialNumber: serialNumber.trim() || undefined,
+        color: colorAttr.trim() || undefined,
+        storage: storage.trim() || undefined,
+        ram: ram.trim() || undefined,
+        devicePassword: devicePassword.trim() || undefined,
+        simPresent, memoryCardPresent,
+        problem: problem.trim(),
+        accessories: otherAccessories.trim() || undefined,
+        accessoriesList,
+        physicalCondition,
         deviceCondition: deviceCondition.trim() || undefined,
-        technicianId: techId, technicianName: techName,
         status: 'received', priority: priority as Repair['priority'],
         repairCharge: parseFloat(repairCharge) || 0, partsCharge: 0,
-        advance: parseFloat(advance) || 0,
         expectedDate: expectedDate.trim(), notes: notes.trim() || undefined,
         checklist, warrantyDays: parseInt(warrantyDays, 10) || 0,
       };
@@ -239,7 +295,60 @@ export default function NewRepairScreen() {
         createdAt: new Date().toISOString(),
       } as Repair;
 
-      const repair = await addRepair(newRepair);
+      const apiPayload = {
+        customerId: newRepair.customerId || undefined,
+        customerName: newRepair.customerName,
+        mobile: newRepair.mobile,
+        deviceType: newRepair.deviceType,
+        brand: newRepair.brand,
+        model: newRepair.model,
+        imei: newRepair.imei,
+        imei2: newRepair.imei2,
+        serialNumber: newRepair.serialNumber,
+        color: newRepair.color,
+        storage: newRepair.storage,
+        ram: newRepair.ram,
+        devicePassword: newRepair.devicePassword,
+        simPresent: newRepair.simPresent,
+        memoryCardPresent: newRepair.memoryCardPresent,
+        alternateMobile: newRepair.alternateMobile,
+        accessories: newRepair.accessories,
+        accessoriesList: newRepair.accessoriesList,
+        physicalCondition: newRepair.physicalCondition,
+        deviceCondition: newRepair.deviceCondition,
+        problem: newRepair.problem,
+        priority: newRepair.priority,
+        repairCharge: newRepair.repairCharge,
+        expectedDate: newRepair.expectedDate || new Date().toISOString(),
+      };
+
+      const net = await Network.getNetworkStateAsync();
+      const isOnline = net.isConnected && net.isInternetReachable !== false;
+      const clientRequestId = generateUUID();
+
+      if (!isOnline) {
+        await offlineQueue.add(apiPayload, clientRequestId);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert('Saved Offline', 'The repair was saved offline and will sync automatically when network is available.\n\nPhotos and signatures will need to be re-added after sync.', [
+          { text: 'OK', onPress: () => router.push('/repairs') }
+        ]);
+        return;
+      }
+
+      let repair;
+      try {
+        repair = await addRepair({ ...newRepair, clientRequestId } as any);
+      } catch (addError: any) {
+        if (addError.message && (addError.message.includes('Network request failed') || addError.message.includes('fetch'))) {
+          await offlineQueue.add(apiPayload, clientRequestId);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert('Saved Offline', 'Network request failed. The repair was saved offline and will sync automatically when network is available.\n\nPhotos and signatures will need to be re-added after sync.', [
+            { text: 'OK', onPress: () => router.push('/repairs') }
+          ]);
+          return;
+        }
+        throw addError;
+      }
 
       let sigPath;
       if (receivingSignatureUri) {
@@ -264,8 +373,6 @@ export default function NewRepairScreen() {
         Alert.alert('Approval Required', 'This entry requires dealer approval. Please provide a reason and submit again.');
         return;
       }
-      // The form state is untouched here, so the user can fix the issue
-      // (e.g. reconnect) and tap Save again without re-typing anything.
       Alert.alert(
         'Save failed',
         err instanceof Error ? err.message : "Couldn't save the repair. Please try again. Your entries are still here.",
@@ -328,7 +435,6 @@ export default function NewRepairScreen() {
                 <p><strong>Device:</strong> ${createdRepair.brand} ${createdRepair.model}</p>
                 <p><strong>Problem:</strong> ${createdRepair.problem}</p>
                 <p><strong>Estimate:</strong> ₹${createdRepair.repairCharge}</p>
-                <p><strong>Advance:</strong> ₹${createdRepair.advance}</p>
                 <p><strong>Warranty:</strong> ${createdRepair.warrantyDays} Days</p>
               </div>
               <div>
@@ -349,8 +455,6 @@ export default function NewRepairScreen() {
         </html>
       `;
       if (Platform.OS === 'web') {
-        // Web: printToFileAsync/Sharing are unsupported — open the browser
-        // print dialog instead (user can "Save as PDF" from there).
         await Print.printAsync({ html });
       } else {
         const { uri } = await Print.printToFileAsync({ html });
@@ -363,6 +467,10 @@ export default function NewRepairScreen() {
     } catch (e) {
       Alert.alert('Error', 'Could not generate PDF.');
     }
+  };
+
+  const toggleAccessory = (acc: string) => {
+    setAccessoriesList(prev => prev.includes(acc) ? prev.filter(a => a !== acc) : [...prev, acc]);
   };
 
   if (createdRepair) {
@@ -398,10 +506,12 @@ export default function NewRepairScreen() {
       <ScreenGlow />
 
       <FadeInView animValue={anims[0]} style={[styles.header, { paddingTop: topPad + 14 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => step === 2 ? setStep(1) : router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Device Intake</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+          {step === 1 ? 'Device Intake' : 'Review & Confirm'}
+        </Text>
         <View style={{ width: 44 }} />
       </FadeInView>
 
@@ -412,145 +522,281 @@ export default function NewRepairScreen() {
       >
         <FadeInView animValue={anims[1]} style={{ gap: 20 }}>
           
-          {/* Customer */}
-          <View style={styles.section}>
-            <SectionHeader title="Customer Details" />
-            <Input label="Name *" value={customerName} onChangeText={setCustomerName} placeholder="Full name" leftIcon="user" error={errors.customerName} />
-            <Input label="Mobile *" value={mobile} onChangeText={setMobile} placeholder="10-digit number" keyboardType="phone-pad" leftIcon="phone" error={errors.mobile} />
-            <Input label="Alternate Mobile" value={alternateMobile} onChangeText={setAlternateMobile} placeholder="Optional" keyboardType="phone-pad" leftIcon="phone" />
-            <Input label="Address" value={address} onChangeText={setAddress} placeholder="Optional" leftIcon="map-pin" />
-          </View>
-
-          {/* Device */}
-          <View style={styles.section}>
-            <SectionHeader title="Device Details" />
-            <SelectInput label="Device Type *" options={DEVICE_TYPES} value={deviceType} onChange={setDeviceType} />
-            <SelectInput label="Brand *" options={BRANDS} value={brand} onChange={setBrand} error={errors.brand} />
-            <Input label="Model *" value={model} onChangeText={setModel} placeholder="e.g. Galaxy S23" leftIcon="smartphone" error={errors.model} />
-            <Input label="IMEI / Serial" value={imei} onChangeText={setImei} placeholder="Optional" leftIcon="hash" keyboardType="number-pad" />
-            <Input label="Accessories Received" value={accessories} onChangeText={setAccessories} placeholder="e.g. Charger, Cover, SIM tray" leftIcon="box" />
-            <Input label="Device Condition" value={deviceCondition} onChangeText={setDeviceCondition} placeholder="e.g. Screen cracked, scratches" leftIcon="smartphone" />
-          </View>
-
-          {/* Problem */}
-          <View style={styles.section}>
-            <SectionHeader title="Service Details" />
-            <Input
-              label="Problem Description *"
-              value={problem}
-              onChangeText={setProblem}
-              placeholder="Describe the issue..."
-              multiline
-              numberOfLines={3}
-              style={{ height: 90, textAlignVertical: 'top', paddingTop: 12 } as any}
-              error={errors.problem}
-            />
-            {isBackdated && (
-              <View style={[styles.warningBanner, { backgroundColor: colors.warning + '22', borderColor: colors.warning + '55' }]}>
-                <Feather name="alert-triangle" size={16} color={colors.warning} />
-                <Text style={[styles.warningText, { color: colors.warning, fontFamily: 'Inter_500Medium' }]}>
-                  This is a backdated entry. Dealer/Owner approval is required.
-                </Text>
+          {step === 1 ? (
+            <>
+              {/* Customer */}
+              <View style={styles.section}>
+                <SectionHeader title="Customer Details" />
+                <Input label="Name *" value={customerName} onChangeText={setCustomerName} placeholder="Full name" leftIcon="user" error={errors.customerName} />
+                <Input label="Mobile *" value={mobile} onChangeText={setMobile} placeholder="10-digit number" keyboardType="phone-pad" leftIcon="phone" error={errors.mobile} />
+                <Input label="Alternate Mobile" value={alternateMobile} onChangeText={setAlternateMobile} placeholder="Optional" keyboardType="phone-pad" leftIcon="phone" />
+                <Input label="Email" value={email} onChangeText={setEmail} placeholder="Optional" keyboardType="email-address" leftIcon="mail" autoCapitalize="none" />
+                <Input label="Address" value={address} onChangeText={setAddress} placeholder="Optional" leftIcon="map-pin" />
               </View>
-            )}
-            <Input label="Receive Date *" value={receiveDate} onChangeText={setReceiveDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} leftIcon="calendar" error={errors.receiveDate} />
-            
-            {isBackdated && (
-              <Input label="Reason for backdating *" value={reason} onChangeText={setReason} placeholder="Explain why this is backdated..." error={errors.reason} />
-            )}
-            
-            <Input label="Expected Delivery *" value={expectedDate} onChangeText={setExpectedDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} leftIcon="calendar" error={errors.expectedDate} />
-            <SelectInput label="Priority" options={PRIORITIES} value={priority} onChange={setPriority} labelMap={PRIORITY_LABELS} />
-            <SelectInput label="Warranty Offered" options={WARRANTY_OPTIONS.map(o => o.value)} value={warrantyDays} onChange={setWarrantyDays} labelMap={WARRANTY_OPTIONS.reduce((acc, curr) => ({...acc, [curr.value]: curr.label}), {})} />
-          </View>
 
-          {/* Checklist */}
-          <View style={styles.section}>
-            <SectionHeader title="Device Condition Checklist" />
-            <View style={styles.checklistGrid}>
-              {CHECKLIST_ITEMS.map((item) => {
-                const checked = checklist[item.id] || false;
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    activeOpacity={0.7}
-                    onPress={() => setChecklist(prev => ({ ...prev, [item.id]: !checked }))}
-                    style={[styles.checklistItem, { backgroundColor: colors.card, borderColor: checked ? colors.primary : colors.border }]}
-                  >
-                    <View style={[styles.checkbox, { backgroundColor: checked ? colors.primary : 'transparent', borderColor: checked ? colors.primary : colors.muted }]}>
-                      {checked && <Feather name="check" size={14} color="#FFF" />}
-                    </View>
-                    <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>{item.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Photos */}
-          <View style={styles.section}>
-            <SectionHeader title="Intake Photos" />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoScroll}>
-              {photos.map((p, i) => (
-                <View key={i} style={[styles.photoThumbWrap, { borderColor: colors.border }]}>
-                  <Image source={{ uri: p.uri }} style={styles.photoThumb} />
-                  <View style={[styles.photoBadge, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.photoBadgeText}>{PHOTO_KINDS.find(k => k.id === p.kind)?.label || p.kind}</Text>
+              {/* Device */}
+              <View style={styles.section}>
+                <SectionHeader title="Device Details" />
+                <SelectInput label="Device Type *" options={DEVICE_TYPES} value={deviceType} onChange={setDeviceType} />
+                <SelectInput label="Brand *" options={BRANDS} value={brand} onChange={setBrand} error={errors.brand} />
+                <Input label="Model *" value={model} onChangeText={setModel} placeholder="e.g. Galaxy S23" leftIcon="smartphone" error={errors.model} />
+                
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Input label="IMEI 1" value={imei} onChangeText={setImei} placeholder="Optional" keyboardType="number-pad" />
                   </View>
-                  <TouchableOpacity 
-                    style={[styles.photoRemove, { backgroundColor: colors.destructive }]}
-                    onPress={() => setPhotos(prev => prev.filter((_, idx) => idx !== i))}
-                  >
-                    <Feather name="x" size={12} color="#FFF" />
+                  <View style={{ flex: 1 }}>
+                    <Input label="IMEI 2" value={imei2} onChangeText={setImei2} placeholder="Optional" keyboardType="number-pad" />
+                  </View>
+                </View>
+                <Input label="Serial Number" value={serialNumber} onChangeText={setSerialNumber} placeholder="Optional" />
+                
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1 }}><Input label="Color" value={colorAttr} onChangeText={setColorAttr} placeholder="Optional" /></View>
+                  <View style={{ flex: 1 }}><Input label="Storage" value={storage} onChangeText={setStorage} placeholder="e.g. 128GB" /></View>
+                  <View style={{ flex: 1 }}><Input label="RAM" value={ram} onChangeText={setRam} placeholder="e.g. 8GB" /></View>
+                </View>
+
+                <View style={{ position: 'relative' }}>
+                  <Input 
+                    label="Device Password / Pattern" 
+                    value={devicePassword} 
+                    onChangeText={setDevicePassword} 
+                    placeholder="Optional"
+                    secureTextEntry={!showDevicePassword}
+                  />
+                  {!!devicePassword && (
+                    <TouchableOpacity style={{ position: 'absolute', right: 12, top: 40 }} onPress={() => setShowDevicePassword(!showDevicePassword)}>
+                      <Feather name={showDevicePassword ? 'eye-off' : 'eye'} size={20} color={colors.mutedForeground} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                  <TouchableOpacity activeOpacity={0.7} onPress={() => setSimPresent(!simPresent)} style={[styles.checklistItem, { backgroundColor: colors.card, borderColor: simPresent ? colors.primary : colors.border }]}>
+                    <View style={[styles.checkbox, { backgroundColor: simPresent ? colors.primary : 'transparent', borderColor: simPresent ? colors.primary : colors.muted }]}>
+                      {simPresent && <Feather name="check" size={14} color="#FFF" />}
+                    </View>
+                    <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>SIM Present</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity activeOpacity={0.7} onPress={() => setMemoryCardPresent(!memoryCardPresent)} style={[styles.checklistItem, { backgroundColor: colors.card, borderColor: memoryCardPresent ? colors.primary : colors.border }]}>
+                    <View style={[styles.checkbox, { backgroundColor: memoryCardPresent ? colors.primary : 'transparent', borderColor: memoryCardPresent ? colors.primary : colors.muted }]}>
+                      {memoryCardPresent && <Feather name="check" size={14} color="#FFF" />}
+                    </View>
+                    <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>SD Card Present</Text>
                   </TouchableOpacity>
                 </View>
-              ))}
-              <TouchableOpacity onPress={handlePickPhoto} style={[styles.addPhotoBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Feather name="camera" size={24} color={colors.primary} />
-                <Text style={[styles.addPhotoText, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>Add Photo</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
+              </View>
 
-          {/* Financials */}
-          <View style={styles.section}>
-            <SectionHeader title="Estimate & Payment" />
-            <Input label="Estimated Charge (₹)" value={repairCharge} onChangeText={setRepairCharge} placeholder="0" keyboardType="decimal-pad" leftIcon="dollar-sign" />
-            <Input label="Advance Paid (₹)" value={advance} onChangeText={setAdvance} placeholder="0" keyboardType="decimal-pad" leftIcon="credit-card" />
-          </View>
+              {/* Accessories */}
+              <View style={styles.section}>
+                <SectionHeader title="Accessories Received" />
+                <View style={styles.checklistGrid}>
+                  {ACCESSORY_ITEMS.map((item) => {
+                    const checked = accessoriesList.includes(item.id);
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        activeOpacity={0.7}
+                        onPress={() => toggleAccessory(item.id)}
+                        style={[styles.checklistItem, { backgroundColor: colors.card, borderColor: checked ? colors.primary : colors.border }]}
+                      >
+                        <View style={[styles.checkbox, { backgroundColor: checked ? colors.primary : 'transparent', borderColor: checked ? colors.primary : colors.muted }]}>
+                          {checked && <Feather name="check" size={14} color="#FFF" />}
+                        </View>
+                        <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>{item.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Input label="Other Accessories Notes" value={otherAccessories} onChangeText={setOtherAccessories} placeholder="e.g. Broken cover, mixed cables..." />
+              </View>
 
-          {/* Signature */}
-          <View style={styles.section}>
-            <SectionHeader title="Customer Authorization" />
-            {receivingSignatureUri ? (
-              <View style={[styles.sigPreviewWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                <Image source={{ uri: receivingSignatureUri }} style={styles.sigPreview} resizeMode="contain" />
-                <TouchableOpacity style={[styles.sigClear, { backgroundColor: colors.destructive }]} onPress={() => setReceivingSignatureUri(null)}>
-                  <Feather name="x" size={16} color="#FFF" />
+              {/* Physical Condition */}
+              <View style={styles.section}>
+                <SectionHeader title="Physical Condition" />
+                <View style={styles.checklistGrid}>
+                  {PHYSICAL_CONDITION_ITEMS.map((item) => {
+                    const checked = physicalCondition[item.id] || false;
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        activeOpacity={0.7}
+                        onPress={() => setPhysicalCondition(prev => ({ ...prev, [item.id]: !checked }))}
+                        style={[styles.checklistItem, { backgroundColor: colors.card, borderColor: checked ? colors.primary : colors.border }]}
+                      >
+                        <View style={[styles.checkbox, { backgroundColor: checked ? colors.primary : 'transparent', borderColor: checked ? colors.primary : colors.muted }]}>
+                          {checked && <Feather name="check" size={14} color="#FFF" />}
+                        </View>
+                        <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>{item.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Input label="General Condition Notes" value={deviceCondition} onChangeText={setDeviceCondition} placeholder="e.g. Screen cracked, body bent" leftIcon="smartphone" />
+              </View>
+
+              {/* Checklist */}
+              <View style={styles.section}>
+                <SectionHeader title="Pre-Repair Checklist (Functions)" />
+                <View style={styles.checklistGrid}>
+                  {CHECKLIST_ITEMS.map((item) => {
+                    const checked = checklist[item.id] || false;
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        activeOpacity={0.7}
+                        onPress={() => setChecklist(prev => ({ ...prev, [item.id]: !checked }))}
+                        style={[styles.checklistItem, { backgroundColor: colors.card, borderColor: checked ? colors.primary : colors.border }]}
+                      >
+                        <View style={[styles.checkbox, { backgroundColor: checked ? colors.primary : 'transparent', borderColor: checked ? colors.primary : colors.muted }]}>
+                          {checked && <Feather name="check" size={14} color="#FFF" />}
+                        </View>
+                        <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>{item.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Photos */}
+              <View style={styles.section}>
+                <SectionHeader title="Intake Photos" />
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoScroll}>
+                  {photos.map((p, i) => (
+                    <View key={i} style={[styles.photoThumbWrap, { borderColor: colors.border }]}>
+                      <Image source={{ uri: p.uri }} style={styles.photoThumb} />
+                      <View style={[styles.photoBadge, { backgroundColor: colors.primary }]}>
+                        <Text style={styles.photoBadgeText}>{PHOTO_KINDS.find(k => k.id === p.kind)?.label || p.kind}</Text>
+                      </View>
+                      <TouchableOpacity 
+                        style={[styles.photoRemove, { backgroundColor: colors.destructive }]}
+                        onPress={() => setPhotos(prev => prev.filter((_, idx) => idx !== i))}
+                      >
+                        <Feather name="x" size={12} color="#FFF" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  <TouchableOpacity onPress={handlePickPhoto} style={[styles.addPhotoBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Feather name="camera" size={24} color={colors.primary} />
+                    <Text style={[styles.addPhotoText, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>Add Photo</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </View>
+
+              {/* Problem */}
+              <View style={styles.section}>
+                <SectionHeader title="Service Details" />
+                <Input
+                  label="Problem Description *"
+                  value={problem}
+                  onChangeText={setProblem}
+                  placeholder="Describe the issue..."
+                  multiline
+                  numberOfLines={3}
+                  style={{ height: 90, textAlignVertical: 'top', paddingTop: 12 } as any}
+                  error={errors.problem}
+                />
+                {isBackdated && (
+                  <View style={[styles.warningBanner, { backgroundColor: colors.warning + '22', borderColor: colors.warning + '55' }]}>
+                    <Feather name="alert-triangle" size={16} color={colors.warning} />
+                    <Text style={[styles.warningText, { color: colors.warning, fontFamily: 'Inter_500Medium' }]}>
+                      This is a backdated entry. Dealer/Owner approval is required.
+                    </Text>
+                  </View>
+                )}
+                <Input label="Receive Date *" value={receiveDate} onChangeText={setReceiveDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} leftIcon="calendar" error={errors.receiveDate} />
+                
+                {isBackdated && (
+                  <Input label="Reason for backdating *" value={reason} onChangeText={setReason} placeholder="Explain why this is backdated..." error={errors.reason} />
+                )}
+                
+                <Input label="Expected Delivery *" value={expectedDate} onChangeText={setExpectedDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} leftIcon="calendar" error={errors.expectedDate} />
+                <SelectInput label="Priority" options={PRIORITIES} value={priority} onChange={setPriority} labelMap={PRIORITY_LABELS} />
+                <SelectInput label="Warranty Offered" options={WARRANTY_OPTIONS.map(o => o.value)} value={warrantyDays} onChange={setWarrantyDays} labelMap={WARRANTY_OPTIONS.reduce((acc, curr) => ({...acc, [curr.value]: curr.label}), {})} />
+              </View>
+
+              {/* Financials */}
+              <View style={styles.section}>
+                <SectionHeader title="Estimate" />
+                <Input label="Estimated Charge (₹)" value={repairCharge} onChangeText={setRepairCharge} placeholder="0" keyboardType="decimal-pad" leftIcon="dollar-sign" />
+              </View>
+
+              <Button
+                title="Review Intake"
+                onPress={handleReview}
+                fullWidth
+                size="lg"
+                style={{ marginTop: 20 }}
+              />
+            </>
+          ) : (
+            <>
+              {/* SUMMARY VIEW */}
+              <View style={styles.section}>
+                <SectionHeader title="Intake Summary" />
+                <View style={[styles.summaryBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={styles.summaryRow}><Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Customer:</Text><Text style={[styles.summaryValue, { color: colors.foreground }]}>{customerName}</Text></View>
+                  <View style={styles.summaryRow}><Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Mobile:</Text><Text style={[styles.summaryValue, { color: colors.foreground }]}>{mobile}</Text></View>
+                  <View style={styles.summaryRow}><Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Device:</Text><Text style={[styles.summaryValue, { color: colors.foreground }]}>{brand} {model}</Text></View>
+                  <View style={styles.summaryRow}><Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Problem:</Text><Text style={[styles.summaryValue, { color: colors.foreground }]}>{problem}</Text></View>
+                  <View style={styles.summaryRow}><Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Estimate:</Text><Text style={[styles.summaryValue, { color: colors.foreground }]}>₹{repairCharge || '0'}</Text></View>
+                  <View style={styles.summaryRow}><Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Exp. Date:</Text><Text style={[styles.summaryValue, { color: colors.foreground }]}>{expectedDate}</Text></View>
+                  <View style={styles.summaryRow}><Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Photos:</Text><Text style={[styles.summaryValue, { color: colors.foreground }]}>{photos.length} captured</Text></View>
+                </View>
+              </View>
+
+              {/* Customer Confirmation */}
+              <View style={styles.section}>
+                <TouchableOpacity 
+                  activeOpacity={0.7} 
+                  onPress={() => setCustomerConfirmed(!customerConfirmed)} 
+                  style={[styles.confirmationWrap, { backgroundColor: colors.card, borderColor: customerConfirmed ? colors.primary : colors.border }]}
+                >
+                  <View style={[styles.checkbox, { backgroundColor: customerConfirmed ? colors.primary : 'transparent', borderColor: customerConfirmed ? colors.primary : colors.muted }]}>
+                    {customerConfirmed && <Feather name="check" size={14} color="#FFF" />}
+                  </View>
+                  <Text style={[styles.confirmationText, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>
+                    I have submitted the device and the above details are correct.
+                  </Text>
                 </TouchableOpacity>
               </View>
-            ) : (
-              <TouchableOpacity onPress={() => setShowSignature(true)} style={[styles.sigBtn, { borderColor: colors.primary, backgroundColor: colors.primary + '11' }]}>
-                <Feather name="edit-3" size={20} color={colors.primary} />
-                <Text style={[styles.sigBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Capture Signature</Text>
-              </TouchableOpacity>
-            )}
-          </View>
 
-          <View style={{ alignItems: 'center', marginTop: 10 }}>
-            <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
-              Received by: {user?.name || 'System'}
-            </Text>
-          </View>
+              {/* Signature */}
+              <View style={styles.section}>
+                <SectionHeader title="Customer Authorization" />
+                {receivingSignatureUri ? (
+                  <View style={[styles.sigPreviewWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                    <Image source={{ uri: receivingSignatureUri }} style={styles.sigPreview} resizeMode="contain" />
+                    <TouchableOpacity style={[styles.sigClear, { backgroundColor: colors.destructive }]} onPress={() => setReceivingSignatureUri(null)}>
+                      <Feather name="x" size={16} color="#FFF" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity onPress={() => setShowSignature(true)} style={[styles.sigBtn, { borderColor: colors.primary, backgroundColor: colors.primary + '11' }]}>
+                    <Feather name="edit-3" size={20} color={colors.primary} />
+                    <Text style={[styles.sigBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Capture Signature</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
-          <Button
-            title={isBackdated ? "Request Approval" : "Complete Intake"}
-            onPress={handleSubmit}
-            loading={loading}
-            fullWidth
-            size="lg"
-            style={{ marginTop: 10 }}
-          />
+              <View style={{ alignItems: 'center', marginTop: 10 }}>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+                  Received by: {user?.name || 'System'}
+                </Text>
+              </View>
+
+              <Button
+                title={isBackdated ? "Request Approval" : "Complete Intake"}
+                onPress={handleSubmit}
+                loading={loading}
+                disabled={!customerConfirmed}
+                fullWidth
+                size="lg"
+                style={{ marginTop: 10 }}
+              />
+            </>
+          )}
 
         </FadeInView>
       </ScrollView>
@@ -658,4 +904,10 @@ const styles = StyleSheet.create({
   qrWrap: { padding: 20, backgroundColor: '#FFF', borderRadius: 16, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 },
   warningBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 4 },
   warningText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  summaryBox: { padding: 16, borderRadius: 12, borderWidth: 1, gap: 8 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  summaryLabel: { fontSize: 13, flex: 1 },
+  summaryValue: { fontSize: 14, flex: 2, textAlign: 'right', fontFamily: 'Inter_500Medium' },
+  confirmationWrap: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 12, borderWidth: 1 },
+  confirmationText: { flex: 1, fontSize: 13, lineHeight: 20 },
 });

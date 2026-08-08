@@ -9,4 +9,5 @@ import type { InventoryItem } from './inventoryItem';
 
 export type InventoryList200 = {
   items: InventoryItem[];
+  canSeeCosts?: boolean;
 };

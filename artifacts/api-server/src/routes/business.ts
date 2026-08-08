@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import {
   db,
   customersTable,
@@ -7,13 +7,23 @@ import {
   repairPhotosTable,
   repairPartsTable,
   repairEventsTable,
+  repairPaymentsTable,
+  stockMovementsTable,
+  estimateApprovalsTable,
+  customerOtpCodesTable,
+  repairReturnsTable,
+  refundsTable,
   inventoryItemsTable,
   purchasesTable,
   financeEntriesTable,
+  usersTable,
   type DbUser,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
+import { sha256, generateOtpCode } from "../lib/authUtils";
+import { sendOtpEmail } from "../lib/mailer";
+import { recordPayment, PAYMENT_KINDS } from "../lib/repairPayments";
 import type { Request, Response } from "express";
 
 // Shop-scoped business data: repairs, customers, inventory, purchases and
@@ -51,6 +61,13 @@ const todayStr = () => new Date().toISOString().split("T")[0];
 // approval workflow (/approvals) — enforced HERE on the server so the
 // frontend cannot be bypassed.
 const BACKDATE_EXEMPT_ROLES = ["dealer", "super_admin"];
+
+// Privileged roles: dealer + super_admin ONLY. Used for technician assignment,
+// stock-movement visibility and cost visibility gating.
+const PRIVILEGED_ROLES = ["dealer", "super_admin"];
+function isPrivileged(req: Request): boolean {
+  return PRIVILEGED_ROLES.includes((req as AuthedRequest).user.role);
+}
 
 export function backdateBlocked(req: Request, res: Response, dateStr: string | null | undefined): boolean {
   if (!dateStr) return false;
@@ -230,6 +247,13 @@ async function syncCustomerStats(
     .where(and(eq(customersTable.id, customerId), eq(customersTable.shopId, shopId)));
 }
 
+// jsonb string[] — filters to non-empty strings; null if empty/invalid.
+function stringListOrNull(v: unknown): string[] | null {
+  if (!Array.isArray(v)) return null;
+  const out = v.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim());
+  return out.length ? out : null;
+}
+
 function checklistOrNull(v: unknown): Record<string, boolean> | null {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
   const out: Record<string, boolean> = {};
@@ -239,7 +263,34 @@ function checklistOrNull(v: unknown): Record<string, boolean> | null {
   return Object.keys(out).length ? out : null;
 }
 
-const WARRANTY_DAYS = [0, 7, 30, 90, 180] as const;
+// Warranty may be any whole number of days from 0 to 3650 (10 years).
+function validWarrantyDays(v: unknown): number | null {
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 3650) return null;
+  return v;
+}
+
+// The subtotal + tax + total for a repair, derived from its charge fields.
+// subtotal = repairCharge + partsCharge + serviceCharge + otherCharge − discount
+// total    = subtotal + subtotal * taxPercent/100
+function computeTotals(r: {
+  repairCharge: number;
+  partsCharge: number;
+  serviceCharge: number;
+  otherCharge: number;
+  discount: number;
+  taxPercent: number;
+  advance: number;
+}) {
+  const subtotal = Math.max(
+    r.repairCharge + r.partsCharge + r.serviceCharge + r.otherCharge - r.discount,
+    0,
+  );
+  const tax = subtotal * (r.taxPercent / 100);
+  const totalAmount = Math.round((subtotal + tax) * 100) / 100;
+  const paidAmount = r.advance;
+  const balance = Math.round((totalAmount - paidAmount) * 100) / 100;
+  return { subtotal, tax, totalAmount, paidAmount, balance };
+}
 
 // An object path may only be attached if it lives in the caller's shop
 // namespace (uploads are issued under /objects/uploads/<shopId>/...).
@@ -260,19 +311,43 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
     brand: r.brand,
     model: r.model,
     imei: r.imei ?? undefined,
+    imei2: r.imei2 ?? undefined,
+    serialNumber: r.serialNumber ?? undefined,
+    color: r.color ?? undefined,
+    storage: r.storage ?? undefined,
+    ram: r.ram ?? undefined,
+    devicePassword: r.devicePassword ?? undefined,
+    simPresent: r.simPresent,
+    memoryCardPresent: r.memoryCardPresent,
     alternateMobile: r.alternateMobile ?? undefined,
     accessories: r.accessories ?? undefined,
+    accessoriesList: (r.accessoriesList as string[] | null) ?? undefined,
+    physicalCondition: (r.physicalCondition as Record<string, boolean> | null) ?? undefined,
     problem: r.problem,
     deviceCondition: r.deviceCondition ?? undefined,
     diagnosis: r.diagnosis ?? undefined,
     workPerformed: r.workPerformed ?? undefined,
     technicianId: r.technicianId ?? undefined,
     technicianName: r.technicianName ?? undefined,
+    assignedById: r.assignedById ?? undefined,
+    assignedByName: r.assignedByName ?? undefined,
+    assignedAt: r.assignedAt ? iso(r.assignedAt) : undefined,
     status: r.status,
     priority: r.priority,
     repairCharge: r.repairCharge,
     partsCharge: r.partsCharge,
+    serviceCharge: r.serviceCharge,
+    otherCharge: r.otherCharge,
+    discount: r.discount,
+    taxPercent: r.taxPercent,
     advance: r.advance,
+    testingChecklist: (r.testingChecklist as Record<string, boolean> | null) ?? undefined,
+    testingConfirmedById: r.testingConfirmedById ?? undefined,
+    testingConfirmedByName: r.testingConfirmedByName ?? undefined,
+    testingConfirmedAt: r.testingConfirmedAt ? iso(r.testingConfirmedAt) : undefined,
+    readyAt: r.readyAt ? iso(r.readyAt) : undefined,
+    customerNotifiedAt: r.customerNotifiedAt ? iso(r.customerNotifiedAt) : undefined,
+    clientRequestId: r.clientRequestId ?? undefined,
     receiveDate: r.receiveDate,
     expectedDate: r.expectedDate,
     deliveryDate: r.deliveryDate ?? undefined,
@@ -291,6 +366,10 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
     repairCompletedAt: r.repairCompletedAt ? iso(r.repairCompletedAt) : undefined,
     isSample: r.isSample,
     createdAt: iso(r.createdAt),
+    ...(() => {
+      const t = computeTotals(r);
+      return { totalAmount: t.totalAmount, paidAmount: t.paidAmount, balance: t.balance };
+    })(),
   };
 }
 
@@ -300,12 +379,118 @@ router.get(
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    const q = req.query;
+    const qstr = (k: string): string | null => {
+      const v = q[k];
+      return typeof v === "string" && v.trim() ? v.trim() : null;
+    };
+
+    const conds: SQL[] = [eq(repairsTable.shopId, shopId)];
+
+    const search = qstr("q");
+    if (search) {
+      const like = `%${search}%`;
+      const orCond = or(
+        ilike(repairsTable.repairId, like),
+        ilike(repairsTable.customerName, like),
+        ilike(repairsTable.mobile, like),
+        ilike(repairsTable.imei, like),
+        ilike(repairsTable.imei2, like),
+        ilike(repairsTable.serialNumber, like),
+        ilike(repairsTable.brand, like),
+        ilike(repairsTable.model, like),
+      );
+      if (orCond) conds.push(orCond);
+    }
+
+    // status accepts a single value or a comma-separated list; each value is
+    // validated against the enum and unknown values are dropped. A single
+    // valid value behaves exactly as before (eq); multiple use inArray.
+    const status = qstr("status");
+    if (status) {
+      const wanted = status
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => REPAIR_STATUSES.includes(s as (typeof REPAIR_STATUSES)[number]));
+      if (wanted.length === 1) {
+        conds.push(eq(repairsTable.status, wanted[0]));
+      } else if (wanted.length > 1) {
+        conds.push(inArray(repairsTable.status, wanted));
+      }
+    }
+    const priority = qstr("priority");
+    if (priority && REPAIR_PRIORITIES.includes(priority as (typeof REPAIR_PRIORITIES)[number])) {
+      conds.push(eq(repairsTable.priority, priority));
+    }
+
+    let technicianId = qstr("technicianId");
+    if (technicianId === "me") technicianId = me.id;
+    if (technicianId) conds.push(eq(repairsTable.technicianId, technicianId));
+
+    const receivedById = qstr("receivedById");
+    if (receivedById) conds.push(eq(repairsTable.receivedById, receivedById));
+
+    const dateFrom = qstr("dateFrom");
+    if (dateFrom) conds.push(sql`${repairsTable.receiveDate} >= ${dateFrom}`);
+    const dateTo = qstr("dateTo");
+    if (dateTo) conds.push(sql`${repairsTable.receiveDate} <= ${dateTo}`);
+
+    const warranty = qstr("warranty");
+    const today = todayStr();
+    if (warranty === "none") {
+      conds.push(sql`${repairsTable.warrantyExpiry} IS NULL`);
+    } else if (warranty === "active") {
+      conds.push(sql`${repairsTable.warrantyExpiry} IS NOT NULL AND ${repairsTable.warrantyExpiry} >= ${today}`);
+    } else if (warranty === "expired") {
+      conds.push(sql`${repairsTable.warrantyExpiry} IS NOT NULL AND ${repairsTable.warrantyExpiry} < ${today}`);
+    }
+
+    // paymentStatus (paid|partial|pending) is computed from advance vs the
+    // total (which includes tax/discount) — post-filter after mapping.
+    const paymentStatus = qstr("paymentStatus");
+
+    let page = Math.max(1, Math.trunc(num(Number(q.page), 1)) || 1);
+    let limit = Math.trunc(num(Number(q.limit), 50)) || 50;
+    if (limit < 1) limit = 50;
+    if (limit > 200) limit = 200;
+
+    const where = and(...conds);
+
+    // When a payment-status filter is present the count must reflect the
+    // post-filtered set, so fetch matching rows, filter, then page in memory.
+    if (paymentStatus === "paid" || paymentStatus === "partial" || paymentStatus === "pending") {
+      const allRows = await db
+        .select()
+        .from(repairsTable)
+        .where(where)
+        .orderBy(asc(repairsTable.createdAt));
+      const mapped = allRows
+        .map((r) => ({ r, t: computeTotals(r) }))
+        .filter(({ t }) => {
+          if (paymentStatus === "paid") return t.balance <= 0.01 && t.totalAmount > 0;
+          if (paymentStatus === "partial") return t.paidAmount > 0.01 && t.balance > 0.01;
+          return t.paidAmount <= 0.01; // pending
+        });
+      const total = mapped.length;
+      const start = (page - 1) * limit;
+      const pageRows = mapped.slice(start, start + limit).map(({ r }) => repairOut(r));
+      res.json({ repairs: pageRows, total, page, limit });
+      return;
+    }
+
+    const [{ total }] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(repairsTable)
+      .where(where);
     const rows = await db
       .select()
       .from(repairsTable)
-      .where(eq(repairsTable.shopId, shopId))
-      .orderBy(asc(repairsTable.createdAt));
-    res.json({ repairs: rows.map(repairOut) });
+      .where(where)
+      .orderBy(asc(repairsTable.createdAt))
+      .limit(limit)
+      .offset((page - 1) * limit);
+    res.json({ repairs: rows.map(repairOut), total, page, limit });
   }),
 );
 
@@ -339,6 +524,42 @@ router.post(
     const priority = REPAIR_PRIORITIES.includes(b.priority) ? b.priority : "normal";
     if (backdateBlocked(req, res, str(b.receiveDate))) return;
 
+    // Charge fields + validation.
+    const repairCharge = Math.max(num(b.repairCharge), 0);
+    const partsCharge = Math.max(num(b.partsCharge), 0);
+    const serviceCharge = Math.max(num(b.serviceCharge), 0);
+    const otherCharge = Math.max(num(b.otherCharge), 0);
+    const discount = Math.max(num(b.discount), 0);
+    const taxPercent = num(b.taxPercent);
+    const chargeSubtotal = repairCharge + partsCharge + serviceCharge + otherCharge;
+    if (discount > chargeSubtotal) {
+      res.status(400).json({ message: "Discount cannot exceed the charge subtotal", code: "INVALID_DISCOUNT" });
+      return;
+    }
+    if (taxPercent < 0 || taxPercent > 100) {
+      res.status(400).json({ message: "Tax percent must be between 0 and 100", code: "INVALID_TAX" });
+      return;
+    }
+    const warrantyDaysIn = b.warrantyDays === undefined ? 0 : validWarrantyDays(b.warrantyDays);
+    if (warrantyDaysIn === null) {
+      res.status(400).json({ message: "Warranty must be a whole number of days between 0 and 3650" });
+      return;
+    }
+
+    // Offline-sync idempotency: if a repair with this clientRequestId already
+    // exists in the shop, return it unchanged (200) instead of duplicating.
+    const clientRequestId = str(b.clientRequestId);
+    if (clientRequestId) {
+      const [dup] = await db
+        .select()
+        .from(repairsTable)
+        .where(and(eq(repairsTable.shopId, shopId), eq(repairsTable.clientRequestId, clientRequestId)));
+      if (dup) {
+        res.status(200).json({ repair: repairOut(dup) });
+        return;
+      }
+    }
+
     // A repair may only be linked to a customer of the caller's own shop.
     let customerId = str(b.customerId);
     if (customerId) {
@@ -352,7 +573,9 @@ router.post(
       }
     }
 
-    const created = await db.transaction(async (tx) => {
+    let created: typeof repairsTable.$inferSelect;
+    try {
+      created = await db.transaction(async (tx) => {
       // Server-generated sequential ticket number, unique per shop.
       const [{ count }] = await tx
         .select({ count: sql<number>`count(*)::int` })
@@ -371,24 +594,40 @@ router.post(
           brand,
           model,
           imei: str(b.imei),
+          imei2: str(b.imei2),
+          serialNumber: str(b.serialNumber),
+          color: str(b.color),
+          storage: str(b.storage),
+          ram: str(b.ram),
+          devicePassword: str(b.devicePassword),
+          simPresent: b.simPresent === true,
+          memoryCardPresent: b.memoryCardPresent === true,
           alternateMobile: str(b.alternateMobile),
           accessories: str(b.accessories),
+          accessoriesList: stringListOrNull(b.accessoriesList),
+          physicalCondition: checklistOrNull(b.physicalCondition),
           problem,
           deviceCondition: str(b.deviceCondition),
-          technicianId: str(b.technicianId),
-          technicianName: str(b.technicianName),
+          // Technician assignment is NOT accepted here — it happens only via
+          // POST /repairs/:id/assign (dealer/super_admin, validated same-shop
+          // active technician). Any client-supplied technicianId is ignored.
           status,
           priority,
-          repairCharge: num(b.repairCharge),
-          partsCharge: num(b.partsCharge),
-          advance: num(b.advance),
+          repairCharge,
+          partsCharge,
+          serviceCharge,
+          otherCharge,
+          discount,
+          taxPercent,
+          advance: 0,
+          clientRequestId,
           receiveDate: str(b.receiveDate) ?? new Date().toISOString().split("T")[0],
           expectedDate: str(b.expectedDate) ?? new Date().toISOString().split("T")[0],
           deliveryDate: createDeliveredOn ?? str(b.deliveryDate),
           notes: str(b.notes),
           checklist: checklistOrNull(b.checklist),
           receivingSignaturePath: ownedObjectPath(shopId, b.receivingSignaturePath),
-          warrantyDays: WARRANTY_DAYS.includes(b.warrantyDays) ? b.warrantyDays : 0,
+          warrantyDays: warrantyDaysIn,
           // The logged-in user is recorded as the receiver — accountability
           // for the intake step, not client-supplied.
           receivedById: (req as AuthedRequest).user.id,
@@ -410,7 +649,23 @@ router.post(
       });
       if (row.customerId) await syncCustomerStats(tx, shopId, row.customerId);
       return row;
-    });
+      });
+    } catch (err) {
+      // Idempotency race: a concurrent request with the same clientRequestId
+      // already inserted (unique violation on repairs_shop_client_request_id).
+      const code = (err as { code?: string })?.code;
+      if (clientRequestId && code === "23505") {
+        const [dup] = await db
+          .select()
+          .from(repairsTable)
+          .where(and(eq(repairsTable.shopId, shopId), eq(repairsTable.clientRequestId, clientRequestId)));
+        if (dup) {
+          res.status(200).json({ repair: repairOut(dup) });
+          return;
+        }
+      }
+      throw err;
+    }
     res.json({ repair: repairOut(created) });
   }),
 );
@@ -443,18 +698,47 @@ router.patch(
     if (b.brand !== undefined) patch.brand = str(b.brand) ?? undefined;
     if (b.model !== undefined) patch.model = str(b.model) ?? undefined;
     if (b.imei !== undefined) patch.imei = str(b.imei);
+    if (b.imei2 !== undefined) patch.imei2 = str(b.imei2);
+    if (b.serialNumber !== undefined) patch.serialNumber = str(b.serialNumber);
+    if (b.color !== undefined) patch.color = str(b.color);
+    if (b.storage !== undefined) patch.storage = str(b.storage);
+    if (b.ram !== undefined) patch.ram = str(b.ram);
+    if (b.devicePassword !== undefined) patch.devicePassword = str(b.devicePassword);
+    if (b.simPresent !== undefined) patch.simPresent = b.simPresent === true;
+    if (b.memoryCardPresent !== undefined) patch.memoryCardPresent = b.memoryCardPresent === true;
     if (b.alternateMobile !== undefined) patch.alternateMobile = str(b.alternateMobile);
     if (b.accessories !== undefined) patch.accessories = str(b.accessories);
+    if (b.accessoriesList !== undefined) patch.accessoriesList = stringListOrNull(b.accessoriesList);
+    if (b.physicalCondition !== undefined) patch.physicalCondition = checklistOrNull(b.physicalCondition);
     if (b.paymentMethod !== undefined) patch.paymentMethod = str(b.paymentMethod);
     if (b.problem !== undefined) patch.problem = str(b.problem) ?? undefined;
     if (b.deviceCondition !== undefined) patch.deviceCondition = str(b.deviceCondition);
     if (b.diagnosis !== undefined) patch.diagnosis = str(b.diagnosis);
     if (b.workPerformed !== undefined) patch.workPerformed = str(b.workPerformed);
-    if (b.technicianId !== undefined) patch.technicianId = str(b.technicianId);
-    if (b.technicianName !== undefined) patch.technicianName = str(b.technicianName);
-    if (b.repairCharge !== undefined) patch.repairCharge = num(b.repairCharge);
-    if (b.partsCharge !== undefined) patch.partsCharge = num(b.partsCharge);
-    if (b.advance !== undefined) patch.advance = num(b.advance);
+    // Technician assignment is NOT accepted on the generic PATCH — it happens
+    // only via POST /repairs/:id/assign (dealer/super_admin, validated
+    // same-shop active technician). Any client-supplied technicianId is ignored.
+    if (b.repairCharge !== undefined) patch.repairCharge = Math.max(num(b.repairCharge), 0);
+    if (b.partsCharge !== undefined) patch.partsCharge = Math.max(num(b.partsCharge), 0);
+    if (b.serviceCharge !== undefined) patch.serviceCharge = Math.max(num(b.serviceCharge), 0);
+    if (b.otherCharge !== undefined) patch.otherCharge = Math.max(num(b.otherCharge), 0);
+    if (b.discount !== undefined) patch.discount = Math.max(num(b.discount), 0);
+    if (b.taxPercent !== undefined) {
+      const tp = num(b.taxPercent);
+      if (tp < 0 || tp > 100) {
+        res.status(400).json({ message: "Tax percent must be between 0 and 100", code: "INVALID_TAX" });
+        return;
+      }
+      patch.taxPercent = tp;
+    }
+    // Advance is a cache of the payments ledger — never written directly.
+    if (b.advance !== undefined) {
+      res.status(400).json({
+        message: "Advance is recorded through the payments ledger, not by editing the repair directly.",
+        code: "ADVANCE_VIA_PAYMENTS",
+      });
+      return;
+    }
     if (b.receiveDate !== undefined) {
       if (backdateBlocked(req, res, str(b.receiveDate))) return;
       patch.receiveDate = str(b.receiveDate) ?? undefined;
@@ -480,11 +764,12 @@ router.patch(
       patch.deliverySignaturePath = p;
     }
     if (b.warrantyDays !== undefined) {
-      if (!WARRANTY_DAYS.includes(b.warrantyDays)) {
-        res.status(400).json({ message: "Warranty must be 0, 7, 30, 90 or 180 days" });
+      const wd = validWarrantyDays(b.warrantyDays);
+      if (wd === null) {
+        res.status(400).json({ message: "Warranty must be a whole number of days between 0 and 3650" });
         return;
       }
-      patch.warrantyDays = b.warrantyDays;
+      patch.warrantyDays = wd;
     }
     const id = String(req.params.id ?? "");
     const [existing] = await db
@@ -495,12 +780,49 @@ router.patch(
       res.status(404).json({ message: "Repair not found" });
       return;
     }
+    // Validate the merged discount does not exceed the merged charge subtotal.
+    const mergedRepairCharge = patch.repairCharge ?? existing.repairCharge;
+    const mergedPartsCharge = patch.partsCharge ?? existing.partsCharge;
+    const mergedServiceCharge = patch.serviceCharge ?? existing.serviceCharge;
+    const mergedOtherCharge = patch.otherCharge ?? existing.otherCharge;
+    const mergedDiscount = patch.discount ?? existing.discount;
+    if (
+      mergedDiscount >
+      mergedRepairCharge + mergedPartsCharge + mergedServiceCharge + mergedOtherCharge
+    ) {
+      res.status(400).json({ message: "Discount cannot exceed the charge subtotal", code: "INVALID_DISCOUNT" });
+      return;
+    }
     // Financial fields on a delivered repair are locked for staff — the
     // original payment record must not change without dealer/owner action.
     const touchesMoney =
-      patch.repairCharge !== undefined || patch.partsCharge !== undefined || patch.advance !== undefined;
+      patch.repairCharge !== undefined ||
+      patch.partsCharge !== undefined ||
+      patch.serviceCharge !== undefined ||
+      patch.otherCharge !== undefined ||
+      patch.discount !== undefined ||
+      patch.taxPercent !== undefined;
     const meUser = (req as AuthedRequest).user;
     const dealerRole = meUser.role === "dealer" || meUser.role === "super_admin";
+
+    // Testing gate: a repair may only enter 'ready' (or go straight to
+    // 'delivered' from a repairing-phase status) once testing is confirmed.
+    // Moving to 'delivered' when already 'ready' is always allowed.
+    if (patch.status !== undefined && patch.status !== existing.status) {
+      const enteringReady = patch.status === "ready";
+      const enteringDeliveredFromWork =
+        patch.status === "delivered" && existing.status !== "ready";
+      if ((enteringReady || enteringDeliveredFromWork) && !existing.testingConfirmedAt) {
+        res.status(400).json({
+          message: "Final testing must be confirmed before the repair can be marked ready or delivered.",
+          code: "TESTING_REQUIRED",
+        });
+        return;
+      }
+      if (patch.status === "ready" && !existing.readyAt) {
+        patch.readyAt = new Date();
+      }
+    }
     if (existing.status === "delivered" && touchesMoney && !dealerRole) {
       res.status(403).json({ message: "Dealer/Owner approval required." });
       return;
@@ -587,6 +909,51 @@ router.patch(
           details: { from: existing.status, to: patch.status },
         });
       }
+      // On delivery, record which confirmation method was used. The server
+      // NEVER trusts a client-supplied `otpVerified` flag — it derives the
+      // method from state: (1) a captured delivery signature, else (2) a
+      // delivery_confirmation OTP that was verified within the last 30 minutes
+      // and not yet consumed (consumed here in the same tx so it can't be
+      // reused), else (3) 'no_confirmation'. Backward compatible: none of these
+      // is required to complete delivery.
+      if (patch.status === "delivered" && existing.status !== "delivered") {
+        let method: "signature" | "otp" | "no_confirmation";
+        if (patch.deliverySignaturePath) {
+          method = "signature";
+        } else {
+          const cutoff = new Date(Date.now() - 30 * 60 * 1000);
+          const [otpRow] = await tx
+            .select()
+            .from(customerOtpCodesTable)
+            .where(
+              and(
+                eq(customerOtpCodesTable.shopId, shopId),
+                eq(customerOtpCodesTable.purpose, "delivery_confirmation"),
+                eq(customerOtpCodesTable.targetId, id),
+                sql`${customerOtpCodesTable.verifiedAt} is not null`,
+                sql`${customerOtpCodesTable.consumedAt} is null`,
+                sql`${customerOtpCodesTable.verifiedAt} >= ${cutoff}`,
+              ),
+            )
+            .orderBy(desc(customerOtpCodesTable.verifiedAt))
+            .limit(1)
+            .for("update");
+          if (otpRow) {
+            await tx
+              .update(customerOtpCodesTable)
+              .set({ consumedAt: new Date() })
+              .where(eq(customerOtpCodesTable.id, otpRow.id));
+            method = "otp";
+          } else {
+            method = "no_confirmation";
+          }
+        }
+        await logRepairEvent(tx, {
+          shopId, repairId: id, user,
+          action: "delivered",
+          details: { confirmation: method },
+        });
+      }
       if (patch.checklist !== undefined) {
         await logRepairEvent(tx, { shopId, repairId: id, user, action: "checklist_updated" });
       }
@@ -597,13 +964,6 @@ router.patch(
           details: { stage: patch.deliverySignaturePath ? "delivery" : "receiving" },
         });
       }
-      if (patch.technicianId !== undefined && patch.technicianId !== existing.technicianId) {
-        await logRepairEvent(tx, {
-          shopId, repairId: id, user,
-          action: "assigned",
-          details: { technicianName: patch.technicianName ?? null },
-        });
-      }
       // Charges, advance or status changes affect the linked customer's
       // derived due amount / repair count — recompute inside the same tx.
       if (
@@ -611,7 +971,9 @@ router.patch(
         (patch.status !== undefined ||
           patch.repairCharge !== undefined ||
           patch.partsCharge !== undefined ||
-          patch.advance !== undefined)
+          patch.serviceCharge !== undefined ||
+          patch.otherCharge !== undefined ||
+          patch.discount !== undefined)
       ) {
         await syncCustomerStats(tx, shopId, row.customerId);
       }
@@ -753,17 +1115,792 @@ router.get(
   }),
 );
 
+// ── Payments ledger (append-only) ──────────────────────────────────────────
+
+const PAYMENT_METHODS = ["Cash", "UPI", "Card", "Bank Transfer", "Other"] as const;
+function paymentOut(p: typeof repairPaymentsTable.$inferSelect) {
+  return {
+    id: p.id,
+    repairId: p.repairId,
+    customerId: p.customerId ?? undefined,
+    amount: p.amount,
+    method: p.method,
+    kind: p.kind,
+    note: p.note ?? undefined,
+    referenceNo: p.referenceNo ?? undefined,
+    receivedById: p.receivedById ?? undefined,
+    receivedByName: p.receivedByName ?? undefined,
+    createdAt: iso(p.createdAt),
+  };
+}
+
+router.get(
+  "/repairs/:id/payments",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const id = String(req.params.id ?? "");
+    if (!(await repairInShop(shopId, id))) {
+      res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    const rows = await db
+      .select()
+      .from(repairPaymentsTable)
+      .where(and(eq(repairPaymentsTable.repairId, id), eq(repairPaymentsTable.shopId, shopId)))
+      .orderBy(desc(repairPaymentsTable.createdAt));
+    res.json({ payments: rows.map(paymentOut) });
+  }),
+);
+
+router.post(
+  "/repairs/:id/payments",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    const b = req.body ?? {};
+    const amount = num(b.amount, NaN);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      res.status(400).json({ message: "A positive payment amount is required", code: "INVALID_AMOUNT" });
+      return;
+    }
+    const method = PAYMENT_METHODS.includes(b.method) ? b.method : null;
+    if (!method) {
+      res.status(400).json({ message: "A valid payment method is required", code: "INVALID_METHOD" });
+      return;
+    }
+    const kind = PAYMENT_KINDS.includes(b.kind) ? b.kind : "advance";
+    const note = str(b.note);
+    const referenceNo = str(b.referenceNo);
+    const id = String(req.params.id ?? "");
+
+    const result = await db.transaction(async (tx) => {
+      // Lock the repair so the advance cache recompute is serialized against
+      // concurrent payments (no lost updates / stale overpayment checks).
+      const [repair] = await tx
+        .select()
+        .from(repairsTable)
+        .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)))
+        .for("update");
+      if (!repair) return { error: { status: 404, message: "Repair not found" } };
+      const { totalAmount } = computeTotals(repair);
+      const [{ paidSoFar }] = await tx
+        .select({ paidSoFar: sql<number>`coalesce(sum(${repairPaymentsTable.amount}), 0)::float` })
+        .from(repairPaymentsTable)
+        .where(and(eq(repairPaymentsTable.repairId, id), eq(repairPaymentsTable.shopId, shopId)));
+      if (paidSoFar + amount > totalAmount + 0.01) {
+        return {
+          error: {
+            status: 400,
+            code: "OVERPAYMENT",
+            message: `Payment would exceed the amount due (₹${Math.max(totalAmount - paidSoFar, 0)} remaining of ₹${totalAmount}).`,
+          },
+        };
+      }
+      const row = await recordPayment(tx, {
+        shopId,
+        repairId: id,
+        customerId: repair.customerId,
+        amount,
+        method,
+        kind,
+        note,
+        referenceNo,
+        receivedById: me.id,
+        receivedByName: me.name,
+      });
+      await logRepairEvent(tx, {
+        shopId,
+        repairId: id,
+        user: me,
+        action: "payment_recorded",
+        details: { amount, method, kind, referenceNo: referenceNo ?? null },
+      });
+      if (repair.customerId) await syncCustomerStats(tx, shopId, repair.customerId);
+      return { row };
+    });
+    if ("error" in result && result.error) {
+      res
+        .status(result.error.status)
+        .json({ message: result.error.message, ...(result.error.code ? { code: result.error.code } : {}) });
+      return;
+    }
+    res.json({ payment: paymentOut(result.row) });
+  }),
+);
+
+// ── Technician assignment (dealer/super_admin only) ────────────────────────
+
+router.post(
+  "/repairs/:id/assign",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    if (!isPrivileged(req)) {
+      res.status(403).json({ message: "Dealer/Owner access required to assign technicians." });
+      return;
+    }
+    const me = (req as AuthedRequest).user;
+    const technicianId = str((req.body ?? {}).technicianId);
+    if (!technicianId) {
+      res.status(400).json({ message: "technicianId is required" });
+      return;
+    }
+    const id = String(req.params.id ?? "");
+    if (!(await repairInShop(shopId, id))) {
+      res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    // The technician must be an active user of this shop with role technician.
+    const [tech] = await db
+      .select()
+      .from(usersTable)
+      .where(
+        and(
+          eq(usersTable.id, technicianId),
+          eq(usersTable.shopId, shopId),
+          eq(usersTable.role, "technician"),
+          eq(usersTable.isActive, true),
+        ),
+      );
+    if (!tech) {
+      res.status(400).json({ message: "Technician must be an active technician in your shop." });
+      return;
+    }
+    const updated = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(repairsTable)
+        .set({
+          technicianId: tech.id,
+          technicianName: tech.name,
+          assignedById: me.id,
+          assignedByName: me.name,
+          assignedAt: new Date(),
+        })
+        .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)))
+        .returning();
+      await logRepairEvent(tx, {
+        shopId,
+        repairId: id,
+        user: me,
+        action: "assigned",
+        details: { technicianId: tech.id, technicianName: tech.name },
+      });
+      return row;
+    });
+    res.json({ repair: repairOut(updated) });
+  }),
+);
+
+// ── Testing gate ────────────────────────────────────────────────────────────
+
+router.post(
+  "/repairs/:id/testing",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    const b = req.body ?? {};
+    const checklist = checklistOrNull(b.checklist);
+    const confirm = b.confirm === true;
+    const id = String(req.params.id ?? "");
+    if (!(await repairInShop(shopId, id))) {
+      res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    const updated = await db.transaction(async (tx) => {
+      const set: Partial<typeof repairsTable.$inferInsert> = {};
+      if (checklist !== null || b.checklist !== undefined) set.testingChecklist = checklist;
+      if (confirm) {
+        set.testingConfirmedById = me.id;
+        set.testingConfirmedByName = me.name;
+        set.testingConfirmedAt = new Date();
+      }
+      const [row] = await tx
+        .update(repairsTable)
+        .set(set)
+        .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)))
+        .returning();
+      if (confirm) {
+        await logRepairEvent(tx, {
+          shopId,
+          repairId: id,
+          user: me,
+          action: "testing_confirmed",
+          details: { checklist: checklist ?? null },
+        });
+      } else {
+        await logRepairEvent(tx, { shopId, repairId: id, user: me, action: "testing_updated" });
+      }
+      return row;
+    });
+    res.json({ repair: repairOut(updated) });
+  }),
+);
+
+// ── Estimate / customer approval ────────────────────────────────────────────
+
+function estimateApprovalOut(a: typeof estimateApprovalsTable.$inferSelect) {
+  return {
+    id: a.id,
+    repairId: a.repairId,
+    oldAmount: a.oldAmount,
+    newAmount: a.newAmount,
+    reason: a.reason,
+    status: a.status,
+    method: a.method ?? undefined,
+    requestedById: a.requestedById ?? undefined,
+    requestedByName: a.requestedByName ?? undefined,
+    decidedById: a.decidedById ?? undefined,
+    decidedByName: a.decidedByName ?? undefined,
+    decidedAt: a.decidedAt ? iso(a.decidedAt) : undefined,
+    createdAt: iso(a.createdAt),
+  };
+}
+
+router.get(
+  "/repairs/:id/estimate-approvals",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const id = String(req.params.id ?? "");
+    if (!(await repairInShop(shopId, id))) {
+      res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    const rows = await db
+      .select()
+      .from(estimateApprovalsTable)
+      .where(and(eq(estimateApprovalsTable.repairId, id), eq(estimateApprovalsTable.shopId, shopId)))
+      .orderBy(desc(estimateApprovalsTable.createdAt));
+    res.json({ estimateApprovals: rows.map(estimateApprovalOut) });
+  }),
+);
+
+router.post(
+  "/repairs/:id/estimate-approvals",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    const b = req.body ?? {};
+    const newAmount = num(b.newAmount, NaN);
+    const reason = str(b.reason);
+    if (!Number.isFinite(newAmount) || newAmount < 0 || !reason) {
+      res.status(400).json({ message: "A valid new amount and a reason are required" });
+      return;
+    }
+    const id = String(req.params.id ?? "");
+    const result = await db.transaction(async (tx) => {
+      const [repair] = await tx
+        .select()
+        .from(repairsTable)
+        .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)))
+        .for("update");
+      if (!repair) return { error: { status: 404, message: "Repair not found" } };
+      const { totalAmount } = computeTotals(repair);
+      const [row] = await tx
+        .insert(estimateApprovalsTable)
+        .values({
+          shopId,
+          repairId: id,
+          oldAmount: totalAmount,
+          newAmount,
+          reason,
+          status: "pending",
+          requestedById: me.id,
+          requestedByName: me.name,
+        })
+        .returning();
+      await tx
+        .update(repairsTable)
+        .set({ status: "customer_approval" })
+        .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)));
+      await logRepairEvent(tx, {
+        shopId,
+        repairId: id,
+        user: me,
+        action: "estimate_approval_requested",
+        details: { approvalId: row.id, oldAmount: totalAmount, newAmount, reason },
+      });
+      return { row };
+    });
+    if ("error" in result && result.error) {
+      res.status(result.error.status).json({ message: result.error.message });
+      return;
+    }
+    res.json({ estimateApproval: estimateApprovalOut(result.row) });
+  }),
+);
+
+// Load an estimate approval (shop-scoped) with its repair.
+async function loadEstimateApproval(shopId: string, id: string) {
+  const [row] = await db
+    .select()
+    .from(estimateApprovalsTable)
+    .where(and(eq(estimateApprovalsTable.id, id), eq(estimateApprovalsTable.shopId, shopId)));
+  return row ?? null;
+}
+
+router.post(
+  "/estimate-approvals/:id/send-otp",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const id = String(req.params.id ?? "");
+    const approval = await loadEstimateApproval(shopId, id);
+    if (!approval) {
+      res.status(404).json({ message: "Estimate approval not found" });
+      return;
+    }
+    const email = await customerEmailForRepair(shopId, approval.repairId);
+    if (!email) {
+      res.status(400).json({ message: "This customer has no email on file.", code: "NO_CUSTOMER_EMAIL" });
+      return;
+    }
+    const code = generateOtpCode();
+    await db.insert(customerOtpCodesTable).values({
+      shopId,
+      purpose: "estimate_approval",
+      targetId: id,
+      codeHash: sha256(code),
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    });
+    await sendOtpEmail(email, code, "estimate approval");
+    res.json({ message: "OTP sent to the customer's email." });
+  }),
+);
+
+router.post(
+  "/estimate-approvals/:id/decide",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    const b = req.body ?? {};
+    const decision = b.decision === "approved" || b.decision === "rejected" ? b.decision : null;
+    const method = b.method === "otp" || b.method === "dealer" ? b.method : null;
+    if (!decision || !method) {
+      res.status(400).json({ message: "decision (approved|rejected) and method (otp|dealer) are required" });
+      return;
+    }
+    if (method === "dealer" && !isPrivileged(req)) {
+      res.status(403).json({ message: "Only the dealer/owner may decide manually." });
+      return;
+    }
+    const id = String(req.params.id ?? "");
+
+    // OTP verification (any shop user may confirm on the customer's behalf).
+    if (method === "otp") {
+      const otpCode = str(b.otpCode);
+      if (!otpCode) {
+        res.status(400).json({ message: "otpCode is required for OTP confirmation", code: "OTP_REQUIRED" });
+        return;
+      }
+      const verifyResult = await verifyCustomerOtp(shopId, "estimate_approval", id, otpCode);
+      if (verifyResult !== "ok") {
+        res.status(400).json({ message: verifyResult.message, code: verifyResult.code });
+        return;
+      }
+    }
+
+    const result = await db.transaction(async (tx) => {
+      const [claimed] = await tx
+        .update(estimateApprovalsTable)
+        .set({
+          status: decision,
+          method,
+          decidedById: me.id,
+          decidedByName: me.name,
+          decidedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(estimateApprovalsTable.id, id),
+            eq(estimateApprovalsTable.shopId, shopId),
+            eq(estimateApprovalsTable.status, "pending"),
+          ),
+        )
+        .returning();
+      if (!claimed) return { error: { status: 400, message: "This estimate approval has already been decided." } };
+      // Move the repair back out of "customer_approval" if it is still parked
+      // there. On APPROVE we also apply the approved estimate to the labour
+      // charge: shift repairCharge by (newAmount - oldAmount) so the repair's
+      // computed total moves to the customer-approved amount. Other charge
+      // components (parts/service/tax/discount) are untouched. On REJECT the
+      // charges are left exactly as they were.
+      let repairChargeAfter: number | undefined;
+      if (decision === "approved") {
+        const [repair] = await tx
+          .select()
+          .from(repairsTable)
+          .where(and(eq(repairsTable.id, claimed.repairId), eq(repairsTable.shopId, shopId)))
+          .for("update");
+        if (repair) {
+          const delta = claimed.newAmount - claimed.oldAmount;
+          repairChargeAfter = Math.max(repair.repairCharge + delta, 0);
+          await tx
+            .update(repairsTable)
+            .set({ repairCharge: repairChargeAfter })
+            .where(and(eq(repairsTable.id, claimed.repairId), eq(repairsTable.shopId, shopId)));
+        }
+      }
+      await tx
+        .update(repairsTable)
+        .set({ status: "diagnosing" })
+        .where(
+          and(
+            eq(repairsTable.id, claimed.repairId),
+            eq(repairsTable.shopId, shopId),
+            eq(repairsTable.status, "customer_approval"),
+          ),
+        );
+      await logRepairEvent(tx, {
+        shopId,
+        repairId: claimed.repairId,
+        user: me,
+        action: decision === "approved" ? "estimate_approved" : "estimate_rejected",
+        details: {
+          approvalId: claimed.id,
+          method,
+          oldAmount: claimed.oldAmount,
+          newAmount: claimed.newAmount,
+          ...(repairChargeAfter !== undefined ? { repairChargeAfter } : {}),
+        },
+      });
+      // Keep the customer's derived due amount in sync after a charge change.
+      if (repairChargeAfter !== undefined) {
+        const [r2] = await tx
+          .select({ customerId: repairsTable.customerId })
+          .from(repairsTable)
+          .where(and(eq(repairsTable.id, claimed.repairId), eq(repairsTable.shopId, shopId)));
+        if (r2?.customerId) await syncCustomerStats(tx, shopId, r2.customerId);
+      }
+      return { row: claimed };
+    });
+    if ("error" in result && result.error) {
+      res.status(result.error.status).json({ message: result.error.message });
+      return;
+    }
+    res.json({ estimateApproval: estimateApprovalOut(result.row) });
+  }),
+);
+
+// ── Delivery OTP (alternative to a delivery signature) ──────────────────────
+
+router.post(
+  "/repairs/:id/delivery-otp/send",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const id = String(req.params.id ?? "");
+    if (!(await repairInShop(shopId, id))) {
+      res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    const email = await customerEmailForRepair(shopId, id);
+    if (!email) {
+      res.status(400).json({ message: "This customer has no email on file.", code: "NO_CUSTOMER_EMAIL" });
+      return;
+    }
+    const code = generateOtpCode();
+    await db.insert(customerOtpCodesTable).values({
+      shopId,
+      purpose: "delivery_confirmation",
+      targetId: id,
+      codeHash: sha256(code),
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    });
+    await sendOtpEmail(email, code, "delivery confirmation");
+    res.json({ message: "OTP sent to the customer's email." });
+  }),
+);
+
+router.post(
+  "/repairs/:id/delivery-otp/verify",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    const id = String(req.params.id ?? "");
+    if (!(await repairInShop(shopId, id))) {
+      res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    const code = str((req.body ?? {}).code);
+    if (!code) {
+      res.status(400).json({ message: "code is required", code: "OTP_REQUIRED" });
+      return;
+    }
+    const verifyResult = await verifyCustomerOtp(shopId, "delivery_confirmation", id, code);
+    if (verifyResult !== "ok") {
+      res.status(400).json({ message: verifyResult.message, code: verifyResult.code });
+      return;
+    }
+    await logRepairEvent(db, {
+      shopId,
+      repairId: id,
+      user: me,
+      action: "delivery_otp_verified",
+    });
+    res.json({ message: "Delivery OTP verified.", otpVerified: true });
+  }),
+);
+
+// ── Ready notification ──────────────────────────────────────────────────────
+
+router.post(
+  "/repairs/:id/notify-ready",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    const id = String(req.params.id ?? "");
+    const [repair] = await db
+      .select()
+      .from(repairsTable)
+      .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)));
+    if (!repair) {
+      res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    const email = await customerEmailForRepair(shopId, id);
+    if (!email) {
+      res.status(400).json({ message: "This customer has no email on file.", code: "NO_CUSTOMER_EMAIL" });
+      return;
+    }
+    const { balance } = computeTotals(repair);
+    const businessName = me.businessName ?? "VMC Electronic";
+    await sendReadyEmail(email, {
+      customerName: repair.customerName,
+      brand: repair.brand,
+      model: repair.model,
+      ticket: repair.repairId,
+      balance,
+      businessName,
+    });
+    const updated = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(repairsTable)
+        .set({ customerNotifiedAt: new Date() })
+        .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)))
+        .returning();
+      await logRepairEvent(tx, {
+        shopId,
+        repairId: id,
+        user: me,
+        action: "ready_notified",
+        details: { balance },
+      });
+      return row;
+    });
+    res.json({ repair: repairOut(updated) });
+  }),
+);
+
+// ── Stock movements (dealer only) ───────────────────────────────────────────
+
+router.get(
+  "/stock-movements",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    if (!isPrivileged(req)) {
+      res.status(403).json({ message: "Dealer/Owner access required." });
+      return;
+    }
+    const inventoryItemId = typeof req.query.inventoryItemId === "string" ? req.query.inventoryItemId.trim() : "";
+    const conds: SQL[] = [eq(stockMovementsTable.shopId, shopId)];
+    if (inventoryItemId) conds.push(eq(stockMovementsTable.inventoryItemId, inventoryItemId));
+    const rows = await db
+      .select()
+      .from(stockMovementsTable)
+      .where(and(...conds))
+      .orderBy(desc(stockMovementsTable.createdAt));
+    res.json({
+      stockMovements: rows.map((m) => ({
+        id: m.id,
+        inventoryItemId: m.inventoryItemId ?? undefined,
+        itemName: m.itemName,
+        quantityChange: m.quantityChange,
+        reason: m.reason,
+        repairId: m.repairId ?? undefined,
+        returnId: m.returnId ?? undefined,
+        byId: m.byId ?? undefined,
+        byName: m.byName ?? undefined,
+        createdAt: iso(m.createdAt),
+      })),
+    });
+  }),
+);
+
+// ── Customer summary (aggregate) ────────────────────────────────────────────
+
+router.get(
+  "/customers/:id/summary",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const customerId = String(req.params.id ?? "");
+    const [cust] = await db
+      .select({ id: customersTable.id })
+      .from(customersTable)
+      .where(and(eq(customersTable.id, customerId), eq(customersTable.shopId, shopId)));
+    if (!cust) {
+      res.status(404).json({ message: "Customer not found" });
+      return;
+    }
+    const today = todayStr();
+    const [repairStats] = await db
+      .select({
+        totalRepairs: sql<number>`count(*) filter (where ${repairsTable.status} <> 'cancelled')::int`,
+        activeRepairs: sql<number>`count(*) filter (where ${repairsTable.status} not in ('delivered','cancelled','cannot_repair'))::int`,
+        deliveredRepairs: sql<number>`count(*) filter (where ${repairsTable.status} = 'delivered')::int`,
+        warrantyActiveCount: sql<number>`count(*) filter (where ${repairsTable.warrantyExpiry} is not null and ${repairsTable.warrantyExpiry} >= ${today})::int`,
+      })
+      .from(repairsTable)
+      .where(and(eq(repairsTable.shopId, shopId), eq(repairsTable.customerId, customerId)));
+    const [{ afterSalesCases }] = await db
+      .select({ afterSalesCases: sql<number>`count(*)::int` })
+      .from(repairReturnsTable)
+      .where(and(eq(repairReturnsTable.shopId, shopId), eq(repairReturnsTable.customerId, customerId)));
+    const [{ paymentsTotal }] = await db
+      .select({ paymentsTotal: sql<number>`coalesce(sum(${repairPaymentsTable.amount}), 0)::float` })
+      .from(repairPaymentsTable)
+      .where(and(eq(repairPaymentsTable.shopId, shopId), eq(repairPaymentsTable.customerId, customerId)));
+    const [{ refundsTotal }] = await db
+      .select({
+        refundsTotal: sql<number>`coalesce(sum(${refundsTable.amount}) filter (where ${refundsTable.status} = 'paid'), 0)::float`,
+      })
+      .from(refundsTable)
+      .where(and(eq(refundsTable.shopId, shopId), eq(refundsTable.customerId, customerId)));
+    // Outstanding balance = sum over non-cancelled repairs of (total − paid),
+    // clamped at 0 per repair.
+    const repairs = await db
+      .select()
+      .from(repairsTable)
+      .where(
+        and(
+          eq(repairsTable.shopId, shopId),
+          eq(repairsTable.customerId, customerId),
+          sql`${repairsTable.status} <> 'cancelled'`,
+        ),
+      );
+    const outstandingBalance =
+      Math.round(
+        repairs.reduce((acc, r) => acc + Math.max(computeTotals(r).balance, 0), 0) * 100,
+      ) / 100;
+    res.json({
+      summary: {
+        totalRepairs: repairStats?.totalRepairs ?? 0,
+        activeRepairs: repairStats?.activeRepairs ?? 0,
+        deliveredRepairs: repairStats?.deliveredRepairs ?? 0,
+        afterSalesCases: afterSalesCases ?? 0,
+        refundsTotal: refundsTotal ?? 0,
+        paymentsTotal: paymentsTotal ?? 0,
+        outstandingBalance,
+        warrantyActiveCount: repairStats?.warrantyActiveCount ?? 0,
+      },
+    });
+  }),
+);
+
+// ── Customer OTP + email helpers ────────────────────────────────────────────
+
+// The repair's customer email: prefer the linked customer record, fall back to
+// nothing (repairs don't store an email directly).
+async function customerEmailForRepair(shopId: string, repairId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ email: customersTable.email })
+    .from(repairsTable)
+    .leftJoin(customersTable, eq(repairsTable.customerId, customersTable.id))
+    .where(and(eq(repairsTable.id, repairId), eq(repairsTable.shopId, shopId)));
+  const email = row?.email;
+  return typeof email === "string" && email.trim() ? email.trim() : null;
+}
+
+type OtpVerifyResult = "ok" | { message: string; code: string };
+
+// Verify a customer OTP against the newest unverified code for the target.
+// Enforces 10-min expiry and a max of 5 attempts (same pattern as auth OTP).
+async function verifyCustomerOtp(
+  shopId: string,
+  purpose: string,
+  targetId: string,
+  code: string,
+): Promise<OtpVerifyResult> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(customerOtpCodesTable)
+      .where(
+        and(
+          eq(customerOtpCodesTable.shopId, shopId),
+          eq(customerOtpCodesTable.purpose, purpose),
+          eq(customerOtpCodesTable.targetId, targetId),
+          sql`${customerOtpCodesTable.verifiedAt} IS NULL`,
+        ),
+      )
+      .orderBy(desc(customerOtpCodesTable.createdAt))
+      .limit(1)
+      .for("update");
+    if (!row) return { message: "No pending code. Request a new OTP.", code: "OTP_NOT_FOUND" } as const;
+    if (row.expiresAt.getTime() < Date.now()) {
+      return { message: "This code has expired. Request a new OTP.", code: "OTP_EXPIRED" } as const;
+    }
+    if (row.attempts >= 5) {
+      return { message: "Too many incorrect attempts. Request a new OTP.", code: "OTP_LOCKED" } as const;
+    }
+    if (row.codeHash !== sha256(code)) {
+      await tx
+        .update(customerOtpCodesTable)
+        .set({ attempts: row.attempts + 1 })
+        .where(eq(customerOtpCodesTable.id, row.id));
+      return { message: "Incorrect code.", code: "OTP_INVALID" } as const;
+    }
+    await tx
+      .update(customerOtpCodesTable)
+      .set({ verifiedAt: new Date() })
+      .where(eq(customerOtpCodesTable.id, row.id));
+    return "ok" as const;
+  });
+}
+
+async function sendReadyEmail(
+  to: string,
+  d: { customerName: string; brand: string; model: string; ticket: string; balance: number; businessName: string },
+): Promise<void> {
+  const { sendReadyNotification } = await import("../lib/mailer");
+  await sendReadyNotification(to, d);
+}
+
 // ── Repair parts (append-only, deducts inventory) ──────────────────────────
 
-function repairPartOut(p: typeof repairPartsTable.$inferSelect) {
+function repairPartOut(p: typeof repairPartsTable.$inferSelect, canSeeCosts: boolean) {
+  const unitCost = canSeeCosts ? p.unitCost : 0;
   return {
     id: p.id,
     repairId: p.repairId,
     inventoryItemId: p.inventoryItemId ?? undefined,
     partName: p.partName,
     quantity: p.quantity,
-    unitCost: p.unitCost,
-    totalCost: p.quantity * p.unitCost,
+    unitCost,
+    totalCost: p.quantity * unitCost,
+    canSeeCosts,
     addedByName: p.addedByName ?? undefined,
     createdAt: iso(p.createdAt),
   };
@@ -780,12 +1917,13 @@ router.get(
       res.status(404).json({ message: "Repair not found" });
       return;
     }
+    const canSeeCosts = isPrivileged(req);
     const rows = await db
       .select()
       .from(repairPartsTable)
       .where(and(eq(repairPartsTable.repairId, id), eq(repairPartsTable.shopId, shopId)))
       .orderBy(desc(repairPartsTable.createdAt));
-    res.json({ parts: rows.map(repairPartOut) });
+    res.json({ parts: rows.map((p) => repairPartOut(p, canSeeCosts)), canSeeCosts });
   }),
 );
 
@@ -836,6 +1974,20 @@ router.post(
           if (b.unitCost === undefined) unitCost = item.sellingPrice ?? item.purchasePrice ?? 0;
         }
         if (!partName) throw new Error("PART_NAME_REQUIRED");
+        // Append the stock movement ledger row (negative = consumed) in the
+        // same tx as the deduction. Only when a tracked item was deducted.
+        if (inventoryItemId) {
+          await tx.insert(stockMovementsTable).values({
+            shopId,
+            inventoryItemId,
+            itemName: partName,
+            quantityChange: -quantity,
+            reason: "repair_part",
+            repairId: repair.id,
+            byId: me.id,
+            byName: me.name,
+          });
+        }
         const [row] = await tx
           .insert(repairPartsTable)
           .values({
@@ -865,12 +2017,14 @@ router.post(
           repairId: repair.id,
           user: me,
           action: "part_used",
-          details: { partName, quantity, unitCost: Math.max(unitCost, 0) },
+          // Do NOT log unitCost — repair events are readable by staff, and the
+          // part cost is privileged. Log only the part name and quantity.
+          details: { partName, quantity },
         });
         if (repair.customerId) await syncCustomerStats(tx, shopId, repair.customerId);
         return row;
       });
-      res.json({ part: repairPartOut(created) });
+      res.json({ part: repairPartOut(created, isPrivileged(req)) });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
       if (msg === "NOT_FOUND") {
@@ -898,7 +2052,7 @@ router.post(
 
 const INVENTORY_CATEGORIES = ["product", "accessory", "spare_part"] as const;
 
-function inventoryOut(i: typeof inventoryItemsTable.$inferSelect) {
+function inventoryOut(i: typeof inventoryItemsTable.$inferSelect, canSeeCosts = true) {
   return {
     id: i.id,
     name: i.name,
@@ -906,9 +2060,13 @@ function inventoryOut(i: typeof inventoryItemsTable.$inferSelect) {
     brand: i.brand,
     quantity: i.quantity,
     minStock: i.minStock,
-    purchasePrice: i.purchasePrice,
+    // Purchase (cost) price is hidden from non-privileged staff — kept in the
+    // payload as 0 so the mobile client's shape is preserved.
+    purchasePrice: canSeeCosts ? i.purchasePrice : 0,
     sellingPrice: i.sellingPrice,
+    sku: i.sku ?? undefined,
     supplier: i.supplier ?? undefined,
+    canSeeCosts,
     isSample: i.isSample,
     createdAt: iso(i.createdAt),
   };
@@ -920,12 +2078,13 @@ router.get(
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
+    const canSeeCosts = isPrivileged(req);
     const rows = await db
       .select()
       .from(inventoryItemsTable)
       .where(eq(inventoryItemsTable.shopId, shopId))
       .orderBy(asc(inventoryItemsTable.createdAt));
-    res.json({ items: rows.map(inventoryOut) });
+    res.json({ items: rows.map((i) => inventoryOut(i, canSeeCosts)), canSeeCosts });
   }),
 );
 
@@ -953,10 +2112,11 @@ router.post(
         minStock: Math.trunc(num(b.minStock)),
         purchasePrice: num(b.purchasePrice),
         sellingPrice: num(b.sellingPrice),
+        sku: str(b.sku),
         supplier: str(b.supplier),
       })
       .returning();
-    res.json({ item: inventoryOut(created) });
+    res.json({ item: inventoryOut(created, isPrivileged(req)) });
   }),
 );
 
@@ -981,6 +2141,7 @@ router.patch(
     if (b.minStock !== undefined) patch.minStock = Math.trunc(num(b.minStock));
     if (b.purchasePrice !== undefined) patch.purchasePrice = num(b.purchasePrice);
     if (b.sellingPrice !== undefined) patch.sellingPrice = num(b.sellingPrice);
+    if (b.sku !== undefined) patch.sku = str(b.sku);
     if (b.supplier !== undefined) patch.supplier = str(b.supplier);
     const [updated] = await db
       .update(inventoryItemsTable)
@@ -991,7 +2152,7 @@ router.patch(
       res.status(404).json({ message: "Inventory item not found" });
       return;
     }
-    res.json({ item: inventoryOut(updated) });
+    res.json({ item: inventoryOut(updated, isPrivileged(req)) });
   }),
 );
 

@@ -9,4 +9,7 @@ import type { Repair } from './repair';
 
 export type RepairsList200 = {
   repairs: Repair[];
+  total?: number;
+  page?: number;
+  limit?: number;
 };

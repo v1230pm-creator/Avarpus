@@ -148,6 +148,10 @@ export interface CustomerInput {
   address?: string;
 }
 
+export type RepairPhysicalCondition = {[key: string]: boolean};
+
+export type RepairTestingChecklist = {[key: string]: boolean};
+
 export type RepairChecklist = {[key: string]: boolean};
 
 export interface Repair {
@@ -160,19 +164,46 @@ export interface Repair {
   brand: string;
   model: string;
   imei?: string;
+  imei2?: string;
+  serialNumber?: string;
+  color?: string;
+  storage?: string;
+  ram?: string;
+  devicePassword?: string;
+  simPresent: boolean;
+  memoryCardPresent: boolean;
   alternateMobile?: string;
   accessories?: string;
+  accessoriesList?: string[];
+  physicalCondition?: RepairPhysicalCondition;
   problem: string;
   deviceCondition?: string;
   diagnosis?: string;
   workPerformed?: string;
   technicianId?: string;
   technicianName?: string;
+  assignedById?: string;
+  assignedByName?: string;
+  assignedAt?: string;
   status: string;
   priority: string;
   repairCharge: number;
   partsCharge: number;
+  serviceCharge: number;
+  otherCharge: number;
+  discount: number;
+  taxPercent: number;
   advance: number;
+  totalAmount: number;
+  paidAmount: number;
+  balance: number;
+  testingChecklist?: RepairTestingChecklist;
+  testingConfirmedById?: string;
+  testingConfirmedByName?: string;
+  testingConfirmedAt?: string;
+  readyAt?: string;
+  customerNotifiedAt?: string;
+  clientRequestId?: string;
   receiveDate: string;
   expectedDate: string;
   deliveryDate?: string;
@@ -193,6 +224,8 @@ export interface Repair {
   createdAt: string;
 }
 
+export type RepairInputPhysicalCondition = {[key: string]: boolean};
+
 export type RepairInputChecklist = {[key: string]: boolean};
 
 export interface RepairInput {
@@ -203,19 +236,31 @@ export interface RepairInput {
   brand?: string;
   model?: string;
   imei?: string;
+  imei2?: string;
+  serialNumber?: string;
+  color?: string;
+  storage?: string;
+  ram?: string;
+  devicePassword?: string;
+  simPresent?: boolean;
+  memoryCardPresent?: boolean;
   alternateMobile?: string;
   accessories?: string;
+  accessoriesList?: string[];
+  physicalCondition?: RepairInputPhysicalCondition;
   problem?: string;
   deviceCondition?: string;
   diagnosis?: string;
   workPerformed?: string;
-  technicianId?: string;
-  technicianName?: string;
   status?: string;
   priority?: string;
   repairCharge?: number;
   partsCharge?: number;
-  advance?: number;
+  serviceCharge?: number;
+  otherCharge?: number;
+  discount?: number;
+  taxPercent?: number;
+  clientRequestId?: string;
   receiveDate?: string;
   expectedDate?: string;
   deliveryDate?: string;
@@ -235,6 +280,7 @@ export interface RepairPart {
   quantity: number;
   unitCost: number;
   totalCost: number;
+  canSeeCosts?: boolean;
   addedByName?: string;
   createdAt: string;
 }
@@ -244,6 +290,144 @@ export interface RepairPartInput {
   partName?: string;
   quantity: number;
   unitCost?: number;
+}
+
+export type RepairPaymentKind = typeof RepairPaymentKind[keyof typeof RepairPaymentKind];
+
+
+export const RepairPaymentKind = {
+  advance: 'advance',
+  partial: 'partial',
+  final: 'final',
+  refund: 'refund',
+} as const;
+
+export interface RepairPayment {
+  id: string;
+  repairId: string;
+  amount: number;
+  method: string;
+  kind: RepairPaymentKind;
+  note?: string;
+  recordedById?: string;
+  recordedByName?: string;
+  createdAt: string;
+}
+
+export type RepairPaymentInputKind = typeof RepairPaymentInputKind[keyof typeof RepairPaymentInputKind];
+
+
+export const RepairPaymentInputKind = {
+  advance: 'advance',
+  partial: 'partial',
+  final: 'final',
+  refund: 'refund',
+} as const;
+
+export interface RepairPaymentInput {
+  amount: number;
+  method: string;
+  kind?: RepairPaymentInputKind;
+  note?: string;
+}
+
+export interface RepairAssignInput {
+  technicianId: string;
+}
+
+export type RepairTestingInputChecklist = {[key: string]: boolean};
+
+export interface RepairTestingInput {
+  checklist?: RepairTestingInputChecklist;
+  confirm?: boolean;
+}
+
+export interface EstimateApprovalCreateInput {
+  newAmount: number;
+  reason: string;
+}
+
+export type EstimateApprovalDecideInputDecision = typeof EstimateApprovalDecideInputDecision[keyof typeof EstimateApprovalDecideInputDecision];
+
+
+export const EstimateApprovalDecideInputDecision = {
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type EstimateApprovalDecideInputMethod = typeof EstimateApprovalDecideInputMethod[keyof typeof EstimateApprovalDecideInputMethod];
+
+
+export const EstimateApprovalDecideInputMethod = {
+  otp: 'otp',
+  dealer: 'dealer',
+} as const;
+
+export interface EstimateApprovalDecideInput {
+  decision: EstimateApprovalDecideInputDecision;
+  method: EstimateApprovalDecideInputMethod;
+  otpCode?: string;
+}
+
+export interface DeliveryOtpVerifyInput {
+  code: string;
+}
+
+export interface StockMovement {
+  id: string;
+  inventoryItemId?: string;
+  itemName: string;
+  quantityChange: number;
+  reason: string;
+  repairId?: string;
+  returnId?: string;
+  byId?: string;
+  byName?: string;
+  createdAt: string;
+}
+
+export type EstimateApprovalStatus = typeof EstimateApprovalStatus[keyof typeof EstimateApprovalStatus];
+
+
+export const EstimateApprovalStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type EstimateApprovalMethod = typeof EstimateApprovalMethod[keyof typeof EstimateApprovalMethod];
+
+
+export const EstimateApprovalMethod = {
+  otp: 'otp',
+  dealer: 'dealer',
+} as const;
+
+export interface EstimateApproval {
+  id: string;
+  repairId: string;
+  oldAmount: number;
+  newAmount: number;
+  reason: string;
+  status: EstimateApprovalStatus;
+  method?: EstimateApprovalMethod;
+  decidedById?: string;
+  decidedByName?: string;
+  decidedAt?: string;
+  requestedById?: string;
+  requestedByName?: string;
+  createdAt: string;
+}
+
+export interface CustomerSummary {
+  totalRepairs: number;
+  activeRepairs: number;
+  deliveredRepairs: number;
+  afterSalesCases: number;
+  refundsTotal: number;
+  paymentsTotal: number;
+  outstandingBalance: number;
+  warrantyActiveCount: number;
 }
 
 export type RepairPhotoKind = typeof RepairPhotoKind[keyof typeof RepairPhotoKind];
@@ -368,6 +552,7 @@ export interface RepairReturn {
   partsCost: number;
   labourCost: number;
   customerPayable: number;
+  canSeeCosts?: boolean;
   notes?: string;
   completedAt?: string;
   createdAt: string;
@@ -400,6 +585,7 @@ export interface ReturnPart {
   partName: string;
   quantity: number;
   unitCost: number;
+  canSeeCosts?: boolean;
   addedByName?: string;
   createdAt: string;
 }
@@ -553,7 +739,9 @@ export interface InventoryItem {
   minStock: number;
   purchasePrice: number;
   sellingPrice: number;
+  sku?: string;
   supplier?: string;
+  canSeeCosts?: boolean;
   isSample: boolean;
   createdAt: string;
 }
@@ -566,6 +754,7 @@ export interface InventoryItemInput {
   minStock?: number;
   purchasePrice?: number;
   sellingPrice?: number;
+  sku?: string;
   supplier?: string;
 }
 
@@ -668,8 +857,43 @@ export type CustomersUpdate200 = {
   customer: Customer;
 };
 
+export type RepairsListParams = {
+q?: string;
+status?: string;
+paymentStatus?: RepairsListPaymentStatus;
+technicianId?: string;
+receivedById?: string;
+priority?: string;
+dateFrom?: string;
+dateTo?: string;
+warranty?: RepairsListWarranty;
+page?: number;
+limit?: number;
+};
+
+export type RepairsListPaymentStatus = typeof RepairsListPaymentStatus[keyof typeof RepairsListPaymentStatus];
+
+
+export const RepairsListPaymentStatus = {
+  paid: 'paid',
+  partial: 'partial',
+  pending: 'pending',
+} as const;
+
+export type RepairsListWarranty = typeof RepairsListWarranty[keyof typeof RepairsListWarranty];
+
+
+export const RepairsListWarranty = {
+  active: 'active',
+  expired: 'expired',
+  none: 'none',
+} as const;
+
 export type RepairsList200 = {
   repairs: Repair[];
+  total?: number;
+  page?: number;
+  limit?: number;
 };
 
 export type RepairsCreate200 = {
@@ -690,6 +914,7 @@ export type RepairPhotosAdd200 = {
 
 export type RepairPartsList200 = {
   parts: RepairPart[];
+  canSeeCosts?: boolean;
 };
 
 export type RepairPartsAdd200 = {
@@ -698,6 +923,55 @@ export type RepairPartsAdd200 = {
 
 export type RepairEventsList200 = {
   events: RepairEvent[];
+};
+
+export type RepairPaymentsList200 = {
+  payments: RepairPayment[];
+};
+
+export type RepairPaymentsCreate200 = {
+  payment: RepairPayment;
+};
+
+export type RepairAssignTechnician200 = {
+  repair: Repair;
+};
+
+export type RepairTesting200 = {
+  repair: Repair;
+};
+
+export type EstimateApprovalsList200 = {
+  estimateApprovals: EstimateApproval[];
+};
+
+export type EstimateApprovalsCreate200 = {
+  estimateApproval: EstimateApproval;
+};
+
+export type EstimateApprovalsDecide200 = {
+  estimateApproval: EstimateApproval;
+};
+
+export type DeliveryOtpVerify200 = {
+  message: string;
+  otpVerified?: boolean;
+};
+
+export type RepairNotifyReady200 = {
+  repair: Repair;
+};
+
+export type StockMovementsListParams = {
+inventoryItemId?: string;
+};
+
+export type StockMovementsList200 = {
+  stockMovements: StockMovement[];
+};
+
+export type CustomerSummary200 = {
+  summary: CustomerSummary;
 };
 
 export type ReturnsCreate200 = {
@@ -710,6 +984,7 @@ export type ReturnsList200 = {
 
 export type ReturnsGet200 = {
   return: RepairReturn;
+  canSeeCosts?: boolean;
   parts: ReturnPart[];
   refunds: Refund[];
 };
@@ -762,6 +1037,7 @@ export type ApprovalsReject200 = {
 
 export type InventoryList200 = {
   items: InventoryItem[];
+  canSeeCosts?: boolean;
 };
 
 export type InventoryCreate200 = {

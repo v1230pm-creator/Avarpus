@@ -36,6 +36,53 @@ export async function sendOtpEmail(
   );
 }
 
+export async function sendReadyNotification(
+  to: string,
+  d: {
+    customerName: string;
+    brand: string;
+    model: string;
+    ticket: string;
+    balance: number;
+    businessName: string;
+  },
+): Promise<void> {
+  const amountDue = d.balance > 0 ? `₹${d.balance}` : "Nil";
+  await sendEmail(
+    to,
+    `Your device is ready for pickup — ${d.ticket}`,
+    buildReadyHtml(d, amountDue),
+    `Hi ${d.customerName},\n\nGood news! Your ${d.brand} ${d.model} (ticket ${d.ticket}) is repaired and ready for pickup.\n\nAmount due on collection: ${amountDue}\n\nThank you,\n${d.businessName}`,
+  );
+}
+
+function buildReadyHtml(
+  d: { customerName: string; brand: string; model: string; ticket: string; businessName: string },
+  amountDue: string,
+): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Device Ready</title></head>
+<body style="margin:0;padding:0;font-family:sans-serif;background:#0D1528;color:#F1F5F9;">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr><td align="center" style="padding:40px 16px;">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#0F172A;border-radius:16px;border:1px solid #1E293B;">
+        <tr><td style="padding:32px 40px 16px;text-align:center;">
+          <h1 style="margin:0 0 8px;font-size:22px;color:#F1F5F9;">${d.businessName}</h1>
+          <p style="margin:0;color:#22C55E;font-size:15px;font-weight:600;">Your device is ready for pickup</p>
+        </td></tr>
+        <tr><td style="padding:8px 40px 24px;color:#CBD5E1;font-size:14px;line-height:1.6;">
+          <p style="margin:0 0 12px;">Hi ${d.customerName},</p>
+          <p style="margin:0 0 12px;">Your <strong>${d.brand} ${d.model}</strong> (ticket <strong>${d.ticket}</strong>) has been repaired and is ready for collection.</p>
+          <p style="margin:0;">Amount due on collection: <strong style="color:#60A5FA;">${amountDue}</strong></p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 function buildHtml(label: string, code: string): string {
   return `<!DOCTYPE html>
 <html lang="en">

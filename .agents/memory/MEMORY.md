@@ -9,6 +9,7 @@
 - [Object storage shop scoping](object-storage-shop-scope.md) — objects live under uploads/<shopId>/; attach/serve endpoints must validate that prefix or shops leak each other's photos/signatures.
 - [Restyle review bar](restyle-reviews.md) — reviewers reject app-wide restyles if any list-item cards keep the old flat surface; grep old surface tokens before submitting.
 - [Backdated approvals](backdated-approvals.md) — staff backdated saves 403 APPROVAL_REQUIRED and go through approval_requests; approve must atomically claim + save in one tx; nothing persists pre-approval.
+- [Payments ledger & money rules](payments-ledger.md) — append-only repair_payments, advance is a cached SUM, cost gating for staff, OTP bound server-side, clientRequestId offline idempotency.
 - [Repair workflow](repair-workflow.md) — 4 tabs are one repairs table; delivered is staff-terminal with locked money fields; partsCharge is ledger-derived once repair_parts exist; receivedBy/deliveredBy stamped server-side.
 - [Returns & refunds](returns-refunds.md) — return cases have a strict server state machine; refunds are separate rows with a cumulative repair-level cap; closed cases frozen; FOR UPDATE + conditional claims everywhere.
 - [Mobile Jest setup quirks](mobile-jest-setup.md) — pnpm-aware transformIgnorePatterns, global fake timers to avoid hangs, mock at API-client boundary not context.

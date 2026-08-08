@@ -1,0 +1,16 @@
+--- artifacts/mobile/app/(tabs)/repairs/[id].tsx
++++ artifacts/mobile/app/(tabs)/repairs/[id].tsx
+@@ -291,12 +291,15 @@
+     try {
+       await updateRepair({
+         ...repair,
+         repairCharge: Number(editRepairCharge),
+-        advance: Number(editAdvance)
++        serviceCharge: Number(editServiceCharge),
++        otherCharge: Number(editOtherCharge),
++        discount: Number(editDiscount),
++        taxPercent: Number(editTaxPercent)
+       });
+       setShowFinancialEdit(false);
+       await loadAll();
+       queryClient.invalidateQueries();

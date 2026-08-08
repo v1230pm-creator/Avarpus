@@ -53,7 +53,7 @@ export function InventoryFormSheet({ visible, onClose, item }: Props) {
     const min = parseInt(minStock, 10);
     if (!Number.isFinite(min) || min < 0) e.minStock = 'Enter a minimum stock of 0 or more';
     const pp = parseFloat(purchasePrice);
-    if (!Number.isFinite(pp) || pp < 0) e.purchasePrice = 'Enter a valid purchase price';
+    if (item?.canSeeCosts !== false && (!Number.isFinite(pp) || pp < 0)) e.purchasePrice = 'Enter a valid purchase price';
     const sp = parseFloat(sellingPrice);
     if (!Number.isFinite(sp) || sp < 0) e.sellingPrice = 'Enter a valid selling price';
     setErrors(e);
@@ -70,7 +70,7 @@ export function InventoryFormSheet({ visible, onClose, item }: Props) {
         brand: brand.trim(),
         quantity: parseInt(quantity, 10),
         minStock: parseInt(minStock, 10),
-        purchasePrice: parseFloat(purchasePrice),
+        purchasePrice: item?.canSeeCosts === false ? (item.purchasePrice || 0) : parseFloat(purchasePrice),
         sellingPrice: parseFloat(sellingPrice),
         supplier: supplier.trim() || undefined,
       };
@@ -107,7 +107,9 @@ export function InventoryFormSheet({ visible, onClose, item }: Props) {
         <Input label="Min Stock *" value={minStock} onChangeText={setMinStock} placeholder="0" keyboardType="number-pad" error={errors.minStock} containerStyle={styles.half} />
       </View>
       <View style={styles.row}>
-        <Input label="Purchase Price *" value={purchasePrice} onChangeText={setPurchasePrice} placeholder="0" keyboardType="decimal-pad" error={errors.purchasePrice} containerStyle={styles.half} />
+        {item?.canSeeCosts !== false && (
+          <Input label="Purchase Price *" value={purchasePrice} onChangeText={setPurchasePrice} placeholder="0" keyboardType="decimal-pad" error={errors.purchasePrice} containerStyle={styles.half} />
+        )}
         <Input label="Selling Price *" value={sellingPrice} onChangeText={setSellingPrice} placeholder="0" keyboardType="decimal-pad" error={errors.sellingPrice} containerStyle={styles.half} />
       </View>
       <Input label="Supplier" value={supplier} onChangeText={setSupplier} placeholder="Optional" />

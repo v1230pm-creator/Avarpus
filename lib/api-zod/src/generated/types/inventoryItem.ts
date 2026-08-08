@@ -15,7 +15,9 @@ export interface InventoryItem {
   minStock: number;
   purchasePrice: number;
   sellingPrice: number;
+  sku?: string;
   supplier?: string;
+  canSeeCosts?: boolean;
   isSample: boolean;
   createdAt: string;
 }

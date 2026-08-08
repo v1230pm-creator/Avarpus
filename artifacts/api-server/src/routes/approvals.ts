@@ -4,6 +4,7 @@ import {
   db,
   approvalRequestsTable,
   repairsTable,
+  repairPaymentsTable,
   repairEventsTable,
   purchasesTable,
   financeEntriesTable,
@@ -13,6 +14,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
+import { recordPayment } from "../lib/repairPayments";
 import type { Request, Response } from "express";
 
 // Backdated-entry approval workflow.
@@ -153,17 +155,49 @@ async function executeApproved(
   if (a.recordType === "repair") {
     if (a.mode === "update" && a.recordId) {
       // Apply the reviewed payload (allowlisted fields), not just the date.
+      // NOTE: `advance` is NEVER written directly — it is a cached mirror of the
+      // payments ledger. If the approved payload asks to raise the advance we
+      // record the delta as a real payment row via recordPayment() below.
       const patch: Partial<typeof repairsTable.$inferInsert> = { receiveDate: a.requestedDate };
       if (p.problem !== undefined) patch.problem = str(p.problem) ?? undefined;
       if (p.notes !== undefined) patch.notes = str(p.notes);
       if (p.repairCharge !== undefined) patch.repairCharge = num(p.repairCharge);
       if (p.partsCharge !== undefined) patch.partsCharge = num(p.partsCharge);
-      if (p.advance !== undefined) patch.advance = num(p.advance);
       if (p.expectedDate !== undefined) patch.expectedDate = str(p.expectedDate) ?? undefined;
       await tx
         .update(repairsTable)
         .set(patch)
         .where(and(eq(repairsTable.id, a.recordId), eq(repairsTable.shopId, a.shopId)));
+      // If the payload carries an advance, book only the difference between the
+      // requested advance and what the ledger already holds — never rewrite it.
+      if (p.advance !== undefined) {
+        const requestedAdvance = num(p.advance);
+        const [{ paidSoFar }] = await tx
+          .select({ paidSoFar: sql<number>`coalesce(sum(${repairPaymentsTable.amount}), 0)::float` })
+          .from(repairPaymentsTable)
+          .where(
+            and(eq(repairPaymentsTable.repairId, a.recordId), eq(repairPaymentsTable.shopId, a.shopId)),
+          );
+        const delta = requestedAdvance - paidSoFar;
+        if (delta > 0.01) {
+          const [repair] = await tx
+            .select()
+            .from(repairsTable)
+            .where(and(eq(repairsTable.id, a.recordId), eq(repairsTable.shopId, a.shopId)));
+          await recordPayment(tx, {
+            shopId: a.shopId,
+            repairId: a.recordId,
+            customerId: repair?.customerId ?? null,
+            amount: delta,
+            method: str(p.paymentMethod) ?? "Cash",
+            kind: "advance",
+            note: "Via backdated-entry approval",
+            receivedById: a.requesterId,
+            receivedByName: a.requesterName,
+            financeDate: a.requestedDate,
+          });
+        }
+      }
       return;
     }
     // Resolve or create the customer now — the client deliberately does not
@@ -215,7 +249,9 @@ async function executeApproved(
         priority: str(p.priority) ?? "normal",
         repairCharge: num(p.repairCharge),
         partsCharge: num(p.partsCharge),
-        advance: num(p.advance),
+        // advance is ledger-driven: created at 0, then any requested advance is
+        // booked as a real payment row below (never written directly).
+        advance: 0,
         receiveDate: a.requestedDate,
         expectedDate: str(p.expectedDate) ?? a.requestedDate,
         notes: str(p.notes),
@@ -241,6 +277,24 @@ async function executeApproved(
         approvalRequestId: a.id,
       },
     });
+    // Any requested advance is booked as a real ledger payment (kind advance),
+    // attributed to the original requester, dated to the approved date — this
+    // is the ONLY way `repairs.advance` gets a non-zero value here.
+    const requestedAdvance = num(p.advance);
+    if (requestedAdvance > 0) {
+      await recordPayment(tx, {
+        shopId: a.shopId,
+        repairId: row.id,
+        customerId,
+        amount: requestedAdvance,
+        method: str(p.paymentMethod) ?? "Cash",
+        kind: "advance",
+        note: "Via backdated-entry approval",
+        receivedById: a.requesterId,
+        receivedByName: a.requesterName,
+        financeDate: a.requestedDate,
+      });
+    }
     // Keep the customer's derived repair count in sync.
     const [{ repairCount }] = await tx
       .select({ repairCount: sql<number>`count(*) filter (where ${repairsTable.status} <> 'cancelled')::int` })

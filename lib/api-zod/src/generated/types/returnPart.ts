@@ -13,6 +13,7 @@ export interface ReturnPart {
   partName: string;
   quantity: number;
   unitCost: number;
+  canSeeCosts?: boolean;
   addedByName?: string;
   createdAt: string;
 }
