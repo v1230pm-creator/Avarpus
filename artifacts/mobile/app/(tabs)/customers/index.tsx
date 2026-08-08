@@ -18,6 +18,7 @@ import { useColors } from '@/hooks/useColors';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { Avatar } from '@/components/ui/Avatar';
+import { SampleBadge } from '@/components/ui/Badge';
 import { GlassCard, ScreenGlow, FadeInView, useIsDark } from '@/components/ui/Glass';
 import { Customer } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/helpers';
@@ -32,6 +33,7 @@ function CustomerCard({ customer, onPress }: { customer: Customer; onPress: () =
           <Text style={[styles.customerName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{customer.name}</Text>
           <Text style={[styles.mobile, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{customer.mobile}</Text>
           <View style={styles.cardMeta}>
+            {customer.isSample && <SampleBadge />}
             <View style={[styles.metaBadge, { backgroundColor: colors.primary + '15' }]}>
               <Feather name="tool" size={11} color={colors.primary} />
               <Text style={[styles.metaText, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>

@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
-import { Badge } from '@/components/ui/Badge';
+import { Badge, SampleBadge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { GlassCard, ScreenGlow, FadeInView, useIsDark } from '@/components/ui/Glass';
@@ -41,6 +41,7 @@ function PurchaseCard({ purchase }: { purchase: Purchase }) {
           variant={PAYMENT_STATUS_COLORS[purchase.paymentStatus]}
           size="sm"
         />
+        {purchase.isSample && <SampleBadge />}
       </View>
 
       <Text style={[styles.supplier, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{purchase.supplier}</Text>

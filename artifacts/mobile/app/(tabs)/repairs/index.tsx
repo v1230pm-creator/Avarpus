@@ -15,7 +15,7 @@ import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
-import { RepairStatusBadge, PriorityBadge } from '@/components/ui/Badge';
+import { RepairStatusBadge, PriorityBadge, SampleBadge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
@@ -36,6 +36,7 @@ function RepairCard({ repair, onPress }: { repair: Repair; onPress: () => void }
             <Text style={[styles.repairId, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{repair.repairId}</Text>
           </View>
           <PriorityBadge priority={repair.priority} />
+          {repair.isSample && <SampleBadge />}
         </View>
         <Text style={[styles.customerName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{repair.customerName}</Text>
         <Text style={[styles.deviceLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>

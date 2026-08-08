@@ -7,7 +7,7 @@ import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
-import { RepairStatusBadge } from '@/components/ui/Badge';
+import { RepairStatusBadge, SampleBadge } from '@/components/ui/Badge';
 import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 
@@ -53,6 +53,7 @@ export default function CustomerDetailScreen() {
         {/* Profile Card */}
         <GlassCard animValue={anims[0]} style={styles.profileCard}>
           <Avatar name={customer.name} size={64} />
+          {customer.isSample && <SampleBadge style={{ alignSelf: 'center', marginTop: 6 }} />}
           <Text style={[styles.name, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{customer.name}</Text>
           <Text style={[styles.mobile, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>{customer.mobile}</Text>
           {customer.email && (
@@ -102,6 +103,7 @@ export default function CustomerDetailScreen() {
                     <Text style={[styles.repairId, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{repair.repairId}</Text>
                   </View>
                   <RepairStatusBadge status={repair.status} />
+                  {repair.isSample && <SampleBadge />}
                   <Text style={[styles.repairDate, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
                     {formatDate(repair.createdAt)}
                   </Text>

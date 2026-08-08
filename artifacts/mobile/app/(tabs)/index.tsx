@@ -21,7 +21,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { BarChart } from '@/components/charts/BarChart';
-import { RepairStatusBadge, PriorityBadge } from '@/components/ui/Badge';
+import { RepairStatusBadge, PriorityBadge, SampleBadge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { formatCurrency, formatDate, getGreeting, getTodayStr, ROLE_LABELS } from '@/utils/helpers';
 
@@ -263,6 +263,7 @@ const TimelineItem = ({ repair, isLast, router, colors }: any) => {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <RepairStatusBadge status={repair.status} />
           <PriorityBadge priority={repair.priority} />
+          {repair.isSample && <SampleBadge />}
         </View>
       </View>
     </TouchableOpacity>

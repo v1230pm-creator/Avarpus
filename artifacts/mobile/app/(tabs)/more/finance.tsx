@@ -14,6 +14,7 @@ import { Feather } from '@expo/vector-icons';
 import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { Card } from '@/components/ui/Card';
+import { SampleBadge } from '@/components/ui/Badge';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { StatCard } from '@/components/ui/StatCard';
 import { GlassCard, ScreenGlow, useStaggerAnim, useIsDark } from '@/components/ui/Glass';
@@ -32,7 +33,10 @@ function TransactionItem({ entry, isLast }: { entry: FinanceEntry; isLast: boole
         <Feather name={isIncome ? 'trending-up' : 'trending-down'} size={16} color={isIncome ? colors.success : colors.destructive} />
       </View>
       <View style={styles.txContent}>
-        <Text style={[styles.txCategory, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{entry.category}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={[styles.txCategory, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{entry.category}</Text>
+          {entry.isSample && <SampleBadge />}
+        </View>
         {entry.description && (
           <Text style={[styles.txDesc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
             {entry.description}

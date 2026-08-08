@@ -65,6 +65,10 @@ export function PriorityBadge({ priority }: { priority: RepairPriority }) {
   return <Badge label={priority.charAt(0).toUpperCase() + priority.slice(1)} variant={PRIORITY_VARIANTS[priority]} size="sm" />;
 }
 
+export function SampleBadge({ style }: { style?: ViewStyle }) {
+  return <Badge label="Sample" variant="warning" size="sm" style={style} />;
+}
+
 export function PaymentBadge({ status }: { status: 'paid' | 'unpaid' | 'partial' }) {
   const variants: Record<string, BadgeVariant> = { paid: 'success', unpaid: 'error', partial: 'warning' };
   const labels: Record<string, string> = { paid: 'Paid', unpaid: 'Unpaid', partial: 'Partial' };

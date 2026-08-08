@@ -23,7 +23,7 @@ import * as Sharing from 'expo-sharing';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
-import { RepairStatusBadge, PriorityBadge } from '@/components/ui/Badge';
+import { RepairStatusBadge, PriorityBadge, SampleBadge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { RepairStatus } from '@/types';
@@ -273,7 +273,10 @@ export default function RepairDetailScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={[styles.repairId, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{repair.repairId}</Text>
-          <RepairStatusBadge status={repair.status} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <RepairStatusBadge status={repair.status} />
+            {repair.isSample && <SampleBadge />}
+          </View>
         </View>
         <View style={{ width: 44 }}>
           {/* Hidden QR Code for PDF Generation */}

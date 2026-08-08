@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
-import { Badge } from '@/components/ui/Badge';
+import { Badge, SampleBadge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
@@ -56,11 +56,14 @@ function InventoryCard({ item }: { item: InventoryItem }) {
             {item.brand} · {CAT_LABELS[item.category]}
           </Text>
         </View>
-        <Badge
-          label={CAT_LABELS[item.category]}
-          variant={item.category === 'spare_part' ? 'info' : item.category === 'product' ? 'default' : 'muted'}
-          size="sm"
-        />
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <Badge
+            label={CAT_LABELS[item.category]}
+            variant={item.category === 'spare_part' ? 'info' : item.category === 'product' ? 'default' : 'muted'}
+            size="sm"
+          />
+          {item.isSample && <SampleBadge />}
+        </View>
       </View>
 
       <View style={[styles.divider, { backgroundColor: colors.border }]} />
