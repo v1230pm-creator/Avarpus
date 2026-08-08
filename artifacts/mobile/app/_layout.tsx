@@ -4,6 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BackgroundRelock } from '@/components/BackgroundRelock';
+import { PrivacyShield } from '@/components/PrivacyShield';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import {
   Inter_400Regular,
@@ -62,6 +63,7 @@ export default function RootLayout() {
                 <KeyboardProvider>
                   <BackgroundRelock>
                     <RootLayoutNav />
+                    <PrivacyShield />
                   </BackgroundRelock>
                 </KeyboardProvider>
               </GestureHandlerRootView>
