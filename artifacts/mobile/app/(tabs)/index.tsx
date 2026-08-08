@@ -24,6 +24,7 @@ import { BarChart } from '@/components/charts/BarChart';
 import { RepairStatusBadge, PriorityBadge, SampleBadge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { formatCurrency, formatDate, getGreeting, getTodayStr, ROLE_LABELS } from '@/utils/helpers';
+import { useApprovalsList } from '@workspace/api-client-react';
 
 // --- Shared Helper ---
 const getStatusColor = (status: string, colors: any) => {
@@ -470,8 +471,11 @@ const SampleDataBanner = () => {
 export default function DashboardScreen() {
   const colors = useColors();
   const router = useRouter();
-  const { canAccess } = useAuth();
+  const { user, canAccess } = useAuth();
   const { repairs, customers, inventory, finance, isLoading, loadError, loadAll, hasSampleData } = useData();
+  const { data: approvalsData } = useApprovalsList();
+  const pendingCount = approvalsData?.pendingCount || 0;
+  const showApprovalsBadge = pendingCount > 0 && (user?.role === 'dealer' || user?.role === 'super_admin');
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
@@ -608,6 +612,25 @@ export default function DashboardScreen() {
         {!hasAnyData && !isLoading && !loadError && <EmptyShopState />}
 
         <View style={{ paddingHorizontal: 20, paddingTop: 16, gap: 20 }}>
+          {showApprovalsBadge && (
+            <Animated.View style={{ opacity: cardAnims[0], transform: [{ translateY: cardAnims[0].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+              <TouchableOpacity
+                onPress={() => router.push('/(tabs)/more/approvals')}
+                activeOpacity={0.8}
+                style={{ flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: colors.destructive + '15', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.destructive + '33' }}
+              >
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.destructive + '22', alignItems: 'center', justifyContent: 'center' }}>
+                  <Feather name="check-circle" size={20} color={colors.destructive} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginBottom: 2 }}>Pending Approvals</Text>
+                  <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>You have {pendingCount} backdated request{pendingCount === 1 ? '' : 's'} waiting for approval.</Text>
+                </View>
+                <Feather name="chevron-right" size={20} color={colors.destructive} />
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
           {hasSampleData && <SampleDataBanner />}
           
           <Animated.View style={{ opacity: cardAnims[1], transform: [{ translateY: cardAnims[1].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>

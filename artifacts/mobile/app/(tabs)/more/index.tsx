@@ -9,6 +9,7 @@ import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
 import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
+import { useApprovalsList } from '@workspace/api-client-react';
 
 interface MenuItem {
   id: string;
@@ -22,6 +23,7 @@ interface MenuItem {
 
 const MENU_ITEMS: MenuItem[] = [
   { id: 'finance', label: 'Finance', icon: 'bar-chart-2', route: '/(tabs)/more/finance', color: '#059669', description: 'Income, expense, cash book', roles: ['super_admin', 'dealer', 'accountant'] },
+  { id: 'approvals', label: 'Approvals', icon: 'check-circle', route: '/(tabs)/more/approvals', color: '#E11D48', description: 'Backdated entry requests', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician'] },
   { id: 'staff', label: 'Staff', icon: 'users', route: '/(tabs)/more/staff', color: '#7C3AED', description: 'Manage staff and roles', roles: ['super_admin', 'dealer'] },
   { id: 'purchases', label: 'Purchases', icon: 'shopping-bag', route: '/(tabs)/more/purchases', color: '#0284C7', description: 'Purchase orders, suppliers', roles: ['super_admin', 'dealer', 'store_manager', 'accountant'] },
   { id: 'reports', label: 'Reports', icon: 'file-text', route: '/(tabs)/more/reports', color: '#D97706', description: 'Generate and export reports', roles: ['super_admin', 'dealer', 'accountant'] },
@@ -33,6 +35,8 @@ export default function MoreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout, canAccess } = useAuth();
+  const { data: approvalsData } = useApprovalsList();
+  const pendingCount = approvalsData?.pendingCount || 0;
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
@@ -84,6 +88,11 @@ export default function MoreScreen() {
             >
               <View style={[styles.menuIconWrap, { backgroundColor: item.color + '1A' }]}>
                 <Feather name={item.icon} size={20} color={item.color} />
+                {item.id === 'approvals' && pendingCount > 0 && (user?.role === 'dealer' || user?.role === 'super_admin') && (
+                  <View style={[styles.badgeWrap, { backgroundColor: colors.destructive, borderColor: colors.card }]}>
+                    <Text style={styles.badgeText}>{pendingCount > 99 ? '99+' : pendingCount}</Text>
+                  </View>
+                )}
               </View>
               <View style={styles.menuContent}>
                 <Text style={[styles.menuLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{item.label}</Text>
@@ -129,6 +138,8 @@ const styles = StyleSheet.create({
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
   menuItemBorder: { borderBottomWidth: 1 },
   menuIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  badgeWrap: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, borderWidth: 2, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  badgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
   menuContent: { flex: 1, gap: 2 },
   menuLabel: { fontSize: 15 },
   menuDesc: { fontSize: 12 },

@@ -38,7 +38,7 @@ import {
   PRIORITIES,
   PRIORITY_LABELS,
 } from '@/utils/helpers';
-import { requestUploadUrl, repairPhotosAdd } from '@workspace/api-client-react';
+import { requestUploadUrl, repairPhotosAdd, approvalsCreate } from '@workspace/api-client-react';
 import { fetch as expoFetch } from 'expo/fetch';
 import { File as ExpoFile } from 'expo-file-system';
 
@@ -120,6 +120,8 @@ export default function NewRepairScreen() {
   const [receiveDate, setReceiveDate] = useState(getTodayStr());
   const [expectedDate, setExpectedDate] = useState(getNextWeekStr());
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
+  const [reason, setReason] = useState('');
+  const [forceApprovalMode, setForceApprovalMode] = useState(false);
   
   const [photos, setPhotos] = useState<{ uri: string, kind: string }[]>([]);
   const [receivingSignatureUri, setReceivingSignatureUri] = useState<string | null>(null);
@@ -133,6 +135,9 @@ export default function NewRepairScreen() {
   const [createdRepair, setCreatedRepair] = useState<Repair | null>(null);
   const qrRef = useRef<any>(null);
 
+  const isStaff = user?.role !== 'dealer' && user?.role !== 'super_admin';
+  const isBackdated = isStaff && (receiveDate.trim() < getTodayStr() || forceApprovalMode);
+
   const validate = () => {
     const e: Record<string, string> = {};
     if (!customerName.trim()) e.customerName = 'Required';
@@ -145,6 +150,9 @@ export default function NewRepairScreen() {
     if (!isValidDateStr(expectedDate.trim())) e.expectedDate = 'Enter a valid date as YYYY-MM-DD';
     else if (isValidDateStr(receiveDate.trim()) && expectedDate.trim() < receiveDate.trim()) {
       e.expectedDate = 'Cannot be before the receive date';
+    }
+    if (isBackdated && !reason.trim()) {
+      e.reason = 'Reason is required for backdated entry';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -175,8 +183,11 @@ export default function NewRepairScreen() {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+      // For backdated (approval) requests the customer must NOT be created
+      // yet — the server creates/links the customer only if the dealer
+      // approves. Only look up an existing one here.
       let customerId = customers.find((c) => c.mobile === mobile)?.id;
-      if (!customerId) {
+      if (!customerId && !isBackdated) {
         const created = await addCustomer({
           name: customerName.trim(), mobile: mobile.trim(),
           address: address.trim() || undefined,
@@ -187,19 +198,40 @@ export default function NewRepairScreen() {
       const techId = user?.role === 'technician' ? user.id : undefined;
       const techName = user?.role === 'technician' ? user.name : undefined;
 
-      const newRepair: Repair = {
-        id: '', repairId: '', customerId,
+      const basePayload = {
+        customerId,
         customerName: customerName.trim(), mobile: mobile.trim(),
         deviceType, brand: brand.trim(), model: model.trim(),
         imei: imei.trim() || undefined, problem: problem.trim(),
         technicianId: techId, technicianName: techName,
         status: 'received', priority: priority as Repair['priority'],
         repairCharge: parseFloat(repairCharge) || 0, partsCharge: 0,
-        advance: parseFloat(advance) || 0, receiveDate: receiveDate.trim(),
+        advance: parseFloat(advance) || 0,
         expectedDate: expectedDate.trim(), notes: notes.trim() || undefined,
         checklist, warrantyDays: parseInt(warrantyDays, 10) || 0,
-        createdAt: new Date().toISOString(),
       };
+
+      if (isBackdated) {
+        await approvalsCreate({
+          recordType: 'repair',
+          mode: 'create',
+          payload: { ...basePayload, address: address.trim() || undefined, receiveDate: receiveDate.trim() },
+          requestedDate: receiveDate.trim(),
+          reason: reason.trim(),
+        });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert('Request Sent', 'Request sent to Dealer/Owner for approval.\n\nNote: Photos and signatures can be added after the repair is approved.', [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
+        return;
+      }
+
+      const newRepair: Repair = {
+        id: '', repairId: '',
+        ...basePayload,
+        receiveDate: receiveDate.trim(),
+        createdAt: new Date().toISOString(),
+      } as Repair;
 
       const repair = await addRepair(newRepair);
 
@@ -220,7 +252,12 @@ export default function NewRepairScreen() {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setCreatedRepair(repair);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.code === 'APPROVAL_REQUIRED' || err?.message?.includes('APPROVAL_REQUIRED') || err?.data?.code === 'APPROVAL_REQUIRED') {
+        setForceApprovalMode(true);
+        Alert.alert('Approval Required', 'This entry requires dealer approval. Please provide a reason and submit again.');
+        return;
+      }
       // The form state is untouched here, so the user can fix the issue
       // (e.g. reconnect) and tap Save again without re-typing anything.
       Alert.alert(
@@ -399,7 +436,20 @@ export default function NewRepairScreen() {
               style={{ height: 90, textAlignVertical: 'top', paddingTop: 12 } as any}
               error={errors.problem}
             />
+            {isBackdated && (
+              <View style={[styles.warningBanner, { backgroundColor: colors.warning + '22', borderColor: colors.warning + '55' }]}>
+                <Feather name="alert-triangle" size={16} color={colors.warning} />
+                <Text style={[styles.warningText, { color: colors.warning, fontFamily: 'Inter_500Medium' }]}>
+                  This is a backdated entry. Dealer/Owner approval is required.
+                </Text>
+              </View>
+            )}
             <Input label="Receive Date *" value={receiveDate} onChangeText={setReceiveDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} leftIcon="calendar" error={errors.receiveDate} />
+            
+            {isBackdated && (
+              <Input label="Reason for backdating *" value={reason} onChangeText={setReason} placeholder="Explain why this is backdated..." error={errors.reason} />
+            )}
+            
             <Input label="Expected Delivery *" value={expectedDate} onChangeText={setExpectedDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} leftIcon="calendar" error={errors.expectedDate} />
             <SelectInput label="Priority" options={PRIORITIES} value={priority} onChange={setPriority} labelMap={PRIORITY_LABELS} />
             <SelectInput label="Warranty Offered" options={WARRANTY_OPTIONS.map(o => o.value)} value={warrantyDays} onChange={setWarrantyDays} labelMap={WARRANTY_OPTIONS.reduce((acc, curr) => ({...acc, [curr.value]: curr.label}), {})} />
@@ -479,7 +529,7 @@ export default function NewRepairScreen() {
           </View>
 
           <Button
-            title="Complete Intake"
+            title={isBackdated ? "Request Approval" : "Complete Intake"}
             onPress={handleSubmit}
             loading={loading}
             fullWidth
@@ -591,4 +641,6 @@ const styles = StyleSheet.create({
   successTitle: { fontSize: 24, marginBottom: 8 },
   successSubtitle: { fontSize: 16, marginBottom: 30 },
   qrWrap: { padding: 20, backgroundColor: '#FFF', borderRadius: 16, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 },
+  warningBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 4 },
+  warningText: { flex: 1, fontSize: 13, lineHeight: 18 },
 });

@@ -50,6 +50,13 @@
       "when": 1786145529658,
       "tag": "0006_sample_data_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786156944112,
+      "tag": "0007_approval_requests",
+      "breakpoints": true
     }
   ]
 }

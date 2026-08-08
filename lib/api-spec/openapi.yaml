@@ -543,6 +543,94 @@ paths:
                     items:
                       $ref: "#/components/schemas/RepairEvent"
                 required: [events]
+  /approvals:
+    get:
+      operationId: approvalsList
+      tags: [business]
+      summary: List backdated-entry approval requests (dealer sees all of the shop's; staff see their own)
+      responses:
+        "200":
+          description: Approval requests, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  approvals:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ApprovalRequest"
+                  pendingCount: { type: number }
+                required: [approvals, pendingCount]
+    post:
+      operationId: approvalsCreate
+      tags: [business]
+      summary: Request dealer approval for a backdated record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalRequestInput"
+      responses:
+        "200":
+          description: Created request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  approval:
+                    $ref: "#/components/schemas/ApprovalRequest"
+                required: [approval]
+  /approvals/{id}/approve:
+    post:
+      operationId: approvalsApprove
+      tags: [business]
+      summary: Approve a pending backdated request and save the record (dealer only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Approved request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  approval:
+                    $ref: "#/components/schemas/ApprovalRequest"
+                required: [approval]
+  /approvals/{id}/reject:
+    post:
+      operationId: approvalsReject
+      tags: [business]
+      summary: Reject a pending backdated request (dealer only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalRejectInput"
+      responses:
+        "200":
+          description: Rejected request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  approval:
+                    $ref: "#/components/schemas/ApprovalRequest"
+                required: [approval]
   /storage/uploads/request-url:
     post:
       tags: [Storage]
@@ -1076,6 +1164,40 @@ components:
         objectPath: { type: string }
         metadata:
           $ref: '#/components/schemas/UploadUrlRequest'
+    ApprovalRequest:
+      type: object
+      properties:
+        id: { type: string }
+        requesterId: { type: string }
+        requesterName: { type: string }
+        requesterRole: { type: string }
+        recordType: { type: string, enum: [repair, purchase, finance] }
+        mode: { type: string, enum: [create, update] }
+        recordId: { type: string }
+        payload: { type: object, additionalProperties: true }
+        requestedDate: { type: string }
+        reason: { type: string }
+        status: { type: string, enum: [pending, approved, rejected] }
+        decidedByName: { type: string }
+        decidedAt: { type: string }
+        rejectionReason: { type: string }
+        createdAt: { type: string }
+      required: [id, requesterId, requesterName, requesterRole, recordType, mode, payload, requestedDate, reason, status, createdAt]
+    ApprovalRequestInput:
+      type: object
+      properties:
+        recordType: { type: string, enum: [repair, purchase, finance] }
+        mode: { type: string, enum: [create, update] }
+        recordId: { type: string }
+        payload: { type: object, additionalProperties: true }
+        requestedDate: { type: string }
+        reason: { type: string }
+      required: [recordType, payload, requestedDate, reason]
+    ApprovalRejectInput:
+      type: object
+      properties:
+        reason: { type: string }
+      required: [reason]
     ErrorEnvelope:
       type: object
       required: [error]

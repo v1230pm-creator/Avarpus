@@ -8,4 +8,5 @@
 - [drizzle-kit generate quirk](drizzle-generate-config.md) — checked-in drizzle.config.ts breaks `generate` (absolute paths); use a temp relative-path config from lib/db.
 - [Object storage shop scoping](object-storage-shop-scope.md) — objects live under uploads/<shopId>/; attach/serve endpoints must validate that prefix or shops leak each other's photos/signatures.
 - [Restyle review bar](restyle-reviews.md) — reviewers reject app-wide restyles if any list-item cards keep the old flat surface; grep old surface tokens before submitting.
+- [Backdated approvals](backdated-approvals.md) — staff backdated saves 403 APPROVAL_REQUIRED and go through approval_requests; approve must atomically claim + save in one tx; nothing persists pre-approval.
 - [Mobile Jest setup quirks](mobile-jest-setup.md) — pnpm-aware transformIgnorePatterns, global fake timers to avoid hangs, mock at API-client boundary not context.

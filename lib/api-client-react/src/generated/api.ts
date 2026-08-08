@@ -20,6 +20,12 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ApprovalRejectInput,
+  ApprovalRequestInput,
+  ApprovalsApprove200,
+  ApprovalsCreate200,
+  ApprovalsList200,
+  ApprovalsReject200,
   AuthForgotVerify200,
   AuthLoginHistory200,
   AuthMe200,
@@ -2063,6 +2069,297 @@ export function useRepairEventsList<TData = Awaited<ReturnType<typeof repairEven
 
 
 
+
+export const getApprovalsListUrl = () => {
+
+
+
+
+  return `/api/approvals`
+}
+
+/**
+ * @summary List backdated-entry approval requests (dealer sees all of the shop's; staff see their own)
+ */
+export const approvalsList = async ( options?: Parameters<typeof customFetch>[1]): Promise<ApprovalsList200> => {
+
+  return customFetch<ApprovalsList200>(getApprovalsListUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getApprovalsListQueryKey = () => {
+    return [
+    `/api/approvals`
+    ] as const;
+    }
+
+
+export const getApprovalsListQueryOptions = <TData = Awaited<ReturnType<typeof approvalsList>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof approvalsList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getApprovalsListQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof approvalsList>>> = ({ signal }) => approvalsList({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof approvalsList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ApprovalsListQueryResult = NonNullable<Awaited<ReturnType<typeof approvalsList>>>
+export type ApprovalsListQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List backdated-entry approval requests (dealer sees all of the shop's; staff see their own)
+ */
+
+export function useApprovalsList<TData = Awaited<ReturnType<typeof approvalsList>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof approvalsList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getApprovalsListQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApprovalsCreateUrl = () => {
+
+
+
+
+  return `/api/approvals`
+}
+
+/**
+ * @summary Request dealer approval for a backdated record
+ */
+export const approvalsCreate = async (approvalRequestInput: ApprovalRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<ApprovalsCreate200> => {
+
+  return customFetch<ApprovalsCreate200>(getApprovalsCreateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(approvalRequestInput)
+  }
+);}
+
+
+
+
+
+export const getApprovalsCreateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvalsCreate>>, TError,{data: BodyType<ApprovalRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approvalsCreate>>, TError,{data: BodyType<ApprovalRequestInput>}, TContext> => {
+
+const mutationKey = ['approvalsCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approvalsCreate>>, {data: BodyType<ApprovalRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  approvalsCreate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApprovalsCreateMutationResult = NonNullable<Awaited<ReturnType<typeof approvalsCreate>>>
+    export type ApprovalsCreateMutationBody = BodyType<ApprovalRequestInput>
+    export type ApprovalsCreateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Request dealer approval for a backdated record
+ */
+export const useApprovalsCreate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvalsCreate>>, TError,{data: BodyType<ApprovalRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approvalsCreate>>,
+        TError,
+        {data: BodyType<ApprovalRequestInput>},
+        TContext
+      > => {
+      return useMutation(getApprovalsCreateMutationOptions(options));
+    }
+
+export const getApprovalsApproveUrl = (id: string,) => {
+
+
+
+
+  return `/api/approvals/${id}/approve`
+}
+
+/**
+ * @summary Approve a pending backdated request and save the record (dealer only)
+ */
+export const approvalsApprove = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<ApprovalsApprove200> => {
+
+  return customFetch<ApprovalsApprove200>(getApprovalsApproveUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApprovalsApproveMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvalsApprove>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approvalsApprove>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['approvalsApprove'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approvalsApprove>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  approvalsApprove(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApprovalsApproveMutationResult = NonNullable<Awaited<ReturnType<typeof approvalsApprove>>>
+
+    export type ApprovalsApproveMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Approve a pending backdated request and save the record (dealer only)
+ */
+export const useApprovalsApprove = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvalsApprove>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approvalsApprove>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getApprovalsApproveMutationOptions(options));
+    }
+
+export const getApprovalsRejectUrl = (id: string,) => {
+
+
+
+
+  return `/api/approvals/${id}/reject`
+}
+
+/**
+ * @summary Reject a pending backdated request (dealer only)
+ */
+export const approvalsReject = async (id: string,
+    approvalRejectInput: ApprovalRejectInput, options?: Parameters<typeof customFetch>[1]): Promise<ApprovalsReject200> => {
+
+  return customFetch<ApprovalsReject200>(getApprovalsRejectUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(approvalRejectInput)
+  }
+);}
+
+
+
+
+
+export const getApprovalsRejectMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvalsReject>>, TError,{id: string;data: BodyType<ApprovalRejectInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approvalsReject>>, TError,{id: string;data: BodyType<ApprovalRejectInput>}, TContext> => {
+
+const mutationKey = ['approvalsReject'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approvalsReject>>, {id: string;data: BodyType<ApprovalRejectInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  approvalsReject(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApprovalsRejectMutationResult = NonNullable<Awaited<ReturnType<typeof approvalsReject>>>
+    export type ApprovalsRejectMutationBody = BodyType<ApprovalRejectInput>
+    export type ApprovalsRejectMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Reject a pending backdated request (dealer only)
+ */
+export const useApprovalsReject = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvalsReject>>, TError,{id: string;data: BodyType<ApprovalRejectInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approvalsReject>>,
+        TError,
+        {id: string;data: BodyType<ApprovalRejectInput>},
+        TContext
+      > => {
+      return useMutation(getApprovalsRejectMutationOptions(options));
+    }
 
 export const getRequestUploadUrlUrl = () => {
 

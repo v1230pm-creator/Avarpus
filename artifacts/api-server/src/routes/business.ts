@@ -44,6 +44,27 @@ function num(v: unknown, fallback = 0): number {
   return typeof v === "number" && Number.isFinite(v) ? v : fallback;
 }
 
+const todayStr = () => new Date().toISOString().split("T")[0];
+
+// Roles that may save backdated records directly. Staff must go through the
+// approval workflow (/approvals) — enforced HERE on the server so the
+// frontend cannot be bypassed.
+const BACKDATE_EXEMPT_ROLES = ["dealer", "super_admin"];
+
+export function backdateBlocked(req: Request, res: Response, dateStr: string | null | undefined): boolean {
+  if (!dateStr) return false;
+  const me = (req as AuthedRequest).user;
+  if (BACKDATE_EXEMPT_ROLES.includes(me.role)) return false;
+  if (dateStr < todayStr()) {
+    res.status(403).json({
+      message: "This is a backdated entry. Dealer/Owner approval is required.",
+      code: "APPROVAL_REQUIRED",
+    });
+    return true;
+  }
+  return false;
+}
+
 // ── Customers ──────────────────────────────────────────────────────────────
 
 function customerOut(c: typeof customersTable.$inferSelect) {
@@ -269,6 +290,7 @@ router.post(
     }
     const status = REPAIR_STATUSES.includes(b.status) ? b.status : "received";
     const priority = REPAIR_PRIORITIES.includes(b.priority) ? b.priority : "normal";
+    if (backdateBlocked(req, res, str(b.receiveDate))) return;
 
     // A repair may only be linked to a customer of the caller's own shop.
     let customerId = str(b.customerId);
@@ -367,7 +389,10 @@ router.patch(
     if (b.repairCharge !== undefined) patch.repairCharge = num(b.repairCharge);
     if (b.partsCharge !== undefined) patch.partsCharge = num(b.partsCharge);
     if (b.advance !== undefined) patch.advance = num(b.advance);
-    if (b.receiveDate !== undefined) patch.receiveDate = str(b.receiveDate) ?? undefined;
+    if (b.receiveDate !== undefined) {
+      if (backdateBlocked(req, res, str(b.receiveDate))) return;
+      patch.receiveDate = str(b.receiveDate) ?? undefined;
+    }
     if (b.expectedDate !== undefined) patch.expectedDate = str(b.expectedDate) ?? undefined;
     if (b.deliveryDate !== undefined) patch.deliveryDate = str(b.deliveryDate);
     if (b.notes !== undefined) patch.notes = str(b.notes);
@@ -737,6 +762,7 @@ router.post(
       return;
     }
     const paymentStatus = PAYMENT_STATUSES.includes(b.paymentStatus) ? b.paymentStatus : "unpaid";
+    if (backdateBlocked(req, res, str(b.date))) return;
 
     const created = await db.transaction(async (tx) => {
       const [{ count }] = await tx
@@ -790,7 +816,10 @@ router.patch(
       patch.paymentStatus = b.paymentStatus;
     }
     if (b.paymentMethod !== undefined) patch.paymentMethod = str(b.paymentMethod) ?? "Cash";
-    if (b.date !== undefined) patch.date = str(b.date) ?? undefined;
+    if (b.date !== undefined) {
+      if (backdateBlocked(req, res, str(b.date))) return;
+      patch.date = str(b.date) ?? undefined;
+    }
     const [updated] = await db
       .update(purchasesTable)
       .set(patch)
@@ -848,6 +877,7 @@ router.post(
       res.status(400).json({ message: "Entry type, category and amount are required" });
       return;
     }
+    if (backdateBlocked(req, res, str(b.date))) return;
     const [created] = await db
       .insert(financeEntriesTable)
       .values({
@@ -890,7 +920,10 @@ router.patch(
     }
     if (b.description !== undefined) patch.description = str(b.description) ?? "";
     if (b.paymentMethod !== undefined) patch.paymentMethod = str(b.paymentMethod) ?? "Cash";
-    if (b.date !== undefined) patch.date = str(b.date) ?? undefined;
+    if (b.date !== undefined) {
+      if (backdateBlocked(req, res, str(b.date))) return;
+      patch.date = str(b.date) ?? undefined;
+    }
     const [updated] = await db
       .update(financeEntriesTable)
       .set(patch)

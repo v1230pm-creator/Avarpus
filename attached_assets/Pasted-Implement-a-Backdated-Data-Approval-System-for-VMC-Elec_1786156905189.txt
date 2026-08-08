@@ -1,0 +1,51 @@
+Implement a Backdated Data Approval System for VMC Electronic.
+
+RULE:
+If any STAFF user tries to create or edit a repair, customer, purchase, expense, payment, inventory or other business record with a date earlier than today, DO NOT save it directly.
+
+1. Staff selects a past date.
+2. Show a clear warning:
+   "This is a backdated entry. Dealer/Owner approval is required."
+3. Show "Request Approval" instead of normal Save.
+4. Create a pending approval request containing:
+   - Staff name
+   - Staff ID
+   - Staff role
+   - Shop/Dealer ID
+   - Record type
+   - Record details
+   - Requested date
+   - Reason for backdating
+   - Request date/time
+5. Send the request to the Dealer/Owner dashboard.
+6. Dealer/Owner should see:
+   - Pending Backdated Requests
+   - Staff name/ID
+   - Requested date
+   - Record details
+   - Reason
+   - Approve
+   - Reject
+7. Dealer/Owner can approve or reject the request.
+8. If APPROVED:
+   - Save the record with the requested old date.
+   - Store approvedBy (Dealer/Owner ID).
+   - Store approvedAt timestamp.
+   - Mark request as Approved.
+9. If REJECTED:
+   - Do not save the backdated record.
+   - Store rejection reason.
+   - Mark request as Rejected.
+10. Every approval/rejection must be stored permanently in an Activity/Audit Log.
+
+IMPORTANT:
+- Dealer/Owner entering their own backdated data does NOT require approval.
+- Staff entering today's date or a future-valid date should follow the normal workflow.
+- Future dates must be blocked completely where they are not logically valid.
+- Staff must never be able to bypass the approval system through the frontend/API.
+- Perform the permission check on the server/backend.
+- Do not break the existing login, Dealer/Owner, Staff role detection, repairs, customers, inventory or dashboard system.
+- Keep the existing premium VMC Electronic UI design.
+- Make the approval workflow responsive for mobile, tablet and desktop.
+
+Also add a Dealer/Owner notification badge when a new backdated approval request arrives.

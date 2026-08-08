@@ -5,8 +5,11 @@ import { SelectInput } from '@/components/ui/SelectInput';
 import { FormSheet } from '@/components/ui/FormSheet';
 import { useColors } from '@/hooks/useColors';
 import { useData } from '@/context/DataContext';
+import { useAuth } from '@/context/AuthContext';
 import { Purchase } from '@/types';
 import { formatCurrency, getTodayStr, isValidDateStr } from '@/utils/helpers';
+import { approvalsCreate } from '@workspace/api-client-react';
+import { Feather } from '@expo/vector-icons';
 
 const STATUS_OPTIONS = ['paid', 'unpaid', 'partial'];
 const STATUS_LABELS: Record<string, string> = { paid: 'Paid', unpaid: 'Unpaid', partial: 'Partial' };
@@ -23,6 +26,7 @@ interface Props {
 export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
   const colors = useColors();
   const { addPurchase, updatePurchase } = useData();
+  const { user } = useAuth();
   const [invoiceNo, setInvoiceNo] = useState('');
   const [supplier, setSupplier] = useState('');
   const [supplierMobile, setSupplierMobile] = useState('');
@@ -32,8 +36,13 @@ export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
   const [paymentStatus, setPaymentStatus] = useState('unpaid');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [date, setDate] = useState(getTodayStr());
+  const [reason, setReason] = useState('');
+  const [forceApprovalMode, setForceApprovalMode] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+
+  const isStaff = user?.role !== 'dealer' && user?.role !== 'super_admin';
+  const isBackdated = isStaff && (date.trim() < getTodayStr() || forceApprovalMode);
 
   useEffect(() => {
     if (visible) {
@@ -46,6 +55,8 @@ export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
       setPaymentStatus(purchase?.paymentStatus ?? 'unpaid');
       setPaymentMethod(purchase?.paymentMethod ?? 'Cash');
       setDate(purchase?.date ?? getTodayStr());
+      setReason('');
+      setForceApprovalMode(false);
       setErrors({});
     }
   }, [visible, purchase]);
@@ -69,6 +80,11 @@ export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
     if (!Number.isFinite(price) || price < 0) e.purchasePrice = 'Enter a valid unit price';
     if (!isValidDateStr(date.trim())) e.date = 'Enter a valid date as YYYY-MM-DD';
     else if (date.trim() > getTodayStr()) e.date = 'Date cannot be in the future';
+    
+    if (isBackdated && !reason.trim()) {
+      e.reason = 'A reason is required for backdated entries';
+    }
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -89,13 +105,33 @@ export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
         paymentMethod,
         date: date.trim(),
       };
+
+      if (isBackdated) {
+        await approvalsCreate({
+          recordType: 'purchase',
+          mode: purchase ? 'update' : 'create',
+          recordId: purchase?.id,
+          payload,
+          requestedDate: date.trim(),
+          reason: reason.trim(),
+        });
+        Alert.alert('Request Sent', 'Request sent to Dealer/Owner for approval.');
+        onClose();
+        return;
+      }
+
       if (purchase) {
         await updatePurchase({ ...purchase, ...payload });
       } else {
         await addPurchase({ id: '', purchaseId: '', createdAt: '', ...payload });
       }
       onClose();
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.code === 'APPROVAL_REQUIRED' || err?.message?.includes('APPROVAL_REQUIRED') || err?.data?.code === 'APPROVAL_REQUIRED') {
+        setForceApprovalMode(true);
+        Alert.alert('Approval Required', 'This entry requires dealer approval. Please provide a reason and submit again.');
+        return;
+      }
       Alert.alert(
         purchase ? 'Update failed' : 'Save failed',
         err instanceof Error ? err.message : "Couldn't save the purchase. Please try again. Your entries are still here.",
@@ -111,13 +147,27 @@ export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
       title={purchase ? 'Edit Purchase' : 'Add Purchase'}
       onClose={onClose}
       onSubmit={handleSubmit}
-      submitLabel={purchase ? 'Save Changes' : 'Add Purchase'}
+      submitLabel={isBackdated ? 'Request Approval' : purchase ? 'Save Changes' : 'Add Purchase'}
       loading={loading}
     >
+      {isBackdated && (
+        <View style={[styles.warningBanner, { backgroundColor: colors.warning + '22', borderColor: colors.warning + '55' }]}>
+          <Feather name="alert-triangle" size={16} color={colors.warning} />
+          <Text style={[styles.warningText, { color: colors.warning, fontFamily: 'Inter_500Medium' }]}>
+            This is a backdated entry. Dealer/Owner approval is required.
+          </Text>
+        </View>
+      )}
+
       <Input label="Invoice No *" value={invoiceNo} onChangeText={setInvoiceNo} placeholder="e.g. INV-1024" autoCapitalize="characters" error={errors.invoiceNo} />
       <Input label="Supplier *" value={supplier} onChangeText={setSupplier} placeholder="Supplier name" error={errors.supplier} />
       <Input label="Supplier Mobile" value={supplierMobile} onChangeText={setSupplierMobile} placeholder="Optional" keyboardType="phone-pad" maxLength={10} error={errors.supplierMobile} />
       <Input label="Date *" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} error={errors.date} />
+      
+      {isBackdated && (
+        <Input label="Reason for backdating *" value={reason} onChangeText={setReason} placeholder="Explain why this is backdated..." error={errors.reason} />
+      )}
+
       <Input label="Item *" value={itemName} onChangeText={setItemName} placeholder="What was purchased" error={errors.itemName} />
       <View style={styles.row}>
         <Input label="Quantity *" value={quantity} onChangeText={setQuantity} placeholder="0" keyboardType="number-pad" error={errors.quantity} containerStyle={styles.half} />
@@ -139,4 +189,6 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
   totalLabel: { fontSize: 13 },
   totalValue: { fontSize: 18 },
+  warningBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 4 },
+  warningText: { flex: 1, fontSize: 13, lineHeight: 18 },
 });

@@ -6,6 +6,20 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './approvalRejectInput';
+export * from './approvalRequest';
+export * from './approvalRequestInput';
+export * from './approvalRequestInputMode';
+export * from './approvalRequestInputPayload';
+export * from './approvalRequestInputRecordType';
+export * from './approvalRequestMode';
+export * from './approvalRequestPayload';
+export * from './approvalRequestRecordType';
+export * from './approvalRequestStatus';
+export * from './approvalsApprove200';
+export * from './approvalsCreate200';
+export * from './approvalsList200';
+export * from './approvalsReject200';
 export * from './authForgotVerify200';
 export * from './authLoginHistory200';
 export * from './authMe200';

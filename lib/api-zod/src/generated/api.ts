@@ -649,6 +649,124 @@ export const RepairEventsListResponse = zod.object({
 
 
 /**
+ * @summary List backdated-entry approval requests (dealer sees all of the shop's; staff see their own)
+ */
+export const ApprovalsListResponse = zod.object({
+  "approvals": zod.array(zod.object({
+  "id": zod.string(),
+  "requesterId": zod.string(),
+  "requesterName": zod.string(),
+  "requesterRole": zod.string(),
+  "recordType": zod.enum(['repair', 'purchase', 'finance']),
+  "mode": zod.enum(['create', 'update']),
+  "recordId": zod.string().optional(),
+  "payload": zod.record(zod.string(), zod.unknown()),
+  "requestedDate": zod.string(),
+  "reason": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "decidedByName": zod.string().optional(),
+  "decidedAt": zod.string().optional(),
+  "rejectionReason": zod.string().optional(),
+  "createdAt": zod.string()
+})),
+  "pendingCount": zod.number()
+})
+
+
+/**
+ * @summary Request dealer approval for a backdated record
+ */
+export const ApprovalsCreateBody = zod.object({
+  "recordType": zod.enum(['repair', 'purchase', 'finance']),
+  "mode": zod.enum(['create', 'update']).optional(),
+  "recordId": zod.string().optional(),
+  "payload": zod.record(zod.string(), zod.unknown()),
+  "requestedDate": zod.string(),
+  "reason": zod.string()
+})
+
+export const ApprovalsCreateResponse = zod.object({
+  "approval": zod.object({
+  "id": zod.string(),
+  "requesterId": zod.string(),
+  "requesterName": zod.string(),
+  "requesterRole": zod.string(),
+  "recordType": zod.enum(['repair', 'purchase', 'finance']),
+  "mode": zod.enum(['create', 'update']),
+  "recordId": zod.string().optional(),
+  "payload": zod.record(zod.string(), zod.unknown()),
+  "requestedDate": zod.string(),
+  "reason": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "decidedByName": zod.string().optional(),
+  "decidedAt": zod.string().optional(),
+  "rejectionReason": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Approve a pending backdated request and save the record (dealer only)
+ */
+export const ApprovalsApproveParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ApprovalsApproveResponse = zod.object({
+  "approval": zod.object({
+  "id": zod.string(),
+  "requesterId": zod.string(),
+  "requesterName": zod.string(),
+  "requesterRole": zod.string(),
+  "recordType": zod.enum(['repair', 'purchase', 'finance']),
+  "mode": zod.enum(['create', 'update']),
+  "recordId": zod.string().optional(),
+  "payload": zod.record(zod.string(), zod.unknown()),
+  "requestedDate": zod.string(),
+  "reason": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "decidedByName": zod.string().optional(),
+  "decidedAt": zod.string().optional(),
+  "rejectionReason": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Reject a pending backdated request (dealer only)
+ */
+export const ApprovalsRejectParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ApprovalsRejectBody = zod.object({
+  "reason": zod.string()
+})
+
+export const ApprovalsRejectResponse = zod.object({
+  "approval": zod.object({
+  "id": zod.string(),
+  "requesterId": zod.string(),
+  "requesterName": zod.string(),
+  "requesterRole": zod.string(),
+  "recordType": zod.enum(['repair', 'purchase', 'finance']),
+  "mode": zod.enum(['create', 'update']),
+  "recordId": zod.string().optional(),
+  "payload": zod.record(zod.string(), zod.unknown()),
+  "requestedDate": zod.string(),
+  "reason": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "decidedByName": zod.string().optional(),
+  "decidedAt": zod.string().optional(),
+  "rejectionReason": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
  * @summary Request a presigned URL for file upload
  */
 export const RequestUploadUrlBody = zod.object({

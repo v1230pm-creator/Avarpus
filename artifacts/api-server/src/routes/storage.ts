@@ -68,7 +68,9 @@ router.get(
       res.status(response.status);
       response.headers.forEach((value, key) => res.setHeader(key, value));
       if (response.body) {
-        Readable.fromWeb(response.body as ReadableStream<Uint8Array>).pipe(res);
+        Readable.fromWeb(
+          response.body as unknown as import("stream/web").ReadableStream<Uint8Array>,
+        ).pipe(res);
       } else {
         res.end();
       }

@@ -280,6 +280,84 @@ export interface UploadUrlResponse {
   metadata?: UploadUrlRequest;
 }
 
+export type ApprovalRequestRecordType = typeof ApprovalRequestRecordType[keyof typeof ApprovalRequestRecordType];
+
+
+export const ApprovalRequestRecordType = {
+  repair: 'repair',
+  purchase: 'purchase',
+  finance: 'finance',
+} as const;
+
+export type ApprovalRequestMode = typeof ApprovalRequestMode[keyof typeof ApprovalRequestMode];
+
+
+export const ApprovalRequestMode = {
+  create: 'create',
+  update: 'update',
+} as const;
+
+export type ApprovalRequestPayload = { [key: string]: unknown };
+
+export type ApprovalRequestStatus = typeof ApprovalRequestStatus[keyof typeof ApprovalRequestStatus];
+
+
+export const ApprovalRequestStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface ApprovalRequest {
+  id: string;
+  requesterId: string;
+  requesterName: string;
+  requesterRole: string;
+  recordType: ApprovalRequestRecordType;
+  mode: ApprovalRequestMode;
+  recordId?: string;
+  payload: ApprovalRequestPayload;
+  requestedDate: string;
+  reason: string;
+  status: ApprovalRequestStatus;
+  decidedByName?: string;
+  decidedAt?: string;
+  rejectionReason?: string;
+  createdAt: string;
+}
+
+export type ApprovalRequestInputRecordType = typeof ApprovalRequestInputRecordType[keyof typeof ApprovalRequestInputRecordType];
+
+
+export const ApprovalRequestInputRecordType = {
+  repair: 'repair',
+  purchase: 'purchase',
+  finance: 'finance',
+} as const;
+
+export type ApprovalRequestInputMode = typeof ApprovalRequestInputMode[keyof typeof ApprovalRequestInputMode];
+
+
+export const ApprovalRequestInputMode = {
+  create: 'create',
+  update: 'update',
+} as const;
+
+export type ApprovalRequestInputPayload = { [key: string]: unknown };
+
+export interface ApprovalRequestInput {
+  recordType: ApprovalRequestInputRecordType;
+  mode?: ApprovalRequestInputMode;
+  recordId?: string;
+  payload: ApprovalRequestInputPayload;
+  requestedDate: string;
+  reason: string;
+}
+
+export interface ApprovalRejectInput {
+  reason: string;
+}
+
 export interface ErrorEnvelope {
   error: string;
 }
@@ -430,6 +508,23 @@ export type RepairPhotosAdd200 = {
 
 export type RepairEventsList200 = {
   events: RepairEvent[];
+};
+
+export type ApprovalsList200 = {
+  approvals: ApprovalRequest[];
+  pendingCount: number;
+};
+
+export type ApprovalsCreate200 = {
+  approval: ApprovalRequest;
+};
+
+export type ApprovalsApprove200 = {
+  approval: ApprovalRequest;
+};
+
+export type ApprovalsReject200 = {
+  approval: ApprovalRequest;
 };
 
 export type InventoryList200 = {

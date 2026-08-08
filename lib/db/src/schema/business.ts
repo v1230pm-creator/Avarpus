@@ -166,6 +166,35 @@ export const repairEventsTable = pgTable("repair_events", {
     .defaultNow(),
 });
 
+// Backdated-entry approval workflow. Staff (non-dealer) creating/editing a
+// dated record with a past date must go through a pending request that the
+// dealer approves or rejects. Rows are kept permanently as the audit trail.
+export const approvalRequestsTable = pgTable("approval_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  shopId: uuid("shop_id")
+    .notNull()
+    .references(() => shopsTable.id, { onDelete: "cascade" }),
+  requesterId: uuid("requester_id").notNull(),
+  requesterName: text("requester_name").notNull(),
+  requesterRole: text("requester_role").notNull(),
+  recordType: text("record_type").notNull(), // repair | purchase | finance
+  mode: text("mode").notNull().default("create"), // create | update
+  recordId: uuid("record_id"), // for updates
+  payload: jsonb("payload").notNull(), // the record body to save on approval
+  requestedDate: text("requested_date").notNull(), // the backdated date (yyyy-mm-dd)
+  reason: text("reason").notNull(),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  decidedById: uuid("decided_by_id"),
+  decidedByName: text("decided_by_name"),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type DbApprovalRequest = typeof approvalRequestsTable.$inferSelect;
+
 export type DbCustomer = typeof customersTable.$inferSelect;
 export type DbRepair = typeof repairsTable.$inferSelect;
 export type DbInventoryItem = typeof inventoryItemsTable.$inferSelect;
