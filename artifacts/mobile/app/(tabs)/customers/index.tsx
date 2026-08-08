@@ -20,6 +20,7 @@ import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/
 import { Avatar } from '@/components/ui/Avatar';
 import { SampleBadge } from '@/components/ui/Badge';
 import { GlassCard, ScreenGlow, FadeInView, useIsDark } from '@/components/ui/Glass';
+import { CustomerFormSheet } from '@/components/forms/CustomerFormSheet';
 import { Customer } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 
@@ -64,6 +65,7 @@ export default function CustomersScreen() {
   const { customers, isLoading, loadError, loadAll } = useData();
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -110,6 +112,14 @@ export default function CustomersScreen() {
               {filtered.length} records
             </Text>
           </View>
+          <TouchableOpacity
+            onPress={() => setShowAdd(true)}
+            activeOpacity={0.85}
+            style={[styles.addBtn, { backgroundColor: colors.primary }]}
+          >
+            <Feather name="plus" size={18} color="#FFFFFF" />
+            <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Add</Text>
+          </TouchableOpacity>
         </View>
         <View style={[styles.searchBar, {
           backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
@@ -157,6 +167,8 @@ export default function CustomersScreen() {
       />
       </>
       )}
+
+      <CustomerFormSheet visible={showAdd} onClose={() => setShowAdd(false)} />
     </View>
   );
 }
@@ -167,6 +179,8 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   headerTitle: { fontSize: 28 },
   headerSub: { fontSize: 13, marginTop: 2 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14 },
+  addBtnText: { color: '#FFFFFF', fontSize: 14 },
   searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14 },
   searchInput: { flex: 1, height: 46, fontSize: 14 },
   list: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },

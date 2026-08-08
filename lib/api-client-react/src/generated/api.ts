@@ -34,6 +34,7 @@ import type {
   FinanceCreate200,
   FinanceEntryInput,
   FinanceList200,
+  FinanceUpdate200,
   ForgotRequestInput,
   ForgotResetInput,
   HealthStatus,
@@ -48,6 +49,7 @@ import type {
   PurchaseInput,
   PurchasesCreate200,
   PurchasesList200,
+  PurchasesUpdate200,
   RegisterStartInput,
   RegisterVerifyInput,
   RegisterVerifyResult,
@@ -2578,6 +2580,78 @@ export const usePurchasesCreate = <TError = ErrorType<unknown>,
       return useMutation(getPurchasesCreateMutationOptions(options));
     }
 
+export const getPurchasesUpdateUrl = (id: string,) => {
+
+
+
+
+  return `/api/purchases/${id}`
+}
+
+/**
+ * @summary Update a purchase in the caller's shop
+ */
+export const purchasesUpdate = async (id: string,
+    purchaseInput: PurchaseInput, options?: Parameters<typeof customFetch>[1]): Promise<PurchasesUpdate200> => {
+
+  return customFetch<PurchasesUpdate200>(getPurchasesUpdateUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(purchaseInput)
+  }
+);}
+
+
+
+
+
+export const getPurchasesUpdateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof purchasesUpdate>>, TError,{id: string;data: BodyType<PurchaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof purchasesUpdate>>, TError,{id: string;data: BodyType<PurchaseInput>}, TContext> => {
+
+const mutationKey = ['purchasesUpdate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof purchasesUpdate>>, {id: string;data: BodyType<PurchaseInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  purchasesUpdate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PurchasesUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof purchasesUpdate>>>
+    export type PurchasesUpdateMutationBody = BodyType<PurchaseInput>
+    export type PurchasesUpdateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a purchase in the caller's shop
+ */
+export const usePurchasesUpdate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof purchasesUpdate>>, TError,{id: string;data: BodyType<PurchaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof purchasesUpdate>>,
+        TError,
+        {id: string;data: BodyType<PurchaseInput>},
+        TContext
+      > => {
+      return useMutation(getPurchasesUpdateMutationOptions(options));
+    }
+
 export const getFinanceListUrl = () => {
 
 
@@ -2724,6 +2798,78 @@ export const useFinanceCreate = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getFinanceCreateMutationOptions(options));
+    }
+
+export const getFinanceUpdateUrl = (id: string,) => {
+
+
+
+
+  return `/api/finance/${id}`
+}
+
+/**
+ * @summary Update a finance entry in the caller's shop
+ */
+export const financeUpdate = async (id: string,
+    financeEntryInput: FinanceEntryInput, options?: Parameters<typeof customFetch>[1]): Promise<FinanceUpdate200> => {
+
+  return customFetch<FinanceUpdate200>(getFinanceUpdateUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(financeEntryInput)
+  }
+);}
+
+
+
+
+
+export const getFinanceUpdateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof financeUpdate>>, TError,{id: string;data: BodyType<FinanceEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof financeUpdate>>, TError,{id: string;data: BodyType<FinanceEntryInput>}, TContext> => {
+
+const mutationKey = ['financeUpdate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof financeUpdate>>, {id: string;data: BodyType<FinanceEntryInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  financeUpdate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FinanceUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof financeUpdate>>>
+    export type FinanceUpdateMutationBody = BodyType<FinanceEntryInput>
+    export type FinanceUpdateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a finance entry in the caller's shop
+ */
+export const useFinanceUpdate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof financeUpdate>>, TError,{id: string;data: BodyType<FinanceEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof financeUpdate>>,
+        TError,
+        {id: string;data: BodyType<FinanceEntryInput>},
+        TContext
+      > => {
+      return useMutation(getFinanceUpdateMutationOptions(options));
     }
 
 export const getSampleDataLoadUrl = () => {

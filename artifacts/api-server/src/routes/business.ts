@@ -767,6 +767,43 @@ router.post(
   }),
 );
 
+router.patch(
+  "/purchases/:id",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const b = req.body ?? {};
+    const patch: Partial<typeof purchasesTable.$inferInsert> = {};
+    if (b.invoiceNo !== undefined) patch.invoiceNo = str(b.invoiceNo) ?? "";
+    if (b.supplier !== undefined) patch.supplier = str(b.supplier) ?? undefined;
+    if (b.supplierMobile !== undefined) patch.supplierMobile = str(b.supplierMobile);
+    if (b.itemName !== undefined) patch.itemName = str(b.itemName) ?? undefined;
+    if (b.quantity !== undefined) patch.quantity = Math.trunc(num(b.quantity));
+    if (b.purchasePrice !== undefined) patch.purchasePrice = num(b.purchasePrice);
+    if (b.total !== undefined) patch.total = num(b.total);
+    if (b.paymentStatus !== undefined) {
+      if (!PAYMENT_STATUSES.includes(b.paymentStatus)) {
+        res.status(400).json({ message: "Invalid payment status" });
+        return;
+      }
+      patch.paymentStatus = b.paymentStatus;
+    }
+    if (b.paymentMethod !== undefined) patch.paymentMethod = str(b.paymentMethod) ?? "Cash";
+    if (b.date !== undefined) patch.date = str(b.date) ?? undefined;
+    const [updated] = await db
+      .update(purchasesTable)
+      .set(patch)
+      .where(and(eq(purchasesTable.id, String(req.params.id ?? "")), eq(purchasesTable.shopId, shopId)))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ message: "Purchase not found" });
+      return;
+    }
+    res.json({ purchase: purchaseOut(updated) });
+  }),
+);
+
 // ── Finance ────────────────────────────────────────────────────────────────
 
 function financeOut(f: typeof financeEntriesTable.$inferSelect) {
@@ -824,6 +861,46 @@ router.post(
       })
       .returning();
     res.json({ entry: financeOut(created) });
+  }),
+);
+
+router.patch(
+  "/finance/:id",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const b = req.body ?? {};
+    const patch: Partial<typeof financeEntriesTable.$inferInsert> = {};
+    if (b.type !== undefined) {
+      if (b.type !== "income" && b.type !== "expense") {
+        res.status(400).json({ message: "Invalid entry type" });
+        return;
+      }
+      patch.type = b.type;
+    }
+    if (b.category !== undefined) patch.category = str(b.category) ?? undefined;
+    if (b.amount !== undefined) {
+      const amount = num(b.amount, NaN);
+      if (!Number.isFinite(amount)) {
+        res.status(400).json({ message: "Invalid amount" });
+        return;
+      }
+      patch.amount = amount;
+    }
+    if (b.description !== undefined) patch.description = str(b.description) ?? "";
+    if (b.paymentMethod !== undefined) patch.paymentMethod = str(b.paymentMethod) ?? "Cash";
+    if (b.date !== undefined) patch.date = str(b.date) ?? undefined;
+    const [updated] = await db
+      .update(financeEntriesTable)
+      .set(patch)
+      .where(and(eq(financeEntriesTable.id, String(req.params.id ?? "")), eq(financeEntriesTable.shopId, shopId)))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ message: "Finance entry not found" });
+      return;
+    }
+    res.json({ entry: financeOut(updated) });
   }),
 );
 

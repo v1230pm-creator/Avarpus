@@ -17,6 +17,7 @@ import { Badge, SampleBadge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { InventoryFormSheet } from '@/components/forms/InventoryFormSheet';
 import { InventoryItem } from '@/types';
 import { formatCurrency } from '@/utils/helpers';
 
@@ -32,11 +33,12 @@ const CAT_MAP: Record<Cat, string | null> = {
 
 const CAT_LABELS: Record<string, string> = { product: 'Product', accessory: 'Accessory', spare_part: 'Spare Part' };
 
-function InventoryCard({ item }: { item: InventoryItem }) {
+function InventoryCard({ item, onPress }: { item: InventoryItem; onPress: () => void }) {
   const colors = useColors();
   const isLow = item.quantity <= item.minStock;
   const isOut = item.quantity === 0;
   return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
     <GlassCard
       style={StyleSheet.flatten([
         styles.card,
@@ -97,6 +99,7 @@ function InventoryCard({ item }: { item: InventoryItem }) {
         </View>
       )}
     </GlassCard>
+    </TouchableOpacity>
   );
 }
 
@@ -107,6 +110,11 @@ export default function InventoryScreen() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<Cat>('All');
   const [refreshing, setRefreshing] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editItem, setEditItem] = useState<InventoryItem | undefined>(undefined);
+
+  const openAdd = () => { setEditItem(undefined); setShowForm(true); };
+  const openEdit = (item: InventoryItem) => { setEditItem(item); setShowForm(true); };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -146,12 +154,22 @@ export default function InventoryScreen() {
               {filtered.length} items{lowStockCount > 0 ? ` · ${lowStockCount} low stock` : ''}
             </Text>
           </View>
-          {lowStockCount > 0 && (
-            <View style={[styles.alertBadge, { backgroundColor: colors.warning + '15' }]}>
-              <Feather name="alert-triangle" size={14} color={colors.warning} />
-              <Text style={[styles.alertBadgeText, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>{lowStockCount}</Text>
-            </View>
-          )}
+          <View style={styles.headerActions}>
+            {lowStockCount > 0 && (
+              <View style={[styles.alertBadge, { backgroundColor: colors.warning + '15' }]}>
+                <Feather name="alert-triangle" size={14} color={colors.warning} />
+                <Text style={[styles.alertBadgeText, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>{lowStockCount}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              onPress={openAdd}
+              activeOpacity={0.85}
+              style={[styles.addBtn, { backgroundColor: colors.primary }]}
+            >
+              <Feather name="plus" size={18} color="#FFFFFF" />
+              <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Add</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <GlassCard style={styles.searchBar}>
@@ -203,10 +221,12 @@ export default function InventoryScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         ListEmptyComponent={<EmptyState icon="package" title="No items found" description={search ? 'Try a different search' : 'No inventory items'} />}
-        renderItem={({ item }) => <InventoryCard item={item} />}
+        renderItem={({ item }) => <InventoryCard item={item} onPress={() => openEdit(item)} />}
       />
       </>
       )}
+
+      <InventoryFormSheet visible={showForm} onClose={() => setShowForm(false)} item={editItem} />
     </View>
   );
 }
@@ -217,6 +237,9 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   headerTitle: { fontSize: 28 },
   headerSub: { fontSize: 13, marginTop: 2 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14 },
+  addBtnText: { color: '#FFFFFF', fontSize: 14 },
   alertBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
   alertBadgeText: { fontSize: 13 },
   searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },

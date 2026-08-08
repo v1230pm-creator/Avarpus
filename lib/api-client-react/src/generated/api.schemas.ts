@@ -452,11 +452,19 @@ export type PurchasesCreate200 = {
   purchase: Purchase;
 };
 
+export type PurchasesUpdate200 = {
+  purchase: Purchase;
+};
+
 export type FinanceList200 = {
   entries: FinanceEntry[];
 };
 
 export type FinanceCreate200 = {
+  entry: FinanceEntry;
+};
+
+export type FinanceUpdate200 = {
   entry: FinanceEntry;
 };
 

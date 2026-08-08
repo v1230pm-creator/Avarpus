@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { RepairStatusBadge, SampleBadge } from '@/components/ui/Badge';
 import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
+import { CustomerFormSheet } from '@/components/forms/CustomerFormSheet';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 
 export default function CustomerDetailScreen() {
@@ -17,6 +18,7 @@ export default function CustomerDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { customers, repairs } = useData();
+  const [showEdit, setShowEdit] = useState(false);
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
@@ -46,7 +48,9 @@ export default function CustomerDetailScreen() {
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Customer Profile</Text>
-        <View style={{ width: 44 }} />
+        <TouchableOpacity onPress={() => setShowEdit(true)} style={styles.backBtn} accessibilityLabel="Edit customer">
+          <Feather name="edit-2" size={20} color={colors.primary} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
@@ -122,6 +126,8 @@ export default function CustomerDetailScreen() {
           ))
         )}
       </ScrollView>
+
+      <CustomerFormSheet visible={showEdit} onClose={() => setShowEdit(false)} customer={customer} />
     </View>
   );
 }

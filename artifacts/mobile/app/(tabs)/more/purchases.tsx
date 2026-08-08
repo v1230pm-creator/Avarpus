@@ -19,6 +19,7 @@ import { Badge, SampleBadge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { GlassCard, ScreenGlow, FadeInView, useIsDark } from '@/components/ui/Glass';
+import { PurchaseFormSheet } from '@/components/forms/PurchaseFormSheet';
 import { Purchase } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 
@@ -28,9 +29,10 @@ const PAYMENT_STATUS_COLORS = {
   partial: 'warning',
 } as const;
 
-function PurchaseCard({ purchase }: { purchase: Purchase }) {
+function PurchaseCard({ purchase, onPress }: { purchase: Purchase; onPress: () => void }) {
   const colors = useColors();
   return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
     <GlassCard style={styles.card}>
       <View style={styles.cardTop}>
         <View style={[styles.invoiceBadge, { backgroundColor: colors.primary + '15' }]}>
@@ -71,6 +73,7 @@ function PurchaseCard({ purchase }: { purchase: Purchase }) {
         </Text>
       </View>
     </GlassCard>
+    </TouchableOpacity>
   );
 }
 
@@ -83,6 +86,11 @@ export default function PurchasesScreen() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'All' | 'Unpaid' | 'Paid' | 'Partial'>('All');
   const [refreshing, setRefreshing] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editPurchase, setEditPurchase] = useState<Purchase | undefined>(undefined);
+
+  const openAdd = () => { setEditPurchase(undefined); setShowForm(true); };
+  const openEdit = (p: Purchase) => { setEditPurchase(p); setShowForm(true); };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -136,7 +144,13 @@ export default function PurchasesScreen() {
               {filtered.length} orders{totalDue > 0 ? ` · Due ${formatCurrency(totalDue)}` : ''}
             </Text>
           </View>
-          <View style={{ width: 44 }} />
+          <TouchableOpacity
+            onPress={openAdd}
+            style={[styles.addBtn, { backgroundColor: colors.primary }]}
+            accessibilityLabel="Add purchase"
+          >
+            <Feather name="plus" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.searchWrap}>
@@ -190,10 +204,12 @@ export default function PurchasesScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         ListEmptyComponent={<EmptyState icon="shopping-bag" title="No purchases found" description="No purchase orders match the current filter" />}
-        renderItem={({ item }) => <PurchaseCard purchase={item} />}
+        renderItem={({ item }) => <PurchaseCard purchase={item} onPress={() => openEdit(item)} />}
       />
       </>
       )}
+
+      <PurchaseFormSheet visible={showForm} onClose={() => setShowForm(false)} purchase={editPurchase} />
     </View>
   );
 }
@@ -202,6 +218,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14 },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  addBtn: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 22 },
   headerSub: { fontSize: 12, marginTop: 2 },
   searchWrap: { paddingHorizontal: 16, paddingBottom: 12, gap: 10 },

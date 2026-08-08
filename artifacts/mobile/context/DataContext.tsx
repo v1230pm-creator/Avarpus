@@ -3,8 +3,8 @@ import {
   customersList, customersCreate, customersUpdate,
   repairsList, repairsCreate, repairsUpdate,
   inventoryList, inventoryCreate, inventoryUpdate,
-  purchasesList, purchasesCreate,
-  financeList, financeCreate,
+  purchasesList, purchasesCreate, purchasesUpdate,
+  financeList, financeCreate, financeUpdate,
   sampleDataLoad, sampleDataClear,
 } from '@workspace/api-client-react';
 import { Repair, Customer, InventoryItem, Purchase, FinanceEntry } from '@/types';
@@ -36,7 +36,9 @@ interface DataContextType {
   addInventoryItem: (i: InventoryItem) => Promise<void>;
   updateInventoryItem: (i: InventoryItem) => Promise<void>;
   addPurchase: (p: Purchase) => Promise<void>;
+  updatePurchase: (p: Purchase) => Promise<void>;
   addFinanceEntry: (f: FinanceEntry) => Promise<void>;
+  updateFinanceEntry: (f: FinanceEntry) => Promise<void>;
   /** True when any loaded record is flagged as sample data. */
   hasSampleData: boolean;
   /** Seed labelled demo data into this shop, then reload everything. */
@@ -57,7 +59,9 @@ const DataContext = createContext<DataContextType>({
   addInventoryItem: async () => {},
   updateInventoryItem: async () => {},
   addPurchase: async () => {},
+  updatePurchase: async () => {},
   addFinanceEntry: async () => {},
+  updateFinanceEntry: async () => {},
   hasSampleData: false,
   loadSampleData: async () => {},
   clearSampleData: async () => {},
@@ -267,6 +271,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setPurchases((prev) => [...prev, created]);
   });
 
+  const updatePurchase = async (p: Purchase) => guarded('update the purchase', async () => {
+    const res = await purchasesUpdate(p.id, {
+      invoiceNo: p.invoiceNo,
+      supplier: p.supplier,
+      supplierMobile: p.supplierMobile,
+      itemName: p.itemName,
+      quantity: p.quantity,
+      purchasePrice: p.purchasePrice,
+      total: p.total,
+      paymentStatus: p.paymentStatus,
+      paymentMethod: p.paymentMethod,
+      date: p.date,
+    });
+    const updated = res.purchase as Purchase;
+    setPurchases((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+  });
+
   const addFinanceEntry = async (f: FinanceEntry) => guarded('save the entry', async () => {
     const res = await financeCreate({
       type: f.type,
@@ -278,6 +299,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
     const created = res.entry as FinanceEntry;
     setFinance((prev) => [...prev, created]);
+  });
+
+  const updateFinanceEntry = async (f: FinanceEntry) => guarded('update the entry', async () => {
+    const res = await financeUpdate(f.id, {
+      type: f.type,
+      category: f.category,
+      amount: f.amount,
+      description: f.description,
+      paymentMethod: f.paymentMethod,
+      date: f.date,
+    });
+    const updated = res.entry as FinanceEntry;
+    setFinance((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
   });
 
   const hasSampleData =
@@ -302,7 +336,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       repairs, customers, inventory, purchases, finance,
       isLoading, loadError,
       loadAll, addRepair, updateRepair, addCustomer, updateCustomer,
-      addInventoryItem, updateInventoryItem, addPurchase, addFinanceEntry,
+      addInventoryItem, updateInventoryItem, addPurchase, updatePurchase,
+      addFinanceEntry, updateFinanceEntry,
       hasSampleData, loadSampleData, clearSampleData,
     }}>
       {children}

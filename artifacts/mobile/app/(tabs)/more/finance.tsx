@@ -18,17 +18,22 @@ import { SampleBadge } from '@/components/ui/Badge';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { StatCard } from '@/components/ui/StatCard';
 import { GlassCard, ScreenGlow, useStaggerAnim, useIsDark } from '@/components/ui/Glass';
+import { FinanceFormSheet } from '@/components/forms/FinanceFormSheet';
 import { FinanceEntry } from '@/types';
 import { formatCurrency, formatDate, getTodayStr } from '@/utils/helpers';
 
 const PERIODS = ['Today', 'Week', 'Month', 'All'] as const;
 type Period = (typeof PERIODS)[number];
 
-function TransactionItem({ entry, isLast }: { entry: FinanceEntry; isLast: boolean }) {
+function TransactionItem({ entry, isLast, onPress }: { entry: FinanceEntry; isLast: boolean; onPress: () => void }) {
   const colors = useColors();
   const isIncome = entry.type === 'income';
   return (
-    <View style={[styles.txItem, !isLast && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.8}
+      style={[styles.txItem, !isLast && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+    >
       <View style={[styles.txIcon, { backgroundColor: isIncome ? colors.success + '15' : colors.destructive + '15' }]}>
         <Feather name={isIncome ? 'trending-up' : 'trending-down'} size={16} color={isIncome ? colors.success : colors.destructive} />
       </View>
@@ -47,7 +52,7 @@ function TransactionItem({ entry, isLast }: { entry: FinanceEntry; isLast: boole
       <Text style={[styles.txAmount, { color: isIncome ? colors.success : colors.destructive, fontFamily: 'Inter_700Bold' }]}>
         {isIncome ? '+' : '-'}{formatCurrency(entry.amount)}
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -59,6 +64,11 @@ export default function FinanceScreen() {
   const { finance, isLoading, loadError, loadAll } = useData();
   const [period, setPeriod] = useState<Period>('Month');
   const [refreshing, setRefreshing] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editEntry, setEditEntry] = useState<FinanceEntry | undefined>(undefined);
+
+  const openAdd = () => { setEditEntry(undefined); setShowForm(true); };
+  const openEdit = (e: FinanceEntry) => { setEditEntry(e); setShowForm(true); };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -107,7 +117,13 @@ export default function FinanceScreen() {
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Finance</Text>
-        <View style={{ width: 44 }} />
+        <TouchableOpacity
+          onPress={openAdd}
+          style={[styles.addBtn, { backgroundColor: colors.primary }]}
+          accessibilityLabel="Add entry"
+        >
+          <Feather name="plus" size={20} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
 
       {isLoading && finance.length === 0 ? (
@@ -177,13 +193,15 @@ export default function FinanceScreen() {
         ) : (
           <GlassCard animValue={anims[1]} style={styles.txList}>
             {filteredEntries.map((entry, i) => (
-              <TransactionItem key={entry.id} entry={entry} isLast={i === filteredEntries.length - 1} />
+              <TransactionItem key={entry.id} entry={entry} isLast={i === filteredEntries.length - 1} onPress={() => openEdit(entry)} />
             ))}
           </GlassCard>
         )}
       </ScrollView>
       </>
       )}
+
+      <FinanceFormSheet visible={showForm} onClose={() => setShowForm(false)} entry={editEntry} />
     </View>
   );
 }
@@ -192,6 +210,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14 },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  addBtn: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 22 },
   scroll: { padding: 16, gap: 14 },
   periodRow: { flexDirection: 'row', gap: 8 },

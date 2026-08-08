@@ -824,6 +824,46 @@ export const PurchasesCreateResponse = zod.object({
 
 
 /**
+ * @summary Update a purchase in the caller's shop
+ */
+export const PurchasesUpdateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const PurchasesUpdateBody = zod.object({
+  "invoiceNo": zod.string().optional(),
+  "supplier": zod.string().optional(),
+  "supplierMobile": zod.string().optional(),
+  "itemName": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "purchasePrice": zod.number().optional(),
+  "total": zod.number().optional(),
+  "paymentStatus": zod.string().optional(),
+  "paymentMethod": zod.string().optional(),
+  "date": zod.string().optional()
+})
+
+export const PurchasesUpdateResponse = zod.object({
+  "purchase": zod.object({
+  "id": zod.string(),
+  "purchaseId": zod.string(),
+  "invoiceNo": zod.string(),
+  "supplier": zod.string(),
+  "supplierMobile": zod.string().optional(),
+  "itemName": zod.string(),
+  "quantity": zod.number(),
+  "purchasePrice": zod.number(),
+  "total": zod.number(),
+  "paymentStatus": zod.string(),
+  "paymentMethod": zod.string(),
+  "date": zod.string(),
+  "isSample": zod.boolean(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
  * @summary List finance entries of the caller's shop
  */
 export const FinanceListResponse = zod.object({
@@ -854,6 +894,37 @@ export const FinanceCreateBody = zod.object({
 })
 
 export const FinanceCreateResponse = zod.object({
+  "entry": zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "category": zod.string(),
+  "amount": zod.number(),
+  "description": zod.string(),
+  "paymentMethod": zod.string(),
+  "date": zod.string(),
+  "isSample": zod.boolean(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Update a finance entry in the caller's shop
+ */
+export const FinanceUpdateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const FinanceUpdateBody = zod.object({
+  "type": zod.string().optional(),
+  "category": zod.string().optional(),
+  "amount": zod.number().optional(),
+  "description": zod.string().optional(),
+  "paymentMethod": zod.string().optional(),
+  "date": zod.string().optional()
+})
+
+export const FinanceUpdateResponse = zod.object({
   "entry": zod.object({
   "id": zod.string(),
   "type": zod.string(),
