@@ -37,6 +37,14 @@ const DEALER_ROLES = ["dealer", "super_admin"];
 function isPrivileged(req: Request): boolean {
   return DEALER_ROLES.includes((req as AuthedRequest).user.role);
 }
+// Finance visibility: roles allowed to read money figures across the shop
+// (refund amounts, finance ledger). Mirrors the dashboard FINANCE_ROLES so the
+// rule is consistent everywhere. dealer + super_admin own the shop, accountant
+// handles the books.
+const FINANCE_ROLES = ["dealer", "super_admin", "accountant"];
+function canSeeFinance(req: Request): boolean {
+  return FINANCE_ROLES.includes((req as AuthedRequest).user.role);
+}
 const RETURN_STATUSES = [
   "returned",
   "inspection",
@@ -731,6 +739,12 @@ router.get(
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
+    // Refund amounts are money figures — only finance-visible roles may list
+    // them. Other staff get 403 (consistent with the dashboard finance gate).
+    if (!canSeeFinance(req)) {
+      res.status(403).json({ message: "Only dealer/owner or accountant may view refunds." });
+      return;
+    }
     const rows = await db
       .select({ refund: refundsTable, repair: repairsTable, ret: repairReturnsTable })
       .from(refundsTable)

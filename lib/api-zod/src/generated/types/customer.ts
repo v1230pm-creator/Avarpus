@@ -10,6 +10,7 @@ export interface Customer {
   id: string;
   name: string;
   mobile: string;
+  alternateMobile?: string;
   email?: string;
   address?: string;
   dueAmount: number;

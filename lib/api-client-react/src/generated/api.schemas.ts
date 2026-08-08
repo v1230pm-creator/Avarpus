@@ -5,6 +5,43 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface DashboardStats {
+  todayRepairs: number;
+  pendingRepairs: number;
+  readyForPickup: number;
+  totalCustomers: number;
+  openApprovalRequests: number;
+  openReturnCases: number;
+  canSeeFinance: boolean;
+  todayIncome?: number;
+  todayExpense?: number;
+  pendingPayments?: number;
+  refundsTotal?: number;
+  refundsToday?: number;
+}
+
+export type ActivityType = typeof ActivityType[keyof typeof ActivityType];
+
+
+export const ActivityType = {
+  repair: 'repair',
+  login: 'login',
+} as const;
+
+export type ActivityDetails = { [key: string]: unknown } | null;
+
+export interface Activity {
+  id: string;
+  type: ActivityType;
+  action: string;
+  userId?: string | null;
+  userName: string;
+  userRole: string;
+  repairId?: string | null;
+  details?: ActivityDetails;
+  createdAt: string;
+}
+
 export interface LoginInput {
   emailOrMobile: string;
   password: string;
@@ -133,6 +170,7 @@ export interface Customer {
   id: string;
   name: string;
   mobile: string;
+  alternateMobile?: string;
   email?: string;
   address?: string;
   dueAmount: number;
@@ -144,6 +182,7 @@ export interface Customer {
 export interface CustomerInput {
   name?: string;
   mobile?: string;
+  alternateMobile?: string;
   email?: string;
   address?: string;
 }
@@ -1070,5 +1109,32 @@ export type FinanceCreate200 = {
 
 export type FinanceUpdate200 = {
   entry: FinanceEntry;
+};
+
+export type DashboardStats200 = {
+  stats: DashboardStats;
+};
+
+export type ActivityFeedParams = {
+page?: number;
+limit?: number;
+dateFrom?: string;
+dateTo?: string;
+type?: ActivityFeedType;
+};
+
+export type ActivityFeedType = typeof ActivityFeedType[keyof typeof ActivityFeedType];
+
+
+export const ActivityFeedType = {
+  repair: 'repair',
+  login: 'login',
+} as const;
+
+export type ActivityFeed200 = {
+  activity: Activity[];
+  page: number;
+  limit: number;
+  hasMore: boolean;
 };
 

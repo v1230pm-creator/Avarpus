@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { staffList } from '@workspace/api-client-react';
+import { staffList, useRefundsList, getRefundsListQueryKey, stockMovementsList } from '@workspace/api-client-react';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
@@ -31,6 +31,9 @@ const REPORT_TYPES: ReportType[] = [
   { id: 'staff', title: 'Staff Report', description: 'Staff list, roles & status', icon: 'user-check', color: '#64748B' },
   { id: 'technician', title: 'Technician Report', description: 'Jobs completed per technician', icon: 'award', color: '#F59E0B' },
   { id: 'warranty', title: 'Warranty Report', description: 'Repair warranties & expiry', icon: 'shield', color: '#6366F1' },
+  { id: 'pending', title: 'Pending Payments', description: 'Repairs with outstanding balances', icon: 'credit-card', color: '#DC2626' },
+  { id: 'refunds', title: 'Refunds', description: 'List of all processed refunds', icon: 'corner-up-left', color: '#9333EA' },
+  { id: 'parts', title: 'Parts Consumption', description: 'Parts used across repairs', icon: 'settings', color: '#F97316' },
 ];
 
 function notify(title: string, message: string) {
@@ -46,8 +49,16 @@ export default function ReportsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, canAccess } = useAuth();
   const { repairs, customers, inventory, finance, purchases, isLoading, loadError, loadAll } = useData();
+  const canSeeFinance = canAccess('finance');
+  
+  const { data: refundsData } = useRefundsList({
+    query: {
+      enabled: canSeeFinance,
+      queryKey: getRefundsListQueryKey()
+    }
+  });
   const [refreshing, setRefreshing] = useState(false);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -119,6 +130,18 @@ export default function ReportsScreen() {
       return;
     }
 
+    setGeneratingId(report.id);
+    
+    let stockMovements: any[] = [];
+    try {
+      if (report.id === 'parts') {
+        const res = await stockMovementsList();
+        stockMovements = res.stockMovements || [];
+      }
+    } catch (e) {
+      console.error('Failed to load parts consumption', e);
+    }
+
     const data: ReportData = {
       repairs,
       customers,
@@ -126,12 +149,18 @@ export default function ReportsScreen() {
       purchases,
       finance,
       staff,
+      refunds: refundsData?.refunds || [],
+      stockMovements,
       shopName: user?.businessName ?? undefined,
     };
     const built = buildReportHtml(report.id, data);
-    if (!built) return;
+    if (!built) {
+      setGeneratingId(null);
+      return;
+    }
 
     if (built.rowCount === 0) {
+      setGeneratingId(null);
       const messages: Record<string, string> = {
         warranty: 'No repairs with warranty yet. Warranty details added to repairs will appear here.',
         technician: 'No repairs have been assigned to technicians yet.',

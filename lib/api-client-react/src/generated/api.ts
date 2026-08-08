@@ -20,6 +20,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ActivityFeed200,
+  ActivityFeedParams,
   ApprovalRejectInput,
   ApprovalRequestInput,
   ApprovalsApprove200,
@@ -37,6 +39,7 @@ import type {
   CustomersCreate200,
   CustomersList200,
   CustomersUpdate200,
+  DashboardStats200,
   DeliveryOtpVerify200,
   DeliveryOtpVerifyInput,
   ErrorEnvelope,
@@ -3676,7 +3679,8 @@ export const getRefundsListUrl = () => {
 }
 
 /**
- * @summary List the shop's refunds
+ * Refund amounts are money figures — restricted to finance-visible roles (dealer, super_admin, accountant). Other roles receive 403.
+ * @summary List the shop's refunds (dealer/super_admin/accountant only)
  */
 export const refundsList = async ( options?: Parameters<typeof customFetch>[1]): Promise<RefundsList200> => {
 
@@ -3700,7 +3704,7 @@ export const getRefundsListQueryKey = () => {
     }
 
 
-export const getRefundsListQueryOptions = <TData = Awaited<ReturnType<typeof refundsList>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof refundsList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getRefundsListQueryOptions = <TData = Awaited<ReturnType<typeof refundsList>>, TError = ErrorType<Message>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof refundsList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -3719,14 +3723,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type RefundsListQueryResult = NonNullable<Awaited<ReturnType<typeof refundsList>>>
-export type RefundsListQueryError = ErrorType<unknown>
+export type RefundsListQueryError = ErrorType<Message>
 
 
 /**
- * @summary List the shop's refunds
+ * @summary List the shop's refunds (dealer/super_admin/accountant only)
  */
 
-export function useRefundsList<TData = Awaited<ReturnType<typeof refundsList>>, TError = ErrorType<unknown>>(
+export function useRefundsList<TData = Awaited<ReturnType<typeof refundsList>>, TError = ErrorType<Message>>(
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof refundsList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -5200,6 +5204,169 @@ export const useSampleDataClear = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getSampleDataClearMutationOptions(options));
     }
+
+export const getDashboardStatsUrl = () => {
+
+
+
+
+  return `/api/dashboard/stats`
+}
+
+/**
+ * Real-time counts and (for finance-visible roles) money figures. Non-finance roles receive canSeeFinance:false and no money fields.
+ * @summary Aggregate dashboard stats for the caller's shop
+ */
+export const dashboardStats = async ( options?: Parameters<typeof customFetch>[1]): Promise<DashboardStats200> => {
+
+  return customFetch<DashboardStats200>(getDashboardStatsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDashboardStatsQueryKey = () => {
+    return [
+    `/api/dashboard/stats`
+    ] as const;
+    }
+
+
+export const getDashboardStatsQueryOptions = <TData = Awaited<ReturnType<typeof dashboardStats>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dashboardStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDashboardStatsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof dashboardStats>>> = ({ signal }) => dashboardStats({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof dashboardStats>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DashboardStatsQueryResult = NonNullable<Awaited<ReturnType<typeof dashboardStats>>>
+export type DashboardStatsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Aggregate dashboard stats for the caller's shop
+ */
+
+export function useDashboardStats<TData = Awaited<ReturnType<typeof dashboardStats>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dashboardStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDashboardStatsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getActivityFeedUrl = (params?: ActivityFeedParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/activity?${stringifiedParams}` : `/api/activity`
+}
+
+/**
+ * Merged, paginated audit feed of repair events and login events for the shop.
+ * @summary Global activity feed (dealer/super_admin only)
+ */
+export const activityFeed = async (params?: ActivityFeedParams, options?: Parameters<typeof customFetch>[1]): Promise<ActivityFeed200> => {
+
+  return customFetch<ActivityFeed200>(getActivityFeedUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getActivityFeedQueryKey = (params?: ActivityFeedParams,) => {
+    return [
+    `/api/activity`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getActivityFeedQueryOptions = <TData = Awaited<ReturnType<typeof activityFeed>>, TError = ErrorType<unknown>>(params?: ActivityFeedParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof activityFeed>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getActivityFeedQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof activityFeed>>> = ({ signal }) => activityFeed(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof activityFeed>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ActivityFeedQueryResult = NonNullable<Awaited<ReturnType<typeof activityFeed>>>
+export type ActivityFeedQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Global activity feed (dealer/super_admin only)
+ */
+
+export function useActivityFeed<TData = Awaited<ReturnType<typeof activityFeed>>, TError = ErrorType<unknown>>(
+ params?: ActivityFeedParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof activityFeed>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getActivityFeedQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getHealthCheckUrl = () => {
 

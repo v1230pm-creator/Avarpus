@@ -16,6 +16,8 @@ tags:
     description: Shop-scoped business data (repairs, customers, inventory, purchases, finance)
   - name: Storage
     description: Object storage upload and serving endpoints.
+  - name: dashboard
+    description: Read-only dashboard stats and activity feed.
 paths:
   /auth/login:
     post:
@@ -1007,7 +1009,10 @@ paths:
     get:
       operationId: refundsList
       tags: [business]
-      summary: List the shop's refunds
+      summary: List the shop's refunds (dealer/super_admin/accountant only)
+      description: >
+        Refund amounts are money figures — restricted to finance-visible roles
+        (dealer, super_admin, accountant). Other roles receive 403.
       responses:
         "200":
           description: Refunds, newest first
@@ -1021,6 +1026,12 @@ paths:
                     items: { $ref: "#/components/schemas/Refund" }
                   pendingCount: { type: number }
                 required: [refunds, pendingCount]
+        "403":
+          description: Caller's role may not view refunds
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
   /refunds/{id}/approve:
     post:
       operationId: refundsApprove
@@ -1461,6 +1472,53 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
+  /dashboard/stats:
+    get:
+      operationId: dashboardStats
+      tags: [dashboard]
+      summary: Aggregate dashboard stats for the caller's shop
+      description: >
+        Real-time counts and (for finance-visible roles) money figures.
+        Non-finance roles receive canSeeFinance:false and no money fields.
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    $ref: "#/components/schemas/DashboardStats"
+                required: [stats]
+  /activity:
+    get:
+      operationId: activityFeed
+      tags: [dashboard]
+      summary: Global activity feed (dealer/super_admin only)
+      description: Merged, paginated audit feed of repair events and login events for the shop.
+      parameters:
+        - { name: page, in: query, required: false, schema: { type: number } }
+        - { name: limit, in: query, required: false, schema: { type: number } }
+        - { name: dateFrom, in: query, required: false, schema: { type: string } }
+        - { name: dateTo, in: query, required: false, schema: { type: string } }
+        - { name: type, in: query, required: false, schema: { type: string, enum: [repair, login] } }
+      responses:
+        "200":
+          description: Activity feed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activity:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Activity"
+                  page: { type: number }
+                  limit: { type: number }
+                  hasMore: { type: boolean }
+                required: [activity, page, limit, hasMore]
   /healthz:
     get:
       operationId: healthCheck
@@ -1476,6 +1534,42 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    DashboardStats:
+      type: object
+      properties:
+        todayRepairs: { type: number }
+        pendingRepairs: { type: number }
+        readyForPickup: { type: number }
+        totalCustomers: { type: number }
+        openApprovalRequests: { type: number }
+        openReturnCases: { type: number }
+        canSeeFinance: { type: boolean }
+        todayIncome: { type: number }
+        todayExpense: { type: number }
+        pendingPayments: { type: number }
+        refundsTotal: { type: number }
+        refundsToday: { type: number }
+      required:
+        - todayRepairs
+        - pendingRepairs
+        - readyForPickup
+        - totalCustomers
+        - openApprovalRequests
+        - openReturnCases
+        - canSeeFinance
+    Activity:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [repair, login] }
+        action: { type: string }
+        userId: { type: string, nullable: true }
+        userName: { type: string }
+        userRole: { type: string }
+        repairId: { type: string, nullable: true }
+        details: { type: object, nullable: true, additionalProperties: true }
+        createdAt: { type: string }
+      required: [id, type, action, userName, userRole, createdAt]
     LoginInput:
       type: object
       properties:
@@ -1602,6 +1696,7 @@ components:
         id: { type: string }
         name: { type: string }
         mobile: { type: string }
+        alternateMobile: { type: string }
         email: { type: string }
         address: { type: string }
         dueAmount: { type: number }
@@ -1614,6 +1709,7 @@ components:
       properties:
         name: { type: string }
         mobile: { type: string }
+        alternateMobile: { type: string }
         email: { type: string }
         address: { type: string }
     Repair:

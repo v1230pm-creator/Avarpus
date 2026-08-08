@@ -1,23 +1,37 @@
-import sys
-
 with open('artifacts/mobile/context/DataContext.tsx', 'r') as f:
     content = f.read()
 
-target_add = """      problem: r.problem,
-      technicianId: r.technicianId,
-      technicianName: r.technicianName,
-      status: r.status,"""
-new_add = """      problem: r.problem,
-      status: r.status,"""
-content = content.replace(target_add, new_add)
+content = content.replace(
+'''    const res = await customersCreate({
+      name: c.name,
+      mobile: c.mobile,
+      email: c.email,
+      address: c.address,
+    });''',
+'''    const res = await customersCreate({
+      name: c.name,
+      mobile: c.mobile,
+      alternateMobile: (c as any).alternateMobile,
+      email: c.email,
+      address: c.address,
+    } as any);'''
+)
 
-target_update = """      workPerformed: r.workPerformed,
-      technicianId: r.technicianId,
-      technicianName: r.technicianName,
-      status: r.status,"""
-new_update = """      workPerformed: r.workPerformed,
-      status: r.status,"""
-content = content.replace(target_update, new_update)
+content = content.replace(
+'''    const res = await customersUpdate(c.id, {
+      name: c.name,
+      mobile: c.mobile,
+      email: c.email,
+      address: c.address,
+    });''',
+'''    const res = await customersUpdate(c.id, {
+      name: c.name,
+      mobile: c.mobile,
+      alternateMobile: (c as any).alternateMobile,
+      email: c.email,
+      address: c.address,
+    } as any);'''
+)
 
 with open('artifacts/mobile/context/DataContext.tsx', 'w') as f:
     f.write(content)

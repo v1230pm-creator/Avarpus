@@ -23,6 +23,7 @@ export const customersTable = pgTable("customers", {
     .references(() => shopsTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   mobile: text("mobile").notNull(),
+  alternateMobile: text("alternate_mobile"),
   email: text("email"),
   address: text("address"),
   dueAmount: doublePrecision("due_amount").notNull().default(0),

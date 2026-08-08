@@ -6,6 +6,7 @@ export default function RepairsLayout() {
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen name="index" />
+      <Stack.Screen name="scanner" />
       <Stack.Screen name="new" />
       <Stack.Screen name="returns" />
       <Stack.Screen name="return/new" />

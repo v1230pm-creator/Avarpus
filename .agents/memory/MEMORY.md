@@ -12,6 +12,7 @@
 - [Payments ledger & money rules](payments-ledger.md) — append-only repair_payments, advance is a cached SUM, cost gating for staff, OTP bound server-side, clientRequestId offline idempotency.
 - [Repair workflow](repair-workflow.md) — 4 tabs are one repairs table; delivered is staff-terminal with locked money fields; partsCharge is ledger-derived once repair_parts exist; receivedBy/deliveredBy stamped server-side.
 - [Returns & refunds](returns-refunds.md) — return cases have a strict server state machine; refunds are separate rows with a cumulative repair-level cap; closed cases frozen; FOR UPDATE + conditional claims everywhere.
+- [Expo package version pinning](expo-package-versions.md) — plain pnpm add grabs SDK-incompatible expo-* majors that crash at runtime; always npx expo install.
 - [Mobile Jest setup quirks](mobile-jest-setup.md) — pnpm-aware transformIgnorePatterns, global fake timers to avoid hangs, mock at API-client boundary not context.
 - [PIN hashing](pin-hashing.md) — PIN stored as salted iterated-SHA256 record; use hasStoredMpin/verifyMpin, never compare raw values; mock expo-crypto with node crypto in Jest.
 - [API validation steps](api-validation-steps.md) — isolation/balances/registration scripts run as validation steps; whole-command flock + api-server cwd, or concurrent builds clobber dist.

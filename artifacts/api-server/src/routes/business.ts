@@ -114,6 +114,7 @@ function customerOut(c: typeof customersTable.$inferSelect) {
     id: c.id,
     name: c.name,
     mobile: c.mobile,
+    alternateMobile: c.alternateMobile ?? undefined,
     email: c.email ?? undefined,
     address: c.address ?? undefined,
     dueAmount: c.dueAmount,
@@ -157,6 +158,7 @@ router.post(
         shopId,
         name,
         mobile,
+        alternateMobile: str(b.alternateMobile),
         email: str(b.email),
         address: str(b.address),
         // dueAmount and totalRepairs are derived from repairs server-side —
@@ -177,6 +179,7 @@ router.patch(
     const patch: Partial<typeof customersTable.$inferInsert> = {};
     if (b.name !== undefined) patch.name = str(b.name) ?? undefined;
     if (b.mobile !== undefined) patch.mobile = str(b.mobile) ?? undefined;
+    if (b.alternateMobile !== undefined) patch.alternateMobile = str(b.alternateMobile);
     if (b.email !== undefined) patch.email = str(b.email);
     if (b.address !== undefined) patch.address = str(b.address);
     // dueAmount / totalRepairs are derived from repairs and cannot be patched.
@@ -562,16 +565,19 @@ router.post(
 
     // A repair may only be linked to a customer of the caller's own shop.
     let customerId = str(b.customerId);
+    let linkedCustomerAltEmpty = false;
     if (customerId) {
       const [cust] = await db
-        .select({ id: customersTable.id })
+        .select({ id: customersTable.id, alternateMobile: customersTable.alternateMobile })
         .from(customersTable)
         .where(and(eq(customersTable.id, customerId), eq(customersTable.shopId, shopId)));
       if (!cust) {
         res.status(400).json({ message: "Customer not found in your shop" });
         return;
       }
+      linkedCustomerAltEmpty = !str(cust.alternateMobile);
     }
+    const intakeAltMobile = str(b.alternateMobile);
 
     let created: typeof repairsTable.$inferSelect;
     try {
@@ -647,6 +653,15 @@ router.post(
         action: "created",
         details: { ticket: row.repairId, status: row.status, priority: row.priority },
       });
+      // Backfill the customer's alternate mobile from the intake form when the
+      // customer record doesn't have one yet — so the contact captured at
+      // intake is retained on the customer profile too.
+      if (row.customerId && linkedCustomerAltEmpty && intakeAltMobile) {
+        await tx
+          .update(customersTable)
+          .set({ alternateMobile: intakeAltMobile })
+          .where(and(eq(customersTable.id, row.customerId), eq(customersTable.shopId, shopId)));
+      }
       if (row.customerId) await syncCustomerStats(tx, shopId, row.customerId);
       return row;
       });
@@ -2316,6 +2331,11 @@ router.get(
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
+    // NOTE: GET /finance is intentionally NOT finance-gated yet. The mobile
+    // DataContext loads finance for every role in a blocking Promise.all, so a
+    // 403 here would break the whole app for non-finance staff. Gating this
+    // must be done together with a mobile change (role-gate or non-blocking
+    // fetch). Tracked as a follow-up — see the money-visibility audit.
     const rows = await db
       .select()
       .from(financeEntriesTable)

@@ -236,9 +236,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const res = await customersCreate({
       name: c.name,
       mobile: c.mobile,
+      alternateMobile: (c as any).alternateMobile,
       email: c.email,
       address: c.address,
-    });
+    } as any);
     const created = res.customer as Customer;
     setCustomers((prev) => [...prev, created]);
     return created;
@@ -248,9 +249,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const res = await customersUpdate(c.id, {
       name: c.name,
       mobile: c.mobile,
+      alternateMobile: (c as any).alternateMobile,
       email: c.email,
       address: c.address,
-    });
+    } as any);
     const updated = res.customer as Customer;
     setCustomers((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
   });

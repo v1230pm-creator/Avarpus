@@ -243,8 +243,9 @@ export default function NewRepairScreen() {
         const created = await addCustomer({
           name: customerName.trim(), mobile: mobile.trim(),
           email: email.trim() || undefined,
+          alternateMobile: alternateMobile.trim() || undefined,
           address: address.trim() || undefined,
-        });
+        } as any);
         customerId = created.id;
       }
 

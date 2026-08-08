@@ -353,6 +353,7 @@ export const CustomersListResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "mobile": zod.string(),
+  "alternateMobile": zod.string().optional(),
   "email": zod.string().optional(),
   "address": zod.string().optional(),
   "dueAmount": zod.number(),
@@ -369,6 +370,7 @@ export const CustomersListResponse = zod.object({
 export const CustomersCreateBody = zod.object({
   "name": zod.string().optional(),
   "mobile": zod.string().optional(),
+  "alternateMobile": zod.string().optional(),
   "email": zod.string().optional(),
   "address": zod.string().optional()
 })
@@ -378,6 +380,7 @@ export const CustomersCreateResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "mobile": zod.string(),
+  "alternateMobile": zod.string().optional(),
   "email": zod.string().optional(),
   "address": zod.string().optional(),
   "dueAmount": zod.number(),
@@ -398,6 +401,7 @@ export const CustomersUpdateParams = zod.object({
 export const CustomersUpdateBody = zod.object({
   "name": zod.string().optional(),
   "mobile": zod.string().optional(),
+  "alternateMobile": zod.string().optional(),
   "email": zod.string().optional(),
   "address": zod.string().optional()
 })
@@ -407,6 +411,7 @@ export const CustomersUpdateResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "mobile": zod.string(),
+  "alternateMobile": zod.string().optional(),
   "email": zod.string().optional(),
   "address": zod.string().optional(),
   "dueAmount": zod.number(),
@@ -1657,7 +1662,8 @@ export const RefundsCreateResponse = zod.object({
 
 
 /**
- * @summary List the shop's refunds
+ * Refund amounts are money figures — restricted to finance-visible roles (dealer, super_admin, accountant). Other roles receive 403.
+ * @summary List the shop's refunds (dealer/super_admin/accountant only)
  */
 export const RefundsListResponse = zod.object({
   "refunds": zod.array(zod.object({
@@ -2228,6 +2234,58 @@ export const SampleDataLoadResponse = zod.object({
  */
 export const SampleDataClearResponse = zod.object({
   "message": zod.string()
+})
+
+
+/**
+ * Real-time counts and (for finance-visible roles) money figures. Non-finance roles receive canSeeFinance:false and no money fields.
+ * @summary Aggregate dashboard stats for the caller's shop
+ */
+export const DashboardStatsResponse = zod.object({
+  "stats": zod.object({
+  "todayRepairs": zod.number(),
+  "pendingRepairs": zod.number(),
+  "readyForPickup": zod.number(),
+  "totalCustomers": zod.number(),
+  "openApprovalRequests": zod.number(),
+  "openReturnCases": zod.number(),
+  "canSeeFinance": zod.boolean(),
+  "todayIncome": zod.number().optional(),
+  "todayExpense": zod.number().optional(),
+  "pendingPayments": zod.number().optional(),
+  "refundsTotal": zod.number().optional(),
+  "refundsToday": zod.number().optional()
+})
+})
+
+
+/**
+ * Merged, paginated audit feed of repair events and login events for the shop.
+ * @summary Global activity feed (dealer/super_admin only)
+ */
+export const ActivityFeedQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional(),
+  "dateFrom": zod.coerce.string().optional(),
+  "dateTo": zod.coerce.string().optional(),
+  "type": zod.enum(['repair', 'login']).optional()
+})
+
+export const ActivityFeedResponse = zod.object({
+  "activity": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['repair', 'login']),
+  "action": zod.string(),
+  "userId": zod.string().nullish(),
+  "userName": zod.string(),
+  "userRole": zod.string(),
+  "repairId": zod.string().nullish(),
+  "details": zod.record(zod.string(), zod.unknown()).nullish(),
+  "createdAt": zod.string()
+})),
+  "page": zod.number(),
+  "limit": zod.number(),
+  "hasMore": zod.boolean()
 })
 
 

@@ -17,6 +17,7 @@ export function CustomerFormSheet({ visible, onClose, customer }: Props) {
   const { addCustomer, updateCustomer } = useData();
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
+  const [alternateMobile, setAlternateMobile] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -27,6 +28,7 @@ export function CustomerFormSheet({ visible, onClose, customer }: Props) {
     if (visible) {
       setName(customer?.name ?? '');
       setMobile(customer?.mobile ?? '');
+      setAlternateMobile((customer as any)?.alternateMobile ?? '');
       setEmail(customer?.email ?? '');
       setAddress(customer?.address ?? '');
       setErrors({});
@@ -50,6 +52,7 @@ export function CustomerFormSheet({ visible, onClose, customer }: Props) {
         name: name.trim(),
         mobile: mobile.trim(),
         email: email.trim() || undefined,
+        alternateMobile: alternateMobile.trim() || undefined,
         address: address.trim() || undefined,
       };
       if (customer) {
@@ -79,6 +82,7 @@ export function CustomerFormSheet({ visible, onClose, customer }: Props) {
     >
       <Input label="Name *" value={name} onChangeText={setName} placeholder="Customer name" error={errors.name} leftIcon="user" />
       <Input label="Mobile *" value={mobile} onChangeText={setMobile} placeholder="10-digit mobile" keyboardType="phone-pad" maxLength={10} error={errors.mobile} leftIcon="phone" />
+      <Input label="Alternate Mobile" value={alternateMobile} onChangeText={setAlternateMobile} placeholder="Optional" keyboardType="phone-pad" maxLength={10} error={errors.alternateMobile} leftIcon="phone" />
       <Input label="Email" value={email} onChangeText={setEmail} placeholder="Optional" keyboardType="email-address" autoCapitalize="none" error={errors.email} leftIcon="mail" />
       <Input label="Address" value={address} onChangeText={setAddress} placeholder="Optional" leftIcon="map-pin" />
     </FormSheet>

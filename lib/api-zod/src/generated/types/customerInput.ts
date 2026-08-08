@@ -9,6 +9,7 @@
 export interface CustomerInput {
   name?: string;
   mobile?: string;
+  alternateMobile?: string;
   email?: string;
   address?: string;
 }

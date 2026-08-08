@@ -6,6 +6,7 @@ import businessRouter from "./business";
 import storageRouter from "./storage";
 import approvalsRouter from "./approvals";
 import returnsRouter from "./returns";
+import dashboardRouter from "./dashboard";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(businessRouter);
 router.use(storageRouter);
 router.use(approvalsRouter);
 router.use(returnsRouter);
+router.use(dashboardRouter);
 
 export default router;

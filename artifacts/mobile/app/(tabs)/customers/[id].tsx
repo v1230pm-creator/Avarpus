@@ -88,6 +88,9 @@ export default function CustomerDetailScreen() {
           {customer.isSample && <SampleBadge style={{ alignSelf: 'center', marginTop: 6 }} />}
           <Text style={[styles.name, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{customer.name}</Text>
           <Text style={[styles.mobile, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>{customer.mobile}</Text>
+          {(customer as any).alternateMobile && (
+            <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 2 }}>Alt: {(customer as any).alternateMobile}</Text>
+          )}
           {customer.email && (
             <Text style={[styles.email, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{customer.email}</Text>
           )}

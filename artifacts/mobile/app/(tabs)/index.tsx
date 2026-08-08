@@ -24,7 +24,7 @@ import { BarChart } from '@/components/charts/BarChart';
 import { RepairStatusBadge, PriorityBadge, SampleBadge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { formatCurrency, formatDate, getGreeting, getTodayStr, ROLE_LABELS } from '@/utils/helpers';
-import { useApprovalsList, useReturnsList, useRefundsList } from '@workspace/api-client-react';
+import { useDashboardStats, getDashboardStatsQueryKey } from '@workspace/api-client-react';
 
 // --- Shared Helper ---
 const getStatusColor = (status: string, colors: any) => {
@@ -471,17 +471,17 @@ export default function DashboardScreen() {
   const router = useRouter();
   const { user, canAccess } = useAuth();
   const { repairs, customers, inventory, finance, isLoading, loadError, loadAll, hasSampleData } = useData();
-  const { data: approvalsData } = useApprovalsList();
-  const { data: returnsData } = useReturnsList();
-  const { data: refundsData } = useRefundsList();
-  const pendingCount = approvalsData?.pendingCount || 0;
-  const showApprovalsBadge = pendingCount > 0 && (user?.role === 'dealer' || user?.role === 'super_admin');
+
+  const { data: statsData, refetch: refetchStats } = useDashboardStats({ query: { queryKey: getDashboardStatsQueryKey() } });
+  const dashboardStats = statsData?.stats;
+
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
     setRefreshing(true);
     try {
       await loadAll();
+      await refetchStats();
     } finally {
       setRefreshing(false);
     }
@@ -492,58 +492,13 @@ export default function DashboardScreen() {
   const isDark = useIsDark();
   const today = getTodayStr();
 
+  // For charts
   const stats = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    const yesterday = d.toISOString().split('T')[0];
-
-    const todayRepairs = repairs.filter(r => r.createdAt.startsWith(today));
-    const yesterdayRepairs = repairs.filter(r => r.createdAt.startsWith(yesterday));
-    
-    const returnsList = returnsData?.returns || [];
-    const refundsList = refundsData?.refunds || [];
-    
-    const todayReturns = returnsList.filter(r => r.createdAt.startsWith(today));
-    const openReturns = returnsList.filter(r => r.status !== 'closed');
-    const pendingRefunds = refundsData?.pendingCount || 0;
-    const refundsPaid = refundsList.filter(rf => rf.status === 'paid').reduce((acc, rf) => acc + rf.amount, 0);
-
-    const pending = repairs.filter(r => !['delivered', 'cancelled'].includes(r.status));
-    const ready = repairs.filter(r => r.status === 'ready');
     const lowStock = inventory.filter(i => i.quantity <= i.minStock);
-    
-    const todayIncome = finance.filter(f => f.type === 'income' && f.date === today).reduce((s, f) => s + f.amount, 0);
-    const todayExpense = finance.filter(f => f.type === 'expense' && f.date === today).reduce((s, f) => s + f.amount, 0);
-    
-    const yesterdayIncome = finance.filter(f => f.type === 'income' && f.date === yesterday).reduce((s, f) => s + f.amount, 0);
-    const yesterdayExpense = finance.filter(f => f.type === 'expense' && f.date === yesterday).reduce((s, f) => s + f.amount, 0);
-
-    const todayProfit = todayIncome - todayExpense;
-    const yesterdayProfit = yesterdayIncome - yesterdayExpense;
-
-    const pendingPayments = repairs
-      .filter((r) => r.status !== 'cancelled')
-      .reduce((s, r) => s + Math.max(0, r.repairCharge + r.partsCharge - r.advance), 0);
-
     return {
-      todayRepairs: todayRepairs.length,
-      repairTrend: todayRepairs.length - yesterdayRepairs.length,
-      pending: pending.length,
-      ready: ready.length,
       lowStock: lowStock.length,
-      totalCustomers: customers.length,
-      totalProducts: inventory.length,
-      todayIncome,
-      incomeTrend: todayIncome - yesterdayIncome,
-      todayProfit,
-      profitTrend: todayProfit - yesterdayProfit,
-      pendingPayments,
-      todayReturns: todayReturns.length,
-      openReturns: openReturns.length,
-      pendingRefunds: pendingRefunds,
-      refundsPaid
     };
-  }, [repairs, customers, inventory, finance, today, returnsData, refundsData]);
+  }, [inventory]);
 
   const cardAnims = useRef([...Array(15)].map(() => new Animated.Value(0))).current;
 
@@ -624,7 +579,7 @@ export default function DashboardScreen() {
         {!hasAnyData && !isLoading && !loadError && <EmptyShopState />}
 
         <View style={{ paddingHorizontal: 20, paddingTop: 16, gap: 20 }}>
-          {showApprovalsBadge && (
+          {(user?.role === 'dealer' || user?.role === 'super_admin') && (dashboardStats?.openApprovalRequests || 0) > 0 && (
             <Animated.View style={{ opacity: cardAnims[0], transform: [{ translateY: cardAnims[0].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
               <TouchableOpacity
                 onPress={() => router.push('/(tabs)/more/approvals')}
@@ -636,7 +591,7 @@ export default function DashboardScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginBottom: 2 }}>Pending Approvals</Text>
-                  <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>You have {pendingCount} backdated request{pendingCount === 1 ? '' : 's'} waiting for approval.</Text>
+                  <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>You have {dashboardStats!.openApprovalRequests} backdated request{dashboardStats!.openApprovalRequests === 1 ? '' : 's'} waiting for approval.</Text>
                 </View>
                 <Feather name="chevron-right" size={20} color={colors.destructive} />
               </TouchableOpacity>
@@ -664,32 +619,32 @@ export default function DashboardScreen() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
             {showRepairs && (
               <>
-                <StatBox title="Received" value={repairs.filter(r => r.status === 'received').length} icon="inbox" color={colors.statusReceived} animValue={cardAnims[3]} />
-                <StatBox title="In Repair" value={repairs.filter(r => ['diagnosing', 'waiting_parts', 'repairing', 'testing', 'cannot_repair', 'customer_approval'].includes(r.status)).length} icon="tool" color={colors.statusDiagnosing} animValue={cardAnims[4]} />
-                <StatBox title="Ready for Delivery" value={repairs.filter(r => r.status === 'ready').length} icon="check-circle" color={colors.statusReady} animValue={cardAnims[5]} />
+                <StatBox title="Received Today" value={dashboardStats?.todayRepairs || 0} icon="inbox" color={colors.primary} animValue={cardAnims[3]} />
+                <StatBox title="In Repair" value={dashboardStats?.pendingRepairs || 0} icon="tool" color={colors.statusDiagnosing} animValue={cardAnims[4]} />
+                <StatBox title="Ready for Delivery" value={dashboardStats?.readyForPickup || 0} icon="check-circle" color={colors.statusReady} animValue={cardAnims[5]} />
                 <StatBox title="Delivered" value={repairs.filter(r => r.status === 'delivered').length} icon="package" color={colors.statusDelivered} animValue={cardAnims[6]} />
-                <StatBox title="After-Sales Cases" value={stats.openReturns} icon="corner-up-left" color={colors.warning} animValue={cardAnims[7]} />
-                {(user?.role === 'dealer' || user?.role === 'super_admin') && (
-                  <StatBox title="Pending Refund Approvals" value={stats.pendingRefunds} icon="dollar-sign" color={colors.destructive} animValue={cardAnims[8]} />
-                )}
+                <StatBox title="After-Sales Cases" value={dashboardStats?.openReturnCases || 0} icon="corner-up-left" color={colors.warning} animValue={cardAnims[7]} />
               </>
             )}
             
-            {showFinance && (
+            {showFinance && dashboardStats?.canSeeFinance && (
               <>
-                <StatBox title="Today's Sales" value={stats.todayIncome} trend={stats.incomeTrend} icon="trending-up" color={colors.success} animValue={cardAnims[9]} isCurrency />
-                <StatBox title="Today's Profit" value={stats.todayProfit} trend={stats.profitTrend} icon="dollar-sign" color={colors.primary} animValue={cardAnims[10]} isCurrency />
-                <StatBox title="Pending Payments" value={stats.pendingPayments} icon="credit-card" color={colors.warning} animValue={cardAnims[11]} isCurrency />
+                <StatBox title="Today's Sales" value={dashboardStats?.todayIncome || 0} icon="trending-up" color={colors.success} animValue={cardAnims[9]} isCurrency />
+                <StatBox title="Today's Expense" value={dashboardStats?.todayExpense || 0} icon="trending-down" color={colors.destructive} animValue={cardAnims[10]} isCurrency />
+                <StatBox title="Pending Payments" value={dashboardStats?.pendingPayments || 0} icon="credit-card" color={colors.warning} animValue={cardAnims[11]} isCurrency />
+                {((dashboardStats?.refundsToday || 0) > 0) && (
+                  <StatBox title="Refunds Today" value={dashboardStats?.refundsToday || 0} icon="dollar-sign" color={colors.destructive} animValue={cardAnims[8]} isCurrency />
+                )}
               </>
             )}
             
             <StatBox title="Low Stock Items" value={stats.lowStock} icon="alert-triangle" color={stats.lowStock > 0 ? colors.destructive : colors.success} animValue={cardAnims[12]} />
             
             {canAccess('customers') && (
-              <StatBox title="Total Customers" value={stats.totalCustomers} icon="users" color={colors.info} animValue={cardAnims[13]} />
+              <StatBox title="Total Customers" value={dashboardStats?.totalCustomers || 0} icon="users" color={colors.info} animValue={cardAnims[13]} />
             )}
             {canAccess('inventory') && (
-              <StatBox title="Total Products" value={stats.totalProducts} icon="package" color={colors.primary} animValue={cardAnims[14]} />
+              <StatBox title="Total Products" value={inventory.length} icon="package" color={colors.primary} animValue={cardAnims[14]} />
             )}
           </View>
 
