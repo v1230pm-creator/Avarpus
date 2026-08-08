@@ -1,13 +1,18 @@
-import React, { useState } from 'react';
-import { Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import { staffList } from '@workspace/api-client-react';
 import { useData } from '@/context/DataContext';
+import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { GlassCard, ScreenGlow } from '@/components/ui/Glass';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { formatCurrency, getTodayStr } from '@/utils/helpers';
+import { buildReportHtml, type ReportData, type StaffMember } from '@/utils/reportHtml';
 
 interface ReportType {
   id: string;
@@ -23,23 +28,50 @@ const REPORT_TYPES: ReportType[] = [
   { id: 'inventory', title: 'Inventory Report', description: 'Stock levels, low stock alerts', icon: 'package', color: '#059669' },
   { id: 'purchase', title: 'Purchase Report', description: 'Purchase orders, supplier payments', icon: 'shopping-bag', color: '#D97706' },
   { id: 'finance', title: 'Finance Report', description: 'Income, expense, profit & loss', icon: 'bar-chart-2', color: '#DC2626' },
-  { id: 'staff', title: 'Staff Report', description: 'Staff list, roles, attendance', icon: 'user-check', color: '#64748B' },
+  { id: 'staff', title: 'Staff Report', description: 'Staff list, roles & status', icon: 'user-check', color: '#64748B' },
   { id: 'technician', title: 'Technician Report', description: 'Jobs completed per technician', icon: 'award', color: '#F59E0B' },
-  { id: 'warranty', title: 'Warranty Report', description: 'Warranty claims & status', icon: 'shield', color: '#6366F1' },
+  { id: 'warranty', title: 'Warranty Report', description: 'Repair warranties & expiry', icon: 'shield', color: '#6366F1' },
 ];
+
+function notify(title: string, message: string) {
+  if (Platform.OS === 'web') {
+    // Alert.alert is a no-op on web
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+}
 
 export default function ReportsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const { repairs, customers, inventory, finance, purchases, isLoading, loadError, loadAll } = useData();
-  const today = getTodayStr();
   const [refreshing, setRefreshing] = useState(false);
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+
+  const canSeeStaff = user?.role === 'dealer' || user?.role === 'super_admin';
+
+  const loadStaff = useCallback(async () => {
+    if (!canSeeStaff) return;
+    try {
+      const res = await staffList();
+      setStaff(res.staff as StaffMember[]);
+    } catch {
+      // Staff snapshot is best-effort; the rest of the screen still works.
+    }
+  }, [canSeeStaff]);
+
+  useEffect(() => {
+    loadStaff();
+  }, [loadStaff]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await loadAll();
+      await Promise.all([loadAll(), loadStaff()]);
     } finally {
       setRefreshing(false);
     }
@@ -50,7 +82,14 @@ export default function ReportsScreen() {
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
-  const snapshots = {
+  const today = getTodayStr();
+  const technicianIds = new Set(
+    repairs.filter((r) => r.technicianId || r.technicianName).map((r) => r.technicianId ?? r.technicianName!),
+  );
+  const warrantyRepairs = repairs.filter((r) => (r.warrantyDays ?? 0) > 0 || r.warrantyExpiry);
+  const inWarranty = warrantyRepairs.filter((r) => r.warrantyExpiry && r.warrantyExpiry >= today);
+
+  const snapshots: Record<string, { count: number; note: string }> = {
     repair: { count: repairs.length, note: `${repairs.filter((r) => !['delivered', 'cancelled'].includes(r.status)).length} active` },
     customer: { count: customers.length, note: `${customers.filter((c) => c.dueAmount > 0).length} with dues` },
     inventory: { count: inventory.length, note: `${inventory.filter((i) => i.quantity <= i.minStock).length} low stock` },
@@ -59,9 +98,74 @@ export default function ReportsScreen() {
       count: finance.length,
       note: `Profit: ${formatCurrency(finance.filter((f) => f.type === 'income').reduce((s, f) => s + f.amount, 0) - finance.filter((f) => f.type === 'expense').reduce((s, f) => s + f.amount, 0))}`,
     },
-    staff: { count: 0, note: 'All staff' },
-    technician: { count: 0, note: 'All technicians' },
-    warranty: { count: 0, note: 'No warranty data yet' },
+    staff: canSeeStaff
+      ? { count: staff.length, note: `${staff.filter((s) => s.isActive).length} active, ${staff.filter((s) => !s.isActive).length} pending` }
+      : { count: 0, note: 'Owner access required' },
+    technician: {
+      count: technicianIds.size,
+      note: technicianIds.size > 0 ? `${technicianIds.size} with assigned jobs` : 'No jobs assigned yet',
+    },
+    warranty: {
+      count: warrantyRepairs.length,
+      note: warrantyRepairs.length > 0 ? `${inWarranty.length} in warranty` : 'No warranty data yet',
+    },
+  };
+
+  const handleGenerate = async (report: ReportType) => {
+    if (generatingId) return;
+
+    if (report.id === 'staff' && !canSeeStaff) {
+      notify('Not available', 'Only the shop owner can generate the staff report.');
+      return;
+    }
+
+    const data: ReportData = {
+      repairs,
+      customers,
+      inventory,
+      purchases,
+      finance,
+      staff,
+      shopName: user?.businessName ?? undefined,
+    };
+    const built = buildReportHtml(report.id, data);
+    if (!built) return;
+
+    if (built.rowCount === 0) {
+      const messages: Record<string, string> = {
+        warranty: 'No repairs with warranty yet. Warranty details added to repairs will appear here.',
+        technician: 'No repairs have been assigned to technicians yet.',
+      };
+      notify('No data yet', messages[report.id] ?? `There is no data for the ${report.title.toLowerCase()} yet. Add some records first.`);
+      return;
+    }
+
+    setGeneratingId(report.id);
+    try {
+      if (Platform.OS === 'web') {
+        // On web, open the system print dialog (user can save as PDF from there).
+        await Print.printAsync({ html: built.html });
+      } else {
+        const { uri } = await Print.printToFileAsync({ html: built.html });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: built.title,
+            UTI: 'com.adobe.pdf',
+          });
+        } else {
+          await Print.printAsync({ uri });
+        }
+      }
+    } catch (err) {
+      // User cancelling the print/share dialog is not an error worth surfacing.
+      const msg = err instanceof Error ? err.message : '';
+      if (!/cancel|dismiss/i.test(msg)) {
+        notify('Could not generate report', 'Something went wrong while creating the PDF. Please try again.');
+      }
+    } finally {
+      setGeneratingId(null);
+    }
   };
 
   return (
@@ -91,16 +195,22 @@ export default function ReportsScreen() {
         <View style={[styles.bannerCard, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '22', borderRadius: 16 }]}>
           <Feather name="info" size={16} color={colors.primary} />
           <Text style={[styles.bannerText, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>
-            Reports are generated from current data. Export to PDF/Excel coming soon.
+            Tap a report to generate a PDF from your current shop data and share or print it.
           </Text>
         </View>
 
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>AVAILABLE REPORTS</Text>
 
         {REPORT_TYPES.map((report) => {
-          const snap = snapshots[report.id as keyof typeof snapshots];
+          const snap = snapshots[report.id];
+          const busy = generatingId === report.id;
           return (
-            <TouchableOpacity key={report.id} activeOpacity={0.75}>
+            <TouchableOpacity
+              key={report.id}
+              activeOpacity={0.75}
+              onPress={() => handleGenerate(report)}
+              disabled={!!generatingId}
+            >
               <GlassCard style={styles.reportCard}>
                 <View style={[styles.reportIcon, { backgroundColor: report.color + '1A' }]}>
                   <Feather name={report.icon} size={22} color={report.color} />
@@ -109,11 +219,13 @@ export default function ReportsScreen() {
                   <Text style={[styles.reportTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{report.title}</Text>
                   <Text style={[styles.reportDesc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{report.description}</Text>
                   {snap && (
-                    <Text style={[styles.reportMeta, { color: report.color, fontFamily: 'Inter_500Medium' }]}>{snap.note}</Text>
+                    <Text style={[styles.reportMeta, { color: report.color, fontFamily: 'Inter_500Medium' }]}>
+                      {snap.count} record{snap.count === 1 ? '' : 's'} · {snap.note}
+                    </Text>
                   )}
                 </View>
                 <View style={styles.reportRight}>
-                  <Feather name="download" size={16} color={colors.mutedForeground} />
+                  <Feather name={busy ? 'loader' : 'download'} size={16} color={busy ? report.color : colors.mutedForeground} />
                 </View>
               </GlassCard>
             </TouchableOpacity>
