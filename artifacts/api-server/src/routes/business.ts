@@ -65,6 +65,30 @@ export function backdateBlocked(req: Request, res: Response, dateStr: string | n
   return false;
 }
 
+// A book-keeping date must be a real YYYY-MM-DD calendar date and must not be
+// in the future. Returns the normalized date string, or null after sending a
+// 400 response with a clear message.
+export function validBookDateOr400(res: Response, dateStr: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  const bad = (msg: string) => {
+    res.status(400).json({ message: msg, code: "INVALID_DATE" });
+    return null;
+  };
+  if (!m) return bad("Date must be in YYYY-MM-DD format");
+  const [, y, mo, d] = m;
+  const year = Number(y), month = Number(mo), day = Number(d);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return bad("Date is not a valid calendar date");
+  }
+  if (dateStr > todayStr()) return bad("Date cannot be in the future");
+  return dateStr;
+}
+
 // ── Customers ──────────────────────────────────────────────────────────────
 
 function customerOut(c: typeof customersTable.$inferSelect) {
@@ -762,7 +786,17 @@ router.post(
       return;
     }
     const paymentStatus = PAYMENT_STATUSES.includes(b.paymentStatus) ? b.paymentStatus : "unpaid";
-    if (backdateBlocked(req, res, str(b.date))) return;
+    let purchaseDate = todayStr();
+    if (b.date !== undefined) {
+      const raw = typeof b.date === "string" ? b.date.trim() : "";
+      if (!raw) {
+        res.status(400).json({ message: "Date must be in YYYY-MM-DD format", code: "INVALID_DATE" });
+        return;
+      }
+      if (!validBookDateOr400(res, raw)) return;
+      if (backdateBlocked(req, res, raw)) return;
+      purchaseDate = raw;
+    }
 
     const created = await db.transaction(async (tx) => {
       const [{ count }] = await tx
@@ -784,7 +818,7 @@ router.post(
           total: num(b.total),
           paymentStatus,
           paymentMethod: str(b.paymentMethod) ?? "Cash",
-          date: str(b.date) ?? new Date().toISOString().split("T")[0],
+          date: purchaseDate,
         })
         .returning();
       return row;
@@ -817,8 +851,13 @@ router.patch(
     }
     if (b.paymentMethod !== undefined) patch.paymentMethod = str(b.paymentMethod) ?? "Cash";
     if (b.date !== undefined) {
-      if (backdateBlocked(req, res, str(b.date))) return;
-      patch.date = str(b.date) ?? undefined;
+      const dateRaw = str(b.date);
+      if (!dateRaw || !validBookDateOr400(res, dateRaw)) {
+        if (!dateRaw) res.status(400).json({ message: "Date must be in YYYY-MM-DD format", code: "INVALID_DATE" });
+        return;
+      }
+      if (backdateBlocked(req, res, dateRaw)) return;
+      patch.date = dateRaw;
     }
     const [updated] = await db
       .update(purchasesTable)
@@ -877,7 +916,17 @@ router.post(
       res.status(400).json({ message: "Entry type, category and amount are required" });
       return;
     }
-    if (backdateBlocked(req, res, str(b.date))) return;
+    let financeDate = todayStr();
+    if (b.date !== undefined) {
+      const raw = typeof b.date === "string" ? b.date.trim() : "";
+      if (!raw) {
+        res.status(400).json({ message: "Date must be in YYYY-MM-DD format", code: "INVALID_DATE" });
+        return;
+      }
+      if (!validBookDateOr400(res, raw)) return;
+      if (backdateBlocked(req, res, raw)) return;
+      financeDate = raw;
+    }
     const [created] = await db
       .insert(financeEntriesTable)
       .values({
@@ -887,7 +936,7 @@ router.post(
         amount,
         description: str(b.description) ?? "",
         paymentMethod: str(b.paymentMethod) ?? "Cash",
-        date: str(b.date) ?? new Date().toISOString().split("T")[0],
+        date: financeDate,
       })
       .returning();
     res.json({ entry: financeOut(created) });
@@ -921,8 +970,13 @@ router.patch(
     if (b.description !== undefined) patch.description = str(b.description) ?? "";
     if (b.paymentMethod !== undefined) patch.paymentMethod = str(b.paymentMethod) ?? "Cash";
     if (b.date !== undefined) {
-      if (backdateBlocked(req, res, str(b.date))) return;
-      patch.date = str(b.date) ?? undefined;
+      const dateRaw = str(b.date);
+      if (!dateRaw || !validBookDateOr400(res, dateRaw)) {
+        if (!dateRaw) res.status(400).json({ message: "Date must be in YYYY-MM-DD format", code: "INVALID_DATE" });
+        return;
+      }
+      if (backdateBlocked(req, res, dateRaw)) return;
+      patch.date = dateRaw;
     }
     const [updated] = await db
       .update(financeEntriesTable)
