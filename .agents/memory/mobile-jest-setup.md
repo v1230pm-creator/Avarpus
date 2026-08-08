@@ -7,3 +7,4 @@ description: How to make jest-expo work in this pnpm monorepo without hangs
 - Enable `fakeTimers.enableGlobally` in jest config; otherwise RN/screen intervals leave open handles and Jest never exits (reviewers reject `--forceExit`).
 - Mock at the API-client (network) boundary and render the real AuthProvider — reviewers reject tests that mock context methods directly.
 - API tests: Vitest + Supertest against the real dev DB works; mock `../lib/mailer` with vi.mock; run rate-limit lockout tests LAST (in-memory per-IP failure counters poison earlier login tests).
+- Jest testMatch only picks up `__tests__/**/*.test.tsx` — name new test files .test.tsx even when they contain no JSX, or they silently never run.
