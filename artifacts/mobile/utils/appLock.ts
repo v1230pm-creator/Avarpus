@@ -29,6 +29,27 @@ export function setUnlocked(value: boolean) {
   });
 }
 
+/**
+ * How long the app may stay in the background before it re-locks.
+ * Short interruptions (permission dialogs, quick app switches) stay under
+ * this and do not force a re-unlock.
+ */
+export const BACKGROUND_RELOCK_GRACE_MS = 30 * 1000;
+
+/**
+ * Pure decision helper: should the app re-lock given when it was backgrounded?
+ * `backgroundedAtMs` is null when the app never actually entered background
+ * (e.g. an iOS `inactive` blip from a permission dialog or control center).
+ */
+export function shouldRelockAfterBackground(
+  backgroundedAtMs: number | null,
+  nowMs: number,
+  graceMs: number = BACKGROUND_RELOCK_GRACE_MS,
+): boolean {
+  if (backgroundedAtMs == null) return false;
+  return nowMs - backgroundedAtMs >= graceMs;
+}
+
 /** Subscribe to unlock-state changes. Returns an unsubscribe function. */
 export function subscribeLockState(listener: LockListener): () => void {
   listeners.add(listener);

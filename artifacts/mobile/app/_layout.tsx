@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { BackgroundRelock } from '@/components/BackgroundRelock';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import {
   Inter_400Regular,
@@ -59,7 +60,9 @@ export default function RootLayout() {
             <DataProvider>
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <KeyboardProvider>
-                  <RootLayoutNav />
+                  <BackgroundRelock>
+                    <RootLayoutNav />
+                  </BackgroundRelock>
                 </KeyboardProvider>
               </GestureHandlerRootView>
             </DataProvider>
