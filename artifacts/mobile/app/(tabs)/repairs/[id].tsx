@@ -220,8 +220,9 @@ export default function RepairDetailScreen() {
 
   const handleStatusUpdate = async (newStatus: string) => {
     if (newStatus === 'delivered') {
+      // Same modal-swap rule: let the status picker dismiss first.
       setShowStatusPicker(false);
-      setShowDeliveryHandover(true);
+      setTimeout(() => setShowDeliveryHandover(true), 350);
       return;
     }
     if (updating) return;
@@ -242,8 +243,11 @@ export default function RepairDetailScreen() {
   };
 
   const handleHandoverProceed = () => {
+    // RN can't swap two <Modal>s in the same tick — the signature modal
+    // silently fails to appear if opened before the handover modal has
+    // finished dismissing. Close first, then open after the transition.
     setShowDeliveryHandover(false);
-    setShowDeliverySig(true);
+    setTimeout(() => setShowDeliverySig(true), 350);
   };
 
   const handleAddPart = async () => {
