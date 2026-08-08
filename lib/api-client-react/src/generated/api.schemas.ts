@@ -33,14 +33,27 @@ export interface OtpVerifyInput {
   device?: string;
 }
 
+export type RegisterStartInputRole = typeof RegisterStartInputRole[keyof typeof RegisterStartInputRole];
+
+
+export const RegisterStartInputRole = {
+  dealer: 'dealer',
+  reception: 'reception',
+  technician: 'technician',
+  store_manager: 'store_manager',
+  accountant: 'accountant',
+} as const;
+
 export interface RegisterStartInput {
   name: string;
-  businessName: string;
+  businessName?: string;
   email: string;
   mobile: string;
   password: string;
   gstNumber?: string;
-  shopAddress: string;
+  shopAddress?: string;
+  role?: RegisterStartInputRole;
+  dealerMobile?: string;
 }
 
 export interface RegisterVerifyInput {
@@ -102,6 +115,13 @@ export interface StaffCreateInput {
   password: string;
   role: StaffCreateInputRole;
   designation?: string;
+}
+
+export interface RegisterVerifyResult {
+  token?: string;
+  user?: AuthUser;
+  pending?: boolean;
+  message?: string;
 }
 
 export interface AuthSession {
@@ -361,6 +381,10 @@ export type StaffList200 = {
 };
 
 export type StaffCreate200 = {
+  user: AuthUser;
+};
+
+export type StaffActivate200 = {
   user: AuthUser;
 };
 

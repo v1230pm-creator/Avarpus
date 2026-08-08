@@ -121,4 +121,73 @@ router.post(
   }),
 );
 
+// ── Shared guard: load a staff user the caller may manage ─────────────────
+async function loadManagedStaff(me: DbUser, id: string): Promise<
+  { ok: true; target: DbUser } | { ok: false; status: number; message: string }
+> {
+  const rows = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
+  const target = rows[0];
+  if (!target) return { ok: false, status: 404, message: "Account not found" };
+  if (target.id === me.id) {
+    return { ok: false, status: 400, message: "You cannot manage your own account here" };
+  }
+  if (target.role === "super_admin") {
+    return { ok: false, status: 403, message: "This account cannot be managed" };
+  }
+  // Dealers may only manage accounts inside their own shop. super_admin
+  // (no shop of their own) oversees all shops.
+  if (me.role !== "super_admin" && (!me.shopId || target.shopId !== me.shopId)) {
+    return { ok: false, status: 404, message: "Account not found" };
+  }
+  return { ok: true, target };
+}
+
+// ── Approve a pending staff account ───────────────────────────────────────
+router.patch(
+  "/staff/:id/activate",
+  requireAuth,
+  requireRole("dealer", "super_admin"),
+  asyncHandler(async (req, res) => {
+    const me = (req as AuthedRequest).user;
+    const check = await loadManagedStaff(me, String(req.params.id));
+    if (!check.ok) {
+      res.status(check.status).json({ message: check.message });
+      return;
+    }
+    if (check.target.isActive) {
+      res.json({ user: publicUser(check.target) });
+      return;
+    }
+    const [updated] = await db
+      .update(usersTable)
+      .set({ isActive: true })
+      .where(eq(usersTable.id, check.target.id))
+      .returning();
+    res.json({ user: publicUser(updated) });
+  }),
+);
+
+// ── Reject (delete) a pending staff account ───────────────────────────────
+router.delete(
+  "/staff/:id",
+  requireAuth,
+  requireRole("dealer", "super_admin"),
+  asyncHandler(async (req, res) => {
+    const me = (req as AuthedRequest).user;
+    const check = await loadManagedStaff(me, String(req.params.id));
+    if (!check.ok) {
+      res.status(check.status).json({ message: check.message });
+      return;
+    }
+    if (check.target.isActive) {
+      res.status(400).json({
+        message: "Only pending (inactive) accounts can be rejected",
+      });
+      return;
+    }
+    await db.delete(usersTable).where(eq(usersTable.id, check.target.id));
+    res.json({ message: "Registration rejected and account removed" });
+  }),
+);
+
 export default router;

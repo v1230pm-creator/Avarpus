@@ -50,6 +50,7 @@ import type {
   PurchasesList200,
   RegisterStartInput,
   RegisterVerifyInput,
+  RegisterVerifyResult,
   RepairEventsList200,
   RepairInput,
   RepairPhotoInput,
@@ -58,6 +59,7 @@ import type {
   RepairsCreate200,
   RepairsList200,
   RepairsUpdate200,
+  StaffActivate200,
   StaffCreate200,
   StaffCreateInput,
   StaffList200,
@@ -387,9 +389,9 @@ export const getAuthRegisterVerifyUrl = () => {
 /**
  * @summary Verify email OTP and create the account
  */
-export const authRegisterVerify = async (registerVerifyInput: RegisterVerifyInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthSession> => {
+export const authRegisterVerify = async (registerVerifyInput: RegisterVerifyInput, options?: Parameters<typeof customFetch>[1]): Promise<RegisterVerifyResult> => {
 
-  return customFetch<AuthSession>(getAuthRegisterVerifyUrl(),
+  return customFetch<RegisterVerifyResult>(getAuthRegisterVerifyUrl(),
   {
     ...options,
     method: 'POST',
@@ -883,6 +885,148 @@ export const useStaffCreate = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getStaffCreateMutationOptions(options));
+    }
+
+export const getStaffActivateUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/${id}/activate`
+}
+
+/**
+ * @summary Approve a pending staff account (dealer/super_admin only)
+ */
+export const staffActivate = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<StaffActivate200> => {
+
+  return customFetch<StaffActivate200>(getStaffActivateUrl(id),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getStaffActivateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof staffActivate>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof staffActivate>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['staffActivate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof staffActivate>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  staffActivate(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StaffActivateMutationResult = NonNullable<Awaited<ReturnType<typeof staffActivate>>>
+
+    export type StaffActivateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Approve a pending staff account (dealer/super_admin only)
+ */
+export const useStaffActivate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof staffActivate>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof staffActivate>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getStaffActivateMutationOptions(options));
+    }
+
+export const getStaffRejectUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/${id}`
+}
+
+/**
+ * @summary Reject and remove a pending staff account (dealer/super_admin only)
+ */
+export const staffReject = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
+
+  return customFetch<Message>(getStaffRejectUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getStaffRejectMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof staffReject>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof staffReject>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['staffReject'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof staffReject>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  staffReject(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StaffRejectMutationResult = NonNullable<Awaited<ReturnType<typeof staffReject>>>
+
+    export type StaffRejectMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Reject and remove a pending staff account (dealer/super_admin only)
+ */
+export const useStaffReject = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof staffReject>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof staffReject>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getStaffRejectMutationOptions(options));
     }
 
 export const getAuthLoginHistoryUrl = () => {

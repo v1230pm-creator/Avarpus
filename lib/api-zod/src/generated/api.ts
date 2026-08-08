@@ -87,12 +87,14 @@ export const AuthOtpVerifyResponse = zod.object({
  */
 export const AuthRegisterStartBody = zod.object({
   "name": zod.string(),
-  "businessName": zod.string(),
+  "businessName": zod.string().optional(),
   "email": zod.string(),
   "mobile": zod.string(),
   "password": zod.string(),
   "gstNumber": zod.string().optional(),
-  "shopAddress": zod.string()
+  "shopAddress": zod.string().optional(),
+  "role": zod.enum(['dealer', 'reception', 'technician', 'store_manager', 'accountant']).optional(),
+  "dealerMobile": zod.string().optional()
 })
 
 export const AuthRegisterStartResponse = zod.object({
@@ -109,7 +111,7 @@ export const AuthRegisterVerifyBody = zod.object({
 })
 
 export const AuthRegisterVerifyResponse = zod.object({
-  "token": zod.string(),
+  "token": zod.string().optional(),
   "user": zod.object({
   "id": zod.string(),
   "name": zod.string(),
@@ -125,7 +127,9 @@ export const AuthRegisterVerifyResponse = zod.object({
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional()
-})
+}).optional(),
+  "pending": zod.boolean().optional(),
+  "message": zod.string().optional()
 })
 
 
@@ -243,6 +247,45 @@ export const StaffCreateResponse = zod.object({
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional()
 })
+})
+
+
+/**
+ * @summary Approve a pending staff account (dealer/super_admin only)
+ */
+export const StaffActivateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const StaffActivateResponse = zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional()
+})
+})
+
+
+/**
+ * @summary Reject and remove a pending staff account (dealer/super_admin only)
+ */
+export const StaffRejectParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const StaffRejectResponse = zod.object({
+  "message": zod.string()
 })
 
 

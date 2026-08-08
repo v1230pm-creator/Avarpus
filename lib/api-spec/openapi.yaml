@@ -105,11 +105,13 @@ paths:
               $ref: "#/components/schemas/RegisterVerifyInput"
       responses:
         "200":
-          description: Dealer account created and signed in
+          description: >
+            Dealer accounts are created and signed in (token + user).
+            Staff accounts are created pending approval (pending + message, no token).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthSession"
+                $ref: "#/components/schemas/RegisterVerifyResult"
   /auth/forgot/request:
     post:
       operationId: authForgotRequest
@@ -222,6 +224,44 @@ paths:
                   user:
                     $ref: "#/components/schemas/AuthUser"
                 required: [user]
+  /staff/{id}/activate:
+    patch:
+      operationId: staffActivate
+      tags: [auth]
+      summary: Approve a pending staff account (dealer/super_admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Activated account
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/AuthUser"
+                required: [user]
+  /staff/{id}:
+    delete:
+      operationId: staffReject
+      tags: [auth]
+      summary: Reject and remove a pending staff account (dealer/super_admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Account removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
   /auth/login-history:
     get:
       operationId: authLoginHistory
@@ -780,7 +820,11 @@ components:
         password: { type: string }
         gstNumber: { type: string }
         shopAddress: { type: string }
-      required: [name, businessName, email, mobile, password, shopAddress]
+        role:
+          type: string
+          enum: [dealer, reception, technician, store_manager, accountant]
+        dealerMobile: { type: string }
+      required: [name, email, mobile, password]
     RegisterVerifyInput:
       type: object
       properties:
@@ -838,6 +882,14 @@ components:
         role: { type: string, enum: [reception, technician, store_manager, accountant] }
         designation: { type: string }
       required: [name, email, mobile, password, role]
+    RegisterVerifyResult:
+      type: object
+      properties:
+        token: { type: string }
+        user:
+          $ref: "#/components/schemas/AuthUser"
+        pending: { type: boolean }
+        message: { type: string }
     AuthSession:
       type: object
       properties:

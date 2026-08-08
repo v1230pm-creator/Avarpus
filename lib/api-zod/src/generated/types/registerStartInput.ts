@@ -5,13 +5,16 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { RegisterStartInputRole } from './registerStartInputRole';
 
 export interface RegisterStartInput {
   name: string;
-  businessName: string;
+  businessName?: string;
   email: string;
   mobile: string;
   password: string;
   gstNumber?: string;
-  shopAddress: string;
+  shopAddress?: string;
+  role?: RegisterStartInputRole;
+  dealerMobile?: string;
 }

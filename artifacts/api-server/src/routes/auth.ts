@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, or } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { db, otpCodesTable, shopsTable, usersTable } from "@workspace/db";
 import {
   consumeOtp,
@@ -32,6 +32,10 @@ import { asyncHandler } from "../lib/asyncHandler";
 const router: IRouter = Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Roles a public STAFF registration may request. Dealer/admin/super_admin
+// can never be requested here.
+const STAFF_ROLES = ["reception", "technician", "store_manager", "accountant"] as const;
 
 function validPassword(p: unknown): p is string {
   return (
@@ -179,21 +183,32 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
     gstNumber,
     shopAddress,
     role,
+    dealerMobile,
   } = req.body ?? {};
-  // Any attempt to request a non-dealer role via the API is rejected outright.
-  if (role !== undefined && role !== "dealer") {
+  // Public registration creates either a DEALER (shop owner) account, or a
+  // STAFF account that joins an existing dealer's shop in a PENDING
+  // (isActive: false) state until the dealer/super_admin approves it.
+  // Admin/super_admin roles can never be requested here.
+  const isStaffRegistration =
+    typeof role === "string" && (STAFF_ROLES as readonly string[]).includes(role);
+  if (role !== undefined && role !== "dealer" && !isStaffRegistration) {
     res.status(403).json({
-      message: "Public registration creates dealer accounts only. Staff accounts are created by your dealer.",
+      message: "Registration is limited to dealer or staff roles (reception, technician, store manager, accountant).",
     });
     return;
   }
   if (
     typeof name !== "string" || !name.trim() ||
-    typeof businessName !== "string" || !businessName.trim() ||
     typeof email !== "string" || !EMAIL_RE.test(email.trim()) ||
-    typeof mobile !== "string" || !/^\d{10}$/.test(mobile) ||
-    typeof shopAddress !== "string" || !shopAddress.trim()
+    typeof mobile !== "string" || !/^\d{10}$/.test(mobile)
   ) {
+    res.status(400).json({ message: "Missing or invalid registration details" });
+    return;
+  }
+  if (!isStaffRegistration && (
+    typeof businessName !== "string" || !businessName.trim() ||
+    typeof shopAddress !== "string" || !shopAddress.trim()
+  )) {
     res.status(400).json({ message: "Missing or invalid registration details" });
     return;
   }
@@ -206,6 +221,24 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
   if (typeof gstNumber === "string" && gstNumber.trim() && gstNumber.trim().length !== 15) {
     res.status(400).json({ message: "GST number must be 15 characters" });
     return;
+  }
+  // Staff must identify the shop they are joining by the owner's registered mobile.
+  let staffShopId: string | null = null;
+  if (isStaffRegistration) {
+    if (typeof dealerMobile !== "string" || !/^\d{10}$/.test(dealerMobile)) {
+      res.status(400).json({ message: "Enter your shop owner's 10-digit registered mobile number" });
+      return;
+    }
+    const dealers = await db
+      .select({ shopId: usersTable.shopId })
+      .from(usersTable)
+      .where(and(eq(usersTable.mobile, dealerMobile), eq(usersTable.role, "dealer")))
+      .limit(1);
+    if (!dealers[0]?.shopId) {
+      res.status(404).json({ message: "No shop found for that owner mobile number. Check with your shop owner." });
+      return;
+    }
+    staffShopId = dealers[0].shopId;
   }
   const normEmail = email.trim().toLowerCase();
   const existing = await db
@@ -226,13 +259,16 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
     return;
   }
   const code = await createOtp(normEmail, "register", {
+    kind: isStaffRegistration ? "staff" : "dealer",
     name: name.trim(),
-    businessName: businessName.trim(),
+    businessName: isStaffRegistration ? null : (businessName as string).trim(),
     email: normEmail,
     mobile,
     passwordHash: hashPassword(password),
     gstNumber: typeof gstNumber === "string" && gstNumber.trim() ? gstNumber.trim() : null,
-    shopAddress: shopAddress.trim(),
+    shopAddress: isStaffRegistration ? null : (shopAddress as string).trim(),
+    role: isStaffRegistration ? (role as string) : "dealer",
+    shopId: staffShopId,
   });
   try {
     await sendOtpEmail(normEmail, code, "registration");
@@ -263,13 +299,16 @@ router.post("/auth/register/verify", asyncHandler(async (req, res) => {
     return;
   }
   const p = result.payload as {
+    kind?: "dealer" | "staff";
     name: string;
-    businessName: string;
+    businessName: string | null;
     email: string;
     mobile: string;
     passwordHash: string;
     gstNumber: string | null;
-    shopAddress: string;
+    shopAddress: string | null;
+    role?: string;
+    shopId?: string | null;
   };
   // Re-check uniqueness right before insert
   const existing = await db
@@ -279,6 +318,44 @@ router.post("/auth/register/verify", asyncHandler(async (req, res) => {
     .limit(1);
   if (existing.length > 0) {
     res.status(409).json({ message: "Account with this email or mobile already exists" });
+    return;
+  }
+  // ── Staff path: create a PENDING account in the dealer's shop ──────────
+  // The account stays isActive: false (cannot sign in) until the dealer or
+  // super_admin approves it from the Staff screen. No session is issued.
+  if (p.kind === "staff") {
+    const role = typeof p.role === "string" && (STAFF_ROLES as readonly string[]).includes(p.role)
+      ? p.role
+      : null;
+    if (!role || !p.shopId) {
+      res.status(400).json({ message: "Invalid staff registration request" });
+      return;
+    }
+    // Ensure the shop still exists (dealer could have been removed meanwhile)
+    const shops = await db
+      .select({ id: shopsTable.id })
+      .from(shopsTable)
+      .where(eq(shopsTable.id, p.shopId))
+      .limit(1);
+    if (shops.length === 0) {
+      res.status(404).json({ message: "The shop you tried to join no longer exists" });
+      return;
+    }
+    const [created] = await db.insert(usersTable).values({
+      name: p.name,
+      email: p.email,
+      mobile: p.mobile,
+      passwordHash: p.passwordHash,
+      role,
+      shopId: p.shopId,
+      isActive: false, // pending approval by dealer/super_admin
+      joinDate: new Date().toISOString().split("T")[0],
+    }).returning();
+    res.json({
+      pending: true,
+      message: "Registration submitted. Your account is pending approval by your shop owner.",
+      user: publicUser(created),
+    });
     return;
   }
   // Role is ALWAYS dealer for public registration — never taken from input.
@@ -294,16 +371,16 @@ router.post("/auth/register/verify", asyncHandler(async (req, res) => {
       isActive: true, // dealers are active immediately (email is verified)
       designation: "Owner",
       joinDate: new Date().toISOString().split("T")[0],
-      businessName: p.businessName,
+      businessName: p.businessName ?? "",
       gstNumber: p.gstNumber,
-      shopAddress: p.shopAddress,
+      shopAddress: p.shopAddress ?? "",
     }).returning();
     // Auto-provision the dealer's shop (default workspace + default settings)
     const [shop] = await tx.insert(shopsTable).values({
       dealerId: created.id,
-      businessName: p.businessName,
+      businessName: p.businessName ?? "",
       gstNumber: p.gstNumber,
-      address: p.shopAddress,
+      address: p.shopAddress ?? "",
       settings: {
         currency: "INR",
         timezone: "Asia/Kolkata",
