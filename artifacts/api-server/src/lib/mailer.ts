@@ -4,6 +4,25 @@
 
 import { ReplitConnectors } from "@replit/connectors-sdk";
 
+// Sender address is driven by the MAIL_FROM env secret. Until a verified
+// domain is configured in Resend, fall back to Resend's shared onboarding
+// sender, which can only deliver to the Resend account owner's email.
+const FALLBACK_FROM = "VMC Electronic BMS <onboarding@resend.dev>";
+
+export function getMailFrom(): string {
+  return process.env["MAIL_FROM"] || FALLBACK_FROM;
+}
+
+export function warnIfMailFromUnset(): void {
+  if (!process.env["MAIL_FROM"]) {
+    console.warn(
+      `[mailer] MAIL_FROM is not set — falling back to "${FALLBACK_FROM}". ` +
+        "Emails will only be delivered to the Resend account owner. " +
+        "Verify a domain in the Resend dashboard and set MAIL_FROM (see replit.md).",
+    );
+  }
+}
+
 export async function sendOtpEmail(
   to: string,
   code: string,
@@ -54,7 +73,7 @@ async function sendEmail(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      from: process.env["MAIL_FROM"] ?? "VMC Electronic BMS <noreply@vmcelectronic.com>",
+      from: getMailFrom(),
       to: [to],
       subject,
       html,

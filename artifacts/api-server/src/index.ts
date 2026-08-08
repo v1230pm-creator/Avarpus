@@ -5,6 +5,7 @@ import { db } from "@workspace/db";
 import { logger } from "./lib/logger";
 import { seedUsersIfEmpty } from "./lib/seed";
 import { cleanupExpiredAuthData } from "./lib/authUtils";
+import { warnIfMailFromUnset } from "./lib/mailer";
 
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // daily
 
@@ -48,6 +49,8 @@ migrate(db, { migrationsFolder })
       }
 
       logger.info({ port }, "Server listening");
+
+      warnIfMailFromUnset();
 
       seedUsersIfEmpty().catch((err) => {
         logger.error({ err }, "Failed to seed initial users");

@@ -10,6 +10,18 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
+- Optional env: `MAIL_FROM` — verified email sender for OTP emails (see "Email sender configuration" below)
+
+## Email sender configuration
+
+OTP emails are sent via the Resend integration. The sender address comes from the `MAIL_FROM` environment secret:
+
+- If `MAIL_FROM` is not set, the server falls back to `VMC Electronic BMS <onboarding@resend.dev>` and logs a startup warning. With this fallback, Resend only delivers to the Resend account owner's own email address — real users will NOT receive OTPs.
+- To send to real users:
+  1. Verify your domain (e.g. `vmcelectronic.in`) in the Resend dashboard (Domains → Add Domain, then add the DNS records it shows).
+  2. Set the `MAIL_FROM` secret to a sender on that domain, e.g. `VMC Electronic BMS <noreply@vmcelectronic.in>`.
+  3. Restart the API server.
+- Changing the sender requires only updating the secret — no code deploy.
 
 ## Stack
 
