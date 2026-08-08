@@ -1,6 +1,8 @@
-// Integration tests for staff approval/rejection email notifications.
-// Verifies the correct email/template is triggered and that mail failures
-// never block the approve/reject actions. Email delivery is mocked.
+// Integration tests for staff approval/rejection.
+// Covers (1) email notifications: correct template triggered, mail failures
+// never block approve/reject; (2) login outcomes: approved staff can sign in,
+// pending/rejected staff cannot; (3) shop isolation: an unrelated dealer
+// cannot approve or reject another shop's staff. Email delivery is mocked.
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { eq, like } from "drizzle-orm";
@@ -38,6 +40,8 @@ const mail = (tag: string) => `staffmail-${tag}-${RUN}@example.test`;
 
 let dealerToken: string;
 let dealerShopId: string;
+let otherDealerToken: string;
+let otherDealerShopId: string;
 
 async function createPendingStaff(tag: string, mobilePrefix: string) {
   const [row] = await db
@@ -79,6 +83,33 @@ beforeAll(async () => {
     .send({ emailOrMobile: mail("dealer"), password: PASSWORD });
   expect(login.status).toBe(200);
   dealerToken = login.body.token;
+
+  // A second, unrelated dealer + shop for shop-isolation tests.
+  const [otherDealer] = await db
+    .insert(usersTable)
+    .values({
+      name: "Other Shop Dealer",
+      email: mail("dealer2"),
+      mobile: mob("90"),
+      passwordHash: hashPassword(PASSWORD),
+      role: "dealer",
+      isActive: true,
+    })
+    .returning();
+  const [otherShop] = await db
+    .insert(shopsTable)
+    .values({ dealerId: otherDealer.id, businessName: "Other Mail Shop", address: "Other Lane" })
+    .returning();
+  otherDealerShopId = otherShop.id;
+  await db
+    .update(usersTable)
+    .set({ shopId: otherDealerShopId })
+    .where(eq(usersTable.id, otherDealer.id));
+  const otherLogin = await request(app)
+    .post("/api/auth/login")
+    .send({ emailOrMobile: mail("dealer2"), password: PASSWORD });
+  expect(otherLogin.status).toBe(200);
+  otherDealerToken = otherLogin.body.token;
 });
 
 afterAll(async () => {
@@ -91,6 +122,7 @@ afterAll(async () => {
     await db.delete(loginEventsTable).where(eq(loginEventsTable.userId, id));
   }
   await db.delete(shopsTable).where(eq(shopsTable.id, dealerShopId));
+  await db.delete(shopsTable).where(eq(shopsTable.id, otherDealerShopId));
   for (const { id } of created) {
     await db.delete(usersTable).where(eq(usersTable.id, id));
   }
@@ -171,6 +203,86 @@ describe("DELETE /api/staff/:id — rejection email", () => {
     await db.update(usersTable).set({ isActive: true }).where(eq(usersTable.id, staff.id));
     const res = await auth(request(app).delete(`/api/staff/${staff.id}`));
     expect(res.status).toBe(400);
+    await flush();
+    expect(sendStaffRejectedEmailMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("staff approval → login outcomes", () => {
+  it("approved staff can sign in", async () => {
+    const staff = await createPendingStaff("login-approved", "91");
+
+    // Sanity: pending accounts are locked out with 403.
+    const before = await request(app)
+      .post("/api/auth/login")
+      .send({ emailOrMobile: staff.email, password: PASSWORD });
+    expect(before.status).toBe(403);
+    expect(before.body.message).toMatch(/pending/i);
+
+    const approve = await auth(request(app).patch(`/api/staff/${staff.id}/activate`));
+    expect(approve.status).toBe(200);
+
+    const after = await request(app)
+      .post("/api/auth/login")
+      .send({ emailOrMobile: staff.email, password: PASSWORD });
+    expect(after.status).toBe(200);
+    expect(typeof after.body.token).toBe("string");
+    expect(after.body.user.id).toBe(staff.id);
+    expect(after.body.user.isActive).toBe(true);
+  });
+
+  it("rejected staff cannot sign in (account removed)", async () => {
+    const staff = await createPendingStaff("login-rejected", "92");
+    const reject = await auth(request(app).delete(`/api/staff/${staff.id}`));
+    expect(reject.status).toBe(200);
+
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ emailOrMobile: staff.email, password: PASSWORD });
+    expect(login.status).toBe(401);
+    expect(login.body.token).toBeUndefined();
+  });
+
+  it("staff deactivated after approval cannot sign in", async () => {
+    const staff = await createPendingStaff("login-deactivated", "93");
+    await auth(request(app).patch(`/api/staff/${staff.id}/activate`));
+    // Dealer later deactivates the account again.
+    await db.update(usersTable).set({ isActive: false }).where(eq(usersTable.id, staff.id));
+
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ emailOrMobile: staff.email, password: PASSWORD });
+    expect(login.status).toBe(403);
+    expect(login.body.token).toBeUndefined();
+  });
+});
+
+describe("shop isolation for staff management", () => {
+  const otherAuth = (r: request.Test) => r.set("Authorization", `Bearer ${otherDealerToken}`);
+
+  it("an unrelated dealer cannot approve another shop's pending staff", async () => {
+    const staff = await createPendingStaff("cross-approve", "94");
+    const res = await otherAuth(request(app).patch(`/api/staff/${staff.id}/activate`));
+    expect(res.status).toBe(404);
+
+    // The account stays pending and still cannot sign in.
+    const [row] = await db.select().from(usersTable).where(eq(usersTable.id, staff.id));
+    expect(row.isActive).toBe(false);
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ emailOrMobile: staff.email, password: PASSWORD });
+    expect(login.status).toBe(403);
+    await flush();
+    expect(sendStaffApprovedEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("an unrelated dealer cannot reject another shop's pending staff", async () => {
+    const staff = await createPendingStaff("cross-reject", "95");
+    const res = await otherAuth(request(app).delete(`/api/staff/${staff.id}`));
+    expect(res.status).toBe(404);
+
+    const rows = await db.select().from(usersTable).where(eq(usersTable.id, staff.id));
+    expect(rows).toHaveLength(1);
     await flush();
     expect(sendStaffRejectedEmailMock).not.toHaveBeenCalled();
   });
