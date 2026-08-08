@@ -29,6 +29,8 @@ export type RepairStatus =
   | 'waiting_parts'
   | 'repairing'
   | 'testing'
+  | 'customer_approval'
+  | 'cannot_repair'
   | 'ready'
   | 'delivered'
   | 'cancelled';
@@ -41,10 +43,12 @@ export interface Repair {
   customerId: string;
   customerName: string;
   mobile: string;
+  alternateMobile?: string;
   deviceType: string;
   brand: string;
   model: string;
   imei?: string;
+  accessories?: string;
   problem: string;
   technicianId?: string;
   technicianName?: string;
@@ -62,6 +66,11 @@ export interface Repair {
   warrantyExpiry?: string;
   receivingSignaturePath?: string;
   deliverySignaturePath?: string;
+  receivedById?: string;
+  receivedByName?: string;
+  deliveredById?: string;
+  deliveredByName?: string;
+  paymentMethod?: string;
   isSample?: boolean;
   createdAt: string;
 }

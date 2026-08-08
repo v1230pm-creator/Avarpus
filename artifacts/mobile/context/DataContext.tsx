@@ -144,6 +144,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       brand: r.brand,
       model: r.model,
       imei: r.imei,
+      alternateMobile: r.alternateMobile,
+      accessories: r.accessories,
       problem: r.problem,
       technicianId: r.technicianId,
       technicianName: r.technicianName,
@@ -170,6 +172,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   });
 
   const updateRepair = async (r: Repair) => guarded('update the repair', async () => {
+    // partsCharge is server-derived once parts are tracked in the ledger —
+    // only send it when it actually changed, or the server rejects the patch.
+    const current = repairs.find((x) => x.id === r.id);
     const res = await repairsUpdate(r.id, {
       customerName: r.customerName,
       mobile: r.mobile,
@@ -177,13 +182,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       brand: r.brand,
       model: r.model,
       imei: r.imei,
+      alternateMobile: r.alternateMobile,
+      accessories: r.accessories,
+      paymentMethod: r.paymentMethod,
       problem: r.problem,
       technicianId: r.technicianId,
       technicianName: r.technicianName,
       status: r.status,
       priority: r.priority,
       repairCharge: r.repairCharge,
-      partsCharge: r.partsCharge,
+      ...(current && current.partsCharge === r.partsCharge ? {} : { partsCharge: r.partsCharge }),
       advance: r.advance,
       receiveDate: r.receiveDate,
       expectedDate: r.expectedDate,

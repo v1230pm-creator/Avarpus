@@ -15,6 +15,8 @@ export interface RepairInput {
   brand?: string;
   model?: string;
   imei?: string;
+  alternateMobile?: string;
+  accessories?: string;
   problem?: string;
   technicianId?: string;
   technicianName?: string;
@@ -31,4 +33,5 @@ export interface RepairInput {
   receivingSignaturePath?: string;
   deliverySignaturePath?: string;
   warrantyDays?: number;
+  paymentMethod?: string;
 }

@@ -431,6 +431,8 @@ export const RepairsListResponse = zod.object({
   "brand": zod.string(),
   "model": zod.string(),
   "imei": zod.string().optional(),
+  "alternateMobile": zod.string().optional(),
+  "accessories": zod.string().optional(),
   "problem": zod.string(),
   "technicianId": zod.string().optional(),
   "technicianName": zod.string().optional(),
@@ -448,6 +450,11 @@ export const RepairsListResponse = zod.object({
   "deliverySignaturePath": zod.string().optional(),
   "warrantyDays": zod.number(),
   "warrantyExpiry": zod.string().optional(),
+  "receivedById": zod.string().optional(),
+  "receivedByName": zod.string().optional(),
+  "deliveredById": zod.string().optional(),
+  "deliveredByName": zod.string().optional(),
+  "paymentMethod": zod.string().optional(),
   "isSample": zod.boolean(),
   "createdAt": zod.string()
 }))
@@ -465,6 +472,8 @@ export const RepairsCreateBody = zod.object({
   "brand": zod.string().optional(),
   "model": zod.string().optional(),
   "imei": zod.string().optional(),
+  "alternateMobile": zod.string().optional(),
+  "accessories": zod.string().optional(),
   "problem": zod.string().optional(),
   "technicianId": zod.string().optional(),
   "technicianName": zod.string().optional(),
@@ -480,7 +489,8 @@ export const RepairsCreateBody = zod.object({
   "checklist": zod.record(zod.string(), zod.boolean()).optional(),
   "receivingSignaturePath": zod.string().optional(),
   "deliverySignaturePath": zod.string().optional(),
-  "warrantyDays": zod.number().optional()
+  "warrantyDays": zod.number().optional(),
+  "paymentMethod": zod.string().optional()
 })
 
 export const RepairsCreateResponse = zod.object({
@@ -494,6 +504,8 @@ export const RepairsCreateResponse = zod.object({
   "brand": zod.string(),
   "model": zod.string(),
   "imei": zod.string().optional(),
+  "alternateMobile": zod.string().optional(),
+  "accessories": zod.string().optional(),
   "problem": zod.string(),
   "technicianId": zod.string().optional(),
   "technicianName": zod.string().optional(),
@@ -511,6 +523,11 @@ export const RepairsCreateResponse = zod.object({
   "deliverySignaturePath": zod.string().optional(),
   "warrantyDays": zod.number(),
   "warrantyExpiry": zod.string().optional(),
+  "receivedById": zod.string().optional(),
+  "receivedByName": zod.string().optional(),
+  "deliveredById": zod.string().optional(),
+  "deliveredByName": zod.string().optional(),
+  "paymentMethod": zod.string().optional(),
   "isSample": zod.boolean(),
   "createdAt": zod.string()
 })
@@ -532,6 +549,8 @@ export const RepairsUpdateBody = zod.object({
   "brand": zod.string().optional(),
   "model": zod.string().optional(),
   "imei": zod.string().optional(),
+  "alternateMobile": zod.string().optional(),
+  "accessories": zod.string().optional(),
   "problem": zod.string().optional(),
   "technicianId": zod.string().optional(),
   "technicianName": zod.string().optional(),
@@ -547,7 +566,8 @@ export const RepairsUpdateBody = zod.object({
   "checklist": zod.record(zod.string(), zod.boolean()).optional(),
   "receivingSignaturePath": zod.string().optional(),
   "deliverySignaturePath": zod.string().optional(),
-  "warrantyDays": zod.number().optional()
+  "warrantyDays": zod.number().optional(),
+  "paymentMethod": zod.string().optional()
 })
 
 export const RepairsUpdateResponse = zod.object({
@@ -561,6 +581,8 @@ export const RepairsUpdateResponse = zod.object({
   "brand": zod.string(),
   "model": zod.string(),
   "imei": zod.string().optional(),
+  "alternateMobile": zod.string().optional(),
+  "accessories": zod.string().optional(),
   "problem": zod.string(),
   "technicianId": zod.string().optional(),
   "technicianName": zod.string().optional(),
@@ -578,6 +600,11 @@ export const RepairsUpdateResponse = zod.object({
   "deliverySignaturePath": zod.string().optional(),
   "warrantyDays": zod.number(),
   "warrantyExpiry": zod.string().optional(),
+  "receivedById": zod.string().optional(),
+  "receivedByName": zod.string().optional(),
+  "deliveredById": zod.string().optional(),
+  "deliveredByName": zod.string().optional(),
+  "paymentMethod": zod.string().optional(),
   "isSample": zod.boolean(),
   "createdAt": zod.string()
 })
@@ -622,6 +649,57 @@ export const RepairPhotosAddResponse = zod.object({
   "kind": zod.enum(['front', 'back', 'left', 'right', 'top', 'bottom', 'damage', 'bill', 'customer_id', 'other']),
   "objectPath": zod.string(),
   "uploadedByName": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary List parts consumed on a repair
+ */
+export const RepairPartsListParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RepairPartsListResponse = zod.object({
+  "parts": zod.array(zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "inventoryItemId": zod.string().optional(),
+  "partName": zod.string(),
+  "quantity": zod.number(),
+  "unitCost": zod.number(),
+  "totalCost": zod.number(),
+  "addedByName": zod.string().optional(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Record a part used on a repair (deducts inventory)
+ */
+export const RepairPartsAddParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RepairPartsAddBody = zod.object({
+  "inventoryItemId": zod.string().optional(),
+  "partName": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitCost": zod.number().optional()
+})
+
+export const RepairPartsAddResponse = zod.object({
+  "part": zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "inventoryItemId": zod.string().optional(),
+  "partName": zod.string(),
+  "quantity": zod.number(),
+  "unitCost": zod.number(),
+  "totalCost": zod.number(),
+  "addedByName": zod.string().optional(),
   "createdAt": zod.string()
 })
 })

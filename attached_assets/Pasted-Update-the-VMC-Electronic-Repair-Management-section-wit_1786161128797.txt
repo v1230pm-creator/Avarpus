@@ -1,0 +1,348 @@
+Update the VMC Electronic Repair Management section with a clean, premium, professional 4-tab workflow.
+
+FINAL TAB NAMES — DO NOT CHANGE:
+1. Received
+2. Repair
+3. Delivered
+4. After-Sales Service
+
+IMPORTANT:
+All 4 tabs must be synchronized through the same Repair ID. Do NOT create separate unrelated records for each tab.
+
+========================================
+1. RECEIVED TAB
+========================================
+
+This is the first step when a customer brings a device.
+
+Show:
+- Auto-generated Repair ID
+- Customer name
+- Mobile number
+- Alternate number
+- Device type
+- Brand
+- Model
+- IMEI/Serial number
+- Customer complaint
+- Device condition
+- Accessories received
+- Physical condition checklist
+- Device photos
+- Customer signature/confirmation
+- Estimated repair cost
+- Expected delivery date
+- Received by
+- Staff/Dealer ID
+- Date and time
+
+When saved:
+- Generate Repair ID automatically.
+- Store the receiving Staff/Dealer ID.
+- Create the repair record with status "Received".
+
+========================================
+2. REPAIR TAB
+========================================
+
+Show all devices that have been received and are under repair.
+
+Each Repair ID should contain:
+
+- Customer details
+- Device details
+- Original complaint
+- Diagnosis
+- Technician assigned
+- Repair status
+- Work performed
+- Parts used
+- Parts quantity
+- Parts cost
+- Labour cost
+- Total repair cost
+- Customer payable amount
+- Advance payment
+- Pending amount
+- Repair notes
+- Technician/Staff ID
+- Repair start date
+- Repair completion date
+
+Repair statuses:
+- Received
+- Diagnosing
+- Waiting for Parts
+- In Repair
+- Repair Completed
+- Cannot Repair
+- Customer Approval Required
+
+If parts are used:
+- Automatically deduct the quantity from inventory.
+- Link the consumed parts to the same Repair ID.
+
+When repair is completed, the record should become available in the Delivered tab.
+
+========================================
+3. DELIVERED TAB
+========================================
+
+Show only repairs ready for customer handover.
+
+Show:
+- Repair ID
+- Customer
+- Device
+- Repair completed
+- Final repair amount
+- Advance paid
+- Pending amount
+- Payment status
+- Payment method
+- Invoice/job card
+- Delivery date
+- Delivered by Staff/Dealer ID
+
+Customer handover workflow:
+
+1. Verify device
+2. Show final amount
+3. Record payment
+4. Customer confirmation/signature
+5. Mark device as Delivered
+6. Store delivery date/time
+7. Store Staff/Dealer ID who handed over the device
+
+After delivery, DO NOT close/delete the Repair ID.
+
+The same Repair ID must remain available in history and can later create an After-Sales Service case.
+
+========================================
+4. AFTER-SALES SERVICE TAB
+========================================
+
+This tab is ONLY for devices that have already been delivered and later return for service, complaint, rework, warranty service or refund.
+
+When customer returns:
+
+- Search by Repair ID
+- Customer mobile number
+- Customer name
+- IMEI/Serial number
+
+Automatically show the original repair history.
+
+Create a linked After-Sales Service case, for example:
+
+Original Repair:
+VMC-005
+
+After-Sales Case:
+AS-VMC-005-01
+
+DO NOT create a completely unrelated repair record.
+
+Show:
+
+- Original Repair ID
+- Customer
+- Device
+- Original repair date
+- Original delivery date
+- Days since delivery (calculate automatically)
+- Original repair/service
+- Original amount paid
+- New complaint
+- Return reason
+- Device condition
+- Photos
+- Received by Staff/Dealer ID
+- Diagnosis
+- Rework required
+- Parts used
+- Additional repair cost
+- Customer payable amount
+- Refund required
+- Refund amount
+- Refund method
+- Final resolution
+- Technician
+- Completion date
+
+After-Sales Service statuses:
+
+- Returned
+- Inspection
+- Rework Required
+- Warranty Service
+- Waiting for Parts
+- Repaired
+- Refund Requested
+- Refund Approved
+- Refund Paid
+- No Fault Found
+- Cannot Repair
+- Customer Declined
+- Closed
+
+========================================
+STAFF PERMISSIONS
+========================================
+
+Staff can:
+
+- Receive devices
+- Update repair details
+- Update diagnosis
+- Add parts
+- Update technician
+- Create After-Sales Service case
+- Add return complaint
+- Add rework details
+- Request refund
+
+But Staff CANNOT:
+
+- Approve their own refund
+- Change original payment
+- Delete original repair
+- Delete delivered records
+- Change important financial records without approval
+
+If Staff changes a financial amount or requests a refund:
+
+Show:
+"Dealer/Owner Approval Required"
+
+Send the request to Dealer/Owner.
+
+========================================
+DEALER / OWNER PERMISSIONS
+========================================
+
+Dealer/Owner can:
+
+- View all 4 tabs
+- Approve/reject refund
+- Approve financial changes
+- Assign technicians
+- Edit business records according to existing permissions
+- View complete repair history
+- Reopen/close After-Sales Service cases
+- Approve staff requests
+
+Dealer/Owner does not need approval for their own actions.
+
+Use the existing VMC Electronic role detection and login system.
+
+Do NOT create another login system.
+
+========================================
+SYNCHRONIZATION
+========================================
+
+The four tabs must be connected.
+
+Example:
+
+VMC-005
+↓
+Received
+↓
+Repair
+↓
+Delivered
+↓
+Customer returns after 8 days
+↓
+After-Sales Service
+↓
+AS-VMC-005-01
+
+The original repair information must remain unchanged.
+
+After-Sales Service should reference the original Repair ID instead of duplicating the original repair.
+
+Customer profile should show the complete timeline:
+
+Received → Repair → Delivered → After-Sales Service
+
+========================================
+DASHBOARD COUNTS
+========================================
+
+Show useful counts:
+
+Received
+In Repair
+Ready for Delivery
+Delivered
+After-Sales Cases
+Pending Refund Approvals
+
+Counts must come from real server/database data, not demo/local data.
+
+========================================
+AUDIT LOG
+========================================
+
+Record:
+
+- Who created the record
+- Who updated it
+- Staff ID
+- Dealer ID
+- Technician ID
+- Date/time
+- Previous value
+- New value
+- Approval information
+- Refund information
+
+Never silently overwrite important financial or repair history.
+
+========================================
+UI / DESIGN
+========================================
+
+Make the Repair section premium, clean and modern.
+
+Use the existing VMC Electronic visual style.
+
+Top navigation should have exactly these four tabs:
+
+[ Received ] [ Repair ] [ Delivered ] [ After-Sales Service ]
+
+Use:
+- Premium cards
+- Clear status badges
+- Clean icons
+- Search
+- Filters
+- Repair ID prominently displayed
+- Mobile-friendly layout
+- Tablet-friendly layout
+- Desktop-friendly layout
+
+On mobile, make the four tabs horizontally scrollable if required.
+
+Do not redesign unrelated parts of the application.
+
+========================================
+IMPORTANT TECHNICAL REQUIREMENTS
+========================================
+
+Before coding:
+1. Inspect the existing database/schema.
+2. Inspect existing Repair, Customer, Inventory, Payment and Staff/Dealer models.
+3. Reuse the existing architecture.
+4. Do not create duplicate databases or duplicate repair systems.
+5. Keep existing login and role detection.
+6. Keep existing real server data.
+7. Perform permissions on the backend/server, not only frontend.
+8. Validate all financial operations on the server.
+9. Do not break existing features.
+10. Do not add subscription/payment plans.
+
+Implement this as a production-ready feature, not a static/demo UI.

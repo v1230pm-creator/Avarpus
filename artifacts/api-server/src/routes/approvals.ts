@@ -206,6 +206,8 @@ async function executeApproved(
         brand: str(p.brand) ?? "Other",
         model: str(p.model) ?? "",
         imei: str(p.imei),
+        alternateMobile: str(p.alternateMobile),
+        accessories: str(p.accessories),
         problem: str(p.problem) ?? "",
         technicianId: str(p.technicianId),
         technicianName: str(p.technicianName),
@@ -219,6 +221,10 @@ async function executeApproved(
         notes: str(p.notes),
         checklist: p.checklist && typeof p.checklist === "object" ? p.checklist : null,
         warrantyDays: [0, 7, 30, 90, 180].includes(num(p.warrantyDays)) ? num(p.warrantyDays) : 0,
+        // Accountability: the original requester received the device — not
+        // the approver, and never a client-supplied identity.
+        receivedById: a.requesterId,
+        receivedByName: a.requesterName,
       })
       .returning();
     await tx.insert(repairEventsTable).values({

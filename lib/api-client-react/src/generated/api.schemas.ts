@@ -160,6 +160,8 @@ export interface Repair {
   brand: string;
   model: string;
   imei?: string;
+  alternateMobile?: string;
+  accessories?: string;
   problem: string;
   technicianId?: string;
   technicianName?: string;
@@ -177,6 +179,11 @@ export interface Repair {
   deliverySignaturePath?: string;
   warrantyDays: number;
   warrantyExpiry?: string;
+  receivedById?: string;
+  receivedByName?: string;
+  deliveredById?: string;
+  deliveredByName?: string;
+  paymentMethod?: string;
   isSample: boolean;
   createdAt: string;
 }
@@ -191,6 +198,8 @@ export interface RepairInput {
   brand?: string;
   model?: string;
   imei?: string;
+  alternateMobile?: string;
+  accessories?: string;
   problem?: string;
   technicianId?: string;
   technicianName?: string;
@@ -207,6 +216,26 @@ export interface RepairInput {
   receivingSignaturePath?: string;
   deliverySignaturePath?: string;
   warrantyDays?: number;
+  paymentMethod?: string;
+}
+
+export interface RepairPart {
+  id: string;
+  repairId: string;
+  inventoryItemId?: string;
+  partName: string;
+  quantity: number;
+  unitCost: number;
+  totalCost: number;
+  addedByName?: string;
+  createdAt: string;
+}
+
+export interface RepairPartInput {
+  inventoryItemId?: string;
+  partName?: string;
+  quantity: number;
+  unitCost?: number;
 }
 
 export type RepairPhotoKind = typeof RepairPhotoKind[keyof typeof RepairPhotoKind];
@@ -638,6 +667,14 @@ export type RepairPhotosList200 = {
 
 export type RepairPhotosAdd200 = {
   photo: RepairPhoto;
+};
+
+export type RepairPartsList200 = {
+  parts: RepairPart[];
+};
+
+export type RepairPartsAdd200 = {
+  part: RepairPart;
 };
 
 export type RepairEventsList200 = {

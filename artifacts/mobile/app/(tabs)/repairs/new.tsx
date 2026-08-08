@@ -106,11 +106,13 @@ export default function NewRepairScreen() {
 
   const [customerName, setCustomerName] = useState('');
   const [mobile, setMobile] = useState('');
+  const [alternateMobile, setAlternateMobile] = useState('');
   const [address, setAddress] = useState('');
   const [deviceType, setDeviceType] = useState('Smartphone');
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
   const [imei, setImei] = useState('');
+  const [accessories, setAccessories] = useState('');
   const [problem, setProblem] = useState('');
   const [priority, setPriority] = useState('normal');
   const [repairCharge, setRepairCharge] = useState('');
@@ -201,8 +203,10 @@ export default function NewRepairScreen() {
       const basePayload = {
         customerId,
         customerName: customerName.trim(), mobile: mobile.trim(),
+        alternateMobile: alternateMobile.trim() || undefined,
         deviceType, brand: brand.trim(), model: model.trim(),
         imei: imei.trim() || undefined, problem: problem.trim(),
+        accessories: accessories.trim() || undefined,
         technicianId: techId, technicianName: techName,
         status: 'received', priority: priority as Repair['priority'],
         repairCharge: parseFloat(repairCharge) || 0, partsCharge: 0,
@@ -411,6 +415,7 @@ export default function NewRepairScreen() {
             <SectionHeader title="Customer Details" />
             <Input label="Name *" value={customerName} onChangeText={setCustomerName} placeholder="Full name" leftIcon="user" error={errors.customerName} />
             <Input label="Mobile *" value={mobile} onChangeText={setMobile} placeholder="10-digit number" keyboardType="phone-pad" leftIcon="phone" error={errors.mobile} />
+            <Input label="Alternate Mobile" value={alternateMobile} onChangeText={setAlternateMobile} placeholder="Optional" keyboardType="phone-pad" leftIcon="phone" />
             <Input label="Address" value={address} onChangeText={setAddress} placeholder="Optional" leftIcon="map-pin" />
           </View>
 
@@ -421,11 +426,13 @@ export default function NewRepairScreen() {
             <SelectInput label="Brand *" options={BRANDS} value={brand} onChange={setBrand} error={errors.brand} />
             <Input label="Model *" value={model} onChangeText={setModel} placeholder="e.g. Galaxy S23" leftIcon="smartphone" error={errors.model} />
             <Input label="IMEI / Serial" value={imei} onChangeText={setImei} placeholder="Optional" leftIcon="hash" keyboardType="number-pad" />
+            <Input label="Accessories Received" value={accessories} onChangeText={setAccessories} placeholder="e.g. Charger, Cover, SIM tray" leftIcon="box" />
           </View>
 
           {/* Problem */}
           <View style={styles.section}>
             <SectionHeader title="Service Details" />
+            <Input label="Received By" value={user?.name || 'System'} editable={false} leftIcon="user" />
             <Input
               label="Problem Description *"
               value={problem}

@@ -184,19 +184,17 @@ const PipelineCard = ({ animValue }: any) => {
 
   const counts = useMemo(() => ({
     received: repairs.filter(r => r.status === 'received').length,
-    diagnosing: repairs.filter(r => r.status === 'diagnosing').length,
-    repairing: repairs.filter(r => ['waiting_parts', 'repairing', 'testing'].includes(r.status)).length,
+    inRepair: repairs.filter(r => ['diagnosing', 'waiting_parts', 'repairing', 'testing', 'cannot_repair', 'customer_approval'].includes(r.status)).length,
     ready: repairs.filter(r => r.status === 'ready').length,
     delivered: repairs.filter(r => r.status === 'delivered').length,
   }), [repairs]);
 
-  const totalActive = counts.received + counts.diagnosing + counts.repairing + counts.ready;
+  const totalActive = counts.received + counts.inRepair + counts.ready;
   const safeTotal = totalActive || 1;
 
   const stages = [
     { label: 'Received', key: 'received', color: colors.statusReceived, count: counts.received },
-    { label: 'Diagnosing', key: 'diagnosing', color: colors.statusDiagnosing, count: counts.diagnosing },
-    { label: 'Repairing', key: 'repairing', color: colors.statusRepairing, count: counts.repairing },
+    { label: 'In Repair', key: 'inRepair', color: colors.statusDiagnosing, count: counts.inRepair },
     { label: 'Ready', key: 'ready', color: colors.statusReady, count: counts.ready },
   ];
 
@@ -666,45 +664,32 @@ export default function DashboardScreen() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
             {showRepairs && (
               <>
-                <StatBox title="Today's Repairs" value={stats.todayRepairs} trend={stats.repairTrend} icon="tool" color={colors.primary} animValue={cardAnims[3]} />
-                <StatBox title="Pending Repairs" value={stats.pending} icon="clock" color={colors.warning} animValue={cardAnims[4]} />
-                <StatBox title="Ready for Delivery" value={stats.ready} icon="check-circle" color={colors.success} animValue={cardAnims[5]} />
+                <StatBox title="Received" value={repairs.filter(r => r.status === 'received').length} icon="inbox" color={colors.statusReceived} animValue={cardAnims[3]} />
+                <StatBox title="In Repair" value={repairs.filter(r => ['diagnosing', 'waiting_parts', 'repairing', 'testing', 'cannot_repair', 'customer_approval'].includes(r.status)).length} icon="tool" color={colors.statusDiagnosing} animValue={cardAnims[4]} />
+                <StatBox title="Ready" value={repairs.filter(r => r.status === 'ready').length} icon="check-circle" color={colors.statusReady} animValue={cardAnims[5]} />
+                <StatBox title="Delivered" value={repairs.filter(r => r.status === 'delivered').length} icon="package" color={colors.statusDelivered} animValue={cardAnims[6]} />
+                <StatBox title="After-Sales Cases" value={stats.openReturns} icon="corner-up-left" color={colors.warning} animValue={cardAnims[7]} />
+                {(user?.role === 'dealer' || user?.role === 'super_admin') && (
+                  <StatBox title="Refund Approvals" value={stats.pendingRefunds} icon="dollar-sign" color={colors.destructive} animValue={cardAnims[8]} />
+                )}
               </>
             )}
             
             {showFinance && (
               <>
-                <StatBox title="Today's Sales" value={stats.todayIncome} trend={stats.incomeTrend} icon="trending-up" color={colors.success} animValue={cardAnims[6]} isCurrency />
-                <StatBox title="Today's Profit" value={stats.todayProfit} trend={stats.profitTrend} icon="dollar-sign" color={colors.primary} animValue={cardAnims[7]} isCurrency />
-                <StatBox title="Pending Payments" value={stats.pendingPayments} icon="credit-card" color={colors.warning} animValue={cardAnims[8]} isCurrency />
+                <StatBox title="Today's Sales" value={stats.todayIncome} trend={stats.incomeTrend} icon="trending-up" color={colors.success} animValue={cardAnims[9]} isCurrency />
+                <StatBox title="Today's Profit" value={stats.todayProfit} trend={stats.profitTrend} icon="dollar-sign" color={colors.primary} animValue={cardAnims[10]} isCurrency />
+                <StatBox title="Pending Payments" value={stats.pendingPayments} icon="credit-card" color={colors.warning} animValue={cardAnims[11]} isCurrency />
               </>
             )}
-
-            {showRepairs && (
-              <View style={{ width: '100%', marginTop: 12, marginBottom: 4 }}>
-                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Returns & Rework</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-                  <StatBox title="Today's Returns" value={stats.todayReturns} icon="corner-down-left" color={colors.warning} animValue={cardAnims[9]} />
-                  <StatBox title="Open Cases" value={stats.openReturns} icon="folder" color={colors.info} animValue={cardAnims[10]} />
-                  {user?.role === 'dealer' || user?.role === 'super_admin' ? (
-                    <TouchableOpacity onPress={() => router.push('/(tabs)/repairs/returns')} style={{ width: '48%' }}>
-                      <StatBox title="Pending Refunds" value={stats.pendingRefunds} icon="clock" color={stats.pendingRefunds > 0 ? colors.destructive : colors.mutedForeground} animValue={cardAnims[11]} />
-                    </TouchableOpacity>
-                  ) : null}
-                  {showFinance && (
-                    <StatBox title="Refunds Paid" value={stats.refundsPaid} icon="credit-card" color={colors.success} animValue={cardAnims[12]} isCurrency />
-                  )}
-                </View>
-              </View>
-            )}
             
-            <StatBox title="Low Stock Items" value={stats.lowStock} icon="alert-triangle" color={stats.lowStock > 0 ? colors.destructive : colors.success} animValue={cardAnims[9]} />
+            <StatBox title="Low Stock Items" value={stats.lowStock} icon="alert-triangle" color={stats.lowStock > 0 ? colors.destructive : colors.success} animValue={cardAnims[12]} />
             
             {canAccess('customers') && (
-              <StatBox title="Total Customers" value={stats.totalCustomers} icon="users" color={colors.info} animValue={cardAnims[10]} />
+              <StatBox title="Total Customers" value={stats.totalCustomers} icon="users" color={colors.info} animValue={cardAnims[13]} />
             )}
             {canAccess('inventory') && (
-              <StatBox title="Total Products" value={stats.totalProducts} icon="package" color={colors.primary} animValue={cardAnims[11]} />
+              <StatBox title="Total Products" value={stats.totalProducts} icon="package" color={colors.primary} animValue={cardAnims[14]} />
             )}
           </View>
 

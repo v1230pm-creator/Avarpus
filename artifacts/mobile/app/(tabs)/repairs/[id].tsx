@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
   Modal,
+  TextInput,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,21 +20,29 @@ import SignatureScreen from 'react-native-signature-canvas';
 import QRCode from 'react-native-qrcode-svg';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { RepairStatusBadge, PriorityBadge, SampleBadge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { RepairStatus } from '@/types';
-import { formatDate, formatCurrency, REPAIR_STATUS_LABELS } from '@/utils/helpers';
+import { formatDate, formatCurrency, REPAIR_STATUS_LABELS, REPAIR_STATUSES } from '@/utils/helpers';
 import { storage, KEYS } from '@/utils/storage';
-import { useRepairPhotosList, getRepairPhotosListQueryKey, useRepairEventsList, getRepairEventsListQueryKey, requestUploadUrl, repairPhotosAdd, useReturnsList, getReturnsListQueryKey } from '@workspace/api-client-react';
+import { 
+  useRepairPhotosList, getRepairPhotosListQueryKey, 
+  useRepairEventsList, getRepairEventsListQueryKey, 
+  requestUploadUrl, repairPhotosAdd, 
+  useReturnsList, getReturnsListQueryKey,
+  useRepairPartsList, getRepairPartsListQueryKey, repairPartsAdd
+} from '@workspace/api-client-react';
 import { fetch as expoFetch } from 'expo/fetch';
 import { File as ExpoFile } from 'expo-file-system';
 
-const STATUS_FLOW: RepairStatus[] = ['received', 'diagnosing', 'waiting_parts', 'repairing', 'testing', 'ready', 'delivered'];
+const STATUS_FLOW: string[] = ['received', 'diagnosing', 'waiting_parts', 'repairing', 'testing', 'customer_approval', 'ready', 'delivered'];
 
 const CHECKLIST_ITEMS = [
   { id: 'power_on', label: 'Power On' },
@@ -72,12 +81,29 @@ export default function RepairDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { repairs, updateRepair } = useData();
+  const { repairs, updateRepair, inventory, loadAll } = useData();
   const { user, canAccess } = useAuth();
+  const queryClient = useQueryClient();
   
   const [updating, setUpdating] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [showDeliverySig, setShowDeliverySig] = useState(false);
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
+  
+  const [showDeliveryHandover, setShowDeliveryHandover] = useState(false);
+  const [handoverPaymentMethod, setHandoverPaymentMethod] = useState('Cash');
+
+  // Add Part
+  const [showAddPart, setShowAddPart] = useState(false);
+  const [selectedInventoryId, setSelectedInventoryId] = useState('');
+  const [partName, setPartName] = useState('');
+  const [partCost, setPartCost] = useState('');
+  const [partQty, setPartQty] = useState('1');
+
+  // Financial Edits
+  const [showFinancialEdit, setShowFinancialEdit] = useState(false);
+  const [editRepairCharge, setEditRepairCharge] = useState('');
+  const [editAdvance, setEditAdvance] = useState('');
   
   const qrRef = useRef<any>(null);
 
@@ -93,7 +119,10 @@ export default function RepairDetailScreen() {
   const { data: photosData } = useRepairPhotosList(id as string, { query: { enabled: !!id, queryKey: getRepairPhotosListQueryKey(id as string) } });
   const { data: eventsData } = useRepairEventsList(id as string, { query: { enabled: !!id, queryKey: getRepairEventsListQueryKey(id as string) } });
   const { data: returnsData } = useReturnsList({ query: { queryKey: getReturnsListQueryKey() } });
+  const { data: partsData, refetch: partsRefetch } = useRepairPartsList(id as string, { query: { enabled: !!id, queryKey: getRepairPartsListQueryKey(id as string) } });
+  
   const repairReturns = useMemo(() => returnsData?.returns?.filter(r => r.repairId === id) || [], [returnsData, id]);
+  const parts = partsData?.parts || [];
 
   const getAbsoluteUrl = (path: string) => `https://${process.env.EXPO_PUBLIC_DOMAIN}/api/storage${path}`;
 
@@ -114,8 +143,6 @@ export default function RepairDetailScreen() {
   }
 
   const balance = Math.max(0, repair.repairCharge + repair.partsCharge - repair.advance);
-  const currentIdx = STATUS_FLOW.indexOf(repair.status as RepairStatus);
-  const nextStatus = currentIdx < STATUS_FLOW.length - 1 ? STATUS_FLOW[currentIdx + 1] : null;
   const canUpdateStatus = canAccess('repairs_update') || (canAccess('repairs') && user?.role !== 'reception');
 
   const uploadToGcs = async (fileUri: string, mimeType: string) => {
@@ -158,13 +185,15 @@ export default function RepairDetailScreen() {
         deliveryDate,
         warrantyExpiry,
         deliverySignaturePath: sigPath,
+        paymentMethod: handoverPaymentMethod,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (err) {
-      Alert.alert(
-        'Update failed',
-        err instanceof Error ? err.message : "Couldn't mark the repair as delivered. Please try again.",
-      );
+    } catch (err: any) {
+      if (err?.message?.includes('APPROVAL_REQUIRED') || err?.code === 'APPROVAL_REQUIRED') {
+         Alert.alert('Restricted', 'Dealer/Owner approval required to finalize this update.');
+      } else {
+         Alert.alert('Update failed', err.message || "Couldn't mark the repair as delivered. Please try again.");
+      }
     } finally {
       setUpdating(false);
       setShowDeliverySig(false);
@@ -183,9 +212,10 @@ export default function RepairDetailScreen() {
     }
   };
 
-  const handleStatusUpdate = async (newStatus: RepairStatus) => {
+  const handleStatusUpdate = async (newStatus: string) => {
     if (newStatus === 'delivered') {
-      setShowDeliverySig(true);
+      setShowStatusPicker(false);
+      setShowDeliveryHandover(true);
       return;
     }
     if (updating) return;
@@ -194,14 +224,71 @@ export default function RepairDetailScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await updateRepair({
         ...repair,
-        status: newStatus,
+        status: newStatus as RepairStatus,
       });
+      setShowStatusPicker(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e) {
-      Alert.alert(
-        'Update failed',
-        e instanceof Error ? e.message : "Couldn't update the repair status. Please try again.",
-      );
+    } catch (e: any) {
+      Alert.alert('Update failed', e.message || "Couldn't update the repair status.");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleHandoverProceed = () => {
+    setShowDeliveryHandover(false);
+    setShowDeliverySig(true);
+  };
+
+  const handleAddPart = async () => {
+    if (!selectedInventoryId && !partName) {
+      Alert.alert('Required', 'Please select or enter a part name');
+      return;
+    }
+    setUpdating(true);
+    try {
+      await repairPartsAdd(id as string, {
+        inventoryItemId: selectedInventoryId || undefined,
+        partName: selectedInventoryId ? undefined : partName,
+        quantity: Number(partQty) || 1,
+        unitCost: selectedInventoryId ? undefined : (Number(partCost) || 0),
+      });
+      setShowAddPart(false);
+      setPartName('');
+      setPartCost('');
+      setSelectedInventoryId('');
+      setPartQty('1');
+      await partsRefetch();
+      await loadAll();
+      queryClient.invalidateQueries();
+    } catch (e: any) {
+      if (e.message?.includes('APPROVAL_REQUIRED') || e.code === 'APPROVAL_REQUIRED' || e?.data?.code === 'APPROVAL_REQUIRED') {
+        Alert.alert('Restricted', 'Dealer/Owner approval required. Cannot add parts to a delivered/cancelled repair.');
+      } else {
+        Alert.alert('Add Part failed', e.message || 'Not enough stock?');
+      }
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleSaveFinancials = async () => {
+    setUpdating(true);
+    try {
+      await updateRepair({
+        ...repair,
+        repairCharge: Number(editRepairCharge),
+        advance: Number(editAdvance)
+      });
+      setShowFinancialEdit(false);
+      await loadAll();
+      queryClient.invalidateQueries();
+    } catch (e: any) {
+      if (e.message?.includes('APPROVAL_REQUIRED') || e.code === 'APPROVAL_REQUIRED' || e?.data?.code === 'APPROVAL_REQUIRED') {
+         Alert.alert('Restricted', 'Dealer/Owner approval required to modify financials of a delivered repair.');
+      } else {
+         Alert.alert('Error', e.message);
+      }
     } finally {
       setUpdating(false);
     }
@@ -249,8 +336,6 @@ export default function RepairDetailScreen() {
         </html>
       `;
       if (Platform.OS === 'web') {
-        // Web: printToFileAsync/Sharing are unsupported — open the browser
-        // print dialog instead (user can "Save as PDF" from there).
         await Print.printAsync({ html });
       } else {
         const { uri } = await Print.printToFileAsync({ html });
@@ -290,7 +375,6 @@ export default function RepairDetailScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
         
-        {/* PDF Button */}
         <FadeInView animValue={anims[1]}>
           <TouchableOpacity onPress={generatePDF} style={[styles.pdfBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '33' }]}>
             <Feather name="file-text" size={18} color={colors.primary} />
@@ -303,21 +387,16 @@ export default function RepairDetailScreen() {
           <FadeInView animValue={anims[2]}>
           <Card style={styles.statusCard}>
             <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>ACTIONS</Text>
-            {canUpdateStatus && (repair.status as string) !== 'delivered' && (repair.status as string) !== 'cancelled' && nextStatus && (
+            {canUpdateStatus && (repair.status as string) !== 'delivered' && (repair.status as string) !== 'cancelled' && (
               <TouchableOpacity
-                onPress={() => handleStatusUpdate(nextStatus)}
+                onPress={() => setShowStatusPicker(true)}
                 disabled={updating}
                 style={[styles.nextStatusBtn, { backgroundColor: colors.success, borderRadius: colors.radius - 2 }]}
               >
-                <Feather name="arrow-right-circle" size={18} color="#FFFFFF" />
+                <Feather name="edit" size={18} color="#FFFFFF" />
                 <Text style={[styles.nextStatusText, { fontFamily: 'Inter_600SemiBold' }]}>
-                  {nextStatus === 'delivered' ? 'Mark as Delivered' : `Move to: ${REPAIR_STATUS_LABELS[nextStatus]}`}
+                  Update Status
                 </Text>
-              </TouchableOpacity>
-            )}
-            {canUpdateStatus && (repair.status as string) !== 'delivered' && (repair.status as string) !== 'cancelled' && (
-              <TouchableOpacity onPress={() => handleStatusUpdate('cancelled')} style={[styles.cancelBtn, { borderColor: colors.destructive }]}>
-                <Text style={[styles.cancelBtnText, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>Cancel Repair</Text>
               </TouchableOpacity>
             )}
             {repair.status === 'delivered' && (
@@ -371,12 +450,22 @@ export default function RepairDetailScreen() {
         </Card>
         </FadeInView>
 
-        {/* Device & Checklist */}
+        {/* Device & Details */}
         <FadeInView animValue={anims[4]}>
         <Card>
           <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>DEVICE DETAILS</Text>
           <InfoRow label="Brand & Model" value={`${repair.brand} ${repair.model}`} bold />
           {repair.imei && <InfoRow label="IMEI" value={repair.imei} />}
+          <InfoRow label="Alternate Mobile" value={repair.alternateMobile || 'N/A'} />
+          <InfoRow label="Accessories" value={repair.accessories || 'None'} />
+          <InfoRow label="Received By" value={repair.receivedByName || 'System'} />
+          {repair.status === 'delivered' && (
+            <>
+              <InfoRow label="Delivered By" value={repair.deliveredByName || 'N/A'} />
+              <InfoRow label="Payment Method" value={repair.paymentMethod || 'N/A'} />
+            </>
+          )}
+
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           
           <Text style={[styles.problemTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Problem</Text>
@@ -399,6 +488,35 @@ export default function RepairDetailScreen() {
             </>
           )}
         </Card>
+        </FadeInView>
+
+        {/* Parts Used */}
+        <FadeInView animValue={anims[4]}>
+          <Card>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>PARTS USED</Text>
+              {repair.status !== 'delivered' && repair.status !== 'cancelled' && (
+                <TouchableOpacity onPress={() => setShowAddPart(true)}>
+                  <Feather name="plus-circle" size={18} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {parts.length === 0 ? (
+              <Text style={{ fontSize: 13, color: colors.mutedForeground, fontStyle: 'italic' }}>No parts added yet.</Text>
+            ) : (
+              parts.map(p => (
+                <View key={p.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                  <View>
+                    <Text style={{ fontSize: 14, color: colors.foreground }}>{p.partName}</Text>
+                    <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Qty: {p.quantity} @ {formatCurrency(p.unitCost)}</Text>
+                  </View>
+                  <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>
+                    {formatCurrency(p.quantity * p.unitCost)}
+                  </Text>
+                </View>
+              ))
+            )}
+          </Card>
         </FadeInView>
 
         {/* Photos Gallery */}
@@ -427,7 +545,16 @@ export default function RepairDetailScreen() {
         {canAccess('finance') || user?.role === 'reception' || user?.role === 'dealer' ? (
           <FadeInView animValue={anims[6]}>
           <Card>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>FINANCIALS & WARRANTY</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>FINANCIALS & WARRANTY</Text>
+              <TouchableOpacity onPress={() => {
+                setEditRepairCharge(repair.repairCharge.toString());
+                setEditAdvance(repair.advance.toString());
+                setShowFinancialEdit(true);
+              }}>
+                <Feather name="edit-2" size={16} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
             <InfoRow label="Repair Charge" value={formatCurrency(repair.repairCharge)} />
             <InfoRow label="Parts Charge" value={formatCurrency(repair.partsCharge)} />
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -504,6 +631,148 @@ export default function RepairDetailScreen() {
 
       </ScrollView>
 
+      {/* Status Picker Modal */}
+      <Modal visible={showStatusPicker} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Update Status</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+              {REPAIR_STATUSES.map(s => (
+                <TouchableOpacity
+                  key={s}
+                  onPress={() => handleStatusUpdate(s)}
+                  style={{
+                    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
+                    borderWidth: 1, borderColor: repair.status === s ? colors.primary : colors.border,
+                    backgroundColor: repair.status === s ? colors.primary + '22' : colors.card
+                  }}
+                >
+                  <Text style={{ fontSize: 13, color: repair.status === s ? colors.primary : colors.foreground }}>
+                    {REPAIR_STATUS_LABELS[s]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Button title="Cancel" variant="outline" onPress={() => setShowStatusPicker(false)} />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delivery Handover Modal */}
+      <Modal visible={showDeliveryHandover} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground, marginBottom: 4 }]}>Delivery Handover</Text>
+            <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 16 }}>Review final amounts and collect payment before signature.</Text>
+            
+            <View style={{ backgroundColor: colors.card, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 16 }}>
+              <InfoRow label="Repair Charge" value={formatCurrency(repair.repairCharge)} />
+              <InfoRow label="Parts Charge" value={formatCurrency(repair.partsCharge)} />
+              <View style={styles.divider} />
+              <InfoRow label="Total" value={formatCurrency(repair.repairCharge + repair.partsCharge)} />
+              <InfoRow label="Advance Paid" value={formatCurrency(repair.advance)} color={colors.success} />
+              <View style={styles.divider} />
+              <InfoRow label="Balance Payable" value={formatCurrency(balance)} color={balance > 0 ? colors.warning : colors.success} bold />
+            </View>
+            
+            <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_500Medium', marginBottom: 8 }}>Payment Method</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+              {['Cash', 'UPI', 'Bank Transfer', 'Card', 'Other'].map(m => (
+                <TouchableOpacity
+                  key={m}
+                  onPress={() => setHandoverPaymentMethod(m)}
+                  style={{
+                    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
+                    borderWidth: 1, borderColor: handoverPaymentMethod === m ? colors.primary : colors.border,
+                    backgroundColor: handoverPaymentMethod === m ? colors.primary + '22' : colors.card
+                  }}
+                >
+                  <Text style={{ fontSize: 13, color: handoverPaymentMethod === m ? colors.primary : colors.foreground }}>{m}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <Button title="Cancel" variant="outline" onPress={() => setShowDeliveryHandover(false)} style={{ flex: 1 }} />
+              <Button title="Proceed to Signature" onPress={handleHandoverProceed} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Part Modal */}
+      <Modal visible={showAddPart} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Add Part</Text>
+            <Text style={{ fontSize: 12, color: colors.mutedForeground, marginBottom: 12 }}>
+              Select from inventory to deduct stock, or enter custom.
+            </Text>
+
+            <Text style={[styles.label, { color: colors.foreground }]}>Select Part</Text>
+            <ScrollView style={{ maxHeight: 150, borderWidth: 1, borderColor: colors.border, borderRadius: 8, marginBottom: 12 }}>
+              <TouchableOpacity
+                onPress={() => setSelectedInventoryId('')}
+                style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: !selectedInventoryId ? colors.primary + '22' : colors.card }}
+              >
+                <Text style={{ fontSize: 13, color: !selectedInventoryId ? colors.primary : colors.foreground }}>Custom Part (Not in Inventory)</Text>
+              </TouchableOpacity>
+              {inventory.map(i => (
+                <TouchableOpacity
+                  key={i.id}
+                  onPress={() => setSelectedInventoryId(i.id)}
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: selectedInventoryId === i.id ? colors.primary + '22' : colors.card }}
+                >
+                  <Text style={{ fontSize: 13, color: selectedInventoryId === i.id ? colors.primary : colors.foreground }}>
+                    {i.name} ({i.quantity} in stock)
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {!selectedInventoryId && (
+              <>
+                <Text style={[styles.label, { color: colors.foreground }]}>Part Name</Text>
+                <TextInput value={partName} onChangeText={setPartName} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+                <Text style={[styles.label, { color: colors.foreground }]}>Unit Cost</Text>
+                <TextInput value={partCost} onChangeText={setPartCost} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+              </>
+            )}
+            
+            <Text style={[styles.label, { color: colors.foreground }]}>Quantity</Text>
+            <TextInput value={partQty} onChangeText={setPartQty} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+            
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <Button title="Cancel" variant="outline" onPress={() => setShowAddPart(false)} style={{ flex: 1 }} />
+              <Button title="Add" onPress={handleAddPart} loading={updating} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Financial Edit Modal */}
+      <Modal visible={showFinancialEdit} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Financials</Text>
+            <Text style={{ fontSize: 12, color: colors.mutedForeground, marginBottom: 12 }}>
+              Only repair charge and advance can be manually adjusted. Parts charge is computed automatically.
+            </Text>
+
+            <Text style={[styles.label, { color: colors.foreground }]}>Repair Charge</Text>
+            <TextInput value={editRepairCharge} onChangeText={setEditRepairCharge} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+            
+            <Text style={[styles.label, { color: colors.foreground }]}>Advance Paid</Text>
+            <TextInput value={editAdvance} onChangeText={setEditAdvance} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+            
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <Button title="Cancel" variant="outline" onPress={() => setShowFinancialEdit(false)} style={{ flex: 1 }} />
+              <Button title="Save" onPress={handleSaveFinancials} loading={updating} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Delivery Signature Modal */}
       <Modal visible={showDeliverySig} animationType="slide" transparent>
         <View style={[styles.modalOverlay, { backgroundColor: colors.background }]}>
@@ -549,8 +818,6 @@ const styles = StyleSheet.create({
   cardLabel: { fontSize: 11, letterSpacing: 0.8, marginBottom: 4 },
   nextStatusBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14 },
   nextStatusText: { color: '#FFFFFF', fontSize: 14 },
-  cancelBtn: { alignItems: 'center', padding: 12, borderRadius: 10, borderWidth: 1, marginTop: 4 },
-  cancelBtnText: { fontSize: 14 },
   priorityRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
   dateSmall: { fontSize: 12 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
@@ -567,8 +834,11 @@ const styles = StyleSheet.create({
   galleryBadge: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingVertical: 4, alignItems: 'center' },
   galleryBadgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
   sigImg: { width: '100%', height: 80, backgroundColor: '#FFF', borderRadius: 8, borderWidth: 1, borderColor: '#EEE' },
-  modalOverlay: { flex: 1 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
+  modalContent: { borderWidth: 1, borderRadius: 16, padding: 20 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#333' },
-  modalTitle: { fontSize: 18 },
+  modalTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', marginBottom: 12 },
   sigContainer: { flex: 1, backgroundColor: '#FFF' },
+  label: { fontSize: 13, fontFamily: 'Inter_500Medium', marginBottom: 4, marginTop: 8 },
+  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
 });

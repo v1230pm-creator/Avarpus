@@ -5,6 +5,7 @@ import {
   customersTable,
   repairsTable,
   repairPhotosTable,
+  repairPartsTable,
   repairEventsTable,
   inventoryItemsTable,
   purchasesTable,
@@ -180,6 +181,7 @@ router.patch(
 const REPAIR_STATUSES = [
   "received", "diagnosing", "waiting_parts", "repairing",
   "testing", "ready", "delivered", "cancelled",
+  "cannot_repair", "customer_approval",
 ] as const;
 const REPAIR_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 
@@ -258,6 +260,8 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
     brand: r.brand,
     model: r.model,
     imei: r.imei ?? undefined,
+    alternateMobile: r.alternateMobile ?? undefined,
+    accessories: r.accessories ?? undefined,
     problem: r.problem,
     technicianId: r.technicianId ?? undefined,
     technicianName: r.technicianName ?? undefined,
@@ -275,6 +279,11 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
     deliverySignaturePath: r.deliverySignaturePath ?? undefined,
     warrantyDays: r.warrantyDays,
     warrantyExpiry: r.warrantyExpiry ?? undefined,
+    receivedById: r.receivedById ?? undefined,
+    receivedByName: r.receivedByName ?? undefined,
+    deliveredById: r.deliveredById ?? undefined,
+    deliveredByName: r.deliveredByName ?? undefined,
+    paymentMethod: r.paymentMethod ?? undefined,
     isSample: r.isSample,
     createdAt: iso(r.createdAt),
   };
@@ -348,6 +357,8 @@ router.post(
           brand,
           model,
           imei: str(b.imei),
+          alternateMobile: str(b.alternateMobile),
+          accessories: str(b.accessories),
           problem,
           technicianId: str(b.technicianId),
           technicianName: str(b.technicianName),
@@ -363,6 +374,10 @@ router.post(
           checklist: checklistOrNull(b.checklist),
           receivingSignaturePath: ownedObjectPath(shopId, b.receivingSignaturePath),
           warrantyDays: WARRANTY_DAYS.includes(b.warrantyDays) ? b.warrantyDays : 0,
+          // The logged-in user is recorded as the receiver — accountability
+          // for the intake step, not client-supplied.
+          receivedById: (req as AuthedRequest).user.id,
+          receivedByName: (req as AuthedRequest).user.name,
         })
         .returning();
       await logRepairEvent(tx, {
@@ -407,6 +422,9 @@ router.patch(
     if (b.brand !== undefined) patch.brand = str(b.brand) ?? undefined;
     if (b.model !== undefined) patch.model = str(b.model) ?? undefined;
     if (b.imei !== undefined) patch.imei = str(b.imei);
+    if (b.alternateMobile !== undefined) patch.alternateMobile = str(b.alternateMobile);
+    if (b.accessories !== undefined) patch.accessories = str(b.accessories);
+    if (b.paymentMethod !== undefined) patch.paymentMethod = str(b.paymentMethod);
     if (b.problem !== undefined) patch.problem = str(b.problem) ?? undefined;
     if (b.technicianId !== undefined) patch.technicianId = str(b.technicianId);
     if (b.technicianName !== undefined) patch.technicianName = str(b.technicianName);
@@ -453,6 +471,33 @@ router.patch(
       res.status(404).json({ message: "Repair not found" });
       return;
     }
+    // Financial fields on a delivered repair are locked for staff — the
+    // original payment record must not change without dealer/owner action.
+    const touchesMoney =
+      patch.repairCharge !== undefined || patch.partsCharge !== undefined || patch.advance !== undefined;
+    const meUser = (req as AuthedRequest).user;
+    const dealerRole = meUser.role === "dealer" || meUser.role === "super_admin";
+    if (existing.status === "delivered" && touchesMoney && !dealerRole) {
+      res.status(403).json({ message: "Dealer/Owner approval required." });
+      return;
+    }
+    // Delivered is terminal for staff: without this, staff could un-deliver,
+    // edit the locked financial fields, and re-deliver. Only the dealer/owner
+    // may move a delivered repair back into the workflow.
+    if (
+      existing.status === "delivered" &&
+      patch.status !== undefined &&
+      patch.status !== "delivered" &&
+      !dealerRole
+    ) {
+      res.status(403).json({ message: "Dealer/Owner approval required." });
+      return;
+    }
+    // The user completing the handover is recorded as the deliverer.
+    if (patch.status === "delivered" && existing.status !== "delivered") {
+      patch.deliveredById = meUser.id;
+      patch.deliveredByName = meUser.name;
+    }
     // Warranty expiry is computed when the repair is delivered.
     const effectiveWarrantyDays = patch.warrantyDays ?? existing.warrantyDays;
     if (patch.status === "delivered" && effectiveWarrantyDays > 0) {
@@ -462,7 +507,25 @@ router.patch(
       patch.warrantyExpiry = expiry.toISOString().split("T")[0];
       if (patch.deliveryDate === undefined && !existing.deliveryDate) patch.deliveryDate = deliveredOn;
     }
-    const updated = await db.transaction(async (tx) => {
+    let updated: typeof repairsTable.$inferSelect;
+    try {
+      updated = await db.transaction(async (tx) => {
+      // Lock the repair row: serializes with concurrent part postings so a
+      // stale partsCharge can never overwrite the parts-ledger-derived sum.
+      await tx
+        .select({ id: repairsTable.id })
+        .from(repairsTable)
+        .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)))
+        .for("update");
+      // Once parts are tracked in the ledger, partsCharge is server-derived
+      // only — reject direct writes instead of silently drifting.
+      if (patch.partsCharge !== undefined) {
+        const [{ partRows }] = await tx
+          .select({ partRows: sql<number>`count(*)::int` })
+          .from(repairPartsTable)
+          .where(and(eq(repairPartsTable.repairId, id), eq(repairPartsTable.shopId, shopId)));
+        if (partRows > 0) throw new Error("PARTS_LEDGER_MANAGED");
+      }
       const [row] = await tx
         .update(repairsTable)
         .set(patch)
@@ -505,7 +568,16 @@ router.patch(
         await syncCustomerStats(tx, shopId, row.customerId);
       }
       return row;
-    });
+      });
+    } catch (err) {
+      if (err instanceof Error && err.message === "PARTS_LEDGER_MANAGED") {
+        res.status(400).json({
+          message: "Parts cost is calculated from the parts list on this repair and cannot be edited directly.",
+        });
+        return;
+      }
+      throw err;
+    }
     res.json({ repair: repairOut(updated) });
   }),
 );
@@ -630,6 +702,147 @@ router.get(
         createdAt: iso(e.createdAt),
       })),
     });
+  }),
+);
+
+// ── Repair parts (append-only, deducts inventory) ──────────────────────────
+
+function repairPartOut(p: typeof repairPartsTable.$inferSelect) {
+  return {
+    id: p.id,
+    repairId: p.repairId,
+    inventoryItemId: p.inventoryItemId ?? undefined,
+    partName: p.partName,
+    quantity: p.quantity,
+    unitCost: p.unitCost,
+    totalCost: p.quantity * p.unitCost,
+    addedByName: p.addedByName ?? undefined,
+    createdAt: iso(p.createdAt),
+  };
+}
+
+router.get(
+  "/repairs/:id/parts",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const id = String(req.params.id ?? "");
+    if (!(await repairInShop(shopId, id))) {
+      res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    const rows = await db
+      .select()
+      .from(repairPartsTable)
+      .where(and(eq(repairPartsTable.repairId, id), eq(repairPartsTable.shopId, shopId)))
+      .orderBy(desc(repairPartsTable.createdAt));
+    res.json({ parts: rows.map(repairPartOut) });
+  }),
+);
+
+router.post(
+  "/repairs/:id/parts",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    const b = req.body ?? {};
+    const quantity = Math.trunc(num(b.quantity, 0));
+    if (quantity <= 0) {
+      res.status(400).json({ message: "Quantity must be at least 1" });
+      return;
+    }
+    const inventoryItemId = str(b.inventoryItemId);
+    try {
+      const created = await db.transaction(async (tx) => {
+        // Lock the repair row: guarantees it exists, is shop-owned, and is
+        // not delivered/cancelled while we mutate stock + partsCharge.
+        const [repair] = await tx
+          .select()
+          .from(repairsTable)
+          .where(and(eq(repairsTable.id, String(req.params.id ?? "")), eq(repairsTable.shopId, shopId)))
+          .for("update");
+        if (!repair) throw new Error("NOT_FOUND");
+        if (repair.status === "delivered" || repair.status === "cancelled") {
+          throw new Error("REPAIR_LOCKED");
+        }
+        let partName = str(b.partName);
+        let unitCost = num(b.unitCost, 0);
+        if (inventoryItemId) {
+          // Atomic conditional deduction — never lets stock go negative.
+          const [item] = await tx
+            .update(inventoryItemsTable)
+            .set({ quantity: sql`${inventoryItemsTable.quantity} - ${quantity}` })
+            .where(
+              and(
+                eq(inventoryItemsTable.id, inventoryItemId),
+                eq(inventoryItemsTable.shopId, shopId),
+                sql`${inventoryItemsTable.quantity} >= ${quantity}`,
+              ),
+            )
+            .returning();
+          if (!item) throw new Error("OUT_OF_STOCK");
+          partName = partName ?? item.name;
+          if (b.unitCost === undefined) unitCost = item.sellingPrice ?? item.purchasePrice ?? 0;
+        }
+        if (!partName) throw new Error("PART_NAME_REQUIRED");
+        const [row] = await tx
+          .insert(repairPartsTable)
+          .values({
+            shopId,
+            repairId: repair.id,
+            inventoryItemId,
+            partName,
+            quantity,
+            unitCost: Math.max(unitCost, 0),
+            addedById: me.id,
+            addedByName: me.name,
+          })
+          .returning();
+        // Keep the repair's partsCharge in sync with the consumed parts.
+        const [{ total }] = await tx
+          .select({
+            total: sql<number>`coalesce(sum(${repairPartsTable.quantity} * ${repairPartsTable.unitCost}), 0)::float`,
+          })
+          .from(repairPartsTable)
+          .where(and(eq(repairPartsTable.repairId, repair.id), eq(repairPartsTable.shopId, shopId)));
+        await tx
+          .update(repairsTable)
+          .set({ partsCharge: total })
+          .where(and(eq(repairsTable.id, repair.id), eq(repairsTable.shopId, shopId)));
+        await logRepairEvent(tx, {
+          shopId,
+          repairId: repair.id,
+          user: me,
+          action: "part_used",
+          details: { partName, quantity, unitCost: Math.max(unitCost, 0) },
+        });
+        if (repair.customerId) await syncCustomerStats(tx, shopId, repair.customerId);
+        return row;
+      });
+      res.json({ part: repairPartOut(created) });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg === "NOT_FOUND") {
+        res.status(404).json({ message: "Repair not found" });
+        return;
+      }
+      if (msg === "REPAIR_LOCKED") {
+        res.status(400).json({ message: "Parts cannot be added to a delivered or cancelled repair." });
+        return;
+      }
+      if (msg === "OUT_OF_STOCK") {
+        res.status(400).json({ message: "Not enough stock for this part." });
+        return;
+      }
+      if (msg === "PART_NAME_REQUIRED") {
+        res.status(400).json({ message: "Part name is required." });
+        return;
+      }
+      throw err;
+    }
   }),
 );
 

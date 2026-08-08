@@ -47,6 +47,8 @@ export const repairsTable = pgTable("repairs", {
   brand: text("brand").notNull(),
   model: text("model").notNull(),
   imei: text("imei"),
+  alternateMobile: text("alternate_mobile"),
+  accessories: text("accessories"), // accessories received with the device
   problem: text("problem").notNull(),
   technicianId: uuid("technician_id"),
   technicianName: text("technician_name"),
@@ -65,6 +67,12 @@ export const repairsTable = pgTable("repairs", {
   deliverySignaturePath: text("delivery_signature_path"),
   warrantyDays: integer("warranty_days").notNull().default(0), // 0 = no warranty
   warrantyExpiry: text("warranty_expiry"), // ISO date, computed on delivery
+  // Workflow accountability (who received / handed over the device)
+  receivedById: uuid("received_by_id"),
+  receivedByName: text("received_by_name"),
+  deliveredById: uuid("delivered_by_id"),
+  deliveredByName: text("delivered_by_name"),
+  paymentMethod: text("payment_method"), // recorded at handover (Cash/UPI/…)
   isSample: boolean("is_sample").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -260,6 +268,27 @@ export const returnPartsTable = pgTable("return_parts", {
     .defaultNow(),
 });
 
+// Parts consumed on the original repair — append-only, inventory is deducted
+// when a row is added, linked to the same repair ticket.
+export const repairPartsTable = pgTable("repair_parts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  shopId: uuid("shop_id")
+    .notNull()
+    .references(() => shopsTable.id, { onDelete: "cascade" }),
+  repairId: uuid("repair_id")
+    .notNull()
+    .references(() => repairsTable.id, { onDelete: "cascade" }),
+  inventoryItemId: uuid("inventory_item_id"),
+  partName: text("part_name").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  unitCost: doublePrecision("unit_cost").notNull().default(0),
+  addedById: uuid("added_by_id"),
+  addedByName: text("added_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 // Refunds are separate financial transactions — the original payment/repair
 // charges are never edited. Staff can only request (pending_approval);
 // dealer/owner approves, rejects and marks paid.
@@ -299,6 +328,7 @@ export const refundsTable = pgTable("refunds", {
 
 export type DbRepairReturn = typeof repairReturnsTable.$inferSelect;
 export type DbReturnPart = typeof returnPartsTable.$inferSelect;
+export type DbRepairPart = typeof repairPartsTable.$inferSelect;
 export type DbRefund = typeof refundsTable.$inferSelect;
 
 export type DbApprovalRequest = typeof approvalRequestsTable.$inferSelect;

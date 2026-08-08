@@ -520,6 +520,55 @@ paths:
                   photo:
                     $ref: "#/components/schemas/RepairPhoto"
                 required: [photo]
+  /repairs/{id}/parts:
+    get:
+      operationId: repairPartsList
+      tags: [business]
+      summary: List parts consumed on a repair
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Parts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  parts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RepairPart"
+                required: [parts]
+    post:
+      operationId: repairPartsAdd
+      tags: [business]
+      summary: Record a part used on a repair (deducts inventory)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepairPartInput"
+      responses:
+        "200":
+          description: Created part row
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  part:
+                    $ref: "#/components/schemas/RepairPart"
+                required: [part]
   /repairs/{id}/events:
     get:
       operationId: repairEventsList
@@ -1313,6 +1362,8 @@ components:
         brand: { type: string }
         model: { type: string }
         imei: { type: string }
+        alternateMobile: { type: string }
+        accessories: { type: string }
         problem: { type: string }
         technicianId: { type: string }
         technicianName: { type: string }
@@ -1332,6 +1383,11 @@ components:
         deliverySignaturePath: { type: string }
         warrantyDays: { type: number }
         warrantyExpiry: { type: string }
+        receivedById: { type: string }
+        receivedByName: { type: string }
+        deliveredById: { type: string }
+        deliveredByName: { type: string }
+        paymentMethod: { type: string }
         isSample: { type: boolean }
         createdAt: { type: string }
       required: [id, repairId, customerName, mobile, deviceType, brand, model, problem, status, priority, repairCharge, partsCharge, advance, receiveDate, expectedDate, warrantyDays, isSample, createdAt]
@@ -1345,6 +1401,8 @@ components:
         brand: { type: string }
         model: { type: string }
         imei: { type: string }
+        alternateMobile: { type: string }
+        accessories: { type: string }
         problem: { type: string }
         technicianId: { type: string }
         technicianName: { type: string }
@@ -1363,6 +1421,28 @@ components:
         receivingSignaturePath: { type: string }
         deliverySignaturePath: { type: string }
         warrantyDays: { type: number }
+        paymentMethod: { type: string }
+    RepairPart:
+      type: object
+      properties:
+        id: { type: string }
+        repairId: { type: string }
+        inventoryItemId: { type: string }
+        partName: { type: string }
+        quantity: { type: number }
+        unitCost: { type: number }
+        totalCost: { type: number }
+        addedByName: { type: string }
+        createdAt: { type: string }
+      required: [id, repairId, partName, quantity, unitCost, totalCost, createdAt]
+    RepairPartInput:
+      type: object
+      properties:
+        inventoryItemId: { type: string }
+        partName: { type: string }
+        quantity: { type: number }
+        unitCost: { type: number }
+      required: [quantity]
     RepairPhoto:
       type: object
       properties:

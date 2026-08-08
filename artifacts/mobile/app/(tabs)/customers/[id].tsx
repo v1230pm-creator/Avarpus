@@ -39,6 +39,21 @@ export default function CustomerDetailScreen() {
     return (refundsData?.refunds || []).filter(rf => rf.customerId === id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [refundsData, id]);
 
+  const timeline = useMemo(() => {
+    const arr: any[] = [];
+    customerRepairs.forEach(r => {
+      let stage = 'Repair';
+      if (r.status === 'received') stage = 'Received';
+      else if (r.status === 'delivered') stage = 'Delivered';
+      else if (r.status === 'cancelled') stage = 'Cancelled';
+      arr.push({ ...r, type: 'repair', stage, date: r.createdAt });
+    });
+    customerReturns.forEach(r => {
+      arr.push({ ...r, type: 'return', stage: 'After-Sales', date: r.createdAt });
+    });
+    return arr.sort((a, b) => b.date.localeCompare(a.date));
+  }, [customerRepairs, customerReturns]);
+
   const anims = useStaggerAnim(4);
 
   if (!customer) {
@@ -94,89 +109,66 @@ export default function CustomerDetailScreen() {
           </View>
         </GlassCard>
 
-        {/* Repair History */}
+        {/* Activity Timeline */}
         <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
-          REPAIR HISTORY ({customerRepairs.length})
+          ACTIVITY TIMELINE ({timeline.length})
         </Text>
 
-        {customerRepairs.length === 0 ? (
+        {timeline.length === 0 ? (
           <Card>
             <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-              No repairs yet
+              No activity yet
             </Text>
           </Card>
         ) : (
-          customerRepairs.map((repair) => (
+          timeline.map((item) => (
             <TouchableOpacity
-              key={repair.id}
-              onPress={() => router.push(`/(tabs)/repairs/${repair.id}`)}
+              key={`${item.type}-${item.id}`}
+              onPress={() => item.type === 'return' ? router.push(`/(tabs)/repairs/return/${item.id}`) : router.push(`/(tabs)/repairs/${item.id}`)}
               activeOpacity={0.8}
             >
               <Card style={styles.repairCard}>
                 <View style={styles.repairRow}>
-                  <View style={[styles.repairIdBadge, { backgroundColor: colors.primary + '15' }]}>
-                    <Text style={[styles.repairId, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{repair.repairId}</Text>
+                  <View style={[styles.repairIdBadge, { backgroundColor: item.type === 'return' ? colors.warning + '15' : colors.primary + '15' }]}>
+                    <Text style={[styles.repairId, { color: item.type === 'return' ? colors.warning : colors.primary, fontFamily: 'Inter_700Bold' }]}>
+                      {item.type === 'return' ? item.returnId : item.repairId}
+                    </Text>
                   </View>
-                  <RepairStatusBadge status={repair.status} />
-                  {repair.isSample && <SampleBadge />}
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+                    <Text style={{ fontSize: 11, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{item.stage}</Text>
+                  </View>
+                  {item.isSample && <SampleBadge />}
                   <Text style={[styles.repairDate, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-                    {formatDate(repair.createdAt)}
+                    {formatDate(item.date)}
                   </Text>
                 </View>
                 <Text style={[styles.deviceLine, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>
-                  {repair.brand} {repair.model}
+                  {item.brand} {item.model}
                 </Text>
-                <Text style={[styles.problemLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
-                  {repair.problem}
-                </Text>
-                <Text style={[styles.chargeText, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
-                  {formatCurrency(repair.repairCharge + repair.partsCharge)}
-                </Text>
+                {item.type === 'repair' ? (
+                  <>
+                    <Text style={[styles.problemLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+                      {item.problem}
+                    </Text>
+                    <Text style={[styles.chargeText, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                      {formatCurrency(item.repairCharge + item.partsCharge)}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={[styles.problemLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+                      Reason: {item.reason.replace(/_/g, ' ')}
+                    </Text>
+                    {customerRefunds.filter(rf => rf.returnCaseId === item.id).map(rf => (
+                      <Text key={rf.id} style={{ fontSize: 13, color: colors.info, fontFamily: 'Inter_600SemiBold', marginTop: 4 }}>
+                        Refund: {formatCurrency(rf.amount)} ({rf.status.replace('_', ' ')})
+                      </Text>
+                    ))}
+                  </>
+                )}
               </Card>
             </TouchableOpacity>
           ))
-        )}
-        {/* Returns History */}
-        {customerReturns.length > 0 && (
-          <>
-            <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold', marginTop: 12 }]}>
-              RETURNS & REWORK ({customerReturns.length})
-            </Text>
-            {customerReturns.map((ret) => (
-              <TouchableOpacity
-                key={ret.id}
-                onPress={() => router.push(`/(tabs)/repairs/return/${ret.id}` as any)}
-                activeOpacity={0.8}
-              >
-                <Card style={styles.repairCard}>
-                  <View style={styles.repairRow}>
-                    <View style={[styles.repairIdBadge, { backgroundColor: colors.warning + '15' }]}>
-                      <Text style={[styles.repairId, { color: colors.warning, fontFamily: 'Inter_700Bold' }]}>{ret.returnId}</Text>
-                    </View>
-                    <View style={[styles.repairIdBadge, { backgroundColor: ret.status === 'closed' ? colors.success + '15' : colors.warning + '15' }]}>
-                      <Text style={{ fontSize: 11, color: ret.status === 'closed' ? colors.success : colors.warning, fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }}>
-                        {ret.status.replace(/_/g, ' ')}
-                      </Text>
-                    </View>
-                    <Text style={[styles.repairDate, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-                      {formatDate(ret.createdAt)}
-                    </Text>
-                  </View>
-                  <Text style={[styles.deviceLine, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>
-                    {ret.brand} {ret.model}
-                  </Text>
-                  <Text style={[styles.problemLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
-                    Reason: {ret.reason.replace(/_/g, ' ')}
-                  </Text>
-                  {customerRefunds.filter(rf => rf.returnCaseId === ret.id).map(rf => (
-                    <Text key={rf.id} style={{ fontSize: 13, color: colors.info, fontFamily: 'Inter_600SemiBold', marginTop: 4 }}>
-                      Refund: {formatCurrency(rf.amount)} ({rf.status.replace('_', ' ')})
-                    </Text>
-                  ))}
-                </Card>
-              </TouchableOpacity>
-            ))}
-          </>
         )}
       </ScrollView>
 

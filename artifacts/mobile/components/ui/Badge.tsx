@@ -45,12 +45,14 @@ const REPAIR_STATUS_VARIANTS: Record<RepairStatus, BadgeVariant> = {
   received: 'muted', diagnosing: 'info', waiting_parts: 'warning',
   repairing: 'info', testing: 'info', ready: 'success',
   delivered: 'success', cancelled: 'error',
+  cannot_repair: 'error', customer_approval: 'warning'
 };
 
 const REPAIR_STATUS_LABELS: Record<RepairStatus, string> = {
   received: 'Received', diagnosing: 'Diagnosing', waiting_parts: 'Waiting Parts',
   repairing: 'Repairing', testing: 'Testing', ready: 'Ready',
   delivered: 'Delivered', cancelled: 'Cancelled',
+  cannot_repair: 'Cannot Repair', customer_approval: 'Customer Approval'
 };
 
 const PRIORITY_VARIANTS: Record<RepairPriority, BadgeVariant> = {

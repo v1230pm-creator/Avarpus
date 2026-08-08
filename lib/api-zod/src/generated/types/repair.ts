@@ -17,6 +17,8 @@ export interface Repair {
   brand: string;
   model: string;
   imei?: string;
+  alternateMobile?: string;
+  accessories?: string;
   problem: string;
   technicianId?: string;
   technicianName?: string;
@@ -34,6 +36,11 @@ export interface Repair {
   deliverySignaturePath?: string;
   warrantyDays: number;
   warrantyExpiry?: string;
+  receivedById?: string;
+  receivedByName?: string;
+  deliveredById?: string;
+  deliveredByName?: string;
+  paymentMethod?: string;
   isSample: boolean;
   createdAt: string;
 }
