@@ -119,13 +119,26 @@ async function run(token) {
       problem: "does not boot",
       ...extra,
     });
-  const { status: r1s, json: r1j } = await mkRepair({ repairCharge: 500, partsCharge: 200, advance: 100 });
+  // Delivery requires the testing gate (testingConfirmedAt) to be set first.
+  const confirmTesting = (repairId) =>
+    api("POST", `/repairs/${repairId}/testing`, token, { confirm: true });
+  // Advance is a cache of the append-only payments ledger — it can only be
+  // recorded through POST /repairs/:id/payments, never on create/patch.
+  const payAdvance = (repairId, amount) =>
+    api("POST", `/repairs/${repairId}/payments`, token, { amount, method: "Cash", kind: "advance" });
+
+  const { status: r1s, json: r1j } = await mkRepair({ repairCharge: 500, partsCharge: 200 });
   check("create repair 1", r1s === 200 && r1j.repair?.id, { r1s, r1j });
   const repair1 = r1j.repair.id;
   s = await customerStats(token, customerId);
   check("after create: total=1, due=0 (not delivered)", s.total === 1 && s.due === 0, s);
 
-  // 2) Deliver -> due = charges - advance = 500 + 200 - 100 = 600.
+  // 2) Record a 100 advance through the ledger, then deliver ->
+  //    due = charges - advance = 500 + 200 - 100 = 600.
+  const { status: p1s } = await payAdvance(repair1, 100);
+  check("record advance on repair 1", p1s === 200, { p1s });
+  const { status: t1s } = await confirmTesting(repair1);
+  check("confirm testing for repair 1", t1s === 200, { t1s });
   const { status: d1s } = await api("PATCH", `/repairs/${repair1}`, token, { status: "delivered" });
   check("deliver repair 1", d1s === 200, { d1s });
   s = await customerStats(token, customerId);
@@ -137,15 +150,21 @@ async function run(token) {
   s = await customerStats(token, customerId);
   check("after edit: due=900", s.total === 1 && s.due === 900, s);
 
-  // 4) Over-advance: repair 2 delivered with advance > charges is clamped at 0
-  //    per repair, so the customer's due is unaffected (stays 900, total 2).
-  const { status: r2s, json: r2j } = await mkRepair({ repairCharge: 200, partsCharge: 100, advance: 1000 });
+  // 4) Overpayment is rejected by the ledger (400 OVERPAYMENT), and a fully
+  //    paid repair 2 contributes 0 due -> customer stays at due=900, total=2.
+  const { status: r2s, json: r2j } = await mkRepair({ repairCharge: 200, partsCharge: 100 });
   check("create repair 2", r2s === 200 && r2j.repair?.id, { r2s, r2j });
   const repair2 = r2j.repair.id;
+  const { status: op, json: opj } = await payAdvance(repair2, 1000);
+  check("overpayment rejected (400 OVERPAYMENT)", op === 400 && opj.code === "OVERPAYMENT", { op, opj });
+  const { status: p2s } = await payAdvance(repair2, 300);
+  check("pay repair 2 in full", p2s === 200, { p2s });
+  const { status: t2s } = await confirmTesting(repair2);
+  check("confirm testing for repair 2", t2s === 200, { t2s });
   const { status: d2s } = await api("PATCH", `/repairs/${repair2}`, token, { status: "delivered" });
-  check("deliver repair 2 (over-advance)", d2s === 200, { d2s });
+  check("deliver repair 2 (fully paid)", d2s === 200, { d2s });
   s = await customerStats(token, customerId);
-  check("over-advance clamps at 0: total=2, due=900", s.total === 2 && s.due === 900, s);
+  check("fully paid repair adds no due: total=2, due=900", s.total === 2 && s.due === 900, s);
 
   // 5) Cancel repair 1 -> its count and due contribution drop:
   //    total 1 (only repair 2), due 0 (repair 2's due is clamped at 0).

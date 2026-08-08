@@ -14,4 +14,5 @@
 - [Returns & refunds](returns-refunds.md) — return cases have a strict server state machine; refunds are separate rows with a cumulative repair-level cap; closed cases frozen; FOR UPDATE + conditional claims everywhere.
 - [Mobile Jest setup quirks](mobile-jest-setup.md) — pnpm-aware transformIgnorePatterns, global fake timers to avoid hangs, mock at API-client boundary not context.
 - [PIN hashing](pin-hashing.md) — PIN stored as salted iterated-SHA256 record; use hasStoredMpin/verifyMpin, never compare raw values; mock expo-crypto with node crypto in Jest.
+- [API validation steps](api-validation-steps.md) — isolation/balances/registration scripts run as validation steps; whole-command flock + api-server cwd, or concurrent builds clobber dist.
 - [PIN throttle review bar](pin-throttle-reviews.md) — reviewers require every unlock method to reset attempts, sync pre-submit guards on PIN pads, and serialized counter writes.
