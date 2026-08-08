@@ -10,3 +10,4 @@
 - [Restyle review bar](restyle-reviews.md) — reviewers reject app-wide restyles if any list-item cards keep the old flat surface; grep old surface tokens before submitting.
 - [Backdated approvals](backdated-approvals.md) — staff backdated saves 403 APPROVAL_REQUIRED and go through approval_requests; approve must atomically claim + save in one tx; nothing persists pre-approval.
 - [Mobile Jest setup quirks](mobile-jest-setup.md) — pnpm-aware transformIgnorePatterns, global fake timers to avoid hangs, mock at API-client boundary not context.
+- [PIN throttle review bar](pin-throttle-reviews.md) — reviewers require every unlock method to reset attempts, sync pre-submit guards on PIN pads, and serialized counter writes.

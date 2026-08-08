@@ -94,6 +94,109 @@ export async function disableAppLock(): Promise<void> {
   await clearMpin();
 }
 
+// ── PIN attempt throttling ────────────────────────────────────────────────
+// After MAX_FREE_ATTEMPTS wrong PINs, further attempts are blocked by an
+// escalating cooldown. State is persisted so restarting the app doesn't
+// reset the counter.
+
+export const PIN_FAILED_ATTEMPTS_KEY = '@vmc_pin_failed_attempts';
+export const PIN_LOCKOUT_UNTIL_KEY = '@vmc_pin_lockout_until';
+
+/** Wrong attempts allowed before the first cooldown kicks in. */
+export const MAX_FREE_ATTEMPTS = 5;
+
+/**
+ * Escalating cooldown for a given failed-attempt count.
+ * Returns 0 while under the free-attempt threshold.
+ * 5th wrong attempt → 30s, 6th → 1m, 7th → 5m, 8th → 15m, 9th+ → 30m.
+ */
+export function getCooldownMs(failedAttempts: number): number {
+  if (failedAttempts < MAX_FREE_ATTEMPTS) return 0;
+  const over = failedAttempts - MAX_FREE_ATTEMPTS;
+  const steps = [30_000, 60_000, 5 * 60_000, 15 * 60_000];
+  return over < steps.length ? steps[over] : 30 * 60_000;
+}
+
+export interface PinThrottleState {
+  failedAttempts: number;
+  /** Epoch ms until which attempts are blocked, or null when not locked out. */
+  lockedUntilMs: number | null;
+}
+
+/** Reads the persisted throttle state. Fails closed on storage errors. */
+export async function getPinThrottleState(): Promise<PinThrottleState> {
+  const [attemptsRaw, untilRaw] = await Promise.all([
+    AsyncStorage.getItem(PIN_FAILED_ATTEMPTS_KEY),
+    AsyncStorage.getItem(PIN_LOCKOUT_UNTIL_KEY),
+  ]);
+  const failedAttempts = Math.max(0, parseInt(attemptsRaw ?? '0', 10) || 0);
+  const until = parseInt(untilRaw ?? '0', 10) || 0;
+  return { failedAttempts, lockedUntilMs: until > 0 ? until : null };
+}
+
+// Serializes all throttle read-modify-write operations so concurrent callers
+// (e.g. rapid UI submissions) can never lose increments.
+let throttleQueue: Promise<unknown> = Promise.resolve();
+function enqueueThrottleOp<T>(op: () => Promise<T>): Promise<T> {
+  const next = throttleQueue.then(op, op);
+  throttleQueue = next.catch(() => {});
+  return next;
+}
+
+/**
+ * Records a wrong PIN entry and returns the new state (including any new
+ * cooldown). `nowMs` defaults to Date.now(). Calls are serialized, so
+ * concurrent failures each count.
+ */
+export function recordFailedPinAttempt(nowMs: number = Date.now()): Promise<PinThrottleState> {
+  return enqueueThrottleOp(async () => {
+    const prev = await getPinThrottleState();
+    const failedAttempts = prev.failedAttempts + 1;
+    const cooldown = getCooldownMs(failedAttempts);
+    const lockedUntilMs = cooldown > 0 ? nowMs + cooldown : null;
+    await AsyncStorage.setItem(PIN_FAILED_ATTEMPTS_KEY, String(failedAttempts));
+    if (lockedUntilMs != null) {
+      await AsyncStorage.setItem(PIN_LOCKOUT_UNTIL_KEY, String(lockedUntilMs));
+    } else {
+      await AsyncStorage.removeItem(PIN_LOCKOUT_UNTIL_KEY);
+    }
+    return { failedAttempts, lockedUntilMs };
+  });
+}
+
+/** Clears the failed-attempt counter and any active cooldown (successful unlock). */
+export function resetPinAttempts(): Promise<void> {
+  return enqueueThrottleOp(async () => {
+    await AsyncStorage.removeItem(PIN_FAILED_ATTEMPTS_KEY);
+    await AsyncStorage.removeItem(PIN_LOCKOUT_UNTIL_KEY);
+  });
+}
+
+/**
+ * Remaining cooldown in ms at `nowMs`, or 0 when input is allowed.
+ * A persisted lockout that has expired counts as 0 (but the attempt counter
+ * stays until a successful unlock, so the next failure escalates).
+ */
+export function remainingCooldownMs(state: PinThrottleState, nowMs: number = Date.now()): number {
+  if (state.lockedUntilMs == null) return 0;
+  return Math.max(0, state.lockedUntilMs - nowMs);
+}
+
+/**
+ * Shared success path for ANY unlock method (PIN or biometric): clears the
+ * failed-attempt counter/cooldown, then marks the session unlocked. Every
+ * successful unlock must go through this so no method leaves a stale
+ * escalated cooldown behind.
+ */
+export async function completeUnlockSuccess(): Promise<void> {
+  try {
+    await resetPinAttempts();
+  } finally {
+    // Even if clearing the counter fails, a successful auth must unlock.
+    setUnlocked(true);
+  }
+}
+
 /** True when a PIN or biometric unlock has been configured. */
 export async function isLockEnabled(): Promise<boolean> {
   const [mpin, bio] = await Promise.all([

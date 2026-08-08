@@ -31,6 +31,7 @@ import {
   getStoredMpin,
   storeMpin,
 } from '@/utils/appLock';
+import { formatCooldown, usePinThrottle } from '@/hooks/usePinThrottle';
 
 const DOTS = [0, 1, 2, 3, 4, 5];
 const PAD = [
@@ -71,6 +72,13 @@ export default function SecurityScreen() {
   const [padError, setPadError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // Brute-force throttling: only applies to purposes that verify the
+  // existing PIN (not to entering/confirming a new one).
+  const throttle = usePinThrottle();
+  const isVerifyPurpose =
+    padPurpose === 'verify_change' || padPurpose === 'verify_disable' || padPurpose === 'verify_bio_off';
+  const cooldownBlocked = isVerifyPurpose && (throttle.cooldownMs > 0 || !throttle.ready);
+
   // Operation token: bumped whenever the pad flow starts, changes purpose, or
   // is cancelled, so any queued (deferred) PIN submission from a previous or
   // cancelled flow is invalidated and can never mutate lock state.
@@ -79,9 +87,14 @@ export default function SecurityScreen() {
   // Synchronous in-flight guard: true while completePin is executing, so
   // cancel/back cannot interrupt a submission mid-write.
   const inFlightRef = useRef(false);
+  // Synchronous pre-submit guard: set the moment the 6th digit is entered
+  // (before the deferred submission fires) so no further input — backspace or
+  // re-entry — can race an in-flight guess.
+  const pendingSubmitRef = useRef(false);
 
   const invalidatePendingSubmit = () => {
     opTokenRef.current += 1;
+    pendingSubmitRef.current = false;
     if (submitTimerRef.current) {
       clearTimeout(submitTimerRef.current);
       submitTimerRef.current = null;
@@ -164,6 +177,22 @@ export default function SecurityScreen() {
     forceClosePad();
   };
 
+  const handleWrongPin = async () => {
+    const state = await throttle.recordFailure();
+    if (state.lockedUntilMs != null) {
+      setPadError('Too many wrong attempts.');
+    } else {
+      const left = Math.max(0, 5 - state.failedAttempts);
+      setPadError(
+        left <= 2
+          ? `Incorrect PIN. ${left} attempt${left === 1 ? '' : 's'} left before a cooldown.`
+          : 'Incorrect PIN. Try again.',
+      );
+    }
+    shake();
+    setEntered('');
+  };
+
   const completePin = async (pin: string, token: number) => {
     // Ignore submissions from a cancelled or superseded pad flow.
     if (inFlightRef.current || busy || !padPurpose || token !== opTokenRef.current) return;
@@ -180,13 +209,12 @@ export default function SecurityScreen() {
       switch (padPurpose) {
         case 'verify_change': {
           if (pin === saved) {
+            await throttle.recordSuccess();
             setPadPurpose('new_pin');
             setEntered('');
             setPadError('');
           } else {
-            setPadError('Incorrect PIN. Try again.');
-            shake();
-            setEntered('');
+            await handleWrongPin();
           }
           break;
         }
@@ -238,6 +266,7 @@ export default function SecurityScreen() {
         }
         case 'verify_disable': {
           if (pin === saved) {
+            await throttle.recordSuccess();
             // disableAppLock removes the biometric flag before the PIN, so a
             // mid-way failure can never leave a biometric-only lock.
             await disableAppLock();
@@ -246,23 +275,20 @@ export default function SecurityScreen() {
             await refresh();
             showBanner('success', 'App lock has been turned off.');
           } else {
-            setPadError('Incorrect PIN. Try again.');
-            shake();
-            setEntered('');
+            await handleWrongPin();
           }
           break;
         }
         case 'verify_bio_off': {
           if (pin === saved) {
+            await throttle.recordSuccess();
             await AsyncStorage.removeItem(BIOMETRIC_ENABLED_KEY);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             forceClosePad();
             await refresh();
             showBanner('success', 'Biometric unlock turned off.');
           } else {
-            setPadError('Incorrect PIN. Try again.');
-            shake();
-            setEntered('');
+            await handleWrongPin();
           }
           break;
         }
@@ -276,12 +302,13 @@ export default function SecurityScreen() {
       refresh();
     } finally {
       inFlightRef.current = false;
+      pendingSubmitRef.current = false;
       setBusy(false);
     }
   };
 
   const handlePad = (key: string) => {
-    if (busy) return;
+    if (busy || cooldownBlocked || pendingSubmitRef.current) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (key === '⌫') {
       setEntered((p) => p.slice(0, -1));
@@ -293,6 +320,7 @@ export default function SecurityScreen() {
     setEntered(next);
     if (next.length === 6) {
       const token = opTokenRef.current;
+      pendingSubmitRef.current = true;
       submitTimerRef.current = setTimeout(() => {
         submitTimerRef.current = null;
         completePin(next, token);
@@ -409,6 +437,15 @@ export default function SecurityScreen() {
             </Text>
           )}
 
+          {isVerifyPurpose && throttle.cooldownMs > 0 && (
+            <View style={[styles.cooldownWrap, { backgroundColor: colors.warning + '15', borderColor: colors.warning + '33' }]}>
+              <Feather name="clock" size={14} color={colors.warning} />
+              <Text style={[styles.cooldownText, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>
+                Try again in {formatCooldown(throttle.cooldownMs)}
+              </Text>
+            </View>
+          )}
+
           <View style={styles.pad}>
             {PAD.map((row, ri) => (
               <View key={ri} style={styles.padRow}>
@@ -417,10 +454,14 @@ export default function SecurityScreen() {
                   return (
                     <TouchableOpacity
                       key={ki}
-                      style={[styles.padKey, { backgroundColor: colors.card, borderColor: colors.border }]}
+                      style={[
+                        styles.padKey,
+                        { backgroundColor: colors.card, borderColor: colors.border },
+                        cooldownBlocked && { opacity: 0.35 },
+                      ]}
                       onPress={() => handlePad(key)}
                       activeOpacity={0.7}
-                      disabled={busy}
+                      disabled={busy || cooldownBlocked}
                     >
                       {key === '⌫' ? (
                         <Feather name="delete" size={20} color={colors.mutedForeground} />
@@ -623,6 +664,16 @@ const styles = StyleSheet.create({
   dotsRow: { flexDirection: 'row', gap: 14 },
   dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, backgroundColor: 'transparent' },
   padErrorText: { fontSize: 13, marginTop: -8 },
+  cooldownWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  cooldownText: { fontSize: 13 },
   pad: { gap: 12, width: '100%', maxWidth: 300 },
   padRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   padKey: { flex: 1, height: 64, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },

@@ -28,11 +28,13 @@ import Reanimated, {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   BIOMETRIC_ENABLED_KEY,
+  completeUnlockSuccess,
   disableAppLock,
   getStoredMpin,
   setUnlocked,
   storeMpin,
 } from '@/utils/appLock';
+import { formatCooldown, usePinThrottle } from '@/hooks/usePinThrottle';
 import { useAuth } from '@/context/AuthContext';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -63,6 +65,15 @@ export default function BiometricScreen() {
   const [confirmMpin, setConfirmMpin] = useState('');
   const [enteredMpin, setEnteredMpin] = useState('');
   const [mpinError, setMpinError] = useState('');
+
+  // Brute-force throttling for PIN entry (persisted across restarts).
+  const throttle = usePinThrottle();
+  const cooldownActive = throttle.cooldownMs > 0;
+  // Synchronous guard: set the moment the 6th digit is entered, cleared only
+  // after verification + throttle writes finish. Blocks any further pad input
+  // (including backspace/re-entry) so concurrent guesses are impossible.
+  const submittingRef = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Animations
   const cardY = useSharedValue(40);
@@ -128,7 +139,8 @@ export default function BiometricScreen() {
         disableDeviceFallback: true,
       });
       if (result.success) {
-        setUnlocked(true);
+        // Shared success path: resets the PIN attempt counter/cooldown too.
+        await completeUnlockSuccess();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.replace('/(tabs)');
       }
@@ -183,21 +195,44 @@ export default function BiometricScreen() {
     }
 
     if (mode === 'enter_mpin') {
+      // Block input entirely while a cooldown is active, a submission is in
+      // flight, or the throttle state is unknown.
+      if (cooldownActive || !throttle.ready || submittingRef.current) return;
       if (key === '⌫') { setEnteredMpin((p) => p.slice(0, -1)); setMpinError(''); return; }
       if (enteredMpin.length >= 6) return;
       const next = enteredMpin + key;
       setEnteredMpin(next);
       if (next.length === 6) {
+        // Close the pre-submit window synchronously: no more input (delete or
+        // re-entry) until this guess and its throttle write fully complete.
+        submittingRef.current = true;
+        setSubmitting(true);
         setTimeout(async () => {
-          const saved = await getStoredMpin();
-          if (next === saved) {
-            setUnlocked(true);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            router.replace('/(tabs)');
-          } else {
-            setMpinError('Incorrect PIN. Try again.');
-            shake();
-            setEnteredMpin('');
+          try {
+            const saved = await getStoredMpin();
+            if (next === saved) {
+              await throttle.recordSuccess();
+              await completeUnlockSuccess();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              router.replace('/(tabs)');
+            } else {
+              const state = await throttle.recordFailure();
+              if (state.lockedUntilMs != null) {
+                setMpinError('Too many wrong attempts.');
+              } else {
+                const left = Math.max(0, 5 - state.failedAttempts);
+                setMpinError(
+                  left <= 2
+                    ? `Incorrect PIN. ${left} attempt${left === 1 ? '' : 's'} left before a cooldown.`
+                    : 'Incorrect PIN. Try again.',
+                );
+              }
+              shake();
+              setEnteredMpin('');
+            }
+          } finally {
+            submittingRef.current = false;
+            setSubmitting(false);
           }
         }, 300);
       }
@@ -211,7 +246,7 @@ export default function BiometricScreen() {
     });
     if (result.success) {
       await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
-      setUnlocked(true);
+      await completeUnlockSuccess();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace('/(tabs)');
     }
@@ -419,6 +454,16 @@ export default function BiometricScreen() {
               <Text style={[styles.pinError, { fontFamily: 'Inter_400Regular' }]}>{mpinError}</Text>
             )}
 
+            {/* Cooldown countdown */}
+            {mode === 'enter_mpin' && cooldownActive && (
+              <View style={styles.cooldownWrap}>
+                <Feather name="clock" size={14} color="#F59E0B" />
+                <Text style={[styles.cooldownText, { fontFamily: 'Inter_600SemiBold' }]}>
+                  Try again in {formatCooldown(throttle.cooldownMs)}
+                </Text>
+              </View>
+            )}
+
             {/* Numpad */}
             <View style={styles.pad}>
               {PAD.map((row, ri) => (
@@ -428,9 +473,14 @@ export default function BiometricScreen() {
                     return (
                       <TouchableOpacity
                         key={ki}
-                        style={[styles.padKey, key === '⌫' && styles.padBackspace]}
+                        style={[
+                          styles.padKey,
+                          key === '⌫' && styles.padBackspace,
+                          mode === 'enter_mpin' && (cooldownActive || submitting) && { opacity: 0.35 },
+                        ]}
                         onPress={() => handlePad(key)}
                         activeOpacity={0.7}
+                        disabled={mode === 'enter_mpin' && (cooldownActive || submitting)}
                       >
                         {key === '⌫' ? (
                           <Feather name="delete" size={20} color="#94A3B8" />
@@ -484,6 +534,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 20,
   },
+
+  // Cooldown
+  cooldownWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#F59E0B15',
+    borderWidth: 1,
+    borderColor: '#F59E0B33',
+  },
+  cooldownText: { fontSize: 13, color: '#F59E0B' },
 
   // Icon
   iconWrap: { marginBottom: 4 },
