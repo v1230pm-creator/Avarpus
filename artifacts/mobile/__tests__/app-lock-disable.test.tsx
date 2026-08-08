@@ -25,11 +25,25 @@ jest.mock('@/utils/secureStorage', () => {
   };
 });
 
+// Back expo-crypto with node's crypto so PIN hashing works in tests.
+jest.mock('expo-crypto', () => {
+  const nodeCrypto = require('crypto');
+  return {
+    __esModule: true,
+    CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+    digestStringAsync: jest.fn(async (_alg: string, data: string) =>
+      nodeCrypto.createHash('sha256').update(data, 'utf8').digest('hex'),
+    ),
+    getRandomBytesAsync: jest.fn(async (n: number) => nodeCrypto.randomBytes(n)),
+  };
+});
+
 import {
   BIOMETRIC_ENABLED_KEY,
   disableAppLock,
-  getStoredMpin,
+  hasStoredMpin,
   storeMpin,
+  verifyMpin,
 } from '@/utils/appLock';
 import * as secureStorage from '@/utils/secureStorage';
 
@@ -49,7 +63,7 @@ describe('disableAppLock', () => {
 
     await disableAppLock();
 
-    expect(await getStoredMpin()).toBeNull();
+    expect(await hasStoredMpin()).toBe(false);
     expect(await AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY)).toBeNull();
   });
 
@@ -78,7 +92,7 @@ describe('disableAppLock', () => {
 
     // Biometric flag is gone, but the PIN survives — a working lock remains.
     expect(await AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY)).toBeNull();
-    expect(await getStoredMpin()).toBe('123456');
+    expect(await verifyMpin('123456')).toBe(true);
   });
 
   it('leaves the full lock intact if removing the biometric flag fails first', async () => {
@@ -91,7 +105,7 @@ describe('disableAppLock', () => {
     await expect(disableAppLock()).rejects.toThrow('storage failure');
     removeSpy.mockRestore();
 
-    expect(await getStoredMpin()).toBe('123456');
+    expect(await verifyMpin('123456')).toBe(true);
     expect(secureDeleteItem).not.toHaveBeenCalled();
   });
 });

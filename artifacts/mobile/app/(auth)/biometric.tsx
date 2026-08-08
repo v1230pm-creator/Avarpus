@@ -30,9 +30,10 @@ import {
   BIOMETRIC_ENABLED_KEY,
   completeUnlockSuccess,
   disableAppLock,
-  getStoredMpin,
+  hasStoredMpin,
   setUnlocked,
   storeMpin,
+  verifyMpin,
 } from '@/utils/appLock';
 import { formatCooldown, usePinThrottle } from '@/hooks/usePinThrottle';
 import { useAuth } from '@/context/AuthContext';
@@ -105,10 +106,10 @@ export default function BiometricScreen() {
       setBiometricType(hasFace ? 'face' : 'fingerprint');
       setHasBiometric(compatible && enrolled);
 
-      const savedMpin = await getStoredMpin();
+      const savedMpin = await hasStoredMpin();
       const bioEnabled = await AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY);
 
-      setMpinSetup(!!savedMpin);
+      setMpinSetup(savedMpin);
       setBiometricEnabled(bioEnabled === 'true');
 
       // If already configured — go directly to verify. Skip is only reachable
@@ -209,8 +210,8 @@ export default function BiometricScreen() {
         setSubmitting(true);
         setTimeout(async () => {
           try {
-            const saved = await getStoredMpin();
-            if (next === saved) {
+            const ok = await verifyMpin(next);
+            if (ok) {
               await throttle.recordSuccess();
               await completeUnlockSuccess();
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

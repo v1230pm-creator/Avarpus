@@ -28,8 +28,9 @@ import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import {
   BIOMETRIC_ENABLED_KEY,
   disableAppLock,
-  getStoredMpin,
+  hasStoredMpin,
   storeMpin,
+  verifyMpin,
 } from '@/utils/appLock';
 import { formatCooldown, usePinThrottle } from '@/hooks/usePinThrottle';
 
@@ -109,13 +110,13 @@ export default function SecurityScreen() {
   const refresh = useCallback(async () => {
     try {
       const [pin, bio, compatible, enrolled, types] = await Promise.all([
-        getStoredMpin(),
+        hasStoredMpin(),
         AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY),
         LocalAuthentication.hasHardwareAsync(),
         LocalAuthentication.isEnrolledAsync(),
         LocalAuthentication.supportedAuthenticationTypesAsync(),
       ]);
-      setHasPin(!!pin);
+      setHasPin(pin);
       setBiometricEnabled(bio === 'true');
       setHasBiometricHw(compatible && enrolled);
       setBiometricType(
@@ -202,13 +203,15 @@ export default function SecurityScreen() {
     inFlightRef.current = true;
     setBusy(true);
     try {
-      const saved = await getStoredMpin();
+      // Only verify-type purposes need to check the entered PIN against the
+      // stored (hashed) record.
+      const pinOk = isVerifyPurpose ? await verifyMpin(pin) : false;
       // Re-verify this is still the active flow before acting on the result.
       if (token !== opTokenRef.current) return;
 
       switch (padPurpose) {
         case 'verify_change': {
-          if (pin === saved) {
+          if (pinOk) {
             await throttle.recordSuccess();
             setPadPurpose('new_pin');
             setEntered('');
@@ -265,7 +268,7 @@ export default function SecurityScreen() {
           break;
         }
         case 'verify_disable': {
-          if (pin === saved) {
+          if (pinOk) {
             await throttle.recordSuccess();
             // disableAppLock removes the biometric flag before the PIN, so a
             // mid-way failure can never leave a biometric-only lock.
@@ -280,7 +283,7 @@ export default function SecurityScreen() {
           break;
         }
         case 'verify_bio_off': {
-          if (pin === saved) {
+          if (pinOk) {
             await throttle.recordSuccess();
             await AsyncStorage.removeItem(BIOMETRIC_ENABLED_KEY);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

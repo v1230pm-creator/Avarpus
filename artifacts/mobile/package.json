@@ -63,6 +63,8 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "@noble/hashes": "^2.3.0",
+    "expo-crypto": "~15.0.9",
     "expo-file-system": "^19.0.23",
     "expo-local-authentication": "~17.0.8",
     "expo-network": "^57.0.1",
@@ -76,7 +78,7 @@
   "jest": {
     "preset": "jest-expo",
     "transformIgnorePatterns": [
-      "node_modules/(?!(?:\\.pnpm/)?((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?[/+].*|@expo-google-fonts[/+].*|react-navigation|@react-navigation[/+].*|native-base|react-native-.*|@workspace[/+].*|@ungap[/+].*))"
+      "node_modules/(?!(?:\\.pnpm/)?((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?[/+].*|@expo-google-fonts[/+].*|react-navigation|@react-navigation[/+].*|native-base|react-native-.*|@workspace[/+].*|@ungap[/+].*|@noble[/+].*))"
     ],
     "testMatch": [
       "**/__tests__/**/*.test.tsx"

@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
+import { scryptAsync } from '@noble/hashes/scrypt.js';
 import { secureGetItem, secureSetItem, secureDeleteItem } from './secureStorage';
 
 // SecureStore keys may only contain alphanumerics, ".", "-", "_"
@@ -56,22 +58,171 @@ export function subscribeLockState(listener: LockListener): () => void {
   return () => listeners.delete(listener);
 }
 
-/** Returns the stored MPIN, migrating any legacy plaintext value to SecureStore. */
-export async function getStoredMpin(): Promise<string | null> {
+// ── PIN hashing ───────────────────────────────────────────────────────────
+// PINs are never stored in plain form. The current record format is
+//   `v2$scrypt$<N>$<r>$<p>$<saltHex>$<hashHex>`
+// using the scrypt memory-hard KDF (via @noble/hashes, pure JS — works in
+// Hermes and on web). A keychain/SecureStore dump therefore doesn't reveal
+// the PIN, and offline brute-force of the 6-digit space is made expensive
+// by scrypt's memory cost. Older records are still accepted by verifyMpin
+// and upgraded to v2 on the first successful verification:
+//   - `v1$<saltHex>$<iterations>$<hashHex>` (iterated SHA-256, capped)
+//   - raw plaintext PINs written before hashing existed
+// All parameters parsed from a stored record are strictly bounded so a
+// tampered/corrupted record can never cause unbounded work.
+
+const PIN_RECORD_V2 = 'v2';
+const PIN_RECORD_V1 = 'v1';
+
+// scrypt cost parameters (~32 MB memory, well under mobile limits).
+const SCRYPT_N = 32768; // 2^15
+const SCRYPT_R = 8;
+const SCRYPT_P = 1;
+const SCRYPT_DKLEN = 32;
+
+// Strict upper bounds when parsing parameters out of stored records.
+const MAX_SCRYPT_N = 1 << 17;
+const MAX_SCRYPT_R = 16;
+const MAX_SCRYPT_P = 4;
+const MAX_V1_ITERATIONS = 10_000;
+
+function bytesToHex(bytes: Uint8Array): string {
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
+  return hex;
+}
+
+/** True when a stored value is a hashed record (vs. a legacy plaintext PIN). */
+export function isHashedPinRecord(value: string): boolean {
+  return value.startsWith(`${PIN_RECORD_V2}$`) || value.startsWith(`${PIN_RECORD_V1}$`);
+}
+
+/** True when a record is already in the current (strongest) format. */
+export function isCurrentPinRecord(value: string): boolean {
+  return value.startsWith(`${PIN_RECORD_V2}$scrypt$`);
+}
+
+async function scryptHex(
+  pin: string,
+  saltHex: string,
+  N: number,
+  r: number,
+  p: number,
+): Promise<string> {
+  const hash = await scryptAsync(new TextEncoder().encode(pin), new TextEncoder().encode(saltHex), {
+    N,
+    r,
+    p,
+    dkLen: SCRYPT_DKLEN,
+  });
+  return bytesToHex(hash);
+}
+
+/** Legacy v1 derivation: iterated SHA-256 of `<saltHex>:<pin>`. */
+async function derivePinHashV1(pin: string, saltHex: string, iterations: number): Promise<string> {
+  let digest = `${saltHex}:${pin}`;
+  for (let i = 0; i < iterations; i++) {
+    digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, digest);
+  }
+  return digest;
+}
+
+/** Produces a salted scrypt hash record for a PIN. Exported for tests. */
+export async function hashPin(pin: string): Promise<string> {
+  const salt = await Crypto.getRandomBytesAsync(16);
+  const saltHex = bytesToHex(salt);
+  const hash = await scryptHex(pin, saltHex, SCRYPT_N, SCRYPT_R, SCRYPT_P);
+  return `${PIN_RECORD_V2}$scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${saltHex}$${hash}`;
+}
+
+/** Constant-time-ish string comparison (avoids early-exit on first mismatch). */
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+function parseBoundedInt(raw: string, min: number, max: number): number | null {
+  if (!/^\d{1,9}$/.test(raw)) return null;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < min || n > max) return null;
+  return n;
+}
+
+/** Verifies a PIN against a stored record (hashed or legacy plaintext). */
+export async function verifyPinAgainstRecord(pin: string, record: string): Promise<boolean> {
+  if (record.startsWith(`${PIN_RECORD_V2}$`)) {
+    const parts = record.split('$');
+    if (parts.length !== 7 || parts[1] !== 'scrypt') return false;
+    const [, , nRaw, rRaw, pRaw, saltHex, hash] = parts;
+    const N = parseBoundedInt(nRaw, 2, MAX_SCRYPT_N);
+    const r = parseBoundedInt(rRaw, 1, MAX_SCRYPT_R);
+    const p = parseBoundedInt(pRaw, 1, MAX_SCRYPT_P);
+    // N must be a power of two for scrypt.
+    if (N == null || r == null || p == null || (N & (N - 1)) !== 0) return false;
+    if (!saltHex || !hash) return false;
+    const candidate = await scryptHex(pin, saltHex, N, r, p);
+    return safeEqual(candidate, hash);
+  }
+  if (record.startsWith(`${PIN_RECORD_V1}$`)) {
+    const parts = record.split('$');
+    if (parts.length !== 4) return false;
+    const [, saltHex, iterRaw, hash] = parts;
+    const iterations = parseBoundedInt(iterRaw, 1, MAX_V1_ITERATIONS);
+    if (!saltHex || !hash || iterations == null) return false;
+    const candidate = await derivePinHashV1(pin, saltHex, iterations);
+    return safeEqual(candidate, hash);
+  }
+  // Legacy plaintext record.
+  return safeEqual(pin, record);
+}
+
+/**
+ * Returns the stored MPIN record (hashed or legacy plaintext), migrating any
+ * legacy plaintext AsyncStorage value into SecureStore as a hashed record.
+ */
+async function getStoredMpinRecord(): Promise<string | null> {
   const secure = await secureGetItem(MPIN_SECURE_KEY);
   if (secure) return secure;
 
   const legacy = await AsyncStorage.getItem(LEGACY_MPIN_KEY);
   if (legacy) {
-    await secureSetItem(MPIN_SECURE_KEY, legacy);
+    // Never persist the plaintext anywhere new — hash it during migration.
+    const record = await hashPin(legacy);
+    await secureSetItem(MPIN_SECURE_KEY, record);
     await AsyncStorage.removeItem(LEGACY_MPIN_KEY);
-    return legacy;
+    return record;
   }
   return null;
 }
 
+/** True when an MPIN has been configured. */
+export async function hasStoredMpin(): Promise<boolean> {
+  return (await getStoredMpinRecord()) != null;
+}
+
+/**
+ * Verifies the entered PIN against the stored record. If the stored record is
+ * a legacy plaintext PIN or an older hash format, it is upgraded to the
+ * current scrypt record on the first successful verification.
+ */
+export async function verifyMpin(pin: string): Promise<boolean> {
+  const record = await getStoredMpinRecord();
+  if (!record) return false;
+  const ok = await verifyPinAgainstRecord(pin, record);
+  if (ok && !isCurrentPinRecord(record)) {
+    try {
+      await secureSetItem(MPIN_SECURE_KEY, await hashPin(pin));
+    } catch {
+      // Migration failure is non-fatal: the old record still verifies.
+    }
+  }
+  return ok;
+}
+
 export async function storeMpin(pin: string): Promise<void> {
-  await secureSetItem(MPIN_SECURE_KEY, pin);
+  await secureSetItem(MPIN_SECURE_KEY, await hashPin(pin));
   await AsyncStorage.setItem(MPIN_SETUP_KEY, 'true');
 }
 
@@ -200,8 +351,8 @@ export async function completeUnlockSuccess(): Promise<void> {
 /** True when a PIN or biometric unlock has been configured. */
 export async function isLockEnabled(): Promise<boolean> {
   const [mpin, bio] = await Promise.all([
-    getStoredMpin(),
+    hasStoredMpin(),
     AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY),
   ]);
-  return !!mpin || bio === 'true';
+  return mpin || bio === 'true';
 }
