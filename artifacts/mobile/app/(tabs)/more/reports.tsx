@@ -1,11 +1,12 @@
-import React from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { GlassCard, ScreenGlow } from '@/components/ui/Glass';
+import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { formatCurrency, getTodayStr } from '@/utils/helpers';
 
 interface ReportType {
@@ -31,8 +32,21 @@ export default function ReportsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { repairs, customers, inventory, finance, purchases } = useData();
+  const { repairs, customers, inventory, finance, purchases, isLoading, loadError, loadAll } = useData();
   const today = getTodayStr();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadAll();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const hasData =
+    repairs.length + customers.length + inventory.length + finance.length + purchases.length > 0;
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
@@ -62,7 +76,18 @@ export default function ReportsScreen() {
         <View style={{ width: 44 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
+      {isLoading && !hasData ? (
+        <DataLoadingState />
+      ) : loadError && !hasData ? (
+        <DataErrorState onRetry={loadAll} />
+      ) : (
+      <>
+      {!!loadError && <DataErrorBanner onRetry={loadAll} />}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+      >
         <View style={[styles.bannerCard, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '22', borderRadius: 16 }]}>
           <Feather name="info" size={16} color={colors.primary} />
           <Text style={[styles.bannerText, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>
@@ -95,6 +120,8 @@ export default function ReportsScreen() {
           );
         })}
       </ScrollView>
+      </>
+      )}
     </View>
   );
 }

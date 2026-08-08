@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
 
@@ -160,6 +161,8 @@ export default function StaffScreen() {
   const [search, setSearch] = useState('');
   const [staff, setStaff] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -171,12 +174,22 @@ export default function StaffScreen() {
       setError('');
       const res = await staffList();
       setStaff(res.staff as StaffUser[]);
+      setLoaded(true);
     } catch (err: any) {
-      setError(err?.data?.message ?? 'Could not load staff. Pull to retry.');
+      setError(err?.data?.message ?? 'Could not load staff. Please try again.');
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
 
   // Refresh whenever the screen gains focus (e.g. after adding staff)
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -266,12 +279,19 @@ export default function StaffScreen() {
         </View>
       </FadeInView>
 
+      {loading && !loaded ? (
+        <DataLoadingState message="Loading staff…" />
+      ) : error && !loaded ? (
+        <DataErrorState onRetry={() => { setLoading(true); load(); }} />
+      ) : (
+      <>
+      {!!error && <DataErrorBanner onRetry={load} />}
       <FlatList
         data={canManage ? active : filtered}
         keyExtractor={(u) => u.id}
         contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.mutedForeground} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.mutedForeground} />}
         ListHeaderComponent={
           canManage && pending.length > 0 ? (
             <View style={styles.pendingSection}>
@@ -299,16 +319,16 @@ export default function StaffScreen() {
           ) : null
         }
         ListEmptyComponent={
-          loading ? null : (
-            <EmptyState
-              icon="users"
-              title={error ? 'Could not load staff' : 'No staff yet'}
-              description={error || (canManage ? 'Tap "Add Staff" to create your first staff account.' : 'No staff members found.')}
-            />
-          )
+          <EmptyState
+            icon="users"
+            title="No staff yet"
+            description={canManage ? 'Tap "Add Staff" to create your first staff account.' : 'No staff members found.'}
+          />
         }
         renderItem={({ item }) => <StaffCard staff={item} />}
       />
+      </>
+      )}
     </View>
   );
 }
