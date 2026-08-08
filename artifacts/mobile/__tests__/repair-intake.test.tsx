@@ -1,9 +1,13 @@
 /**
  * Guards the repair intake form (the app's longest, most important form)
  * against regressions that would lose a staff member's entire ticket entry:
- *  - required-field validation blocks submit (no API call fired)
+ *  - required-field validation blocks the review step (no API call fired)
  *  - a failed save shows the alert AND keeps every entered value for retry
  *  - a successful save adds the repair to the shop's list
+ *
+ * The screen is a two-step flow: step 1 collects the details and "Review
+ * Intake" validates them; step 2 shows a summary, requires the customer
+ * confirmation checkbox, and "Complete Intake" performs the save.
  *
  * Mock boundary is the API client (network) plus native-only modules —
  * the real AuthContext, real DataContext, and the real intake screen render.
@@ -96,6 +100,14 @@ jest.mock('expo-file-system', () => ({ File: class {} }));
 jest.mock('expo/fetch', () => ({ fetch: jest.fn() }));
 jest.mock('expo-print', () => ({ printAsync: jest.fn(), printToFileAsync: jest.fn() }));
 jest.mock('expo-sharing', () => ({ isAvailableAsync: jest.fn(async () => false), shareAsync: jest.fn() }));
+// Tests run "online" so saves hit the API mocks, not the offline queue.
+jest.mock('expo-network', () => ({
+  getNetworkStateAsync: jest.fn(async () => ({ isConnected: true, isInternetReachable: true })),
+}));
+const mockOfflineQueueAdd = jest.fn(async () => {});
+jest.mock('@/utils/offlineQueue', () => ({
+  offlineQueue: { add: mockOfflineQueueAdd, flush: jest.fn(async () => ({ success: 0, failed: 0 })) },
+}));
 jest.mock('react-native-signature-canvas', () => {
   const { View } = require('react-native');
   return (props: object) => <View {...props} />;
@@ -155,13 +167,22 @@ const press = async (label: string) =>
 const type = (placeholder: string, value: string) =>
   fireEvent.changeText(screen.getByPlaceholderText(placeholder), value);
 
-/** Fills every required intake field (brand is a chip selector). */
+const CONFIRM_LABEL = 'I have submitted the device and the above details are correct.';
+
+/** Fills every required intake field on step 1 (brand is a chip selector). */
 const fillRequiredFields = async () => {
   type('Full name', 'Asha Kumar');
   type('10-digit number', '9876543210');
   await press('Samsung'); // brand chip
   type('e.g. Galaxy S23', 'Galaxy S23');
   type('Describe the issue...', 'Screen cracked, no display');
+};
+
+/** Step 1 → review summary → confirm checkbox → submit. */
+const reviewConfirmAndSubmit = async () => {
+  await press('Review Intake');
+  await press(CONFIRM_LABEL);
+  await press('Complete Intake');
 };
 
 let alertSpy: jest.SpyInstance;
@@ -176,16 +197,18 @@ afterEach(() => {
   alertSpy.mockRestore();
 });
 
-// ── Required-field validation blocks submit ──────────────────────────────
+// ── Required-field validation blocks the review step ─────────────────────
 describe('required-field validation blocks submit', () => {
-  it('empty submit shows field errors and fires no API call', async () => {
+  it('empty review shows field errors and fires no API call', async () => {
     const { unmount } = await renderIntake();
-    await press('Complete Intake');
+    await press('Review Intake');
 
-    // name / brand / model / problem all flag "Required"
-    expect(screen.getAllByText('Required').length).toBeGreaterThanOrEqual(4);
+    // brand / model / problem all flag "Required" (name too)
+    expect(screen.getAllByText('Required').length).toBeGreaterThanOrEqual(3);
     expect(screen.getByText('10-digit mobile required')).toBeTruthy();
     expect(alertSpy).toHaveBeenCalledWith('Validation Error', expect.any(String));
+    // Still on step 1 — the confirm/submit step was never reached.
+    expect(screen.queryByText('Complete Intake')).toBeNull();
     expect(mockRepairsCreate).not.toHaveBeenCalled();
     expect(mockCustomersCreate).not.toHaveBeenCalled();
     expect(mockApprovalsCreate).not.toHaveBeenCalled();
@@ -196,9 +219,10 @@ describe('required-field validation blocks submit', () => {
     const { unmount } = await renderIntake();
     await fillRequiredFields();
     type('10-digit number', '98765'); // too short
-    await press('Complete Intake');
+    await press('Review Intake');
 
     expect(screen.getByText('10-digit mobile required')).toBeTruthy();
+    expect(screen.queryByText('Complete Intake')).toBeNull();
     expect(mockRepairsCreate).not.toHaveBeenCalled();
     unmount();
   });
@@ -209,9 +233,10 @@ describe('required-field validation blocks submit', () => {
     // Both date inputs share the placeholder — first is receive, second expected.
     const dates = screen.getAllByPlaceholderText('YYYY-MM-DD');
     fireEvent.changeText(dates[1], '2000-01-01');
-    await press('Complete Intake');
+    await press('Review Intake');
 
     expect(screen.getByText('Cannot be before the receive date')).toBeTruthy();
+    expect(screen.queryByText('Complete Intake')).toBeNull();
     expect(mockRepairsCreate).not.toHaveBeenCalled();
     unmount();
   });
@@ -219,7 +244,7 @@ describe('required-field validation blocks submit', () => {
 
 // ── Failed save shows the alert and keeps entered values ─────────────────
 describe('failed save shows the alert and keeps entered values', () => {
-  it('server error alerts and every typed value survives for retry', async () => {
+  it('server error alerts and every entered value survives for retry', async () => {
     // Existing customer with this mobile → no customer create on this path.
     mockLists.customers = [
       { id: 'c1', name: 'Asha Kumar', mobile: '9876543210', email: '', address: '', dueAmount: 0, totalRepairs: 0 },
@@ -227,26 +252,23 @@ describe('failed save shows the alert and keeps entered values', () => {
     mockRepairsCreate.mockRejectedValue(new TypeError('Network request failed'));
     const { unmount } = await renderIntake();
     await fillRequiredFields();
-    type('e.g. Charger, Cover, SIM tray', 'Charger, Cover');
-    const zeros = screen.getAllByPlaceholderText('0'); // estimate, advance
-    fireEvent.changeText(zeros[0], '2500');
-    fireEvent.changeText(zeros[1], '500');
-    await press('Complete Intake');
+    type('e.g. Broken cover, mixed cables...', 'Charger, Cover');
+    fireEvent.changeText(screen.getByPlaceholderText('0'), '2500'); // estimate
+    await reviewConfirmAndSubmit();
 
     await waitFor(() =>
       expect(alertSpy).toHaveBeenCalledWith('Save failed', expect.stringContaining('save the repair')),
     );
-    // The form stayed up with everything the user typed.
-    expect(screen.getByDisplayValue('Asha Kumar')).toBeTruthy();
-    expect(screen.getByDisplayValue('9876543210')).toBeTruthy();
-    expect(screen.getByDisplayValue('Galaxy S23')).toBeTruthy();
-    expect(screen.getByDisplayValue('Screen cracked, no display')).toBeTruthy();
-    expect(screen.getByDisplayValue('Charger, Cover')).toBeTruthy();
-    expect(screen.getByDisplayValue('2500')).toBeTruthy();
-    expect(screen.getByDisplayValue('500')).toBeTruthy();
+    // The review summary stayed up with everything the user entered.
+    expect(screen.getByText('Asha Kumar')).toBeTruthy();
+    expect(screen.getByText('9876543210')).toBeTruthy();
+    expect(screen.getByText('Samsung Galaxy S23')).toBeTruthy();
+    expect(screen.getByText('Screen cracked, no display')).toBeTruthy();
+    expect(screen.getByText('₹2500')).toBeTruthy();
     // No success screen, no navigation, nothing added to the list.
     expect(screen.queryByText('Job Card Created')).toBeNull();
     expect(mockBack).not.toHaveBeenCalled();
+    expect(mockOfflineQueueAdd).not.toHaveBeenCalled();
     expect(screen.queryByText(/^repair:/)).toBeNull();
     unmount();
   });
@@ -255,12 +277,12 @@ describe('failed save shows the alert and keeps entered values', () => {
     mockCustomersCreate.mockRejectedValue(new Error('boom'));
     const { unmount } = await renderIntake();
     await fillRequiredFields();
-    await press('Complete Intake');
+    await reviewConfirmAndSubmit();
 
     await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('Save failed', expect.any(String)));
     expect(mockRepairsCreate).not.toHaveBeenCalled();
-    expect(screen.getByDisplayValue('Asha Kumar')).toBeTruthy();
-    expect(screen.getByDisplayValue('Screen cracked, no display')).toBeTruthy();
+    expect(screen.getByText('Asha Kumar')).toBeTruthy();
+    expect(screen.getByText('Screen cracked, no display')).toBeTruthy();
     expect(screen.queryByText(/^repair:/)).toBeNull();
     unmount();
   });
@@ -272,7 +294,7 @@ describe('failed save shows the alert and keeps entered values', () => {
     mockRepairsCreate.mockRejectedValueOnce(new Error('boom'));
     const { unmount } = await renderIntake();
     await fillRequiredFields();
-    await press('Complete Intake');
+    await reviewConfirmAndSubmit();
     await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('Save failed', expect.any(String)));
 
     mockRepairsCreate.mockResolvedValueOnce({
@@ -283,6 +305,7 @@ describe('failed save shows the alert and keeps entered values', () => {
         receiveDate: '2026-08-08', expectedDate: '2026-08-15', warrantyDays: 0, checklist: {}, createdAt: '',
       },
     });
+    // Still on the review step with the confirmation intact — just retry.
     await press('Complete Intake');
     await waitFor(() => expect(screen.getByText('Job Card Created')).toBeTruthy());
     expect(screen.getByText('repair:Asha Kumar:Galaxy S23')).toBeTruthy();
@@ -300,16 +323,14 @@ describe('successful save adds the repair to the list', () => {
       repair: {
         id: 'r1', repairId: 'VMC-1001', customerId: 'c1', customerName: 'Asha Kumar', mobile: '9876543210',
         deviceType: 'Smartphone', brand: 'Samsung', model: 'Galaxy S23', problem: 'Screen cracked, no display',
-        status: 'received', priority: 'normal', repairCharge: 2500, partsCharge: 0, advance: 500,
+        status: 'received', priority: 'normal', repairCharge: 2500, partsCharge: 0, advance: 0,
         receiveDate: '2026-08-08', expectedDate: '2026-08-15', warrantyDays: 0, checklist: {}, createdAt: '',
       },
     });
     const { unmount } = await renderIntake();
     await fillRequiredFields();
-    const zeros = screen.getAllByPlaceholderText('0');
-    fireEvent.changeText(zeros[0], '2500');
-    fireEvent.changeText(zeros[1], '500');
-    await press('Complete Intake');
+    fireEvent.changeText(screen.getByPlaceholderText('0'), '2500'); // estimate
+    await reviewConfirmAndSubmit();
 
     await waitFor(() => expect(screen.getByText('Job Card Created')).toBeTruthy());
     expect(screen.getByText('repair:Asha Kumar:Galaxy S23')).toBeTruthy();
@@ -328,12 +349,12 @@ describe('successful save adds the repair to the list', () => {
         model: 'Galaxy S23',
         problem: 'Screen cracked, no display',
         repairCharge: 2500,
-        advance: 500,
-        status: 'received',
       }),
     );
     expect(mockApprovalsCreate).not.toHaveBeenCalled(); // dealer saves directly
-    expect(alertSpy).not.toHaveBeenCalled();
+    // Only the validation-free happy path — no error alerts fired.
+    expect(alertSpy).not.toHaveBeenCalledWith('Save failed', expect.anything());
+    expect(alertSpy).not.toHaveBeenCalledWith('Validation Error', expect.anything());
     unmount();
   });
 });
