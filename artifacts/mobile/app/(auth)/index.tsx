@@ -239,11 +239,15 @@ export default function LoginScreen() {
               <KeyboardAwareScrollViewCompat
           contentContainerStyle={[
             styles.scroll,
-            { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24, flexGrow: 1, justifyContent: 'center' },
+            { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24, flexGrow: 1 },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Centering wrapper: keep justifyContent OFF the scroll
+              contentContainerStyle — with keyboard-controller on Android it
+              causes layout jumps that can blur the focused input. */}
+          <View style={{ flexGrow: 1, justifyContent: 'center', gap: 22 }}>
           {/* ── Logo ────────────────────────────────────────── */}
           <Reanimated.View style={[styles.logoWrap, headerStyle]}>
             <View style={{ alignItems: 'center', gap: 2 }}>
@@ -468,6 +472,7 @@ export default function LoginScreen() {
                 <Text style={[styles.legalText, { fontFamily: 'Inter_400Regular' }]}>Terms & Conditions</Text>
               </TouchableOpacity>
             </View>
+          </View>
           </View>
         </KeyboardAwareScrollViewCompat>
     </View>
