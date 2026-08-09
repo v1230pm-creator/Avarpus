@@ -13,6 +13,6 @@ Fixes that were required (all live in `artifacts/mobile/eas.json` + root package
 - `extra.eas.projectId` + `owner` required in app.json for GitHub builds.
 - `EXPO_PUBLIC_DOMAIN` is baked in via eas.json env → must point at the production replit.app domain.
 
-Release-build-only bug: RN `KeyboardAvoidingView behavior="height"` on Android conflicts with the active keyboard-controller native module (fine in Expo Go, keyboard instantly dismisses in the APK). Use `behavior="padding"` everywhere.
+Release-build-only bug: RN `KeyboardAvoidingView` on Android conflicts with the active keyboard-controller native module (fine in Expo Go, keyboard instantly dismisses in the APK). Don't use RN KAV at all on form screens — use `KeyboardAwareScrollViewCompat` (keyboard-controller's aware scroll view; plain ScrollView on web).
 
 **How to apply:** for a new app version, just bump and push the branch, then user re-runs Build from GitHub. Signing keystore was generated locally (alias `vmcupload`, file handed to user via attached_assets) — user holds it + password; losing it breaks app updates.
