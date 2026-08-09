@@ -11,7 +11,8 @@
       },
       "env": {
         "EXPO_PUBLIC_DOMAIN": "vmc-enterprise-suite.replit.app"
-      }
+      },
+      "node": "24.13.0"
     },
     "production-aab": {
       "autoIncrement": true,
@@ -21,7 +22,8 @@
       },
       "env": {
         "EXPO_PUBLIC_DOMAIN": "vmc-enterprise-suite.replit.app"
-      }
+      },
+      "node": "24.13.0"
     }
   }
 }
