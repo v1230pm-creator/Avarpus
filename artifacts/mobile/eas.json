@@ -5,6 +5,7 @@
   "build": {
     "production": {
       "autoIncrement": true,
+      "pnpm": "10.26.1",
       "android": {
         "buildType": "apk"
       },
@@ -14,6 +15,7 @@
     },
     "production-aab": {
       "autoIncrement": true,
+      "pnpm": "10.26.1",
       "android": {
         "buildType": "app-bundle"
       },
