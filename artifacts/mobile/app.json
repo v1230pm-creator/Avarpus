@@ -40,6 +40,12 @@
         }
       ]
     ],
+    "owner": "vmcelectronics-team",
+    "extra": {
+      "eas": {
+        "projectId": "a67308ff-eda0-485d-927d-df3c548e9ecc"
+      }
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
