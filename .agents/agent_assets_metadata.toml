@@ -1,0 +1,9 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "LKWwkZURgNtahmrnxTNEg"
+uri = "file://attached_assets/vmc-upload-key.jks"
+type = "unspecified"
+title = "Android signing keystore (vmc-upload-key.jks)"
+description = "APK signing key — expo.dev credentials form me upload karein. Ise password ke saath sambhal kar rakhein."
