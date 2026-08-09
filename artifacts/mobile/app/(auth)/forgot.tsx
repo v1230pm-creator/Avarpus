@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -166,8 +166,7 @@ export default function ForgotPasswordScreen() {
   return (
     <LinearGradient colors={['#050912', '#091525', '#030710']} style={{ flex: 1 }}>
       <View style={[s.glow, { top: -80, left: -60, width: 240, height: 240, backgroundColor: '#2563EB' }]} />
-      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-        <ScrollView
+              <KeyboardAwareScrollViewCompat
           contentContainerStyle={[s.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -295,8 +294,7 @@ export default function ForgotPasswordScreen() {
               </>
             )}
           </Reanimated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollViewCompat>
     </LinearGradient>
   );
 }

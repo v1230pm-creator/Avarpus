@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
@@ -8,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -103,8 +103,7 @@ export default function AddStaffScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-        <ScrollView
+              <KeyboardAwareScrollViewCompat
           contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -170,8 +169,7 @@ export default function AddStaffScreen() {
 
           <Button title="Create Staff Account" onPress={handleCreate} loading={loading} fullWidth size="lg" />
           </FadeInView>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollViewCompat>
     </View>
   );
 }

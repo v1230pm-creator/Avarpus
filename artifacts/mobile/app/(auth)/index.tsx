@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
@@ -11,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -236,8 +236,7 @@ export default function LoginScreen() {
       {/* Particles */}
       {Platform.OS !== 'web' && PARTICLES.map((p) => <Particle key={p.id} data={p} />)}
 
-      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-        <ScrollView
+              <KeyboardAwareScrollViewCompat
           contentContainerStyle={[
             styles.scroll,
             { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24, flexGrow: 1, justifyContent: 'center' },
@@ -470,8 +469,7 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollViewCompat>
     </View>
   );
 }

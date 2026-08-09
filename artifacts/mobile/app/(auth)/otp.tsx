@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Text,
@@ -8,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -92,8 +92,11 @@ export default function OTPScreen() {
 
   return (
     <LinearGradient colors={['#060A14', '#0D1528', '#060A14']} style={{ flex: 1 }}>
-      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-        <View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }]}>
+      <KeyboardAwareScrollViewCompat
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1 }}
+      >
+        <View style={[styles.container, { flex: 1, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Feather name="arrow-left" size={22} color="#F1F5F9" />
           </TouchableOpacity>
@@ -167,7 +170,7 @@ export default function OTPScreen() {
             />
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollViewCompat>
     </LinearGradient>
   );
 }
