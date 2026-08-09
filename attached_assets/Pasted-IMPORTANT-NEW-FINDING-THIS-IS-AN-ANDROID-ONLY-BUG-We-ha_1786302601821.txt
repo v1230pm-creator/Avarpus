@@ -1,0 +1,282 @@
+IMPORTANT NEW FINDING — THIS IS AN ANDROID-ONLY BUG
+
+We have now confirmed the following:
+
+- VMC Electronic BMS works correctly in the Web App/browser.
+- Email input works correctly in the Web App.
+- Password input works correctly in the Web App.
+- The same login screen has a keyboard/focus problem ONLY in the Android APK.
+- On Android APK, tapping Email/Password causes the keyboard to open and immediately close / disappear.
+- This problem remains after multiple APK rebuilds.
+
+Therefore, DO NOT treat this as a generic form validation issue.
+
+The backend authentication is NOT the primary problem.
+
+The problem is specifically in the Android/Expo/native rendering, keyboard, focus, WebView, or native input layer.
+
+DO NOT simply rebuild the APK again.
+
+==================================================
+STEP 1 — IDENTIFY THE ACTUAL RENDERING ARCHITECTURE
+==================================================
+
+Determine exactly how the Android APK renders the login screen.
+
+Is it:
+
+A. React Native TextInput
+B. React Native WebView containing the existing web login page
+C. Expo Router screen
+D. Hybrid/native + WebView
+E. Another wrapper
+
+Tell me exactly which one is being used.
+
+==================================================
+STEP 2 — COMPARE WEB VS ANDROID
+==================================================
+
+The Web version works correctly.
+
+Compare the login implementation used by:
+
+WEB
+vs
+ANDROID APK
+
+Find why Android behaves differently.
+
+Do not modify the working Web implementation unless necessary.
+
+==================================================
+STEP 3 — IF ANDROID USES WEBVIEW
+==================================================
+
+If the Android APK is using WebView:
+
+Inspect WebView configuration.
+
+Check:
+
+- keyboard display
+- input focus
+- Android soft input mode
+- WebView focus
+- hardware acceleration
+- JavaScript
+- DOM input handling
+- viewport configuration
+- nested touch handlers
+- keyboard dismissal handlers
+- WebView remounting
+- navigation state
+- injected JavaScript
+- WebView reloads
+
+Make sure tapping:
+
+<input type="email">
+
+or
+
+<input type="password">
+
+does NOT cause the WebView to lose focus or reload.
+
+Check whether the WebView is being remounted whenever:
+
+- keyboard opens
+- state changes
+- email changes
+- password changes
+- screen dimensions change
+
+If the WebView is remounting, fix that first.
+
+==================================================
+STEP 4 — IF ANDROID USES REACT NATIVE TEXTINPUT
+==================================================
+
+Inspect:
+
+TextInput
+Keyboard
+KeyboardAvoidingView
+ScrollView
+Pressable
+TouchableWithoutFeedback
+TouchableOpacity
+Gesture Handler
+React Navigation
+Expo Router
+
+Find anything that causes:
+
+focus → blur → keyboard dismiss
+
+immediately.
+
+Add temporary logs:
+
+EMAIL FOCUS
+EMAIL BLUR
+PASSWORD FOCUS
+PASSWORD BLUR
+KEYBOARD SHOW
+KEYBOARD HIDE
+
+Determine the exact sequence.
+
+Do not guess.
+
+==================================================
+STEP 5 — CHECK ANDROID SOFT INPUT CONFIGURATION
+==================================================
+
+Inspect:
+
+AndroidManifest
+MainActivity
+app.json
+app.config
+Expo configuration
+Android window configuration
+keyboard/softInputMode configuration
+
+Verify the Android window is configured correctly for text input and keyboard behavior.
+
+Use the appropriate Android soft input behavior for the existing layout.
+
+Do NOT blindly change unrelated Android configuration.
+
+==================================================
+STEP 6 — CHECK FOR GLOBAL KEYBOARD DISMISS
+==================================================
+
+Search the entire Android login screen for:
+
+Keyboard.dismiss()
+
+TouchableWithoutFeedback
+Pressable
+onPress
+onBlur
+keyboardDidHide
+
+If there is a parent-level handler that dismisses the keyboard when tapping the screen, make sure it does NOT fire when tapping Email or Password.
+
+==================================================
+STEP 7 — CHECK SCREEN REMOUNT
+==================================================
+
+Verify that the Login screen itself is not remounting when the Android keyboard opens.
+
+Add temporary lifecycle logs:
+
+LoginScreen MOUNT
+LoginScreen UNMOUNT
+
+If you see:
+
+MOUNT
+UNMOUNT
+MOUNT
+
+when tapping Email, identify why.
+
+The login screen must remain mounted while the keyboard opens.
+
+==================================================
+STEP 8 — TEST ANDROID WITH MINIMAL INPUT
+==================================================
+
+Create a temporary isolated Android-only test screen.
+
+It should contain ONLY:
+
+Email TextInput
+Password TextInput
+Simple text
+
+No:
+- authentication
+- API
+- navigation
+- animation
+- global touch handler
+- WebView
+- complex state
+
+Test:
+
+Tap Email
+→ keyboard opens
+→ type continuously
+
+Tap Password
+→ keyboard remains available
+→ type continuously
+
+If this works, compare it against the real login screen to identify the conflicting component.
+
+==================================================
+STEP 9 — DO NOT BREAK WEB
+==================================================
+
+The Web App already works.
+
+Do NOT introduce a fix that breaks:
+
+- Web login
+- Email login
+- Password login
+- Mobile OTP
+- Create Account
+- Forgot Password
+
+The fix must be compatible with both Web and Android.
+
+==================================================
+STEP 10 — ACTUAL ROOT-CAUSE REPORT
+==================================================
+
+Before creating a new APK, report:
+
+1. Android rendering architecture
+2. Why Web works
+3. Why Android fails
+4. Exact component/file causing the problem
+5. Exact root cause
+6. Exact code/configuration change needed
+
+DO NOT say "fixed" based only on code changes.
+
+First reproduce the bug.
+Then identify the root cause.
+Then fix it.
+Then test the Android input behavior.
+ONLY AFTER THAT create a new APK.
+
+==================================================
+SUCCESS CONDITION
+==================================================
+
+On Android APK:
+
+Tap Email
+→ keyboard opens
+→ keyboard stays open
+→ type email normally
+
+Tap Password
+→ keyboard stays open
+→ type password normally
+
+Switch Email ↔ Password
+→ keyboard remains usable
+
+The Web App must continue working exactly as before.
+
+IMPORTANT:
+Do not rebuild another APK until the Android-specific root cause has been identified and tested.
