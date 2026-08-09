@@ -7,7 +7,8 @@
       "autoIncrement": true,
       "pnpm": "10.26.1",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "image": "latest"
       },
       "env": {
         "EXPO_PUBLIC_DOMAIN": "vmc-enterprise-suite.replit.app"
@@ -18,7 +19,8 @@
       "autoIncrement": true,
       "pnpm": "10.26.1",
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "image": "latest"
       },
       "env": {
         "EXPO_PUBLIC_DOMAIN": "vmc-enterprise-suite.replit.app"
