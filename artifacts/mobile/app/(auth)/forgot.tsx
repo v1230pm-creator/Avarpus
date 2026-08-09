@@ -166,7 +166,7 @@ export default function ForgotPasswordScreen() {
   return (
     <LinearGradient colors={['#050912', '#091525', '#030710']} style={{ flex: 1 }}>
       <View style={[s.glow, { top: -80, left: -60, width: 240, height: 240, backgroundColor: '#2563EB' }]} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={[s.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
           keyboardShouldPersistTaps="handled"

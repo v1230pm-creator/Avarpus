@@ -337,7 +337,7 @@ export default function RegisterScreen() {
       <View style={[gs.glow, { top: -80, left: -60, width: 240, height: 240, backgroundColor: '#2563EB' }]} />
       <View style={[gs.glow, { bottom: -60, right: -40, width: 180, height: 180, backgroundColor: '#1D4ED8' }]} />
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={[gs.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
           keyboardShouldPersistTaps="handled"

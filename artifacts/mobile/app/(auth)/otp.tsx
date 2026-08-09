@@ -92,7 +92,7 @@ export default function OTPScreen() {
 
   return (
     <LinearGradient colors={['#060A14', '#0D1528', '#060A14']} style={{ flex: 1 }}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Feather name="arrow-left" size={22} color="#F1F5F9" />

@@ -236,7 +236,7 @@ export default function LoginScreen() {
       {/* Particles */}
       {Platform.OS !== 'web' && PARTICLES.map((p) => <Particle key={p.id} data={p} />)}
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={[
             styles.scroll,

@@ -103,7 +103,7 @@ export default function AddStaffScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]}
           keyboardShouldPersistTaps="handled"
