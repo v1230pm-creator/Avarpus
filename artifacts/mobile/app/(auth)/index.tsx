@@ -471,6 +471,11 @@ export default function LoginScreen() {
               <TouchableOpacity activeOpacity={0.7}>
                 <Text style={[styles.legalText, { fontFamily: 'Inter_400Regular' }]}>Terms & Conditions</Text>
               </TouchableOpacity>
+              <View style={styles.legalDot} />
+              {/* TEMPORARY: Android keyboard diagnostic entry point */}
+              <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/(auth)/keyboard-test')}>
+                <Text style={[styles.legalText, { fontFamily: 'Inter_400Regular' }]}>Keyboard Test</Text>
+              </TouchableOpacity>
             </View>
           </View>
           </View>
