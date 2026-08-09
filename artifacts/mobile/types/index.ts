@@ -15,7 +15,6 @@ export interface User {
   isActive: boolean;
   joinDate: string;
   designation?: string;
-  password?: string;
   businessName?: string;
   gstNumber?: string;
   shopAddress?: string;

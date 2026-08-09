@@ -678,30 +678,6 @@ const styles = StyleSheet.create({
   },
   otpInfoText: { fontSize: 12, color: '#94A3B8', flex: 1, lineHeight: 18 },
 
-  // Demo accounts
-  demoToggle: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 10, borderRadius: 12,
-    borderWidth: 1, borderColor: '#1E3A5F44', borderStyle: 'dashed',
-    backgroundColor: '#080F1D',
-  },
-  demoDots: { flexDirection: 'row', gap: 3 },
-  demoDot: { width: 5, height: 5, borderRadius: 3 },
-  demoToggleText: { fontSize: 12, color: '#60A5FA' },
-  demoList: { borderRadius: 12, borderWidth: 1, borderColor: '#1E3A5F55', overflow: 'hidden' },
-  demoItem: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 12, backgroundColor: '#070E1C',
-  },
-  demoItemBorder: { borderBottomWidth: 1, borderBottomColor: '#1E3A5F44' },
-  demoAvatar: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  demoAvatarText: { fontSize: 14 },
-  demoInfo: { flex: 1, gap: 2 },
-  demoRole: { fontSize: 12, color: '#F1F5F9' },
-  demoEmail: { fontSize: 11, color: '#64748B' },
-  demoRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  demoPwd: { fontSize: 10, color: '#3B82F6' },
-
   // Bottom
   bottomSection: { alignItems: 'center', gap: 14 },
   registerText: { fontSize: 13, color: '#64748B', textAlign: 'center' },

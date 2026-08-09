@@ -107,7 +107,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const applySession = async (session: { token: string; user: any }) => {
     await storage.set(KEYS.AUTH_TOKEN, session.token);
-    const u = toUser(session.user);
+    // Strip any password field the server might have accidentally included
+    // before persisting the user object to AsyncStorage.
+    const { password: _omit, ...safeUser } = session.user ?? {};
+    const u = toUser(safeUser);
     await storage.set(KEYS.CURRENT_USER, u);
     setUser(u);
   };
