@@ -148,10 +148,12 @@ export default function LoginScreen() {
 
   // TEMP [KBDBG2]: deep diagnostics for the intermittent instant-blur bug.
   const dbgId = useRef(Math.random().toString(36).slice(2, 6)).current;
+  const dbgT0 = useRef(Date.now()).current;
+  const ts = () => `t=${((Date.now() - dbgT0) / 1000).toFixed(3)}s`;
   useEffect(() => {
     console.log(`[KBDBG2 ${dbgId}] MOUNT platform=${Platform.OS} appState=${AppState.currentState}`);
-    const ks = Keyboard.addListener('keyboardDidShow', () => console.log(`[KBDBG2 ${dbgId}] KEYBOARD SHOW`));
-    const kh = Keyboard.addListener('keyboardDidHide', () => console.log(`[KBDBG2 ${dbgId}] KEYBOARD HIDE`));
+    const ks = Keyboard.addListener('keyboardDidShow', () => console.log(`[KBDBG2 ${dbgId}] KEYBOARD SHOW ${ts()}`));
+    const kh = Keyboard.addListener('keyboardDidHide', () => console.log(`[KBDBG2 ${dbgId}] KEYBOARD HIDE ${ts()}`));
     const as = AppState.addEventListener('change', (s) => console.log(`[KBDBG2 ${dbgId}] APPSTATE ${s}`));
     return () => {
       console.log(`[KBDBG2 ${dbgId}] UNMOUNT`);
@@ -160,11 +162,12 @@ export default function LoginScreen() {
   }, []);
 
   useEffect(() => {
-    headerY.value = withTiming(0, { duration: 700, easing: Easing.out(Easing.cubic) });
-    headerOpacity.value = withTiming(1, { duration: 700 });
-    badgesOpacity.value = withDelay(200, withTiming(1, { duration: 600 }));
-    cardY.value = withDelay(150, withSpring(0, { damping: 20, stiffness: 140 }));
-    cardOpacity.value = withDelay(150, withTiming(1, { duration: 600 }));
+    // TEMP [KBDBG2]: entry animations disabled for diagnosis — jump to final values.
+    headerY.value = 0;
+    headerOpacity.value = 1;
+    badgesOpacity.value = 1;
+    cardY.value = 0;
+    cardOpacity.value = 1;
   }, []);
 
   const headerStyle = useAnimatedStyle(() => ({
@@ -243,14 +246,7 @@ export default function LoginScreen() {
         style={StyleSheet.absoluteFill}
       />
 
-      {/* Glow circles */}
-      <GlowCircle style={{ top: -160, left: -100, width: 340, height: 340, backgroundColor: '#2563EB', opacity: 0.1 }} />
-      <GlowCircle style={{ top: SCREEN_H * 0.3, right: -140, width: 280, height: 280, backgroundColor: '#1D4ED8', opacity: 0.08 }} />
-      <GlowCircle style={{ bottom: -120, left: SCREEN_W * 0.2, width: 240, height: 240, backgroundColor: '#3B82F6', opacity: 0.06 }} />
-      <GlowCircle style={{ top: SCREEN_H * 0.15, left: SCREEN_W * 0.5, width: 180, height: 180, backgroundColor: '#D4AF37', opacity: 0.04 }} />
-
-      {/* Particles */}
-      {Platform.OS !== 'web' && PARTICLES.map((p) => <Particle key={p.id} data={p} />)}
+      {/* TEMP [KBDBG2]: glow circles + particles disabled for diagnosis */}
 
               <KeyboardAwareScrollViewCompat
           contentContainerStyle={[
@@ -355,8 +351,8 @@ export default function LoginScreen() {
                         keyboardType="email-address"
                         autoCapitalize="none"
                         autoCorrect={false}
-                        onFocus={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL FOCUS`); setEmailFocused(true); }}
-                        onBlur={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL BLUR`); setEmailFocused(false); }}
+                        onFocus={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL FOCUS ${ts()}`); setEmailFocused(true); }}
+                        onBlur={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL BLUR ${ts()}`); setEmailFocused(false); }}
                         style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
                       />
                     </View>
@@ -373,8 +369,8 @@ export default function LoginScreen() {
                         placeholder="Enter password"
                         placeholderTextColor="#475569"
                         secureTextEntry={!showPassword}
-                        onFocus={() => { console.log(`[KBDBG2 ${dbgId}] PASS FOCUS`); setPassFocused(true); }}
-                        onBlur={() => { console.log(`[KBDBG2 ${dbgId}] PASS BLUR`); setPassFocused(false); }}
+                        onFocus={() => { console.log(`[KBDBG2 ${dbgId}] PASS FOCUS ${ts()}`); setPassFocused(true); }}
+                        onBlur={() => { console.log(`[KBDBG2 ${dbgId}] PASS BLUR ${ts()}`); setPassFocused(false); }}
                         returnKeyType="done"
                         onSubmitEditing={handleSignIn}
                         style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
