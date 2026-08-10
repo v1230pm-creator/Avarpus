@@ -354,8 +354,8 @@ export default function LoginScreen() {
                         autoComplete="off"
                         importantForAutofill="no"
                         textContentType="none"
-                        onFocus={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL FOCUS ${ts()}`); setEmailFocused(true); }}
-                        onBlur={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL BLUR ${ts()}`); setEmailFocused(false); }}
+                        onFocus={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL FOCUS ${ts()}`); /* TEMP: no state update */ }}
+                        onBlur={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL BLUR ${ts()}`); /* TEMP: no state update */ }}
                         style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
                       />
                     </View>
@@ -375,8 +375,8 @@ export default function LoginScreen() {
                         autoComplete="off"
                         importantForAutofill="no"
                         textContentType="none"
-                        onFocus={() => { console.log(`[KBDBG2 ${dbgId}] PASS FOCUS ${ts()}`); setPassFocused(true); }}
-                        onBlur={() => { console.log(`[KBDBG2 ${dbgId}] PASS BLUR ${ts()}`); setPassFocused(false); }}
+                        onFocus={() => { console.log(`[KBDBG2 ${dbgId}] PASS FOCUS ${ts()}`); /* TEMP: no state update */ }}
+                        onBlur={() => { console.log(`[KBDBG2 ${dbgId}] PASS BLUR ${ts()}`); /* TEMP: no state update */ }}
                         returnKeyType="done"
                         onSubmitEditing={handleSignIn}
                         style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
