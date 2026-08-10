@@ -351,6 +351,9 @@ export default function LoginScreen() {
                         keyboardType="email-address"
                         autoCapitalize="none"
                         autoCorrect={false}
+                        autoComplete="off"
+                        importantForAutofill="no"
+                        textContentType="none"
                         onFocus={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL FOCUS ${ts()}`); setEmailFocused(true); }}
                         onBlur={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL BLUR ${ts()}`); setEmailFocused(false); }}
                         style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
@@ -369,6 +372,9 @@ export default function LoginScreen() {
                         placeholder="Enter password"
                         placeholderTextColor="#475569"
                         secureTextEntry={!showPassword}
+                        autoComplete="off"
+                        importantForAutofill="no"
+                        textContentType="none"
                         onFocus={() => { console.log(`[KBDBG2 ${dbgId}] PASS FOCUS ${ts()}`); setPassFocused(true); }}
                         onBlur={() => { console.log(`[KBDBG2 ${dbgId}] PASS BLUR ${ts()}`); setPassFocused(false); }}
                         returnKeyType="done"
