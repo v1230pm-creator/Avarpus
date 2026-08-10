@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  AppState,
   Dimensions,
+  Keyboard,
   Platform,
   StyleSheet,
   Text,
@@ -144,6 +146,19 @@ export default function LoginScreen() {
   // Tab indicator
   const tabX = useSharedValue(activeTab === 'email' ? 0 : 1);
 
+  // TEMP [KBDBG2]: deep diagnostics for the intermittent instant-blur bug.
+  const dbgId = useRef(Math.random().toString(36).slice(2, 6)).current;
+  useEffect(() => {
+    console.log(`[KBDBG2 ${dbgId}] MOUNT platform=${Platform.OS} appState=${AppState.currentState}`);
+    const ks = Keyboard.addListener('keyboardDidShow', () => console.log(`[KBDBG2 ${dbgId}] KEYBOARD SHOW`));
+    const kh = Keyboard.addListener('keyboardDidHide', () => console.log(`[KBDBG2 ${dbgId}] KEYBOARD HIDE`));
+    const as = AppState.addEventListener('change', (s) => console.log(`[KBDBG2 ${dbgId}] APPSTATE ${s}`));
+    return () => {
+      console.log(`[KBDBG2 ${dbgId}] UNMOUNT`);
+      ks.remove(); kh.remove(); as.remove();
+    };
+  }, []);
+
   useEffect(() => {
     headerY.value = withTiming(0, { duration: 700, easing: Easing.out(Easing.cubic) });
     headerOpacity.value = withTiming(1, { duration: 700 });
@@ -170,6 +185,7 @@ export default function LoginScreen() {
   }));
 
   const switchTab = (tab: LoginTab) => {
+    console.log(`[KBDBG2 ${dbgId}] TAB SWITCH -> ${tab}`);
     setActiveTab(tab);
     tabX.value = tab === 'email' ? 0 : 1;
     setError('');
@@ -339,8 +355,8 @@ export default function LoginScreen() {
                         keyboardType="email-address"
                         autoCapitalize="none"
                         autoCorrect={false}
-                        onFocus={() => setEmailFocused(true)}
-                        onBlur={() => setEmailFocused(false)}
+                        onFocus={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL FOCUS`); setEmailFocused(true); }}
+                        onBlur={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL BLUR`); setEmailFocused(false); }}
                         style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
                       />
                     </View>
@@ -357,8 +373,8 @@ export default function LoginScreen() {
                         placeholder="Enter password"
                         placeholderTextColor="#475569"
                         secureTextEntry={!showPassword}
-                        onFocus={() => setPassFocused(true)}
-                        onBlur={() => setPassFocused(false)}
+                        onFocus={() => { console.log(`[KBDBG2 ${dbgId}] PASS FOCUS`); setPassFocused(true); }}
+                        onBlur={() => { console.log(`[KBDBG2 ${dbgId}] PASS BLUR`); setPassFocused(false); }}
                         returnKeyType="done"
                         onSubmitEditing={handleSignIn}
                         style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
