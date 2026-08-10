@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
+  Keyboard,
   Platform,
   ScrollView,
   StyleSheet,
@@ -143,6 +144,26 @@ export default function LoginScreen() {
 
   // Tab indicator
   const tabX = useSharedValue(activeTab === 'email' ? 0 : 1);
+
+  // ── TEMPORARY Android keyboard diagnostics (on-screen, since release APKs
+  // expose no console). Logs MOUNT/UNMOUNT, focus/blur, keyboard show/hide. ──
+  const [dbgEvents, setDbgEvents] = useState<string[]>([]);
+  const dbgStartRef = useRef(Date.now());
+  const dbgLog = useCallback((label: string) => {
+    if (Platform.OS !== 'android') return;
+    const t = ((Date.now() - dbgStartRef.current) / 1000).toFixed(2);
+    setDbgEvents((prev) => [`${t}s ${label}`, ...prev].slice(0, 6));
+  }, []);
+  useEffect(() => {
+    dbgLog('LOGIN MOUNT');
+    const show = Keyboard.addListener('keyboardDidShow', () => dbgLog('KB SHOW'));
+    const hide = Keyboard.addListener('keyboardDidHide', () => dbgLog('KB HIDE'));
+    return () => {
+      show.remove();
+      hide.remove();
+      // Can't setState on unmount; unmount is implied if the strip resets on return.
+    };
+  }, [dbgLog]);
 
   useEffect(() => {
     headerY.value = withTiming(0, { duration: 700, easing: Easing.out(Easing.cubic) });
@@ -339,8 +360,8 @@ export default function LoginScreen() {
                         keyboardType="email-address"
                         autoCapitalize="none"
                         autoCorrect={false}
-                        onFocus={() => setEmailFocused(true)}
-                        onBlur={() => setEmailFocused(false)}
+                        onFocus={() => { setEmailFocused(true); dbgLog('EMAIL FOCUS'); }}
+                        onBlur={() => { setEmailFocused(false); dbgLog('EMAIL BLUR'); }}
                         style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
                       />
                     </View>
@@ -357,8 +378,8 @@ export default function LoginScreen() {
                         placeholder="Enter password"
                         placeholderTextColor="#475569"
                         secureTextEntry={!showPassword}
-                        onFocus={() => setPassFocused(true)}
-                        onBlur={() => setPassFocused(false)}
+                        onFocus={() => { setPassFocused(true); dbgLog('PASS FOCUS'); }}
+                        onBlur={() => { setPassFocused(false); dbgLog('PASS BLUR'); }}
                         returnKeyType="done"
                         onSubmitEditing={handleSignIn}
                         style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
@@ -480,6 +501,14 @@ export default function LoginScreen() {
           </View>
           </View>
         </KeyboardAwareScrollViewCompat>
+        {/* TEMPORARY: on-screen keyboard diagnostics (Android only) */}
+        {Platform.OS === 'android' && dbgEvents.length > 0 && (
+          <View pointerEvents="none" style={[styles.dbgStrip, { top: insets.top + 4 }]}>
+            {dbgEvents.map((e, i) => (
+              <Text key={`${e}-${i}`} style={styles.dbgText}>{e}</Text>
+            ))}
+          </View>
+        )}
     </View>
   );
 }
@@ -693,4 +722,17 @@ const styles = StyleSheet.create({
   legalRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   legalText: { fontSize: 11, color: '#334155' },
   legalDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#334155' },
+  // TEMPORARY: Android keyboard diagnostics strip
+  dbgStrip: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    backgroundColor: 'rgba(2, 6, 23, 0.85)',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  dbgText: { color: '#7DD3FC', fontSize: 10, fontFamily: 'monospace' },
 });
