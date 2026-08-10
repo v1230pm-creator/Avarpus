@@ -341,7 +341,7 @@ export default function LoginScreen() {
                   {/* Email */}
                   <View style={styles.fieldWrap}>
                     <Text style={[styles.fieldLabel, { fontFamily: 'Inter_500Medium' }]}>Email Address</Text>
-                    <View style={[styles.inputRow, emailFocused && styles.inputFocused]}>
+                    <View collapsable={false} style={[styles.inputRow, emailFocused && styles.inputFocused]}>
                       <Feather name="mail" size={16} color={emailFocused ? '#3B82F6' : '#475569'} />
                       <TextInput
                         value={email}
@@ -354,8 +354,8 @@ export default function LoginScreen() {
                         autoComplete="off"
                         importantForAutofill="no"
                         textContentType="none"
-                        onFocus={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL FOCUS ${ts()}`); /* TEMP: no state update */ }}
-                        onBlur={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL BLUR ${ts()}`); /* TEMP: no state update */ }}
+                        onFocus={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL FOCUS ${ts()}`); setEmailFocused(true); }}
+                        onBlur={() => { console.log(`[KBDBG2 ${dbgId}] EMAIL BLUR ${ts()}`); setEmailFocused(false); }}
                         style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
                       />
                     </View>
@@ -364,7 +364,7 @@ export default function LoginScreen() {
                   {/* Password */}
                   <View style={styles.fieldWrap}>
                     <Text style={[styles.fieldLabel, { fontFamily: 'Inter_500Medium' }]}>Password</Text>
-                    <View style={[styles.inputRow, passFocused && styles.inputFocused]}>
+                    <View collapsable={false} style={[styles.inputRow, passFocused && styles.inputFocused]}>
                       <Feather name="lock" size={16} color={passFocused ? '#3B82F6' : '#475569'} />
                       <TextInput
                         value={password}
@@ -375,8 +375,8 @@ export default function LoginScreen() {
                         autoComplete="off"
                         importantForAutofill="no"
                         textContentType="none"
-                        onFocus={() => { console.log(`[KBDBG2 ${dbgId}] PASS FOCUS ${ts()}`); /* TEMP: no state update */ }}
-                        onBlur={() => { console.log(`[KBDBG2 ${dbgId}] PASS BLUR ${ts()}`); /* TEMP: no state update */ }}
+                        onFocus={() => { console.log(`[KBDBG2 ${dbgId}] PASS FOCUS ${ts()}`); setPassFocused(true); }}
+                        onBlur={() => { console.log(`[KBDBG2 ${dbgId}] PASS BLUR ${ts()}`); setPassFocused(false); }}
                         returnKeyType="done"
                         onSubmitEditing={handleSignIn}
                         style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
@@ -413,7 +413,7 @@ export default function LoginScreen() {
                 <View style={styles.form}>
                   <View style={styles.fieldWrap}>
                     <Text style={[styles.fieldLabel, { fontFamily: 'Inter_500Medium' }]}>Mobile Number</Text>
-                    <View style={[styles.inputRow, mobileFocused && styles.inputFocused]}>
+                    <View collapsable={false} style={[styles.inputRow, mobileFocused && styles.inputFocused]}>
                       {/* Country code */}
                       <View style={styles.countryCode}>
                         <Text style={[styles.countryFlag, { fontFamily: 'Inter_400Regular' }]}>🇮🇳</Text>
