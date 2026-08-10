@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
+  Keyboard,
   Platform,
   StyleSheet,
   Text,
@@ -143,6 +144,18 @@ export default function LoginScreen() {
 
   // Tab indicator
   const tabX = useSharedValue(activeTab === 'email' ? 0 : 1);
+
+  // TEMP [KBDBG]: dev-only keyboard diagnostics, visible in Metro logs.
+  useEffect(() => {
+    console.log('[KBDBG] LoginScreen MOUNT, platform=', Platform.OS);
+    const s = Keyboard.addListener('keyboardDidShow', () => console.log('[KBDBG] KEYBOARD SHOW'));
+    const h = Keyboard.addListener('keyboardDidHide', () => console.log('[KBDBG] KEYBOARD HIDE'));
+    return () => {
+      console.log('[KBDBG] LoginScreen UNMOUNT');
+      s.remove();
+      h.remove();
+    };
+  }, []);
 
   useEffect(() => {
     headerY.value = withTiming(0, { duration: 700, easing: Easing.out(Easing.cubic) });
@@ -329,18 +342,22 @@ export default function LoginScreen() {
                   {/* Email */}
                   <View style={styles.fieldWrap}>
                     <Text style={[styles.fieldLabel, { fontFamily: 'Inter_500Medium' }]}>Email Address</Text>
-                    <View style={[styles.inputRow, emailFocused && styles.inputFocused]}>
+                    <View
+                      style={[styles.inputRow, emailFocused && styles.inputFocused]}
+                      onTouchStart={() => console.log('[KBDBG] EMAIL ROW TOUCH')}
+                    >
                       <Feather name="mail" size={16} color={emailFocused ? '#3B82F6' : '#475569'} />
                       <TextInput
                         value={email}
-                        onChangeText={setEmail}
+                        onChangeText={(t) => { console.log('[KBDBG] EMAIL CHANGE len=', t.length); setEmail(t); }}
+                        onPressIn={() => console.log('[KBDBG] EMAIL PRESS-IN')}
                         placeholder="Enter email id"
                         placeholderTextColor="#475569"
                         keyboardType="email-address"
                         autoCapitalize="none"
                         autoCorrect={false}
-                        onFocus={() => setEmailFocused(true)}
-                        onBlur={() => setEmailFocused(false)}
+                        onFocus={() => { console.log('[KBDBG] EMAIL FOCUS'); setEmailFocused(true); }}
+                        onBlur={() => { console.log('[KBDBG] EMAIL BLUR'); setEmailFocused(false); }}
                         style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
                       />
                     </View>
@@ -357,8 +374,9 @@ export default function LoginScreen() {
                         placeholder="Enter password"
                         placeholderTextColor="#475569"
                         secureTextEntry={!showPassword}
-                        onFocus={() => setPassFocused(true)}
-                        onBlur={() => setPassFocused(false)}
+                        onPressIn={() => console.log('[KBDBG] PASS PRESS-IN')}
+                        onFocus={() => { console.log('[KBDBG] PASS FOCUS'); setPassFocused(true); }}
+                        onBlur={() => { console.log('[KBDBG] PASS BLUR'); setPassFocused(false); }}
                         returnKeyType="done"
                         onSubmitEditing={handleSignIn}
                         style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
