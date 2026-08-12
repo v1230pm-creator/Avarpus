@@ -1,0 +1,674 @@
+FULL APPLICATION REDESIGN — IMPLEMENT DIRECTLY IN THE REAL APP
+
+I am attaching a reference image for the new Repair Detail UI.
+
+IMPORTANT:
+THIS IMAGE IS THE VISUAL SOURCE OF TRUTH.
+
+Do not create a mockup.
+Do not create a demo screen.
+Do not create a test screen.
+Do not only modify backend logic.
+Do not only change a few CSS values.
+
+I want you to redesign the EXISTING REAL APPLICATION and make the running application visibly look and behave like the attached reference.
+
+==================================================
+1. FULL APPLICATION UI REDESIGN
+==================================================
+
+Completely redesign the existing application UI using the attached image as the visual reference.
+
+The new design must be applied throughout the application, not only to Staff.
+
+Apply the same design system to:
+
+• Admin
+• Staff
+• Dealer
+• Technician
+
+Role permissions can remain different, but the visual UI/UX must be consistent.
+
+Do NOT keep the old layout and simply add new buttons.
+
+Replace/refactor the old UI components wherever necessary.
+
+==================================================
+2. VISUAL DESIGN
+==================================================
+
+Match the reference image closely.
+
+Use:
+
+Background:
+#070D1C / #0B1222
+
+Primary Blue:
+#3B82F6
+
+Card:
+#111827
+
+Primary Text:
+#F8FAFC
+
+Secondary Text:
+#94A3B8
+
+Success:
+#10B981
+
+Warning:
+#F59E0B
+
+Danger:
+#EF4444
+
+Use:
+
+• dark navy background
+• premium cards
+• rounded corners
+• subtle borders
+• subtle shadows
+• blue primary actions
+• clean typography
+• proper spacing
+• modern icons
+• professional mobile-first layout
+
+Do not introduce random colors.
+
+The final UI should look like one professional VMC Electronic BMS product.
+
+==================================================
+3. REPAIR DETAIL SCREEN
+==================================================
+
+Completely replace the existing Repair Detail screen with the new design.
+
+Header:
+
+← Back
+
+VMC-001
+
+[Status Badge]
+
+Example:
+
+Customer Approval Required
+
+Below header:
+
+[ Document Icon ] Download Job Card PDF
+
+Then show the repair workflow as a clear timeline.
+
+==================================================
+4. REPAIR TIMELINE
+==================================================
+
+Create a proper timeline:
+
+1. RECEIVED
+↓
+2. REPAIR
+↓
+3. READY FOR CUSTOMER
+↓
+4. DELIVERED
+↓
+5. AFTER-SALE SERVICE
+
+All stages must be linked to the SAME repair record.
+
+Do not create disconnected records.
+
+Every status change must update the same repair timeline.
+
+==================================================
+5. RECEIVED STAGE
+==================================================
+
+When staff/dealer receives a customer's phone, show:
+
+Customer details
+Device details
+Brand
+Model
+IMEI
+Color
+Storage
+RAM
+SIM
+SD Card
+Accessories
+Device condition checklist
+Problem reported
+Received by
+Received date
+
+IMPORTANT:
+
+At receiving time ONLY allow:
+
+Estimated Repair Price
+
+Example:
+
+Estimated Price
+₹1,200
+
+Do NOT ask for final payment here.
+
+Estimated price is NOT the final amount.
+
+==================================================
+6. REPAIR STAGE
+==================================================
+
+Technician/staff can update:
+
+• Assigned technician
+• Diagnosis
+• Repair status
+• Work performed
+• Parts required
+• Parts used
+• Labour
+• Repair notes
+• Testing status
+• Customer approval status
+
+Possible statuses:
+
+• Repairing
+• Testing
+• Customer Approval Required
+• Cannot Repair
+• Ready for Pickup
+
+All changes must be saved to the real database.
+
+==================================================
+7. FINAL AMOUNT
+==================================================
+
+Final payment must NOT be entered during phone receiving.
+
+After repair/testing is completed, show:
+
+Estimated Amount
+₹1,200
+
+Final Amount
+₹1,250
+
+Difference
++₹50
+
+Then show:
+
+[ Collect Payment ]
+
+==================================================
+8. PAYMENT SYSTEM
+==================================================
+
+Payment system must be available according to role permissions for:
+
+• Admin
+• Staff
+• Dealer
+
+Technician should only see payment functions if explicitly permitted.
+
+Payment methods:
+
+• Cash
+• UPI
+• Card
+• Bank Transfer
+• Other
+
+Payment types:
+
+• Advance
+• Partial
+• Final
+
+Every payment must create a separate transaction.
+
+Example:
+
+Payment #1
+₹500
+UPI
+Advance
+08 Aug 2026
+
+Payment #2
+₹750
+Cash
+Final
+12 Aug 2026
+
+Total:
+₹1,250
+
+Paid:
+₹1,250
+
+Balance:
+₹0
+
+Never overwrite old payment records.
+
+==================================================
+9. READY FOR CUSTOMER
+==================================================
+
+When repair and testing are completed:
+
+Show:
+
+Repair Completed
+Testing Completed
+Final Amount
+Paid Amount
+Balance
+Payment Status
+
+Then:
+
+[ Ready for Pickup ]
+
+Customer notification can be triggered according to the existing notification system.
+
+==================================================
+10. DELIVERED
+==================================================
+
+Customer delivery must happen from the real repair workflow.
+
+When customer receives the phone:
+
+Record:
+
+• Delivered date
+• Delivered time
+• Delivered by
+• Payment status
+• Payment method
+• Customer confirmation
+• Delivery notes
+
+Then change repair status to:
+
+DELIVERED
+
+The complete history must remain visible.
+
+==================================================
+11. AFTER-SALE SERVICE / RETURN
+==================================================
+
+This is a permanent real feature.
+
+If a customer returns the repaired phone after delivery:
+
+Example:
+
+Delivered:
+08 Aug 2026
+
+Returned:
+15 Aug 2026
+
+Reason:
+Same problem returned
+
+Create an AFTER-SALE SERVICE case linked to the original repair.
+
+Do NOT create an unrelated repair record.
+
+Original repair:
+
+VMC-001
+
+After-sale case:
+
+VMC-001-AS01
+
+Possible reasons:
+
+• Same problem returned
+• Repair failed
+• New problem
+• Part issue
+• Customer complaint
+• Other
+
+Show complete original repair history.
+
+==================================================
+12. AFTER-SALE SERVICE ACTIONS
+==================================================
+
+Staff/dealer/admin can update:
+
+• Diagnosis
+• Technician
+• Re-repair
+• Part replacement
+• Testing
+• Customer approval
+• Refund
+• Partial refund
+• No refund
+• Service completed
+
+==================================================
+13. REFUND SYSTEM
+==================================================
+
+If refund is required:
+
+Show:
+
+Refund Amount
+₹_____
+
+Reason
+________
+
+Method:
+
+• Cash
+• UPI
+• Bank Transfer
+• Other
+
+Refund must be a NEW financial transaction.
+
+Never delete the original payment.
+
+Example:
+
+Original Payment
+₹1,250
+
+Refund
+₹1,250
+
+Net Paid
+₹0
+
+Keep complete financial history.
+
+==================================================
+14. ROLE SYSTEM
+==================================================
+
+Apply this redesigned system to all users.
+
+ADMIN:
+Full access.
+
+STAFF:
+Repair operations + payment according to permission.
+
+TECHNICIAN:
+Diagnosis
+Repair
+Parts
+Testing
+Repair status
+
+DEALER:
+Customer
+Receiving
+Repair tracking
+Payment according to permission
+Delivery
+After-sale service
+
+Use role-based permissions properly.
+
+==================================================
+15. BACKDATED DATA
+==================================================
+
+If a user tries to enter an old date:
+
+Example:
+
+Current date:
+12 Aug 2026
+
+Entered date:
+05 Aug 2026
+
+System must recognize this as a backdated entry.
+
+Require appropriate Dealer/Admin permission before saving.
+
+Record:
+
+Backdated Entry
+Approved By
+Date
+Time
+
+Do not silently accept backdated records.
+
+==================================================
+16. GLOBAL UI
+==================================================
+
+Redesign the entire application consistently.
+
+Dashboard
+Repairs
+Customers
+Inventory
+Payments
+Dealer
+Staff
+Technicians
+Reports
+Settings
+More
+
+All screens must use the same design language.
+
+Bottom navigation:
+
+Dashboard
+Repairs
+Customers
+Inventory
+More
+
+Use the same premium dark navy + blue design.
+
+==================================================
+17. MOBILE ANDROID UI
+==================================================
+
+This application is heavily used on Android phones.
+
+Fix all mobile layout problems.
+
+Ensure:
+
+• keyboard does not immediately disappear
+• Email/password fields do not fight each other
+• focused input remains focused
+• no unexpected blur
+• no layout jumping
+• no clipped fields
+• no horizontal overflow
+• proper keyboard scrolling
+• proper safe-area handling
+• buttons remain accessible
+• modals fit the screen
+• forms scroll correctly
+
+Do not create a Keyboard Test screen.
+
+Fix the actual production login screen.
+
+==================================================
+18. REMOVE OLD TEST/DEBUG SCREENS
+==================================================
+
+Remove all previously created:
+
+• test screens
+• keyboard test screens
+• diagnostic screens
+• debug-only UI
+• temporary troubleshooting components
+
+Do not leave them accessible in the production application.
+
+==================================================
+19. CODEBASE REVIEW
+==================================================
+
+Before implementation, inspect the entire relevant codebase.
+
+Find:
+
+• existing Repair Detail components
+• payment components
+• repair status components
+• login components
+• role/permission system
+• database models
+• navigation
+• bottom navigation
+• modal components
+• existing test/debug screens
+
+If existing code conflicts with the new design:
+
+FIX IT DIRECTLY.
+
+If a component is obsolete:
+
+REPLACE OR REMOVE IT.
+
+Do not preserve bad architecture just because it already exists.
+
+==================================================
+20. REAL DATABASE
+==================================================
+
+All new functionality must use the real production database.
+
+Do NOT use fake local-only data.
+
+Ensure:
+
+• repair status persists
+• timeline persists
+• estimated amount persists
+• final amount persists
+• payments persist
+• refunds persist
+• delivery persists
+• after-sale cases persist
+• permissions persist
+• audit information persists
+
+==================================================
+21. DO NOT STOP AFTER CODE CHANGES
+==================================================
+
+After implementation, run the actual application.
+
+Open the real screens.
+
+Verify visually.
+
+Test:
+
+Received
+→ Repair
+→ Ready for Customer
+→ Delivered
+→ After-Sale Service
+
+Test:
+
+Estimated Amount
+→ Final Amount
+→ Payment
+→ Refund
+
+Test:
+
+Admin
+Staff
+Dealer
+Technician
+
+Test Android:
+
+Login
+Email field
+Password field
+Keyboard
+Scrolling
+Forms
+Modals
+
+If you find an obvious problem during implementation:
+
+FIX IT DIRECTLY.
+
+Do not ask unnecessary questions.
+
+==================================================
+22. IMPORTANT ACCEPTANCE RULE
+==================================================
+
+Do not tell me that the task is complete simply because code was modified.
+
+The task is COMPLETE only when the actual running application visibly shows the redesigned UI and the features work.
+
+I will open the real application and compare it with the attached reference image.
+
+The old UI should NOT remain underneath the new functionality.
+
+I want an ACTUAL FULL REDESIGN, not a patch.
+
+==================================================
+23. FINAL REPORT
+==================================================
+
+After implementation, report only:
+
+1. Files/components changed
+2. Old components removed/replaced
+3. New features implemented
+4. Database changes
+5. Role/permission changes
+6. Android keyboard/login fix
+7. Confirmation that the REAL RUNNING APP shows the new UI
+8. Any genuine remaining issue
+
+DO NOT CREATE ANOTHER TEST SCREEN.
+
+DO NOT CREATE A MOCKUP.
+
+DO NOT ONLY PLAN.
+
+DO NOT ONLY MODIFY BACKEND.
+
+IMPLEMENT THE COMPLETE REDESIGN IN THE REAL VMC ELECTRONIC BMS APPLICATION.
