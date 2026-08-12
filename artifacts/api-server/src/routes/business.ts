@@ -1165,7 +1165,31 @@ router.get(
       .from(repairPaymentsTable)
       .where(and(eq(repairPaymentsTable.repairId, id), eq(repairPaymentsTable.shopId, shopId)))
       .orderBy(desc(repairPaymentsTable.createdAt));
-    res.json({ payments: rows.map(paymentOut) });
+    const refundRows = await db
+      .select()
+      .from(refundsTable)
+      .where(and(eq(refundsTable.repairId, id), eq(refundsTable.shopId, shopId)))
+      .orderBy(desc(refundsTable.createdAt));
+    const refunds = refundRows.map((f) => ({
+      id: f.id,
+      repairId: f.repairId,
+      returnId: f.returnId,
+      customerId: f.customerId ?? undefined,
+      amount: f.amount,
+      originalPaid: f.originalPaid,
+      method: f.method,
+      status: f.status,
+      reason: f.reason,
+      referenceNo: f.referenceNo ?? undefined,
+      requestedByName: f.requestedByName ?? undefined,
+      approvedByName: f.approvedByName ?? undefined,
+      approvedAt: f.approvedAt ? f.approvedAt.toISOString() : undefined,
+      paidByName: f.paidByName ?? undefined,
+      paidAt: f.paidAt ? f.paidAt.toISOString() : undefined,
+      rejectionReason: f.rejectionReason ?? undefined,
+      createdAt: f.createdAt.toISOString(),
+    }));
+    res.json({ payments: rows.map(paymentOut), refunds });
   }),
 );
 

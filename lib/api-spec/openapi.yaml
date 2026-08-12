@@ -628,6 +628,9 @@ paths:
                   payments:
                     type: array
                     items: { $ref: "#/components/schemas/RepairPayment" }
+                  refunds:
+                    type: array
+                    items: { $ref: "#/components/schemas/Refund" }
                 required: [payments]
     post:
       operationId: repairPaymentsCreate

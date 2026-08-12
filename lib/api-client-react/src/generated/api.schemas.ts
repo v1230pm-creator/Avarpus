@@ -970,6 +970,7 @@ export type RepairEventsList200 = {
 
 export type RepairPaymentsList200 = {
   payments: RepairPayment[];
+  refunds?: Refund[];
 };
 
 export type RepairPaymentsCreate200 = {

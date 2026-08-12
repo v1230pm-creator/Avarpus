@@ -5,8 +5,10 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { Refund } from './refund';
 import type { RepairPayment } from './repairPayment';
 
 export type RepairPaymentsList200 = {
   payments: RepairPayment[];
+  refunds?: Refund[];
 };

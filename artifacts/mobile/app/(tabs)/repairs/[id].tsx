@@ -178,6 +178,9 @@ export default function RepairDetailScreen() {
   const repairReturns = useMemo(() => returnsData?.returns?.filter(r => r.repairId === id) || [], [returnsData, id]);
   const parts = partsData?.parts || [];
   const payments = paymentsData?.payments || [];
+  const refunds = paymentsData?.refunds || [];
+  const visibleRefunds = refunds.filter(f => f.status !== 'rejected');
+  const paidRefundsTotal = refunds.filter(f => f.status === 'paid').reduce((s, f) => s + f.amount, 0);
   const approvals = approvalsData?.estimateApprovals || [];
   const technicians = staffData?.staff?.filter(s => s.role === 'technician') || [];
 
@@ -905,7 +908,7 @@ export default function RepairDetailScreen() {
               <Button title="New Estimate" onPress={() => setShowApproval(true)} variant="outline" size="sm" style={{ flex: 1 }} />
             </View>
             
-            {payments.length > 0 && (
+            {(payments.length > 0 || visibleRefunds.length > 0) && (
               <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
                 <Text style={[styles.problemTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginBottom: 8 }]}>Payment Ledger</Text>
                 {payments.map(pmt => (
@@ -922,6 +925,30 @@ export default function RepairDetailScreen() {
                     <Text style={{ fontSize: 14, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(pmt.amount)}</Text>
                   </View>
                 ))}
+                {visibleRefunds.map(rf => (
+                  <View key={rf.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={{ fontSize: 13, color: colors.destructive }}>
+                        Refund · {rf.method}{rf.status !== 'paid' ? ` (${rf.status})` : ''}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: colors.mutedForeground }}>
+                        {formatDate(rf.paidAt || rf.createdAt)}{(rf.paidByName || rf.approvedByName || rf.requestedByName) ? ` · ${rf.paidByName || rf.approvedByName || rf.requestedByName}` : ''}
+                      </Text>
+                      {!!rf.referenceNo && (
+                        <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Ref: {rf.referenceNo}</Text>
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 14, color: colors.destructive, fontFamily: 'Inter_600SemiBold' }}>-{formatCurrency(rf.amount)}</Text>
+                  </View>
+                ))}
+                {paidRefundsTotal > 0 && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 6, marginTop: 4, borderTopWidth: 1, borderTopColor: colors.border }}>
+                    <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Net Paid</Text>
+                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>
+                      {formatCurrency(Math.max(0, (repair.paidAmount ?? repair.advance ?? 0) - paidRefundsTotal))}
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
 
@@ -1415,7 +1442,7 @@ export default function RepairDetailScreen() {
                 </View>
 
                 {/* Payment history (real ledger) */}
-                {payments.length > 0 && (
+                {(payments.length > 0 || visibleRefunds.length > 0) && (
                   <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
                     <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginBottom: 6 }}>Payment History</Text>
                     {payments.map(pmt => (
@@ -1430,9 +1457,23 @@ export default function RepairDetailScreen() {
                         <Text style={{ fontSize: 13, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(pmt.amount)}</Text>
                       </View>
                     ))}
+                    {visibleRefunds.map(rf => (
+                      <View key={rf.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
+                        <View style={{ flex: 1, marginRight: 8 }}>
+                          <Text style={{ fontSize: 13, color: colors.destructive }}>
+                            Refund · {rf.method}{rf.status !== 'paid' ? ` (${rf.status})` : ''}
+                          </Text>
+                          <Text style={{ fontSize: 11, color: colors.mutedForeground }}>
+                            {formatDate(rf.paidAt || rf.createdAt)}{(rf.paidByName || rf.approvedByName || rf.requestedByName) ? ` · ${rf.paidByName || rf.approvedByName || rf.requestedByName}` : ''}
+                          </Text>
+                          {!!rf.referenceNo && <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Ref: {rf.referenceNo}</Text>}
+                        </View>
+                        <Text style={{ fontSize: 13, color: colors.destructive, fontFamily: 'Inter_600SemiBold' }}>-{formatCurrency(rf.amount)}</Text>
+                      </View>
+                    ))}
                     <View style={styles.infoRow}>
-                      <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Total Paid</Text>
-                      <Text style={{ fontSize: 13, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(payPaid)}</Text>
+                      <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{paidRefundsTotal > 0 ? 'Net Paid' : 'Total Paid'}</Text>
+                      <Text style={{ fontSize: 13, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(Math.max(0, payPaid - paidRefundsTotal))}</Text>
                     </View>
                   </View>
                 )}

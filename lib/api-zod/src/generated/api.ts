@@ -898,7 +898,29 @@ export const RepairPaymentsListResponse = zod.object({
   "receivedById": zod.string().optional(),
   "receivedByName": zod.string().optional(),
   "createdAt": zod.string()
-}))
+})),
+  "refunds": zod.array(zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "repairTicket": zod.string().optional(),
+  "returnId": zod.string(),
+  "returnCaseId": zod.string().optional(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "amount": zod.number(),
+  "originalPaid": zod.number(),
+  "method": zod.string(),
+  "status": zod.enum(['pending_approval', 'approved', 'paid', 'rejected']),
+  "reason": zod.string(),
+  "referenceNo": zod.string().optional(),
+  "requestedByName": zod.string().optional(),
+  "approvedByName": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidByName": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "rejectionReason": zod.string().optional(),
+  "createdAt": zod.string()
+})).optional()
 })
 
 
