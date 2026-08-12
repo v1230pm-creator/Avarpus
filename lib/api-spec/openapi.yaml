@@ -1872,8 +1872,11 @@ components:
         method: { type: string }
         kind: { type: string, enum: [advance, partial, final, refund] }
         note: { type: string }
+        referenceNo: { type: string }
         recordedById: { type: string }
         recordedByName: { type: string }
+        receivedById: { type: string }
+        receivedByName: { type: string }
         createdAt: { type: string }
       required: [id, repairId, amount, method, kind, createdAt]
     RepairPaymentInput:
@@ -1883,6 +1886,7 @@ components:
         method: { type: string }
         kind: { type: string, enum: [advance, partial, final, refund] }
         note: { type: string }
+        referenceNo: { type: string }
       required: [amount, method]
     RepairAssignInput:
       type: object

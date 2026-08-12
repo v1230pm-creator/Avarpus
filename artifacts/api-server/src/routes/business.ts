@@ -1206,7 +1206,8 @@ router.post(
         .select({ paidSoFar: sql<number>`coalesce(sum(${repairPaymentsTable.amount}), 0)::float` })
         .from(repairPaymentsTable)
         .where(and(eq(repairPaymentsTable.repairId, id), eq(repairPaymentsTable.shopId, shopId)));
-      if (paidSoFar + amount > totalAmount + 0.01) {
+      // Strict integer-paise comparison — no floating-point tolerance window
+      if (Math.round((paidSoFar + amount) * 100) > Math.round(totalAmount * 100)) {
         return {
           error: {
             status: 400,

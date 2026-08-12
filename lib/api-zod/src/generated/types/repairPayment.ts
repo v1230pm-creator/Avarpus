@@ -14,7 +14,10 @@ export interface RepairPayment {
   method: string;
   kind: RepairPaymentKind;
   note?: string;
+  referenceNo?: string;
   recordedById?: string;
   recordedByName?: string;
+  receivedById?: string;
+  receivedByName?: string;
   createdAt: string;
 }

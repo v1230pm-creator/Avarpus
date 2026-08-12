@@ -892,8 +892,11 @@ export const RepairPaymentsListResponse = zod.object({
   "method": zod.string(),
   "kind": zod.enum(['advance', 'partial', 'final', 'refund']),
   "note": zod.string().optional(),
+  "referenceNo": zod.string().optional(),
   "recordedById": zod.string().optional(),
   "recordedByName": zod.string().optional(),
+  "receivedById": zod.string().optional(),
+  "receivedByName": zod.string().optional(),
   "createdAt": zod.string()
 }))
 })
@@ -910,7 +913,8 @@ export const RepairPaymentsCreateBody = zod.object({
   "amount": zod.number(),
   "method": zod.string(),
   "kind": zod.enum(['advance', 'partial', 'final', 'refund']).optional(),
-  "note": zod.string().optional()
+  "note": zod.string().optional(),
+  "referenceNo": zod.string().optional()
 })
 
 export const RepairPaymentsCreateResponse = zod.object({
@@ -921,8 +925,11 @@ export const RepairPaymentsCreateResponse = zod.object({
   "method": zod.string(),
   "kind": zod.enum(['advance', 'partial', 'final', 'refund']),
   "note": zod.string().optional(),
+  "referenceNo": zod.string().optional(),
   "recordedById": zod.string().optional(),
   "recordedByName": zod.string().optional(),
+  "receivedById": zod.string().optional(),
+  "receivedByName": zod.string().optional(),
   "createdAt": zod.string()
 })
 })

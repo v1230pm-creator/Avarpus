@@ -32,6 +32,7 @@ import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { RepairStatus } from '@/types';
 import { formatDate, formatCurrency, REPAIR_STATUS_LABELS, REPAIR_STATUSES, getReturnStatusColor } from '@/utils/helpers';
 import { storage, KEYS } from '@/utils/storage';
+import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { 
   useRepairPhotosList, getRepairPhotosListQueryKey, 
   useRepairEventsList, getRepairEventsListQueryKey, 
@@ -117,7 +118,14 @@ export default function RepairDetailScreen() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [paymentKind, setPaymentKind] = useState('partial');
+  const [paymentKindTouched, setPaymentKindTouched] = useState(false);
   const [paymentNote, setPaymentNote] = useState('');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentSuccess, setPaymentSuccess] = useState<{
+    amount: number; method: string; kind: string; referenceNo?: string; createdAt: string;
+    totalPaidAfter: number; remainingAfter: number;
+  } | null>(null);
+  const paymentSubmitRef = useRef(false);
   
   // Technician Assignment
   const [showAssign, setShowAssign] = useState(false);
@@ -193,6 +201,134 @@ export default function RepairDetailScreen() {
 
   const balance = Math.max(0, repair.repairCharge + repair.partsCharge - repair.advance);
   const canUpdateStatus = canAccess('repairs_update') || (canAccess('repairs') && user?.role !== 'reception');
+
+  // ── Collect Payment: real financials from the repair + payments ledger ──
+  const payTotal = repair.totalAmount || (repair.repairCharge + repair.partsCharge);
+  const payPaid = repair.paidAmount ?? repair.advance ?? 0;
+  const payRemaining = repair.balance !== undefined ? Math.max(0, repair.balance) : Math.max(0, payTotal - payPaid);
+  // Money math in integer paise to avoid floating-point boundary bugs
+  const payRemainingCents = Math.round(payRemaining * 100);
+  const parseAmountCents = (s: string): number | null => {
+    const t = s.trim();
+    if (!/^\d+(\.\d{1,2})?$/.test(t)) return null;
+    return Math.round(Number(t) * 100);
+  };
+  const paymentAmountCents = parseAmountCents(paymentAmount);
+  const paymentAmountNum = paymentAmountCents !== null ? paymentAmountCents / 100 : NaN;
+  const paymentAmountError = !paymentAmount.trim()
+    ? ''
+    : paymentAmountCents === null || paymentAmountCents <= 0
+      ? 'Enter a valid amount greater than 0 (max 2 decimals)'
+      : paymentAmountCents > payRemainingCents
+        ? `Amount exceeds remaining ${formatCurrency(payRemaining)}`
+        : '';
+  const paymentAmountValid = !!paymentAmount.trim() && !paymentAmountError;
+  const paymentReferenceLabel =
+    paymentMethod === 'UPI' ? 'UPI Transaction ID / Reference'
+    : paymentMethod === 'Card' ? 'Card Transaction / Reference ID'
+    : paymentMethod === 'Bank Transfer' ? 'UTR / Transaction ID'
+    : paymentMethod === 'Other' ? 'Reference / Details (Optional)'
+    : null;
+  const paymentReferenceRequired = ['UPI', 'Card', 'Bank Transfer'].includes(paymentMethod);
+  const paymentFormValid = paymentAmountValid && (!paymentReferenceRequired || paymentReference.trim().length > 0);
+
+  const suggestPaymentKind = (amtStr: string) => {
+    const cents = parseAmountCents(amtStr);
+    const clearsBalance = cents !== null && cents > 0 && payRemainingCents > 0 && cents >= payRemainingCents;
+    if (clearsBalance) return 'final';
+    return payPaid > 0 ? 'partial' : 'advance';
+  };
+
+  const openPaymentModal = () => {
+    const prefill = payRemaining > 0 ? String(Math.round(payRemaining * 100) / 100) : '';
+    setPaymentAmount(prefill);
+    setPaymentMethod('Cash');
+    setPaymentKind(suggestPaymentKind(prefill));
+    setPaymentKindTouched(false);
+    setPaymentNote('');
+    setPaymentReference('');
+    setPaymentSuccess(null);
+    setShowPayment(true);
+  };
+
+  const onPaymentAmountChange = (t: string) => {
+    const clean = t.replace(/[^0-9.]/g, '');
+    setPaymentAmount(clean);
+    if (!paymentKindTouched) setPaymentKind(suggestPaymentKind(clean));
+  };
+
+  const handleCollectPayment = async () => {
+    if (paymentSubmitRef.current || !paymentFormValid || paymentAmountCents === null) return;
+    paymentSubmitRef.current = true;
+    setUpdating(true);
+    try {
+      const res = await repairPaymentsCreate(repair.id, {
+        amount: paymentAmountCents / 100,
+        method: paymentMethod,
+        kind: paymentKind as any,
+        note: paymentNote.trim() || undefined,
+        referenceNo: paymentReference.trim() || undefined,
+      });
+      // Immutable post-transaction snapshot for the success view + receipt
+      setPaymentSuccess({
+        amount: res.payment.amount,
+        method: res.payment.method,
+        kind: res.payment.kind,
+        referenceNo: res.payment.referenceNo,
+        createdAt: res.payment.createdAt,
+        totalPaidAfter: (Math.round(payPaid * 100) + paymentAmountCents) / 100,
+        remainingAfter: Math.max(0, payRemainingCents - paymentAmountCents) / 100,
+      });
+      await loadAll();
+      await paymentsRefetch();
+      queryClient.invalidateQueries();
+    } catch (e: any) {
+      Alert.alert('Payment Failed', e.message || 'Could not record payment.');
+    } finally {
+      paymentSubmitRef.current = false;
+      setUpdating(false);
+    }
+  };
+
+  const sharePaymentReceipt = async (print: boolean) => {
+    if (!paymentSuccess) return;
+    try {
+      const html = `
+        <html>
+          <body style="font-family: sans-serif; padding: 24px; color: #111;">
+            <h2 style="text-align: center; margin-bottom: 4px;">VMC Electronics</h2>
+            <p style="text-align: center; margin-top: 0;">Payment Receipt</p>
+            <hr />
+            <p><strong>Ticket:</strong> ${repair.repairId}</p>
+            <p><strong>Customer:</strong> ${repair.customerName} (${repair.mobile})</p>
+            <p><strong>Device:</strong> ${repair.brand} ${repair.model}</p>
+            <hr />
+            <p><strong>Amount Received:</strong> ₹${paymentSuccess.amount}</p>
+            <p><strong>Payment Method:</strong> ${paymentSuccess.method}</p>
+            <p><strong>Payment Type:</strong> ${paymentSuccess.kind}</p>
+            ${paymentSuccess.referenceNo ? `<p><strong>Reference:</strong> ${paymentSuccess.referenceNo}</p>` : ''}
+            <p><strong>Date &amp; Time:</strong> ${formatDate(paymentSuccess.createdAt)}</p>
+            <hr />
+            <p><strong>Total Amount:</strong> ₹${payTotal}</p>
+            <p><strong>Total Paid:</strong> ₹${paymentSuccess.totalPaidAfter}</p>
+            <p><strong>Remaining:</strong> ₹${paymentSuccess.remainingAfter}</p>
+          </body>
+        </html>
+      `;
+      if (Platform.OS === 'web' || print) {
+        await Print.printAsync({ html });
+      } else {
+        const { uri } = await Print.printToFileAsync({ html });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, { mimeType: 'application/pdf' });
+        } else {
+          await Print.printAsync({ html });
+        }
+      }
+    } catch {
+      Alert.alert('Error', 'Could not generate the receipt.');
+    }
+  };
 
   const uploadToGcs = async (fileUri: string, mimeType: string) => {
     try {
@@ -765,7 +901,7 @@ export default function RepairDetailScreen() {
             <InfoRow label="Balance Due" value={formatCurrency(repair.balance !== undefined ? repair.balance : Math.max(0, repair.repairCharge + repair.partsCharge - repair.advance))} color={(repair.balance || Math.max(0, repair.repairCharge + repair.partsCharge - repair.advance)) > 0 ? colors.warning : colors.success} bold />
             
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-              <Button title="Payment" onPress={() => setShowPayment(true)} variant="outline" size="sm" style={{ flex: 1 }} />
+              <Button title="Payment" onPress={openPaymentModal} variant="outline" size="sm" style={{ flex: 1 }} />
               <Button title="New Estimate" onPress={() => setShowApproval(true)} variant="outline" size="sm" style={{ flex: 1 }} />
             </View>
             
@@ -774,9 +910,14 @@ export default function RepairDetailScreen() {
                 <Text style={[styles.problemTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginBottom: 8 }]}>Payment Ledger</Text>
                 {payments.map(pmt => (
                   <View key={pmt.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
-                    <View>
+                    <View style={{ flex: 1, marginRight: 8 }}>
                       <Text style={{ fontSize: 13, color: colors.foreground }}>{pmt.method} ({pmt.kind})</Text>
-                      <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{formatDate(pmt.createdAt)} · {pmt.recordedByName}</Text>
+                      <Text style={{ fontSize: 11, color: colors.mutedForeground }}>
+                        {formatDate(pmt.createdAt)}{(pmt.receivedByName || pmt.recordedByName) ? ` · ${pmt.receivedByName || pmt.recordedByName}` : ''}
+                      </Text>
+                      {!!pmt.referenceNo && (
+                        <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Ref: {pmt.referenceNo}</Text>
+                      )}
                     </View>
                     <Text style={{ fontSize: 14, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(pmt.amount)}</Text>
                   </View>
@@ -1171,60 +1312,143 @@ export default function RepairDetailScreen() {
 
       
       {/* Collect Payment Modal */}
-      <Modal visible={showPayment} animationType="fade" transparent>
+      <Modal visible={showPayment} animationType="fade" transparent onRequestClose={() => setShowPayment(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Collect Payment</Text>
-            
-            <Text style={[styles.label, { color: colors.foreground }]}>Amount</Text>
-            <TextInput value={paymentAmount} onChangeText={setPaymentAmount} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
-            
-            <Text style={[styles.label, { color: colors.foreground }]}>Method</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-              {['Cash', 'UPI', 'Card', 'Bank Transfer', 'Other'].map(m => (
-                <TouchableOpacity key={m} onPress={() => setPaymentMethod(m)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: paymentMethod === m ? colors.primary : colors.card, borderWidth: 1, borderColor: colors.border }}>
-                  <Text style={{ color: paymentMethod === m ? '#FFF' : colors.foreground }}>{m}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border, maxHeight: '88%' }]}>
+            {paymentSuccess ? (
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: colors.success + '22', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                    <Feather name="check" size={28} color={colors.success} />
+                  </View>
+                  <Text style={[styles.modalTitle, { color: colors.foreground, marginBottom: 2 }]}>Payment Received</Text>
+                  <Text style={{ fontSize: 24, color: colors.success, fontFamily: 'Inter_700Bold', marginBottom: 8 }}>{formatCurrency(paymentSuccess.amount)}</Text>
+                </View>
+                <InfoRow label="Repair ID" value={repair.repairId} />
+                <InfoRow label="Customer" value={repair.customerName} />
+                <InfoRow label="Payment Method" value={paymentSuccess.method} />
+                <InfoRow label="Payment Type" value={paymentSuccess.kind.charAt(0).toUpperCase() + paymentSuccess.kind.slice(1)} />
+                {!!paymentSuccess.referenceNo && <InfoRow label="Reference" value={paymentSuccess.referenceNo} />}
+                <InfoRow label="Date & Time" value={formatDate(paymentSuccess.createdAt)} />
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <InfoRow label="Total Paid" value={formatCurrency(paymentSuccess.totalPaidAfter)} color={colors.success} />
+                <InfoRow label="Remaining Balance" value={formatCurrency(paymentSuccess.remainingAfter)} color={paymentSuccess.remainingAfter > 0 ? colors.warning : colors.success} bold />
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                  <Button title="Share Receipt" variant="outline" onPress={() => sharePaymentReceipt(false)} style={{ flex: 1 }} />
+                  <Button title="Print" variant="outline" onPress={() => sharePaymentReceipt(true)} style={{ flex: 1 }} />
+                </View>
+                <Button title="Done" onPress={() => setShowPayment(false)} style={{ marginTop: 10 }} />
+              </ScrollView>
+            ) : (
+              <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} bottomOffset={24}>
+                <Text style={[styles.modalTitle, { color: colors.foreground }]}>Collect Payment</Text>
 
-            <Text style={[styles.label, { color: colors.foreground }]}>Type</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-              {['advance', 'partial', 'final'].map(k => (
-                <TouchableOpacity key={k} onPress={() => setPaymentKind(k)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: paymentKind === k ? colors.primary : colors.card, borderWidth: 1, borderColor: colors.border }}>
-                  <Text style={{ color: paymentKind === k ? '#FFF' : colors.foreground, textTransform: 'capitalize' }}>{k}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                {/* Payment summary (real data) */}
+                <View collapsable={false} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, marginBottom: 4, backgroundColor: colors.card }}>
+                  <InfoRow label="Total Repair Amount" value={formatCurrency(payTotal)} />
+                  <InfoRow label="Already Paid" value={formatCurrency(payPaid)} color={colors.success} />
+                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                  <View style={styles.infoRow}>
+                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Remaining</Text>
+                    <Text style={{ fontSize: 18, color: payRemaining > 0 ? colors.primary : colors.success, fontFamily: 'Inter_700Bold' }}>{formatCurrency(payRemaining)}</Text>
+                  </View>
+                </View>
 
-            <Text style={[styles.label, { color: colors.foreground }]}>Note / Reference</Text>
-            <TextInput value={paymentNote} onChangeText={setPaymentNote} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
+                <Text style={[styles.label, { color: colors.foreground }]}>Amount</Text>
+                <View collapsable={false} style={[styles.input, { borderColor: paymentAmountError ? colors.destructive : colors.border, flexDirection: 'row', alignItems: 'center', paddingVertical: 0 }]}>
+                  <Text style={{ fontSize: 15, color: colors.mutedForeground, marginRight: 4 }}>₹</Text>
+                  <TextInput
+                    value={paymentAmount}
+                    onChangeText={onPaymentAmountChange}
+                    keyboardType="numeric"
+                    placeholder="0"
+                    placeholderTextColor={colors.mutedForeground}
+                    style={{ flex: 1, paddingVertical: 10, fontSize: 15, color: colors.foreground }}
+                  />
+                </View>
+                {!!paymentAmountError && (
+                  <Text style={{ fontSize: 12, color: colors.destructive, marginTop: 4 }}>{paymentAmountError}</Text>
+                )}
 
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-              <Button title="Cancel" variant="outline" onPress={() => setShowPayment(false)} style={{ flex: 1 }} />
-              <Button title="Save Payment" onPress={async () => {
-                if (!paymentAmount) return Alert.alert('Required', 'Please enter amount');
-                setUpdating(true);
-                try {
-                  await repairPaymentsCreate(repair.id, {
-                    amount: Number(paymentAmount),
-                    method: paymentMethod,
-                    kind: paymentKind as any,
-                    note: paymentNote || undefined
-                  });
-                  setShowPayment(false);
-                  setPaymentAmount('');
-                  setPaymentNote('');
-                  await loadAll();
-                  await paymentsRefetch();
-                  queryClient.invalidateQueries();
-                } catch (e: any) {
-                  Alert.alert('Payment Failed', e.message || 'Could not record payment. Overpayment?');
-                } finally {
-                  setUpdating(false);
-                }
-              }} loading={updating} style={{ flex: 1 }} />
-            </View>
+                <Text style={[styles.label, { color: colors.foreground }]}>Method</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
+                  {['Cash', 'UPI', 'Card', 'Bank Transfer', 'Other'].map(m => (
+                    <TouchableOpacity key={m} onPress={() => { setPaymentMethod(m); setPaymentReference(''); }} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: paymentMethod === m ? colors.primary : colors.card, borderWidth: 1, borderColor: paymentMethod === m ? colors.primary : colors.border }}>
+                      <Text style={{ color: paymentMethod === m ? '#FFF' : colors.foreground }}>{m}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {!!paymentReferenceLabel && (
+                  <View collapsable={false}>
+                    <Text style={[styles.label, { color: colors.foreground }]}>{paymentReferenceLabel}</Text>
+                    <TextInput
+                      value={paymentReference}
+                      onChangeText={setPaymentReference}
+                      placeholder={paymentReferenceRequired ? 'Enter transaction reference' : 'Optional reference / details'}
+                      placeholderTextColor={colors.mutedForeground}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      style={[styles.input, { color: colors.foreground, borderColor: colors.border }]}
+                    />
+                  </View>
+                )}
+
+                <Text style={[styles.label, { color: colors.foreground }]}>Type</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
+                  {['advance', 'partial', 'final'].map(k => (
+                    <TouchableOpacity key={k} onPress={() => { setPaymentKind(k); setPaymentKindTouched(true); }} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: paymentKind === k ? colors.primary : colors.card, borderWidth: 1, borderColor: paymentKind === k ? colors.primary : colors.border }}>
+                      <Text style={{ color: paymentKind === k ? '#FFF' : colors.foreground, textTransform: 'capitalize' }}>{k}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={[styles.label, { color: colors.foreground }]}>Payment Note (Optional)</Text>
+                <View collapsable={false}>
+                  <TextInput
+                    value={paymentNote}
+                    onChangeText={setPaymentNote}
+                    placeholder="Add payment note..."
+                    placeholderTextColor={colors.mutedForeground}
+                    style={[styles.input, { color: colors.foreground, borderColor: colors.border }]}
+                  />
+                </View>
+
+                {/* Payment history (real ledger) */}
+                {payments.length > 0 && (
+                  <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
+                    <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginBottom: 6 }}>Payment History</Text>
+                    {payments.map(pmt => (
+                      <View key={pmt.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
+                        <View style={{ flex: 1, marginRight: 8 }}>
+                          <Text style={{ fontSize: 13, color: colors.foreground }}>{pmt.method} · {pmt.kind}</Text>
+                          <Text style={{ fontSize: 11, color: colors.mutedForeground }}>
+                            {formatDate(pmt.createdAt)}{(pmt.receivedByName || pmt.recordedByName) ? ` · ${pmt.receivedByName || pmt.recordedByName}` : ''}
+                          </Text>
+                          {!!pmt.referenceNo && <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Ref: {pmt.referenceNo}</Text>}
+                        </View>
+                        <Text style={{ fontSize: 13, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(pmt.amount)}</Text>
+                      </View>
+                    ))}
+                    <View style={styles.infoRow}>
+                      <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Total Paid</Text>
+                      <Text style={{ fontSize: 13, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(payPaid)}</Text>
+                    </View>
+                  </View>
+                )}
+
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+                  <Button title="Cancel" variant="outline" onPress={() => setShowPayment(false)} style={{ flex: 1 }} />
+                  <Button
+                    title={paymentAmountValid ? `Collect ${formatCurrency(Math.round(paymentAmountNum * 100) / 100)}` : 'Collect'}
+                    onPress={handleCollectPayment}
+                    loading={updating}
+                    disabled={!paymentFormValid || updating}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              </KeyboardAwareScrollViewCompat>
+            )}
           </View>
         </View>
       </Modal>

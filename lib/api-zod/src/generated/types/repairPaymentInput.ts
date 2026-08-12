@@ -12,4 +12,5 @@ export interface RepairPaymentInput {
   method: string;
   kind?: RepairPaymentInputKind;
   note?: string;
+  referenceNo?: string;
 }
