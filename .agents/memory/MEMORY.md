@@ -18,4 +18,5 @@
 - [API validation steps](api-validation-steps.md) — isolation/balances/registration scripts run as validation steps; whole-command flock + api-server cwd, or concurrent builds clobber dist.
 - [Android APK builds](android-apk-builds.md) — APK only via expo.dev GitHub builds (base dir artifacts/mobile); pnpm/Node/image pins in eas.json are load-bearing; user holds the keystore.
 - [Android focus loss fix](android-focus-collapsable.md) — focus-styled input wrappers need collapsable={false} or Android view flattening blurs the TextInput and kills the keyboard.
+- [Technician access scoping](technician-scoping.md) — technicians are server-side limited to assigned repairs + work-field allowlist; new repair sub-endpoints must repeat the assignment check.
 - [PIN throttle review bar](pin-throttle-reviews.md) — reviewers require every unlock method to reset attempts, sync pre-submit guards on PIN pads, and serialized counter writes.
