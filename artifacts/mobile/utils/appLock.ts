@@ -74,8 +74,12 @@ export function subscribeLockState(listener: LockListener): () => void {
 const PIN_RECORD_V2 = 'v2';
 const PIN_RECORD_V1 = 'v1';
 
-// scrypt cost parameters (~32 MB memory, well under mobile limits).
-const SCRYPT_N = 32768; // 2^15
+// scrypt cost parameters. Chosen so verification completes in well under a
+// second even in Hermes' pure-JS runtime (N=32768 took ~15s on-device).
+// Online guessing is throttled by the escalating attempt lockout below, so
+// the KDF only needs to slow *offline* brute force of a keychain dump —
+// N=1024/r=8 (~1 MB) is an acceptable trade-off for a 6-digit PIN.
+const SCRYPT_N = 1024; // 2^10
 const SCRYPT_R = 8;
 const SCRYPT_P = 1;
 const SCRYPT_DKLEN = 32;
@@ -97,9 +101,9 @@ export function isHashedPinRecord(value: string): boolean {
   return value.startsWith(`${PIN_RECORD_V2}$`) || value.startsWith(`${PIN_RECORD_V1}$`);
 }
 
-/** True when a record is already in the current (strongest) format. */
+/** True when a record already uses the current format AND cost parameters. */
 export function isCurrentPinRecord(value: string): boolean {
-  return value.startsWith(`${PIN_RECORD_V2}$scrypt$`);
+  return value.startsWith(`${PIN_RECORD_V2}$scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$`);
 }
 
 async function scryptHex(
