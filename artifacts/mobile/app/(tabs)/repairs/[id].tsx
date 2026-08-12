@@ -282,6 +282,7 @@ export default function RepairDetailScreen() {
         totalPaidAfter: (Math.round(payPaid * 100) + paymentAmountCents) / 100,
         remainingAfter: Math.max(0, payRemainingCents - paymentAmountCents) / 100,
       });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       await loadAll();
       await paymentsRefetch();
       queryClient.invalidateQueries();
@@ -1368,27 +1369,25 @@ export default function RepairDetailScreen() {
               </ScrollView>
             ) : (
               <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} bottomOffset={24}>
-                <Text style={[styles.modalTitle, { color: colors.foreground }]}>Collect Payment</Text>
-
-                {/* Payment summary (real data) */}
-                <View collapsable={false} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, marginBottom: 4, backgroundColor: colors.card }}>
-                  <InfoRow label="Total Repair Amount" value={formatCurrency(payTotal)} />
-                  <InfoRow label="Already Paid" value={formatCurrency(payPaid)} color={colors.success} />
-                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                  <View style={styles.infoRow}>
-                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Remaining</Text>
-                    <Text style={{ fontSize: 18, color: payRemaining > 0 ? colors.primary : colors.success, fontFamily: 'Inter_700Bold' }}>{formatCurrency(payRemaining)}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={[styles.modalTitle, { color: colors.foreground, marginBottom: 2 }]}>Collect Payment</Text>
+                    <Text style={{ fontSize: 12, color: colors.mutedForeground, marginBottom: 10 }}>Record payment received from customer</Text>
                   </View>
+                  <TouchableOpacity onPress={() => setShowPayment(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ padding: 4 }}>
+                    <Feather name="x" size={20} color={colors.mutedForeground} />
+                  </TouchableOpacity>
                 </View>
 
-                <Text style={[styles.label, { color: colors.foreground }]}>Amount</Text>
+                <Text style={[styles.label, { color: colors.foreground }]}>Amount <Text style={{ color: colors.destructive }}>*</Text></Text>
                 <View collapsable={false} style={[styles.input, { borderColor: paymentAmountError ? colors.destructive : colors.border, flexDirection: 'row', alignItems: 'center', paddingVertical: 0 }]}>
                   <Text style={{ fontSize: 15, color: colors.mutedForeground, marginRight: 4 }}>₹</Text>
                   <TextInput
                     value={paymentAmount}
                     onChangeText={onPaymentAmountChange}
                     keyboardType="numeric"
-                    placeholder="0"
+                    autoFocus
+                    placeholder="Enter amount"
                     placeholderTextColor={colors.mutedForeground}
                     style={{ flex: 1, paddingVertical: 10, fontSize: 15, color: colors.foreground }}
                   />
@@ -1396,19 +1395,39 @@ export default function RepairDetailScreen() {
                 {!!paymentAmountError && (
                   <Text style={{ fontSize: 12, color: colors.destructive, marginTop: 4 }}>{paymentAmountError}</Text>
                 )}
-
-                <Text style={[styles.label, { color: colors.foreground }]}>Method</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
-                  {['Cash', 'UPI', 'Card', 'Bank Transfer', 'Other'].map(m => (
-                    <TouchableOpacity key={m} onPress={() => { setPaymentMethod(m); setPaymentReference(''); }} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: paymentMethod === m ? colors.primary : colors.card, borderWidth: 1, borderColor: paymentMethod === m ? colors.primary : colors.border }}>
-                      <Text style={{ color: paymentMethod === m ? '#FFF' : colors.foreground }}>{m}</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  {[100, 500, 1000].map(v => (
+                    <TouchableOpacity key={v} onPress={() => onPaymentAmountChange(String(v))} style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: paymentAmount === String(v) ? colors.primary : colors.border, backgroundColor: paymentAmount === String(v) ? colors.primary + '22' : colors.card }}>
+                      <Text style={{ fontSize: 13, color: paymentAmount === String(v) ? colors.primary : colors.foreground, fontFamily: 'Inter_500Medium' }}>₹{v}</Text>
                     </TouchableOpacity>
                   ))}
+                  {payRemaining > 0 && (() => {
+                    const fullStr = String(Math.round(payRemaining * 100) / 100);
+                    const active = paymentAmount === fullStr;
+                    return (
+                      <TouchableOpacity onPress={() => onPaymentAmountChange(fullStr)} style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primary + '22' : colors.card }}>
+                        <Text style={{ fontSize: 13, color: active ? colors.primary : colors.foreground, fontFamily: 'Inter_500Medium' }}>Full</Text>
+                      </TouchableOpacity>
+                    );
+                  })()}
+                </View>
+
+                <Text style={[styles.label, { color: colors.foreground }]}>Payment Method <Text style={{ color: colors.destructive }}>*</Text></Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+                  {([['Cash', 'dollar-sign'], ['UPI', 'smartphone'], ['Card', 'credit-card'], ['Bank Transfer', 'home'], ['Other', 'more-horizontal']] as const).map(([m, icon]) => {
+                    const active = paymentMethod === m;
+                    return (
+                      <TouchableOpacity key={m} onPress={() => { setPaymentMethod(m); setPaymentReference(''); }} style={{ width: '30.5%', alignItems: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primary + '18' : colors.card }}>
+                        <Feather name={icon} size={20} color={active ? colors.primary : colors.mutedForeground} />
+                        <Text style={{ fontSize: 12, marginTop: 6, color: active ? colors.primary : colors.foreground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium' }} numberOfLines={1}>{m}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
 
                 {!!paymentReferenceLabel && (
                   <View collapsable={false}>
-                    <Text style={[styles.label, { color: colors.foreground }]}>{paymentReferenceLabel}</Text>
+                    <Text style={[styles.label, { color: colors.foreground }]}>{paymentReferenceLabel}{paymentReferenceRequired ? <Text style={{ color: colors.destructive }}> *</Text> : null}</Text>
                     <TextInput
                       value={paymentReference}
                       onChangeText={setPaymentReference}
@@ -1421,7 +1440,7 @@ export default function RepairDetailScreen() {
                   </View>
                 )}
 
-                <Text style={[styles.label, { color: colors.foreground }]}>Type</Text>
+                <Text style={[styles.label, { color: colors.foreground }]}>Payment Type</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
                   {['advance', 'partial', 'final'].map(k => (
                     <TouchableOpacity key={k} onPress={() => { setPaymentKind(k); setPaymentKindTouched(true); }} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: paymentKind === k ? colors.primary : colors.card, borderWidth: 1, borderColor: paymentKind === k ? colors.primary : colors.border }}>
@@ -1430,15 +1449,28 @@ export default function RepairDetailScreen() {
                   ))}
                 </View>
 
-                <Text style={[styles.label, { color: colors.foreground }]}>Payment Note (Optional)</Text>
+                <Text style={[styles.label, { color: colors.foreground }]}>Note / Reference (Optional)</Text>
                 <View collapsable={false}>
                   <TextInput
                     value={paymentNote}
                     onChangeText={setPaymentNote}
-                    placeholder="Add payment note..."
+                    maxLength={120}
+                    placeholder="Add note or reference..."
                     placeholderTextColor={colors.mutedForeground}
                     style={[styles.input, { color: colors.foreground, borderColor: colors.border }]}
                   />
+                  <Text style={{ fontSize: 11, color: colors.mutedForeground, alignSelf: 'flex-end', marginTop: 2 }}>{paymentNote.length}/120</Text>
+                </View>
+
+                {/* Real-time totals (real data) */}
+                <View collapsable={false} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, marginTop: 10, backgroundColor: colors.card }}>
+                  <InfoRow label="Total Estimate" value={formatCurrency(payTotal)} />
+                  <InfoRow label="Received Till Now" value={formatCurrency(payPaid)} color={colors.success} />
+                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                  <View style={styles.infoRow}>
+                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Remaining</Text>
+                    <Text style={{ fontSize: 18, color: payRemaining > 0 ? colors.primary : colors.success, fontFamily: 'Inter_700Bold' }}>{formatCurrency(payRemaining)}</Text>
+                  </View>
                 </View>
 
                 {/* Payment history (real ledger) */}
@@ -1481,12 +1513,16 @@ export default function RepairDetailScreen() {
                 <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
                   <Button title="Cancel" variant="outline" onPress={() => setShowPayment(false)} style={{ flex: 1 }} />
                   <Button
-                    title={paymentAmountValid ? `Collect ${formatCurrency(Math.round(paymentAmountNum * 100) / 100)}` : 'Collect'}
+                    title="Save Payment"
                     onPress={handleCollectPayment}
                     loading={updating}
                     disabled={!paymentFormValid || updating}
                     style={{ flex: 1 }}
                   />
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10 }}>
+                  <Feather name="info" size={12} color={colors.mutedForeground} />
+                  <Text style={{ fontSize: 11, color: colors.mutedForeground }}>This payment will be recorded in payment history.</Text>
                 </View>
               </KeyboardAwareScrollViewCompat>
             )}
