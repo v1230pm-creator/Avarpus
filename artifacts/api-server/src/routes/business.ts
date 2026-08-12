@@ -429,6 +429,9 @@ router.get(
 
     let technicianId = qstr("technicianId");
     if (technicianId === "me") technicianId = me.id;
+    // Technicians only ever see repairs assigned to them — enforced
+    // server-side regardless of what the client asks for.
+    if (me.role === "technician") technicianId = me.id;
     if (technicianId) conds.push(eq(repairsTable.technicianId, technicianId));
 
     const receivedById = qstr("receivedById");
@@ -794,6 +797,29 @@ router.patch(
     if (!existing) {
       res.status(404).json({ message: "Repair not found" });
       return;
+    }
+    // Technicians may only modify repairs assigned to them, and only the
+    // repair-work fields (never money, intake, customer or delivery facts).
+    {
+      const meUser = (req as AuthedRequest).user;
+      if (meUser.role === "technician") {
+        if (existing.technicianId !== meUser.id) {
+          res.status(403).json({
+            message: "You can only update repairs assigned to you.",
+            code: "NOT_ASSIGNED",
+          });
+          return;
+        }
+        const TECH_FIELDS = new Set(["status", "diagnosis", "workPerformed", "notes", "priority"]);
+        const disallowed = Object.keys(b).filter((k) => b[k] !== undefined && !TECH_FIELDS.has(k));
+        if (disallowed.length > 0) {
+          res.status(403).json({
+            message: `Technicians cannot edit: ${disallowed.join(", ")}`,
+            code: "FIELD_NOT_ALLOWED",
+          });
+          return;
+        }
+      }
     }
     // Validate the merged discount does not exceed the merged charge subtotal.
     const mergedRepairCharge = patch.repairCharge ?? existing.repairCharge;
@@ -1349,8 +1375,20 @@ router.post(
     const checklist = checklistOrNull(b.checklist);
     const confirm = b.confirm === true;
     const id = String(req.params.id ?? "");
-    if (!(await repairInShop(shopId, id))) {
+    const [existingRepair] = await db
+      .select({ id: repairsTable.id, technicianId: repairsTable.technicianId })
+      .from(repairsTable)
+      .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)));
+    if (!existingRepair) {
       res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    // Technicians may only record testing on repairs assigned to them.
+    if (me.role === "technician" && existingRepair.technicianId !== me.id) {
+      res.status(403).json({
+        message: "You can only update repairs assigned to you.",
+        code: "NOT_ASSIGNED",
+      });
       return;
     }
     const updated = await db.transaction(async (tx) => {
@@ -1991,6 +2029,10 @@ router.post(
           .where(and(eq(repairsTable.id, String(req.params.id ?? "")), eq(repairsTable.shopId, shopId)))
           .for("update");
         if (!repair) throw new Error("NOT_FOUND");
+        // Technicians may only add parts to repairs assigned to them.
+        if (me.role === "technician" && repair.technicianId !== me.id) {
+          throw new Error("NOT_ASSIGNED");
+        }
         if (repair.status === "delivered" || repair.status === "cancelled") {
           throw new Error("REPAIR_LOCKED");
         }
@@ -2069,6 +2111,10 @@ router.post(
       const msg = err instanceof Error ? err.message : "";
       if (msg === "NOT_FOUND") {
         res.status(404).json({ message: "Repair not found" });
+        return;
+      }
+      if (msg === "NOT_ASSIGNED") {
+        res.status(403).json({ message: "You can only update repairs assigned to you.", code: "NOT_ASSIGNED" });
         return;
       }
       if (msg === "REPAIR_LOCKED") {

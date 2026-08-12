@@ -539,6 +539,22 @@ export default function DashboardScreen() {
 
   const showFinance = canAccess('finance');
   const showRepairs = canAccess('repairs');
+  const isTechnician = user?.role === 'technician';
+
+  // Technician "My Work" — counts over repairs assigned to this technician.
+  const techStats = useMemo(() => {
+    if (!isTechnician || !user?.id) return null;
+    const mine = repairs.filter(r => r.technicianId === user.id);
+    return {
+      assigned: mine.filter(r => !['delivered', 'cancelled'].includes(r.status)).length,
+      repairing: mine.filter(r => ['diagnosing', 'waiting_parts', 'repairing'].includes(r.status)).length,
+      testing: mine.filter(r => r.status === 'testing').length,
+      approval: mine.filter(r => r.status === 'customer_approval').length,
+      cannotRepair: mine.filter(r => r.status === 'cannot_repair').length,
+      ready: mine.filter(r => r.status === 'ready').length,
+      completed: mine.filter(r => r.status === 'delivered').length,
+    };
+  }, [isTechnician, user?.id, repairs]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -614,6 +630,21 @@ export default function DashboardScreen() {
 
           {showRepairs && (
             <PipelineCard animValue={cardAnims[2]} />
+          )}
+
+          {techStats && (
+            <Animated.View style={{ opacity: cardAnims[2], transform: [{ translateY: cardAnims[2].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+              <Text style={{ fontSize: 16, color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginBottom: 12 }}>My Work</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                <StatBox title="Assigned to Me" value={techStats.assigned} icon="tool" color={colors.primary} animValue={cardAnims[3]} />
+                <StatBox title="Repairing" value={techStats.repairing} icon="settings" color={colors.statusDiagnosing} animValue={cardAnims[4]} />
+                <StatBox title="Testing" value={techStats.testing} icon="activity" color={colors.info} animValue={cardAnims[5]} />
+                <StatBox title="Approval Needed" value={techStats.approval} icon="help-circle" color={colors.warning} animValue={cardAnims[6]} />
+                <StatBox title="Cannot Repair" value={techStats.cannotRepair} icon="x-circle" color={colors.destructive} animValue={cardAnims[7]} />
+                <StatBox title="Ready for Pickup" value={techStats.ready} icon="check-circle" color={colors.statusReady} animValue={cardAnims[8]} />
+                <StatBox title="Completed" value={techStats.completed} icon="package" color={colors.statusDelivered} animValue={cardAnims[9]} />
+              </View>
+            </Animated.View>
           )}
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
