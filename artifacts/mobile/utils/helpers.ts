@@ -55,7 +55,11 @@ export const BRANDS = ['Samsung', 'Apple / iPhone', 'OnePlus', 'Xiaomi / Redmi',
 export const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 export const PRIORITY_LABELS: Record<string, string> = { low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' };
 
-export const REPAIR_STATUSES = ['received', 'diagnosing', 'waiting_parts', 'repairing', 'testing', 'customer_approval', 'cannot_repair', 'ready', 'delivered', 'cancelled'];
+// Statuses selectable in the Update Status picker. waiting_parts / testing /
+// customer_approval were removed from manual selection per user request —
+// they remain valid on the server (and in labels/badges) for legacy repairs
+// and server-driven flows like customer approval requests.
+export const REPAIR_STATUSES = ['received', 'diagnosing', 'repairing', 'cannot_repair', 'ready', 'delivered', 'cancelled'];
 export const REPAIR_STATUS_LABELS: Record<string, string> = {
   received: 'Received', diagnosing: 'Diagnosing', waiting_parts: 'Waiting for Parts',
   repairing: 'In Repair', testing: 'Testing', ready: 'Repair Completed (Ready)',
