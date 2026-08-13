@@ -17,7 +17,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
-import SignatureScreen from 'react-native-signature-canvas';
+import SignatureScreen, { SignatureViewRef } from 'react-native-signature-canvas';
 import QRCode from 'react-native-qrcode-svg';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -171,6 +171,7 @@ export default function RepairDetailScreen() {
   const [editWorkPerformed, setEditWorkPerformed] = useState('');
 
   const qrRef = useRef<any>(null);
+  const deliverySigPadRef = useRef<SignatureViewRef>(null);
 
   useEffect(() => {
     storage.get<string>(KEYS.AUTH_TOKEN).then(setToken);
@@ -1725,25 +1726,38 @@ export default function RepairDetailScreen() {
 
       {/* Delivery Signature Modal */}
       <Modal visible={showDeliverySig} animationType="slide" transparent>
-        <View style={[styles.modalOverlay, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { paddingTop: topPad }]}>
-            <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Customer Delivery Signature</Text>
-            <TouchableOpacity onPress={() => setShowDeliverySig(false)}>
-              <Feather name="x" size={24} color={colors.foreground} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.sigContainer}>
-            <SignatureScreen
-              onOK={handleDeliverySigOK}
-              onEmpty={() => Alert.alert('Empty', 'Please provide a signature')}
-              descriptionText="Sign above to confirm receipt"
-              clearText="Clear"
-              confirmText="Complete Delivery"
-              webStyle={`.m-signature-pad {box-shadow: none; border: none; } 
-                          .m-signature-pad--body {border: none;} 
-                          .m-signature-pad--footer {margin: 0px;}`
-                      }
-            />
+        <View style={[styles.modalOverlay, { backgroundColor: colors.background, padding: 0, justifyContent: 'flex-start' }]}>
+          <View style={[styles.sigScreen, { paddingTop: topPad + 8 }]}>
+            <View style={styles.sigHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Delivery Signature</Text>
+                <Text style={[styles.sigSubtitle, { color: colors.mutedForeground }]}>Customer signs below to confirm receipt of the device</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowDeliverySig(false)} style={[styles.sigCloseBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Feather name="x" size={20} color={colors.foreground} />
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.sigCard, { borderColor: colors.border }]}>
+              <SignatureScreen
+                ref={deliverySigPadRef}
+                onOK={handleDeliverySigOK}
+                onEmpty={() => Alert.alert('Empty', 'Please provide a signature')}
+                descriptionText=""
+                webStyle={`.m-signature-pad {box-shadow: none; border: none; height: 100%; margin: 0;}
+                            .m-signature-pad--body {border: none; height: 100%;}
+                            .m-signature-pad--footer {display: none;}
+                            body,html {height: 100%; margin: 0;}`
+                        }
+              />
+              <View pointerEvents="none" style={styles.sigBaseline}>
+                <Feather name="edit-3" size={14} color="#9CA3AF" />
+                <Text style={styles.sigBaselineText}>Sign here</Text>
+              </View>
+            </View>
+            <View style={styles.sigFooterRow}>
+              <View style={{ flex: 1 }}><Button title="Clear" variant="outline" onPress={() => deliverySigPadRef.current?.clearSignature()} /></View>
+              <View style={{ flex: 2 }}><Button title="Done" onPress={() => deliverySigPadRef.current?.readSignature()} /></View>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1869,9 +1883,15 @@ const styles = StyleSheet.create({
   sigImg: { width: '100%', height: 80, backgroundColor: '#FFF', borderRadius: 8, borderWidth: 1, borderColor: '#EEE' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
   modalContent: { borderWidth: 1, borderRadius: 16, padding: 20 },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#333' },
   modalTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', marginBottom: 12 },
-  sigContainer: { flex: 1, backgroundColor: '#FFF' },
+  sigScreen: { flex: 1, paddingHorizontal: 20, paddingBottom: 24 },
+  sigHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 16 },
+  sigSubtitle: { fontSize: 13, marginTop: 4 },
+  sigCloseBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  sigCard: { flex: 1, borderRadius: 16, borderWidth: 1, overflow: 'hidden', backgroundColor: '#FFF' },
+  sigBaseline: { position: 'absolute', left: 24, right: 24, bottom: 20, borderTopWidth: 1, borderTopColor: '#D1D5DB', borderStyle: 'dashed', paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  sigBaselineText: { fontSize: 12, color: '#9CA3AF' },
+  sigFooterRow: { flexDirection: 'row', gap: 12, marginTop: 16 },
   label: { fontSize: 13, fontFamily: 'Inter_500Medium', marginBottom: 4, marginTop: 8 },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
 });

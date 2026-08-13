@@ -16,7 +16,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import SignatureScreen from 'react-native-signature-canvas';
+import SignatureScreen, { SignatureViewRef } from 'react-native-signature-canvas';
 import QRCode from 'react-native-qrcode-svg';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -177,6 +177,7 @@ export default function NewRepairScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [showSignature, setShowSignature] = useState(false);
+  const sigPadRef = useRef<SignatureViewRef>(null);
   const [showPhotoKindModal, setShowPhotoKindModal] = useState<string | null>(null);
 
   const [createdRepair, setCreatedRepair] = useState<Repair | null>(null);
@@ -814,24 +815,37 @@ export default function NewRepairScreen() {
       {/* Signature Modal */}
       <Modal visible={showSignature} animationType="slide" transparent>
         <View style={[styles.modalOverlay, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { paddingTop: topPad }]}>
-            <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Customer Signature</Text>
-            <TouchableOpacity onPress={() => setShowSignature(false)}>
-              <Feather name="x" size={24} color={colors.foreground} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.sigContainer}>
-            <SignatureScreen
-              onOK={handleSignatureOK}
-              onEmpty={() => Alert.alert('Empty', 'Please provide a signature')}
-              descriptionText="Sign above"
-              clearText="Clear"
-              confirmText="Save"
-              webStyle={`.m-signature-pad {box-shadow: none; border: none; } 
-                          .m-signature-pad--body {border: none;} 
-                          .m-signature-pad--footer {margin: 0px;}`
-                      }
-            />
+          <View style={[styles.sigScreen, { paddingTop: topPad + 8 }]}>
+            <View style={styles.sigHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Customer Signature</Text>
+                <Text style={[styles.sigSubtitle, { color: colors.mutedForeground }]}>Ask the customer to sign in the box below</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowSignature(false)} style={[styles.sigCloseBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Feather name="x" size={20} color={colors.foreground} />
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.sigCard, { borderColor: colors.border }]}>
+              <SignatureScreen
+                ref={sigPadRef}
+                onOK={handleSignatureOK}
+                onEmpty={() => Alert.alert('Empty', 'Please provide a signature')}
+                descriptionText=""
+                webStyle={`.m-signature-pad {box-shadow: none; border: none; height: 100%; margin: 0;}
+                            .m-signature-pad--body {border: none; height: 100%;}
+                            .m-signature-pad--footer {display: none;}
+                            body,html {height: 100%; margin: 0;}`
+                        }
+              />
+              <View pointerEvents="none" style={styles.sigBaseline}>
+                <Feather name="edit-3" size={14} color="#9CA3AF" />
+                <Text style={styles.sigBaselineText}>Sign here</Text>
+              </View>
+            </View>
+            <View style={styles.sigFooterRow}>
+              <View style={{ flex: 1 }}><Button title="Clear" variant="outline" onPress={() => sigPadRef.current?.clearSignature()} /></View>
+              <View style={{ flex: 2 }}><Button title="Done" onPress={() => sigPadRef.current?.readSignature()} /></View>
+            </View>
           </View>
         </View>
       </Modal>
@@ -898,9 +912,15 @@ const styles = StyleSheet.create({
   sigPreview: { width: '100%', height: '100%' },
   sigClear: { position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   modalOverlay: { flex: 1 },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#333' },
+  sigScreen: { flex: 1, paddingHorizontal: 20, paddingBottom: 24 },
+  sigHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 16 },
+  sigSubtitle: { fontSize: 13, marginTop: 4 },
+  sigCloseBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  sigCard: { flex: 1, borderRadius: 16, borderWidth: 1, overflow: 'hidden', backgroundColor: '#FFF' },
+  sigBaseline: { position: 'absolute', left: 24, right: 24, bottom: 20, borderTopWidth: 1, borderTopColor: '#D1D5DB', borderStyle: 'dashed', paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  sigBaselineText: { fontSize: 12, color: '#9CA3AF' },
+  sigFooterRow: { flexDirection: 'row', gap: 12, marginTop: 16 },
   modalTitle: { fontSize: 18 },
-  sigContainer: { flex: 1, backgroundColor: '#FFF' },
   overlayCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
   kindModal: { width: '100%', padding: 20, borderRadius: 20 },
   kindTitle: { fontSize: 18, marginBottom: 16, textAlign: 'center' },
