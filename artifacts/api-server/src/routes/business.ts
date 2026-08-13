@@ -846,20 +846,11 @@ router.patch(
     const meUser = (req as AuthedRequest).user;
     const dealerRole = meUser.role === "dealer" || meUser.role === "super_admin";
 
-    // Testing gate: a repair may only enter 'ready' (or go straight to
-    // 'delivered' from a repairing-phase status) once testing is confirmed.
-    // Moving to 'delivered' when already 'ready' is always allowed.
+    // The mandatory testing gate was removed along with the manual Testing
+    // status: repairs may move to 'ready'/'delivered' without a testing
+    // confirmation. Testing confirmation stamps are still recorded when the
+    // optional testing endpoint is used.
     if (patch.status !== undefined && patch.status !== existing.status) {
-      const enteringReady = patch.status === "ready";
-      const enteringDeliveredFromWork =
-        patch.status === "delivered" && existing.status !== "ready";
-      if ((enteringReady || enteringDeliveredFromWork) && !existing.testingConfirmedAt) {
-        res.status(400).json({
-          message: "Final testing must be confirmed before the repair can be marked ready or delivered.",
-          code: "TESTING_REQUIRED",
-        });
-        return;
-      }
       if (patch.status === "ready" && !existing.readyAt) {
         patch.readyAt = new Date();
       }
