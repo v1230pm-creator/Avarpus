@@ -175,6 +175,95 @@ router.patch(
   }),
 );
 
+// ── Update a staff member's profile ───────────────────────────────────────
+router.patch(
+  "/staff/:id",
+  requireAuth,
+  requireRole("dealer", "super_admin"),
+  asyncHandler(async (req, res) => {
+    const me = (req as AuthedRequest).user;
+    const check = await loadManagedStaff(me, String(req.params.id));
+    if (!check.ok) {
+      res.status(check.status).json({ message: check.message });
+      return;
+    }
+    // Dealers may only manage staff-role accounts; they can never edit
+    // another dealer, and can never promote staff to dealer/super_admin.
+    if (!(STAFF_ROLES as readonly string[]).includes(check.target.role)) {
+      res.status(403).json({ message: "This account cannot be edited here" });
+      return;
+    }
+    const { name, mobile, role, designation, password } = req.body ?? {};
+    const set: Partial<{
+      name: string;
+      mobile: string;
+      role: string;
+      designation: string | null;
+      passwordHash: string;
+    }> = {};
+    if (name !== undefined) {
+      if (typeof name !== "string" || !name.trim()) {
+        res.status(400).json({ message: "Name cannot be empty" });
+        return;
+      }
+      set.name = name.trim();
+    }
+    if (mobile !== undefined) {
+      if (typeof mobile !== "string" || !/^\d{10}$/.test(mobile)) {
+        res.status(400).json({ message: "Mobile must be a 10-digit number" });
+        return;
+      }
+      if (mobile !== check.target.mobile) {
+        const clash = await db
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(and(eq(usersTable.mobile, mobile), ne(usersTable.id, check.target.id)))
+          .limit(1);
+        if (clash.length > 0) {
+          res.status(409).json({ message: "Another account already uses this mobile number" });
+          return;
+        }
+      }
+      set.mobile = mobile;
+    }
+    if (role !== undefined) {
+      if (typeof role !== "string" || !(STAFF_ROLES as readonly string[]).includes(role)) {
+        res.status(403).json({
+          message: "Staff role must be one of: reception, technician, store_manager, accountant",
+        });
+        return;
+      }
+      set.role = role;
+    }
+    if (designation !== undefined) {
+      if (typeof designation !== "string") {
+        res.status(400).json({ message: "Invalid designation" });
+        return;
+      }
+      set.designation = designation.trim() || null;
+    }
+    if (password !== undefined && password !== "") {
+      if (!validPassword(password)) {
+        res.status(400).json({
+          message: "Password must be 8+ characters with uppercase, lowercase and a number",
+        });
+        return;
+      }
+      set.passwordHash = hashPassword(password);
+    }
+    if (Object.keys(set).length === 0) {
+      res.json({ user: publicUser(check.target) });
+      return;
+    }
+    const [updated] = await db
+      .update(usersTable)
+      .set(set)
+      .where(eq(usersTable.id, check.target.id))
+      .returning();
+    res.json({ user: publicUser(updated) });
+  }),
+);
+
 // ── Reject (delete) a pending staff account ───────────────────────────────
 router.delete(
   "/staff/:id",

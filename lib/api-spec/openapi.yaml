@@ -248,6 +248,32 @@ paths:
                     $ref: "#/components/schemas/AuthUser"
                 required: [user]
   /staff/{id}:
+    patch:
+      operationId: staffUpdate
+      tags: [auth]
+      summary: Update a staff member's profile (dealer/super_admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffUpdateInput"
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/AuthUser"
+                required: [user]
     delete:
       operationId: staffReject
       tags: [auth]
@@ -1678,6 +1704,14 @@ components:
         role: { type: string, enum: [reception, technician, store_manager, accountant] }
         designation: { type: string }
       required: [name, email, mobile, password, role]
+    StaffUpdateInput:
+      type: object
+      properties:
+        name: { type: string }
+        mobile: { type: string }
+        role: { type: string, enum: [reception, technician, store_manager, accountant] }
+        designation: { type: string }
+        password: { type: string }
     RegisterVerifyResult:
       type: object
       properties:

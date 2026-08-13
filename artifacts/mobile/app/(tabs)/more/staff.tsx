@@ -31,7 +31,7 @@ type StaffUser = {
   designation?: string;
 };
 
-function StaffCard({ staff }: { staff: StaffUser }) {
+function StaffCard({ staff, onEdit }: { staff: StaffUser; onEdit?: () => void }) {
   const colors = useColors();
   const roleColor = ROLE_COLORS[staff.role] ?? colors.primary;
   return (
@@ -55,6 +55,15 @@ function StaffCard({ staff }: { staff: StaffUser }) {
           )}
         </View>
       </View>
+      {onEdit && (
+        <TouchableOpacity
+          onPress={onEdit}
+          style={[styles.editBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}
+          activeOpacity={0.8}
+        >
+          <Feather name="edit-2" size={16} color={colors.primary} />
+        </TouchableOpacity>
+      )}
     </GlassCard>
   );
 }
@@ -325,7 +334,27 @@ export default function StaffScreen() {
             description={canManage ? 'Tap "Add Staff" to create your first staff account.' : 'No staff members found.'}
           />
         }
-        renderItem={({ item }) => <StaffCard staff={item} />}
+        renderItem={({ item }) => (
+          <StaffCard
+            staff={item}
+            onEdit={
+              canManage && ['reception', 'technician', 'store_manager', 'accountant'].includes(item.role)
+                ? () =>
+                    router.push({
+                      pathname: '/(tabs)/more/staff-edit',
+                      params: {
+                        id: item.id,
+                        name: item.name,
+                        email: item.email,
+                        mobile: item.mobile,
+                        role: item.role,
+                        designation: item.designation ?? '',
+                      },
+                    })
+                : undefined
+            }
+          />
+        )}
       />
       </>
       )}
@@ -357,6 +386,7 @@ const styles = StyleSheet.create({
   roleText: { fontSize: 11 },
   desBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
   desText: { fontSize: 11 },
+  editBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   pendingSection: { gap: 10, marginBottom: 4 },
   sectionTitle: { fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.6 },
   actionErrorText: { fontSize: 12 },

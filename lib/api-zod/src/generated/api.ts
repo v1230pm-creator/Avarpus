@@ -278,6 +278,41 @@ export const StaffActivateResponse = zod.object({
 
 
 /**
+ * @summary Update a staff member's profile (dealer/super_admin only)
+ */
+export const StaffUpdateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const StaffUpdateBody = zod.object({
+  "name": zod.string().optional(),
+  "mobile": zod.string().optional(),
+  "role": zod.enum(['reception', 'technician', 'store_manager', 'accountant']).optional(),
+  "designation": zod.string().optional(),
+  "password": zod.string().optional()
+})
+
+export const StaffUpdateResponse = zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional()
+})
+})
+
+
+/**
  * @summary Reject and remove a pending staff account (dealer/super_admin only)
  */
 export const StaffRejectParams = zod.object({

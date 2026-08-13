@@ -111,6 +111,8 @@ import type {
   StaffCreate200,
   StaffCreateInput,
   StaffList200,
+  StaffUpdate200,
+  StaffUpdateInput,
   StockMovementsList200,
   StockMovementsListParams,
   UploadUrlRequest,
@@ -1006,6 +1008,78 @@ export const useStaffActivate = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getStaffActivateMutationOptions(options));
+    }
+
+export const getStaffUpdateUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/${id}`
+}
+
+/**
+ * @summary Update a staff member's profile (dealer/super_admin only)
+ */
+export const staffUpdate = async (id: string,
+    staffUpdateInput: StaffUpdateInput, options?: Parameters<typeof customFetch>[1]): Promise<StaffUpdate200> => {
+
+  return customFetch<StaffUpdate200>(getStaffUpdateUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffUpdateInput)
+  }
+);}
+
+
+
+
+
+export const getStaffUpdateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof staffUpdate>>, TError,{id: string;data: BodyType<StaffUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof staffUpdate>>, TError,{id: string;data: BodyType<StaffUpdateInput>}, TContext> => {
+
+const mutationKey = ['staffUpdate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof staffUpdate>>, {id: string;data: BodyType<StaffUpdateInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  staffUpdate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StaffUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof staffUpdate>>>
+    export type StaffUpdateMutationBody = BodyType<StaffUpdateInput>
+    export type StaffUpdateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a staff member's profile (dealer/super_admin only)
+ */
+export const useStaffUpdate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof staffUpdate>>, TError,{id: string;data: BodyType<StaffUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof staffUpdate>>,
+        TError,
+        {id: string;data: BodyType<StaffUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getStaffUpdateMutationOptions(options));
     }
 
 export const getStaffRejectUrl = (id: string,) => {

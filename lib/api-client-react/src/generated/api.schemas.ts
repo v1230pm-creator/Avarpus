@@ -154,6 +154,24 @@ export interface StaffCreateInput {
   designation?: string;
 }
 
+export type StaffUpdateInputRole = typeof StaffUpdateInputRole[keyof typeof StaffUpdateInputRole];
+
+
+export const StaffUpdateInputRole = {
+  reception: 'reception',
+  technician: 'technician',
+  store_manager: 'store_manager',
+  accountant: 'accountant',
+} as const;
+
+export interface StaffUpdateInput {
+  name?: string;
+  mobile?: string;
+  role?: StaffUpdateInputRole;
+  designation?: string;
+  password?: string;
+}
+
 export interface RegisterVerifyResult {
   token?: string;
   user?: AuthUser;
@@ -877,6 +895,10 @@ export type StaffCreate200 = {
 };
 
 export type StaffActivate200 = {
+  user: AuthUser;
+};
+
+export type StaffUpdate200 = {
   user: AuthUser;
 };
 
