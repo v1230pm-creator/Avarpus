@@ -154,6 +154,9 @@ export default function NewRepairScreen() {
   const [memoryCardPresent, setMemoryCardPresent] = useState(false);
   
   const [accessoriesList, setAccessoriesList] = useState<string[]>([]);
+  const [showAccessories, setShowAccessories] = useState(false);
+  const [showPhysical, setShowPhysical] = useState(false);
+  const [showChecklist, setShowChecklist] = useState(false);
   const [otherAccessories, setOtherAccessories] = useState('');
   const [physicalCondition, setPhysicalCondition] = useState<Record<string, boolean>>({});
   const [deviceCondition, setDeviceCondition] = useState('');
@@ -601,73 +604,131 @@ export default function NewRepairScreen() {
 
               {/* Accessories */}
               <View style={styles.section}>
-                <SectionHeader title="Accessories Received" />
-                <View style={styles.checklistGrid}>
-                  {ACCESSORY_ITEMS.map((item) => {
-                    const checked = accessoriesList.includes(item.id);
-                    return (
-                      <TouchableOpacity
-                        key={item.id}
-                        activeOpacity={0.7}
-                        onPress={() => toggleAccessory(item.id)}
-                        style={[styles.checklistItem, { backgroundColor: colors.card, borderColor: checked ? colors.primary : colors.border }]}
-                      >
-                        <View style={[styles.checkbox, { backgroundColor: checked ? colors.primary : 'transparent', borderColor: checked ? colors.primary : colors.muted }]}>
-                          {checked && <Feather name="check" size={14} color="#FFF" />}
-                        </View>
-                        <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>{item.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-                <Input label="Other Accessories Notes" value={otherAccessories} onChangeText={setOtherAccessories} placeholder="e.g. Broken cover, mixed cables..." />
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setShowAccessories(v => !v)}
+                  style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: showAccessories ? colors.primary : colors.border }]}
+                >
+                  <View style={[styles.checkbox, { backgroundColor: showAccessories ? colors.primary : 'transparent', borderColor: showAccessories ? colors.primary : colors.muted }]}>
+                    {showAccessories && <Feather name="check" size={14} color="#FFF" />}
+                  </View>
+                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Accessories Received</Text>
+                  {accessoriesList.length > 0 && (
+                    <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
+                      <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{accessoriesList.length}</Text>
+                    </View>
+                  )}
+                  <Feather name={showAccessories ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
+                </TouchableOpacity>
+                {showAccessories && (
+                  <>
+                    <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                      <ScrollView style={styles.vList} nestedScrollEnabled showsVerticalScrollIndicator>
+                        {ACCESSORY_ITEMS.map((item) => {
+                          const checked = accessoriesList.includes(item.id);
+                          return (
+                            <TouchableOpacity
+                              key={item.id}
+                              activeOpacity={0.7}
+                              onPress={() => toggleAccessory(item.id)}
+                              style={[styles.vItem, { borderBottomColor: colors.border, backgroundColor: checked ? colors.primary + '10' : 'transparent' }]}
+                            >
+                              <View style={[styles.checkbox, { backgroundColor: checked ? colors.primary : 'transparent', borderColor: checked ? colors.primary : colors.muted }]}>
+                                {checked && <Feather name="check" size={14} color="#FFF" />}
+                              </View>
+                              <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{item.label}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                    <Input label="Other Accessories Notes" value={otherAccessories} onChangeText={setOtherAccessories} placeholder="e.g. Broken cover, mixed cables..." />
+                  </>
+                )}
               </View>
 
               {/* Physical Condition */}
               <View style={styles.section}>
-                <SectionHeader title="Physical Condition" />
-                <View style={styles.checklistGrid}>
-                  {PHYSICAL_CONDITION_ITEMS.map((item) => {
-                    const checked = physicalCondition[item.id] || false;
-                    return (
-                      <TouchableOpacity
-                        key={item.id}
-                        activeOpacity={0.7}
-                        onPress={() => setPhysicalCondition(prev => ({ ...prev, [item.id]: !checked }))}
-                        style={[styles.checklistItem, { backgroundColor: colors.card, borderColor: checked ? colors.primary : colors.border }]}
-                      >
-                        <View style={[styles.checkbox, { backgroundColor: checked ? colors.primary : 'transparent', borderColor: checked ? colors.primary : colors.muted }]}>
-                          {checked && <Feather name="check" size={14} color="#FFF" />}
-                        </View>
-                        <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>{item.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-                <Input label="General Condition Notes" value={deviceCondition} onChangeText={setDeviceCondition} placeholder="e.g. Screen cracked, body bent" leftIcon="smartphone" />
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setShowPhysical(v => !v)}
+                  style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: showPhysical ? colors.primary : colors.border }]}
+                >
+                  <View style={[styles.checkbox, { backgroundColor: showPhysical ? colors.primary : 'transparent', borderColor: showPhysical ? colors.primary : colors.muted }]}>
+                    {showPhysical && <Feather name="check" size={14} color="#FFF" />}
+                  </View>
+                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Physical Condition</Text>
+                  {Object.values(physicalCondition).filter(Boolean).length > 0 && (
+                    <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
+                      <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{Object.values(physicalCondition).filter(Boolean).length}</Text>
+                    </View>
+                  )}
+                  <Feather name={showPhysical ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
+                </TouchableOpacity>
+                {showPhysical && (
+                  <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                    <ScrollView style={styles.vList} nestedScrollEnabled showsVerticalScrollIndicator>
+                      {PHYSICAL_CONDITION_ITEMS.map((item) => {
+                        const checked = physicalCondition[item.id] || false;
+                        return (
+                          <TouchableOpacity
+                            key={item.id}
+                            activeOpacity={0.7}
+                            onPress={() => setPhysicalCondition(prev => ({ ...prev, [item.id]: !checked }))}
+                            style={[styles.vItem, { borderBottomColor: colors.border, backgroundColor: checked ? colors.primary + '10' : 'transparent' }]}
+                          >
+                            <View style={[styles.checkbox, { backgroundColor: checked ? colors.primary : 'transparent', borderColor: checked ? colors.primary : colors.muted }]}>
+                              {checked && <Feather name="check" size={14} color="#FFF" />}
+                            </View>
+                            <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{item.label}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
               </View>
 
               {/* Checklist */}
               <View style={styles.section}>
-                <SectionHeader title="Pre-Repair Checklist (Functions)" />
-                <View style={styles.checklistGrid}>
-                  {CHECKLIST_ITEMS.map((item) => {
-                    const checked = checklist[item.id] || false;
-                    return (
-                      <TouchableOpacity
-                        key={item.id}
-                        activeOpacity={0.7}
-                        onPress={() => setChecklist(prev => ({ ...prev, [item.id]: !checked }))}
-                        style={[styles.checklistItem, { backgroundColor: colors.card, borderColor: checked ? colors.primary : colors.border }]}
-                      >
-                        <View style={[styles.checkbox, { backgroundColor: checked ? colors.primary : 'transparent', borderColor: checked ? colors.primary : colors.muted }]}>
-                          {checked && <Feather name="check" size={14} color="#FFF" />}
-                        </View>
-                        <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>{item.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setShowChecklist(v => !v)}
+                  style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: showChecklist ? colors.primary : colors.border }]}
+                >
+                  <View style={[styles.checkbox, { backgroundColor: showChecklist ? colors.primary : 'transparent', borderColor: showChecklist ? colors.primary : colors.muted }]}>
+                    {showChecklist && <Feather name="check" size={14} color="#FFF" />}
+                  </View>
+                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Pre-Repair Checklist (Functions)</Text>
+                  {Object.values(checklist).filter(Boolean).length > 0 && (
+                    <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
+                      <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{Object.values(checklist).filter(Boolean).length}</Text>
+                    </View>
+                  )}
+                  <Feather name={showChecklist ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
+                </TouchableOpacity>
+                {showChecklist && (
+                  <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                    <ScrollView style={styles.vList} nestedScrollEnabled showsVerticalScrollIndicator>
+                      {CHECKLIST_ITEMS.map((item) => {
+                        const checked = checklist[item.id] || false;
+                        return (
+                          <TouchableOpacity
+                            key={item.id}
+                            activeOpacity={0.7}
+                            onPress={() => setChecklist(prev => ({ ...prev, [item.id]: !checked }))}
+                            style={[styles.vItem, { borderBottomColor: colors.border, backgroundColor: checked ? colors.primary + '10' : 'transparent' }]}
+                          >
+                            <View style={[styles.checkbox, { backgroundColor: checked ? colors.primary : 'transparent', borderColor: checked ? colors.primary : colors.muted }]}>
+                              {checked && <Feather name="check" size={14} color="#FFF" />}
+                            </View>
+                            <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{item.label}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
               </View>
 
               {/* Photos */}
@@ -895,6 +956,13 @@ const styles = StyleSheet.create({
   sectionHeader: { borderLeftWidth: 3, paddingLeft: 10, marginTop: 8, marginBottom: 4 },
   sectionTitle: { fontSize: 16 },
   checklistGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  sectionToggle: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
+  sectionToggleLabel: { fontSize: 14, flex: 1 },
+  countBadge: { minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  countBadgeText: { fontSize: 11 },
+  vListWrap: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
+  vList: { maxHeight: 280 },
+  vItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth },
   checklistItem: { width: '48%', flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, gap: 10 },
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   checklistLabel: { fontSize: 13, flex: 1 },
