@@ -735,7 +735,7 @@ export default function NewRepairScreen() {
 
               {/* Photos */}
               <View style={styles.section}>
-                <SectionHeader title="Intake Photos" />
+                <SectionHeader title="Click Photos" />
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoScroll}>
                   {photos.map((p, i) => (
                     <View key={i} style={[styles.photoThumbWrap, { borderColor: colors.border }]}>
