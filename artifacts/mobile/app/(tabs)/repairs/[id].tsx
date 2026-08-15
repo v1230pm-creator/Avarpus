@@ -183,6 +183,11 @@ export default function RepairDetailScreen() {
   }, []);
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
+  // The tab bar is position:'absolute' (see (tabs)/_layout.tsx), so screen
+  // content renders behind it. Offset the sticky action bar above the tab bar:
+  // web uses an explicit 84px bar; native uses the react-navigation default
+  // (49px) plus the bottom safe-area inset.
+  const tabBarHeight = Platform.OS === 'web' ? 84 : 49 + insets.bottom;
   const anims = useStaggerAnim(16);
 
   const repair = useMemo(() => repairs.find((r) => r.id === id), [repairs, id]);
@@ -634,7 +639,7 @@ export default function RepairDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 140 }]} bottomOffset={24}>
+      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight + 120 }]} bottomOffset={24}>
 
         {/* 1. REPAIR PROGRESS */}
         <Card>
@@ -886,7 +891,7 @@ export default function RepairDetailScreen() {
       </KeyboardAwareScrollViewCompat>
 
       {/* STICKY PRIMARY ACTIONS */}
-      <View style={[styles.actionBar, { backgroundColor: colors.background, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <View style={[styles.actionBar, { backgroundColor: colors.background, borderTopColor: colors.border, bottom: tabBarHeight, paddingBottom: 12 }]}>
         {repair.status === 'delivered' ? (
           <View style={[styles.doneBar, { backgroundColor: colors.success + '18', borderColor: colors.success + '44' }]}>
             <Feather name="check-circle" size={18} color={colors.success} />
@@ -1881,7 +1886,7 @@ const styles = StyleSheet.create({
   galleryBadgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
   sigImg: { width: '100%', height: 80, backgroundColor: '#FFF', borderRadius: 8, borderWidth: 1, borderColor: '#EEE' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
-  actionBar: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 12 },
+  actionBar: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 12, zIndex: 10, elevation: 10 },
   doneBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderRadius: 12, paddingVertical: 14 },
   paidChip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderRadius: 12 },
   sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
