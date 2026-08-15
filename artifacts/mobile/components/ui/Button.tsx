@@ -68,8 +68,47 @@ export function Button({
   const padH = { sm: 14, md: 20, lg: 26 }[size];
   const fontSize = { sm: 13, md: 15, lg: 17 }[size];
 
+  // Layout styles (flex, width, margins…) must apply to the outer wrapper.
+  // If they only reach the inner TouchableOpacity, the auto-sized wrapper
+  // collapses and the button renders with no visible label.
+  const {
+    flex,
+    flexGrow,
+    flexShrink,
+    flexBasis,
+    width,
+    minWidth,
+    maxWidth,
+    alignSelf,
+    margin,
+    marginTop,
+    marginBottom,
+    marginLeft,
+    marginRight,
+    marginHorizontal,
+    marginVertical,
+    ...innerStyle
+  } = style ?? {};
+  const layoutStyle: ViewStyle = {
+    flex,
+    flexGrow,
+    flexShrink,
+    flexBasis,
+    width,
+    minWidth,
+    maxWidth,
+    alignSelf,
+    margin,
+    marginTop,
+    marginBottom,
+    marginLeft,
+    marginRight,
+    marginHorizontal,
+    marginVertical,
+  };
+
   return (
-    <Animated.View style={[animStyle, fullWidth && { width: '100%' }]}>
+    <Animated.View style={[animStyle, fullWidth && { width: '100%' }, layoutStyle]}>
       <TouchableOpacity
         onPress={handlePress}
         disabled={disabled || loading}
@@ -86,13 +125,14 @@ export function Button({
             opacity: disabled ? 0.5 : 1,
           },
           fullWidth && { width: '100%' },
-          style,
+          (flex !== undefined || flexGrow !== undefined || width !== undefined) && { width: '100%' },
+          innerStyle,
         ]}
       >
         {loading ? (
           <ActivityIndicator color={txtColor} size="small" />
         ) : (
-          <Text style={[styles.text, { color: txtColor, fontSize, fontFamily: 'Inter_600SemiBold' }, textStyle]}>
+          <Text numberOfLines={1} style={[styles.text, { color: txtColor, fontSize, fontFamily: 'Inter_600SemiBold' }, textStyle]}>
             {title}
           </Text>
         )}
