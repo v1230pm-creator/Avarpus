@@ -1366,25 +1366,62 @@ router.post(
     const checklist = checklistOrNull(b.checklist);
     const confirm = b.confirm === true;
     const id = String(req.params.id ?? "");
-    const [existingRepair] = await db
-      .select({ id: repairsTable.id, technicianId: repairsTable.technicianId })
-      .from(repairsTable)
-      .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)));
-    if (!existingRepair) {
-      res.status(404).json({ message: "Repair not found" });
-      return;
-    }
-    // Technicians may only record testing on repairs assigned to them.
-    if (me.role === "technician" && existingRepair.technicianId !== me.id) {
-      res.status(403).json({
-        message: "You can only update repairs assigned to you.",
-        code: "NOT_ASSIGNED",
-      });
-      return;
-    }
-    const updated = await db.transaction(async (tx) => {
+    // All checklist validation happens inside the transaction against a
+    // row-locked read so concurrent writes cannot bypass the pass lock.
+    const outcome = await db.transaction(async (tx) => {
+      const [existingRepair] = await tx
+        .select({
+          id: repairsTable.id,
+          technicianId: repairsTable.technicianId,
+          testingChecklist: repairsTable.testingChecklist,
+        })
+        .from(repairsTable)
+        .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)))
+        .for("update");
+      if (!existingRepair) {
+        return { error: { status: 404, body: { message: "Repair not found" } } } as const;
+      }
+      // Technicians may only record testing on repairs assigned to them.
+      if (me.role === "technician" && existingRepair.technicianId !== me.id) {
+        return {
+          error: {
+            status: 403,
+            body: { message: "You can only update repairs assigned to you.", code: "NOT_ASSIGNED" },
+          },
+        } as const;
+      }
+      const existingChecklist =
+        (existingRepair.testingChecklist as Record<string, boolean> | null) ?? {};
       const set: Partial<typeof repairsTable.$inferInsert> = {};
-      if (checklist !== null || b.checklist !== undefined) set.testingChecklist = checklist;
+      let finalChecklist: Record<string, boolean> | null =
+        Object.keys(existingChecklist).length ? existingChecklist : null;
+      if (b.checklist !== undefined) {
+        const incoming = checklist ?? {};
+        // Pass lock: an item saved as Pass (true) can never be flipped to Fail.
+        for (const [k, v] of Object.entries(incoming)) {
+          if (existingChecklist[k] === true && v === false) {
+            return {
+              error: {
+                status: 409,
+                body: {
+                  message: "This testing item has already passed and can no longer be changed.",
+                  code: "TESTING_ITEM_LOCKED",
+                  item: k,
+                },
+              },
+            } as const;
+          }
+        }
+        // The saved checklist is the incoming record plus any previously
+        // passed items the client omitted (pass is immutable even by
+        // omission). Omitted Fail entries are dropped, so Fail -> unset works.
+        const next: Record<string, boolean> = { ...incoming };
+        for (const [k, v] of Object.entries(existingChecklist)) {
+          if (v === true && next[k] === undefined) next[k] = true;
+        }
+        finalChecklist = Object.keys(next).length ? next : null;
+        set.testingChecklist = finalChecklist;
+      }
       if (confirm) {
         set.testingConfirmedById = me.id;
         set.testingConfirmedByName = me.name;
@@ -1401,14 +1438,18 @@ router.post(
           repairId: id,
           user: me,
           action: "testing_confirmed",
-          details: { checklist: checklist ?? null },
+          details: { checklist: finalChecklist },
         });
       } else {
         await logRepairEvent(tx, { shopId, repairId: id, user: me, action: "testing_updated" });
       }
-      return row;
+      return { row } as const;
     });
-    res.json({ repair: repairOut(updated) });
+    if ("error" in outcome) {
+      res.status(outcome.error.status).json(outcome.error.body);
+      return;
+    }
+    res.json({ repair: repairOut(outcome.row) });
   }),
 );
 

@@ -150,6 +150,8 @@ export default function RepairDetailScreen() {
   // Testing Checklist
   const [showTesting, setShowTesting] = useState(false);
   const [testingChecklist, setTestingChecklist] = useState<Record<string, boolean>>({});
+  // Testing results being edited inside the Service Edit modal (true = Pass, false = Fail, absent = not tested)
+  const [editTesting, setEditTesting] = useState<Record<string, boolean>>({});
   
   // Estimate Approval
   const [showApproval, setShowApproval] = useState(false);
@@ -465,6 +467,7 @@ export default function RepairDetailScreen() {
     } catch (e: any) {
       if (e?.code === 'TESTING_REQUIRED' || e?.message?.includes('TESTING_REQUIRED')) {
         setShowStatusPicker(false);
+        setTestingChecklist({ ...(repair.testingChecklist || {}) });
         setTimeout(() => setShowTesting(true), 350);
       } else {
         Alert.alert('Update failed', e.message || "Couldn't update the repair status.");
@@ -539,6 +542,57 @@ export default function RepairDetailScreen() {
     }
   };
 
+  // Shared Pass/Fail rows for testing checklists. An item already saved as
+  // Pass on the server is locked: shown but not editable.
+  const renderTestingRows = (
+    values: Record<string, boolean>,
+    setValues: React.Dispatch<React.SetStateAction<Record<string, boolean>>>,
+  ) => (
+    <View style={{ gap: 8 }}>
+      {CHECKLIST_ITEMS.map((item) => {
+        const locked = (repair.testingChecklist || {})[item.id] === true;
+        const value = values[item.id]; // true = Pass, false = Fail, undefined = not tested
+        const setValue = (v: boolean) => {
+          if (locked) return;
+          setValues(prev => {
+            if (prev[item.id] === v) {
+              const next = { ...prev };
+              delete next[item.id];
+              return next;
+            }
+            return { ...prev, [item.id]: v };
+          });
+        };
+        return (
+          <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, backgroundColor: colors.card, borderColor: colors.border, opacity: locked ? 0.75 : 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+              {locked && <Feather name="lock" size={11} color={colors.mutedForeground} />}
+              <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>{item.label}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <TouchableOpacity
+                activeOpacity={locked ? 1 : 0.7}
+                disabled={locked}
+                onPress={() => setValue(true)}
+                style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, borderWidth: 1, backgroundColor: value === true ? colors.success + '22' : 'transparent', borderColor: value === true ? colors.success : colors.border }}
+              >
+                <Text style={{ fontSize: 12, fontFamily: 'Inter_600SemiBold', color: value === true ? colors.success : colors.mutedForeground }}>Pass</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={locked ? 1 : 0.7}
+                disabled={locked}
+                onPress={() => setValue(false)}
+                style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, borderWidth: 1, backgroundColor: value === false ? colors.destructive + '22' : 'transparent', borderColor: value === false ? colors.destructive : colors.border }}
+              >
+                <Text style={{ fontSize: 12, fontFamily: 'Inter_600SemiBold', color: value === false ? colors.destructive : colors.mutedForeground }}>Fail</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+
   const handleSaveService = async () => {
     setUpdating(true);
     try {
@@ -548,6 +602,10 @@ export default function RepairDetailScreen() {
         diagnosis: editDiagnosis,
         workPerformed: editWorkPerformed
       });
+      const savedTesting = repair.testingChecklist || {};
+      if (JSON.stringify(editTesting) !== JSON.stringify(savedTesting)) {
+        await repairTesting(repair.id, { checklist: editTesting });
+      }
       setShowServiceEdit(false);
       await loadAll();
       queryClient.invalidateQueries();
@@ -714,6 +772,7 @@ export default function RepairDetailScreen() {
             setEditProblem(repair.problem || '');
             setEditDiagnosis(repair.diagnosis || '');
             setEditWorkPerformed(repair.workPerformed || '');
+            setEditTesting({ ...(repair.testingChecklist || {}) });
             setShowServiceEdit(true);
           }}
         >
@@ -1040,6 +1099,24 @@ export default function RepairDetailScreen() {
                       <View key={k} style={{ padding: 8, borderRadius: 8, backgroundColor: colors.warning + '15', borderWidth: 1, borderColor: colors.warning + '33', width: '31%' }}>
                         <Text style={{ fontSize: 11, color: colors.warning, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>Body</Text>
                         <Text style={{ fontSize: 10, color: colors.warning }}>{k.replace(/_/g, ' ')}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </Card>
+            )}
+
+            {/* Testing Results */}
+            {Object.keys(repair.testingChecklist || {}).length > 0 && (
+              <Card>
+                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 12 }]}>TESTING RESULTS</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {Object.keys(repair.testingChecklist || {}).map(k => {
+                    const passed = repair.testingChecklist![k];
+                    return (
+                      <View key={k} style={{ padding: 8, borderRadius: 8, backgroundColor: passed ? colors.success + '15' : colors.destructive + '15', borderWidth: 1, borderColor: passed ? colors.success + '33' : colors.destructive + '33', width: '31%' }}>
+                        <Text style={{ fontSize: 11, color: passed ? colors.success : colors.destructive, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>{CHECKLIST_ITEMS.find(c => c.id === k)?.label || k}</Text>
+                        <Text style={{ fontSize: 10, color: passed ? colors.success : colors.destructive }}>{passed ? 'Pass' : 'Fail'}</Text>
                       </View>
                     );
                   })}
@@ -1592,24 +1669,7 @@ export default function RepairDetailScreen() {
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Final Testing Checklist</Text>
             
             <ScrollView style={{ maxHeight: 400, marginVertical: 10 }}>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                {CHECKLIST_ITEMS.map((item) => {
-                  const checked = testingChecklist[item.id] || false;
-                  return (
-                    <TouchableOpacity
-                      key={item.id}
-                      activeOpacity={0.7}
-                      onPress={() => setTestingChecklist(prev => ({ ...prev, [item.id]: !checked }))}
-                      style={{ width: '48%', flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, gap: 10, backgroundColor: colors.card, borderColor: checked ? colors.primary : colors.border }}
-                    >
-                      <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: checked ? colors.primary : 'transparent', borderColor: checked ? colors.primary : colors.muted }}>
-                        {checked && <Feather name="check" size={14} color="#FFF" />}
-                      </View>
-                      <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_500Medium', flex: 1 }} numberOfLines={1}>{item.label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              {renderTestingRows(testingChecklist, setTestingChecklist)}
             </ScrollView>
 
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
@@ -1711,6 +1771,7 @@ export default function RepairDetailScreen() {
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Service Details</Text>
 
+            <ScrollView style={{ maxHeight: 440 }} keyboardShouldPersistTaps="handled">
             <Text style={[styles.label, { color: colors.foreground }]}>Problem Reported</Text>
             <TextInput value={editProblem} onChangeText={setEditProblem} multiline numberOfLines={3} style={[styles.input, { color: colors.foreground, borderColor: colors.border, height: 80, textAlignVertical: 'top' }]} />
             
@@ -1719,6 +1780,10 @@ export default function RepairDetailScreen() {
             
             <Text style={[styles.label, { color: colors.foreground }]}>Work Performed</Text>
             <TextInput value={editWorkPerformed} onChangeText={setEditWorkPerformed} multiline numberOfLines={3} style={[styles.input, { color: colors.foreground, borderColor: colors.border, height: 80, textAlignVertical: 'top' }]} />
+
+            <Text style={[styles.label, { color: colors.foreground }]}>Testing</Text>
+            {renderTestingRows(editTesting, setEditTesting)}
+            </ScrollView>
 
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
               <Button title="Cancel" variant="outline" onPress={() => setShowServiceEdit(false)} style={{ flex: 1 }} />
