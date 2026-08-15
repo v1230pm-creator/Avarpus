@@ -863,7 +863,7 @@ router.patch(
         const checklistNow = (row.testingChecklist as Record<string, boolean> | null) ?? {};
         const hasFailedTest = Object.values(checklistNow).some((v) => v === false);
         const isAuthorizedTestingFailReturn =
-          fromRank === 2 && patch.status === "repairing" && hasFailedTest;
+          row.status === "testing" && patch.status === "repairing" && hasFailedTest;
         const allowed = isTerminalFrom
           ? isRestoreFromVoid
           : toRank >= fromRank || isAuthorizedTestingFailReturn;
@@ -1821,20 +1821,23 @@ router.post(
       // rewind. Only early stages can be recorded there (creation rejects
       // later stages), and the update is conditional on the repair still
       // being parked in 'customer_approval'.
+      // Legacy approvals (created before previous_status existed) have an
+      // unknown provenance — restoring them to any earlier stage could
+      // reopen locked fields, so their status is left untouched (the
+      // dealer can move the job forward via the normal status flow).
       const EARLY_STAGES = new Set(["received", "diagnosing", "waiting_parts", "repairing"]);
-      const restoreTo = EARLY_STAGES.has(claimed.previousStatus ?? "")
-        ? (claimed.previousStatus as string)
-        : "diagnosing";
-      await tx
-        .update(repairsTable)
-        .set({ status: restoreTo })
-        .where(
-          and(
-            eq(repairsTable.id, claimed.repairId),
-            eq(repairsTable.shopId, shopId),
-            eq(repairsTable.status, "customer_approval"),
-          ),
-        );
+      if (claimed.previousStatus && EARLY_STAGES.has(claimed.previousStatus)) {
+        await tx
+          .update(repairsTable)
+          .set({ status: claimed.previousStatus })
+          .where(
+            and(
+              eq(repairsTable.id, claimed.repairId),
+              eq(repairsTable.shopId, shopId),
+              eq(repairsTable.status, "customer_approval"),
+            ),
+          );
+      }
       await logRepairEvent(tx, {
         shopId,
         repairId: claimed.repairId,

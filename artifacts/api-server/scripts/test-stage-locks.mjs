@@ -231,6 +231,30 @@ async function run(A) {
       check("decision restores pre-park stage (repairing)", after?.status === "repairing", after?.status);
     }
   }
+  // customer_approval is NOT an authorized rewind source, even with a fail.
+  const repCA = await createRepair(A);
+  await api("PATCH", `/repairs/${repCA}`, A.token, { status: "repairing" });
+  await api("PATCH", `/repairs/${repCA}`, A.token, { status: "testing" });
+  await api("POST", `/repairs/${repCA}/testing`, A.token, { checklist: { speaker: false } });
+  await api("PATCH", `/repairs/${repCA}`, A.token, { status: "customer_approval" });
+  r = await api("PATCH", `/repairs/${repCA}`, A.token, { status: "repairing" });
+  check("customer_approval -> repairing with fail -> 409", r.status === 409 && r.json.code === "INVALID_STATUS_TRANSITION", r);
+
+  // Legacy approvals with NULL previous_status must not rewind the repair.
+  const repLegacy = await createRepair(A);
+  await api("PATCH", `/repairs/${repLegacy}`, A.token, { status: "repairing" });
+  r = await api("POST", `/repairs/${repLegacy}/estimate-approvals`, A.token, { newAmount: 400, reason: "legacy" });
+  check("legacy: estimate approval created", r.status === 200, r);
+  const legacyApprovalId = r.json.estimateApproval?.id;
+  await pool.query(`UPDATE estimate_approvals SET previous_status = NULL WHERE id = $1`, [legacyApprovalId]);
+  r = await api("POST", `/estimate-approvals/${legacyApprovalId}/decide`, A.token, { decision: "rejected", method: "dealer" });
+  check("legacy: decision -> 200", r.status === 200, r);
+  {
+    const { json: lst } = await api("GET", "/repairs", A.token);
+    const after = (lst.repairs ?? []).find((x) => x.id === repLegacy);
+    check("legacy: NULL previous_status leaves repair parked", after?.status === "customer_approval", after?.status);
+  }
+
   const rep5 = await createRepair(A);
   await api("PATCH", `/repairs/${rep5}`, A.token, { status: "repairing" });
   await api("PATCH", `/repairs/${rep5}`, A.token, { status: "ready" });
