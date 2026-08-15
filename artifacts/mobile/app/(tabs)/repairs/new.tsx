@@ -560,8 +560,8 @@ export default function NewRepairScreen() {
                   onPress={() => setShowDeviceType(v => !v)}
                   style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: showDeviceType ? colors.primary : colors.border }]}
                 >
-                  <View style={[styles.checkbox, { backgroundColor: showDeviceType ? colors.primary : 'transparent', borderColor: showDeviceType ? colors.primary : colors.muted }]}>
-                    {showDeviceType && <Feather name="check" size={14} color="#FFF" />}
+                  <View style={[styles.checkbox, { backgroundColor: deviceType ? colors.primary : 'transparent', borderColor: deviceType ? colors.primary : colors.muted }]}>
+                    {!!deviceType && <Feather name="check" size={14} color="#FFF" />}
                   </View>
                   <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Device Type *</Text>
                   <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
@@ -598,8 +598,8 @@ export default function NewRepairScreen() {
                   onPress={() => setShowBrand(v => !v)}
                   style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: errors.brand ? colors.destructive : showBrand ? colors.primary : colors.border }]}
                 >
-                  <View style={[styles.checkbox, { backgroundColor: showBrand ? colors.primary : 'transparent', borderColor: showBrand ? colors.primary : colors.muted }]}>
-                    {showBrand && <Feather name="check" size={14} color="#FFF" />}
+                  <View style={[styles.checkbox, { backgroundColor: brand ? colors.primary : 'transparent', borderColor: brand ? colors.primary : colors.muted }]}>
+                    {!!brand && <Feather name="check" size={14} color="#FFF" />}
                   </View>
                   <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Brand *</Text>
                   {!!brand && (
