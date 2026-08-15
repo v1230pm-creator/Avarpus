@@ -166,6 +166,9 @@ export default function RepairDetailScreen() {
   const [deliveryWarranty, setDeliveryWarranty] = useState('0');
   const [customWarrantyDays, setCustomWarrantyDays] = useState('');
 
+  // More details sheet
+  const [showMore, setShowMore] = useState(false);
+
   // Service Edits
   const [showServiceEdit, setShowServiceEdit] = useState(false);
   const [editProblem, setEditProblem] = useState('');
@@ -222,6 +225,22 @@ export default function RepairDetailScreen() {
 
   const balance = Math.max(0, repair.repairCharge + repair.partsCharge - repair.advance);
   const canUpdateStatus = canAccess('repairs_update') || (canAccess('repairs') && user?.role !== 'reception');
+  const canSeeFinance = canAccess('finance') || user?.role === 'reception' || user?.role === 'dealer' || user?.role === 'super_admin';
+  const isActiveRepair = repair.status !== 'delivered' && repair.status !== 'cancelled' && repair.status !== 'cannot_repair';
+
+  // Simplified 5-step flow: Received → Repairing → Testing → Ready → Delivered
+  const stageIndex =
+    repair.status === 'received' ? 0
+    : ['diagnosing', 'waiting_parts', 'repairing'].includes(repair.status as string) ? 1
+    : ['testing', 'customer_approval'].includes(repair.status as string) ? 2
+    : repair.status === 'ready' ? 3
+    : repair.status === 'delivered' ? 4
+    : -1;
+  const nextStep =
+    repair.status === 'received' ? { id: 'repairing', label: 'Repairing', desc: 'Start repairing and add diagnosis' }
+    : ['diagnosing', 'waiting_parts', 'repairing'].includes(repair.status as string) ? { id: 'testing', label: 'Testing', desc: 'Move job to testing' }
+    : ['testing', 'customer_approval'].includes(repair.status as string) ? { id: 'ready', label: 'Ready', desc: 'Ready for customer pickup' }
+    : null;
 
   // ── Collect Payment: real financials from the repair + payments ledger ──
   const payTotal = repair.totalAmount || (repair.repairCharge + repair.partsCharge);
@@ -594,7 +613,8 @@ export default function RepairDetailScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScreenGlow />
 
-      <FadeInView animValue={anims[0]} style={[styles.header, { paddingTop: topPad + 14 }]}>
+      {/* HEADER: back | JobID + status | more */}
+      <View style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
@@ -605,649 +625,624 @@ export default function RepairDetailScreen() {
             {repair.isSample && <SampleBadge />}
           </View>
         </View>
-        <View style={{ width: 44 }}>
+        <TouchableOpacity onPress={() => setShowMore(true)} style={styles.backBtn}>
+          <Feather name="more-vertical" size={22} color={colors.foreground} />
           {/* Hidden QR Code for PDF Generation */}
-          <View style={{ position: 'absolute', opacity: 0 }}>
+          <View style={{ position: 'absolute', opacity: 0 }} pointerEvents="none">
              <QRCode value={repair.id} size={150} getRef={(c) => (qrRef.current = c)} />
           </View>
-        </View>
-      </FadeInView>
+        </TouchableOpacity>
+      </View>
 
-      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]} bottomOffset={24}>
-        
-        <FadeInView animValue={anims[0]}>
-          <TouchableOpacity onPress={generatePDF} style={[styles.pdfBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '33' }]}>
-            <Feather name="file-text" size={18} color={colors.primary} />
-            <Text style={[styles.pdfBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Download Job Card PDF</Text>
-          </TouchableOpacity>
-        </FadeInView>
+      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 140 }]} bottomOffset={24}>
 
         {/* 1. REPAIR PROGRESS */}
-        <FadeInView animValue={anims[1]}>
-          <Card>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 12 }]}>REPAIR PROGRESS</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingTop: 8 }}>
-              {[
-                { id: 'received', label: 'Received' },
-                { id: 'diagnosing', label: 'Diagnosis' },
-                { id: 'repairing', label: 'Repairing' },
-                { id: 'testing', label: 'Testing' },
-                { id: 'customer_approval', label: 'Approval' },
-                { id: 'ready', label: 'Ready' },
-                { id: 'delivered', label: 'Delivered' }
-              ].map((step, index, arr) => {
-                const stepFlowIndex = STATUS_FLOW.indexOf(step.id);
-                const currentFlowIndex = STATUS_FLOW.indexOf(repair.status as string);
-                
-                let state = 'upcoming';
-                const isTerminal = repair.status === 'cancelled' || repair.status === 'cannot_repair';
-                
-                if (isTerminal) {
-                  if (index === arr.length - 1) {
-                    state = 'error';
-                    step.label = repair.status === 'cancelled' ? 'Cancelled' : 'Failed';
-                  } else {
-                    state = 'upcoming';
-                  }
-                } else if (currentFlowIndex > stepFlowIndex || (repair.status === 'waiting_parts' && stepFlowIndex < STATUS_FLOW.indexOf('waiting_parts'))) {
-                  state = 'completed';
-                } else if (currentFlowIndex === stepFlowIndex || (repair.status === 'waiting_parts' && step.id === 'repairing')) {
-                  state = 'current';
-                }
-                
-                const isCompleted = state === 'completed';
-                const isCurrent = state === 'current';
-                const isError = state === 'error';
-                const circleColor = isError ? colors.destructive : isCompleted ? colors.success : isCurrent ? colors.primary : 'transparent';
-                const borderColor = isError ? colors.destructive : isCompleted || isCurrent ? 'transparent' : colors.muted;
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            {[
+              { label: 'Received' },
+              { label: 'Repairing' },
+              { label: 'Testing' },
+              { label: 'Ready' },
+              { label: 'Delivered' }
+            ].map((step, index, arr) => {
+              const isTerminal = repair.status === 'cancelled' || repair.status === 'cannot_repair';
+              let label = step.label;
+              let state: 'completed' | 'current' | 'upcoming' | 'error' = 'upcoming';
+              if (isTerminal) {
+                if (index === arr.length - 1) { state = 'error'; label = repair.status === 'cancelled' ? 'Cancelled' : 'Failed'; }
+              } else if (stageIndex > index) state = 'completed';
+              else if (stageIndex === index) state = 'current';
 
-                return (
-                  <View key={step.id} style={{ flex: 1, alignItems: 'center' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
-                      <View style={{ flex: 1, height: 2, backgroundColor: index === 0 ? 'transparent' : (isCompleted || isCurrent ? colors.success : colors.border) }} />
-                      <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: circleColor, borderWidth: isCompleted || isCurrent || isError ? 0 : 1, borderColor, alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>
-                        {isCompleted ? <Feather name="check" size={14} color="#FFF" /> : isError ? <Feather name="x" size={14} color="#FFF" /> : isCurrent ? <Feather name="loader" size={12} color="#FFF" /> : <Feather name="clock" size={12} color={colors.muted} />}
-                      </View>
-                      <View style={{ flex: 1, height: 2, backgroundColor: index === arr.length - 1 ? 'transparent' : (isCompleted ? colors.success : colors.border) }} />
+              const isCompleted = state === 'completed';
+              const isCurrent = state === 'current';
+              const isError = state === 'error';
+              const circleColor = isError ? colors.destructive : isCompleted ? colors.success : isCurrent ? colors.primary : 'transparent';
+              return (
+                <View key={step.label} style={{ flex: 1, alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
+                    <View style={{ flex: 1, height: 2, backgroundColor: index === 0 ? 'transparent' : (isCompleted || isCurrent ? colors.success : colors.border) }} />
+                    <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: circleColor, borderWidth: isCompleted || isCurrent || isError ? 0 : 1, borderColor: colors.muted, alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>
+                      {isCompleted ? <Feather name="check" size={12} color="#FFF" /> : isError ? <Feather name="x" size={12} color="#FFF" /> : isCurrent ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFF' }} /> : null}
                     </View>
-                    <Text style={{ fontSize: 9, color: isCurrent ? colors.foreground : colors.mutedForeground, marginTop: 6, fontFamily: isCurrent ? 'Inter_600SemiBold' : 'Inter_400Regular' }} numberOfLines={1}>{step.label}</Text>
+                    <View style={{ flex: 1, height: 2, backgroundColor: index === arr.length - 1 ? 'transparent' : (isCompleted ? colors.success : colors.border) }} />
                   </View>
-                );
-              })}
-            </View>
-          </Card>
-        </FadeInView>
-
-        {/* 2. QUICK ACTIONS */}
-        {((canUpdateStatus && repair.status !== 'delivered' && repair.status !== 'cancelled') || repair.status === 'delivered' || canAccess('finance') || user?.role === 'dealer' || user?.role === 'reception') && (
-        <FadeInView animValue={anims[2]}>
-          <Card style={{ gap: 12 }}>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>QUICK ACTIONS</Text>
-            <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'space-between' }}>
-              
-              {canUpdateStatus && repair.status !== 'delivered' && repair.status !== 'cancelled' && (
-                <TouchableOpacity onPress={() => setShowStatusPicker(true)} style={{ flex: 1, alignItems: 'center', gap: 8 }}>
-                  <View style={{ width: 48, height: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.success, backgroundColor: colors.success + '15', alignItems: 'center', justifyContent: 'center' }}>
-                    <Feather name="edit" size={20} color={colors.success} />
-                  </View>
-                  <Text style={{ fontSize: 11, textAlign: 'center', color: colors.foreground, fontFamily: 'Inter_500Medium' }}>Update{"\n"}Status</Text>
-                </TouchableOpacity>
-              )}
-
-              {repair.status === 'ready' && (
-                <TouchableOpacity onPress={async () => {
-                  try {
-                    await repairNotifyReady(repair.id);
-                    Alert.alert('Success', 'Customer notified via email.');
-                    await loadAll();
-                    queryClient.invalidateQueries();
-                  } catch(e: any) {
-                    Alert.alert('Notice', e.message || 'Email service not configured for this address');
-                  }
-                }} style={{ flex: 1, alignItems: 'center', gap: 8 }}>
-                  <View style={{ width: 48, height: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.info, backgroundColor: colors.info + '15', alignItems: 'center', justifyContent: 'center' }}>
-                    <Feather name="bell" size={20} color={colors.info} />
-                  </View>
-                  <Text style={{ fontSize: 11, textAlign: 'center', color: colors.foreground, fontFamily: 'Inter_500Medium' }}>Notify{"\n"}Customer</Text>
-                </TouchableOpacity>
-              )}
-
-              {(canAccess('finance') || user?.role === 'dealer' || user?.role === 'super_admin' || user?.role === 'reception') && (
-                <TouchableOpacity onPress={openPaymentModal} style={{ flex: 1, alignItems: 'center', gap: 8 }}>
-                  <View style={{ width: 48, height: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primary + '15', alignItems: 'center', justifyContent: 'center' }}>
-                    <Feather name="credit-card" size={20} color={colors.primary} />
-                  </View>
-                  <Text style={{ fontSize: 11, textAlign: 'center', color: colors.foreground, fontFamily: 'Inter_500Medium' }}>Collect{"\n"}Payment</Text>
-                </TouchableOpacity>
-              )}
-
-              {repair.status !== 'delivered' && repair.status !== 'cancelled' && (
-                <TouchableOpacity onPress={() => setShowApproval(true)} style={{ flex: 1, alignItems: 'center', gap: 8 }}>
-                  <View style={{ width: 48, height: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.warning, backgroundColor: colors.warning + '15', alignItems: 'center', justifyContent: 'center' }}>
-                    <Feather name="user-check" size={20} color={colors.warning} />
-                  </View>
-                  <Text style={{ fontSize: 11, textAlign: 'center', color: colors.foreground, fontFamily: 'Inter_500Medium' }}>Customer{"\n"}Approval</Text>
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity onPress={() => Linking.openURL(`tel:${repair.mobile}`)} style={{ flex: 1, alignItems: 'center', gap: 8 }}>
-                <View style={{ width: 48, height: 48, borderRadius: 12, borderWidth: 1, borderColor: '#8B5CF6', backgroundColor: '#8B5CF615', alignItems: 'center', justifyContent: 'center' }}>
-                  <Feather name="phone-call" size={20} color="#8B5CF6" />
+                  <Text style={{ fontSize: 9, color: isCurrent ? colors.foreground : colors.mutedForeground, marginTop: 5, fontFamily: isCurrent ? 'Inter_600SemiBold' : 'Inter_400Regular' }} numberOfLines={1}>{label}</Text>
                 </View>
-                <Text style={{ fontSize: 11, textAlign: 'center', color: colors.foreground, fontFamily: 'Inter_500Medium' }}>Contact{"\n"}Customer</Text>
-              </TouchableOpacity>
-              
+              );
+            })}
+          </View>
+        </Card>
+
+        {/* 2. CUSTOMER */}
+        <Card>
+          <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>CUSTOMER</Text>
+          <Text style={{ fontSize: 15, color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginTop: 2 }}>{repair.customerName}</Text>
+          <TouchableOpacity onPress={() => Linking.openURL(`tel:${repair.mobile}`)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+            <Text style={{ fontSize: 14, color: colors.primary, fontFamily: 'Inter_500Medium' }}>{repair.mobile}</Text>
+            <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: colors.primary + '15', borderWidth: 1, borderColor: colors.primary + '33', alignItems: 'center', justifyContent: 'center' }}>
+              <Feather name="phone" size={15} color={colors.primary} />
             </View>
-          </Card>
-        </FadeInView>
-        )}
+          </TouchableOpacity>
+        </Card>
 
-        {/* 3. REPAIR SUMMARY */}
-        <FadeInView animValue={anims[3]}>
-          <Card style={{ paddingHorizontal: 16 }}>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 4 }]}>REPAIR SUMMARY</Text>
-            <SummaryRow icon="user" label="Customer" value={repair.customerName} />
-            <SummaryRow icon="phone" label="Phone" value={repair.mobile} rightElement={<TouchableOpacity onPress={() => Linking.openURL(`tel:${repair.mobile}`)}><Feather name="phone-call" size={14} color={colors.primary}/></TouchableOpacity>} />
-            <SummaryRow icon="smartphone" label="Device" value={`${repair.brand} ${repair.model}`} />
-            <SummaryRow icon="file-text" label="Job ID" value={repair.repairId} rightElement={<TouchableOpacity onPress={() => Alert.alert('Job ID', repair.repairId)}><Feather name="copy" size={14} color={colors.primary}/></TouchableOpacity>} />
-            <SummaryRow icon="star" label="Priority" value="" rightElement={<PriorityBadge priority={repair.priority} />} />
-            <SummaryRow icon="clock" label="Received" value={formatDate(repair.receiveDate)} />
-            <SummaryRow icon="calendar" label="Expected" value={formatDate(repair.expectedDate)} />
-            {repair.repairStartedAt && <SummaryRow icon="play" label="Started" value={new Date(repair.repairStartedAt).toLocaleDateString()} />}
-            {repair.repairCompletedAt && <SummaryRow icon="check-square" label="Completed" value={new Date(repair.repairCompletedAt).toLocaleDateString()} />}
-            <SummaryRow icon="user" label="Assigned Technician" value={repair.technicianName || 'Unassigned'} rightElement={((user?.role === 'dealer' || user?.role === 'super_admin') && repair.status !== 'delivered' && repair.status !== 'cancelled') ? <TouchableOpacity onPress={() => setShowAssign(true)}><Feather name="edit" size={14} color={colors.primary}/></TouchableOpacity> : null} />
-          </Card>
-        </FadeInView>
+        {/* 3. DEVICE */}
+        <Card>
+          <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>DEVICE</Text>
+          <Text style={{ fontSize: 15, color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginTop: 2 }}>{repair.brand} {repair.model}</Text>
+          {[repair.color, repair.storage, repair.ram].filter(Boolean).length > 0 && (
+            <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 4 }}>{[repair.color, repair.storage, repair.ram].filter(Boolean).join(' / ')}</Text>
+          )}
+        </Card>
 
-        {/* 4. DEVICE DETAILS */}
-        <FadeInView animValue={anims[4]}>
+        {/* 4. COMPLAINT */}
+        <Card>
+          <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>COMPLAINT</Text>
+          <Text style={{ fontSize: 14, color: colors.foreground, marginTop: 2, lineHeight: 20 }}>{repair.problem}</Text>
+        </Card>
+
+        {/* 5. DIAGNOSIS (tappable to edit) */}
+        <TouchableOpacity
+          activeOpacity={isActiveRepair ? 0.7 : 1}
+          onPress={() => {
+            if (!isActiveRepair) return;
+            setEditProblem(repair.problem || '');
+            setEditDiagnosis(repair.diagnosis || '');
+            setEditWorkPerformed(repair.workPerformed || '');
+            setShowServiceEdit(true);
+          }}
+        >
           <Card>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>DEVICE DETAILS</Text>
-            <InfoRow label="Brand & Model" value={`${repair.brand} ${repair.model}`} bold />
-            <InfoRow label="Color / Storage / RAM" value={[repair.color, repair.storage, repair.ram].filter(Boolean).join(' / ') || 'N/A'} />
-            {repair.imei ? <InfoRow label="IMEI 1" value={repair.imei} /> : null}
-            {repair.imei2 ? <InfoRow label="IMEI 2" value={repair.imei2} /> : null}
-            {repair.serialNumber ? <InfoRow label="Serial No" value={repair.serialNumber} /> : null}
-            
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 4, marginBottom: 4 }}>
-              <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: repair.simPresent ? colors.primary + '22' : colors.card, borderWidth: 1, borderColor: colors.border }}>
-                <Text style={{ fontSize: 11, color: repair.simPresent ? colors.primary : colors.mutedForeground }}>SIM: {repair.simPresent ? 'YES' : 'NO'}</Text>
-              </View>
-              <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: repair.memoryCardPresent ? colors.primary + '22' : colors.card, borderWidth: 1, borderColor: colors.border }}>
-                <Text style={{ fontSize: 11, color: repair.memoryCardPresent ? colors.primary : colors.mutedForeground }}>SD Card: {repair.memoryCardPresent ? 'YES' : 'NO'}</Text>
-              </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>DIAGNOSIS</Text>
+              {isActiveRepair && <Feather name="edit-2" size={14} color={colors.primary} />}
             </View>
-
-            <InfoRow label="Alternate Mobile" value={repair.alternateMobile || 'N/A'} />
-            <InfoRow label="Accessories" value={(repair.accessoriesList?.length ? repair.accessoriesList.join(', ') : 'None') + (repair.accessories ? ` (${repair.accessories})` : '')} />
-            <InfoRow label="Received By" value={repair.receivedByName || 'System'} />
-            {repair.status === 'delivered' && (
-              <>
-                <InfoRow label="Delivered By" value={repair.deliveredByName || 'N/A'} />
-                <InfoRow label="Payment Method" value={repair.paymentMethod || 'N/A'} />
-                <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Payment Status</Text>
-                  <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, backgroundColor: (repair.repairCharge + repair.partsCharge - repair.advance) <= 0 ? colors.success + '22' : repair.advance > 0 ? colors.warning + '22' : colors.destructive + '22' }}>
-                    <Text style={{ fontSize: 10, color: (repair.repairCharge + repair.partsCharge - repair.advance) <= 0 ? colors.success : repair.advance > 0 ? colors.warning : colors.destructive, fontWeight: 'bold' }}>
-                      {(repair.repairCharge + repair.partsCharge - repair.advance) <= 0 ? 'PAID' : repair.advance > 0 ? 'PARTIAL' : 'PENDING'}
-                    </Text>
-                  </View>
-                </View>
-              </>
+            <Text style={{ fontSize: 14, color: repair.diagnosis ? colors.foreground : colors.mutedForeground, marginTop: 2, lineHeight: 20 }}>
+              {repair.diagnosis || 'Pending'}
+            </Text>
+            {!!repair.workPerformed && (
+              <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 4 }}>Work: {repair.workPerformed}</Text>
             )}
           </Card>
-        </FadeInView>
+        </TouchableOpacity>
 
-        {/* 5. CONDITION CHECKLIST (At Intake) */}
-        <FadeInView animValue={anims[5]}>
+        {/* 6. ESTIMATE & PAYMENT */}
+        {canSeeFinance ? (
           <Card>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 12 }]}>CONDITION CHECKLIST (At Intake)</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {Object.keys(repair.checklist || {}).map(k => {
-                const isWorking = repair.checklist![k];
-                return (
-                  <View key={k} style={{ padding: 8, borderRadius: 8, backgroundColor: isWorking ? colors.success + '15' : colors.destructive + '15', borderWidth: 1, borderColor: isWorking ? colors.success + '33' : colors.destructive + '33', width: '31%' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                      <Feather name={isWorking ? "check-square" : "alert-triangle"} size={12} color={isWorking ? colors.success : colors.destructive} />
-                      <Text style={{ fontSize: 11, color: isWorking ? colors.success : colors.destructive, fontFamily: 'Inter_500Medium', flex: 1 }} numberOfLines={1}>{CHECKLIST_ITEMS.find(c => c.id === k)?.label || k}</Text>
-                    </View>
-                    <Text style={{ fontSize: 10, color: isWorking ? colors.success : colors.destructive }}>{isWorking ? 'Working' : 'Not Working'}</Text>
-                  </View>
-                );
-              })}
-              {Object.keys(repair.physicalCondition || {}).map(k => {
-                if (!repair.physicalCondition![k]) return null;
-                return (
-                  <View key={k} style={{ padding: 8, borderRadius: 8, backgroundColor: colors.warning + '15', borderWidth: 1, borderColor: colors.warning + '33', width: '31%' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                      <Feather name="alert-circle" size={12} color={colors.warning} />
-                      <Text style={{ fontSize: 11, color: colors.warning, fontFamily: 'Inter_500Medium', flex: 1 }} numberOfLines={1}>Body</Text>
-                    </View>
-                    <Text style={{ fontSize: 10, color: colors.warning }}>{k.replace(/_/g, ' ')}</Text>
-                  </View>
-                );
-              })}
-            </View>
-            <Button title="View All & Photos" variant="outline" size="sm" style={{ marginTop: 16 }} onPress={() => {}} />
-          </Card>
-        </FadeInView>
-
-        {/* 6. SERVICE DETAILS */}
-        <FadeInView animValue={anims[6]}>
-          <Card>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>SERVICE DETAILS</Text>
-              {repair.status !== 'delivered' && repair.status !== 'cancelled' && (
-                <TouchableOpacity onPress={() => {
-                  setEditProblem(repair.problem || '');
-                  setEditDiagnosis(repair.diagnosis || '');
-                  setEditWorkPerformed(repair.workPerformed || '');
-                  setShowServiceEdit(true);
-                }}>
-                  <Feather name="edit-2" size={16} color={colors.primary} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <Text style={{ fontSize: 12, color: colors.primary, marginBottom: 4, fontFamily: 'Inter_500Medium' }}>Complaint</Text>
-            <Text style={{ fontSize: 13, color: colors.foreground, marginBottom: 12 }}>{repair.problem}</Text>
-            
-            <Text style={{ fontSize: 12, color: colors.primary, marginBottom: 4, fontFamily: 'Inter_500Medium' }}>Diagnosis</Text>
-            <Text style={{ fontSize: 13, color: colors.foreground, marginBottom: 12 }}>{repair.diagnosis || 'Pending'}</Text>
-            
-            <Text style={{ fontSize: 12, color: colors.primary, marginBottom: 4, fontFamily: 'Inter_500Medium' }}>Work Performed</Text>
-            <Text style={{ fontSize: 13, color: colors.foreground, marginBottom: 12 }}>{repair.workPerformed || 'Pending'}</Text>
-
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={{ fontSize: 12, color: colors.primary, fontFamily: 'Inter_500Medium' }}>Parts Replaced</Text>
-              {repair.status !== 'delivered' && repair.status !== 'cancelled' && (
-                <TouchableOpacity onPress={() => setShowAddPart(true)}>
-                  <Feather name="plus-circle" size={14} color={colors.primary} />
-                </TouchableOpacity>
-              )}
-            </View>
-            {parts.length === 0 ? (
-              <Text style={{ fontSize: 13, color: colors.foreground, marginBottom: 16 }}>None</Text>
-            ) : (
-              <View style={{ marginBottom: 16 }}>
-                {parts.map((p, idx) => (
-                  <View key={p.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: idx === parts.length - 1 ? 0 : 1, borderBottomColor: colors.border + '55' }}>
-                    <View>
-                      <Text style={{ fontSize: 13, color: colors.foreground }}>{p.partName}</Text>
-                      <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Qty: {p.quantity} {p.canSeeCosts !== false ? `@ ${formatCurrency(p.unitCost)}` : ''}</Text>
-                    </View>
-                    {p.canSeeCosts !== false && (
-                      <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(p.quantity * p.unitCost)}</Text>
-                    )}
-                  </View>
-                ))}
-              </View>
-            )}
-
-            <Button title="View All Details" variant="outline" size="sm" onPress={() => {}} />
-          </Card>
-        </FadeInView>
-
-                {/* 7. ESTIMATE & PAYMENT & WARRANTY */}
-        {(canAccess('finance') || user?.role === 'reception' || user?.role === 'dealer') ? (
-          <>
-            {/* 7. ESTIMATE & PAYMENT */}
-                    <FadeInView animValue={anims[7]}>
-                      <Card>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                          <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>ESTIMATE & PAYMENT</Text>
-                          {(canAccess('finance') || user?.role === 'reception' || user?.role === 'dealer') && (
-                            <TouchableOpacity onPress={() => {
-                              setEditRepairCharge(repair.repairCharge.toString());
-                              setEditServiceCharge((repair.serviceCharge || 0).toString());
-                              setEditOtherCharge((repair.otherCharge || 0).toString());
-                              setEditDiscount((repair.discount || 0).toString());
-                              setEditTaxPercent((repair.taxPercent || 0).toString());
-                              setShowFinancialEdit(true);
-                            }}>
-                              <Feather name="edit-2" size={16} color={colors.primary} />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-            
-                        <InfoRow label="Total Estimate" value={formatCurrency(repair.repairCharge + repair.partsCharge)} />
-                        <InfoRow label="Parts Cost" value={formatCurrency(repair.partsCharge)} />
-                        <InfoRow label="Labour Charge" value={formatCurrency(repair.repairCharge)} />
-                        <InfoRow label={`Tax (${repair.taxPercent || 18}%)`} value={formatCurrency(((repair.repairCharge + repair.partsCharge) * (repair.taxPercent || 18)) / 100)} />
-                        <InfoRow label="Discount" value={formatCurrency(repair.discount || 0)} />
-                        <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
-                        <InfoRow label="Total" value={formatCurrency(payTotal)} bold />
-            
-                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 16, marginBottom: 16 }}>
-                          <View style={{ flex: 1, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.success, backgroundColor: colors.success + '15', alignItems: 'center' }}>
-                            <Text style={{ fontSize: 12, color: colors.success, marginBottom: 4 }}>Paid</Text>
-                            <Text style={{ fontSize: 16, color: colors.success, fontFamily: 'Inter_700Bold' }}>{formatCurrency(payPaid)}</Text>
-                          </View>
-                          <View style={{ flex: 1, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.warning, backgroundColor: colors.warning + '15', alignItems: 'center' }}>
-                            <Text style={{ fontSize: 12, color: colors.warning, marginBottom: 4 }}>Balance</Text>
-                            <Text style={{ fontSize: 16, color: colors.warning, fontFamily: 'Inter_700Bold' }}>{formatCurrency(payRemaining)}</Text>
-                          </View>
-                          <View style={{ flex: 1, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primary + '15', alignItems: 'center' }}>
-                            <Text style={{ fontSize: 12, color: colors.primary, marginBottom: 4 }}>Status</Text>
-                            <Text style={{ fontSize: 14, color: colors.primary, fontFamily: 'Inter_600SemiBold', marginTop: 2 }}>
-                              {payRemaining <= 0 ? 'Paid' : payPaid > 0 ? 'Partial' : 'Pending'}
-                            </Text>
-                          </View>
-                        </View>
-            
-                        <Button title="+ Collect Payment" onPress={openPaymentModal} style={{ width: '100%' }} />
-                        
-                        <View style={{ marginTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                           <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Warranty: {repair.warrantyDays} Days {repair.warrantyExpiry ? `(Till ${formatDate(repair.warrantyExpiry)})` : ''}</Text>
-                        </View>
-                      </Card>
-                    </FadeInView>
-            
-                    {/* 8. PAYMENT HISTORY */}
-                    {(payments.length > 0 || visibleRefunds.length > 0) && (
-                      <FadeInView animValue={anims[8]}>
-                        <Card>
-                          <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 16 }]}>PAYMENT HISTORY</Text>
-                          
-                          {payments.map(pmt => (
-                            <View key={pmt.id} style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
-                              <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}>
-                                <Text style={{ fontSize: 10, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{pmt.method === 'UPI' ? 'UPI' : pmt.method === 'Cash' ? 'Cash' : 'Card'}</Text>
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(pmt.amount)}</Text>
-                                    <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{pmt.method}</Text>
-                                    <Text style={{ fontSize: 10, color: colors.primary, backgroundColor: colors.primary + '22', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>{pmt.kind}</Text>
-                                  </View>
-                                </View>
-                                <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{formatDate(pmt.createdAt)}</Text>
-                                {pmt.referenceNo ? <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Txn ID: {pmt.referenceNo}</Text> : null}
-                                <Text style={{ fontSize: 11, color: colors.mutedForeground }}>By: {pmt.receivedByName || pmt.recordedByName || 'Staff'}</Text>
-                              </View>
-                            </View>
-                          ))}
-            
-                          {visibleRefunds.map(rf => (
-                            <View key={rf.id} style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
-                              <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: colors.destructive + '15', borderWidth: 1, borderColor: colors.destructive + '33', alignItems: 'center', justifyContent: 'center' }}>
-                                <Feather name="corner-down-left" size={16} color={colors.destructive} />
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                                    <Text style={{ fontSize: 14, color: colors.destructive, fontFamily: 'Inter_600SemiBold' }}>-{formatCurrency(rf.amount)}</Text>
-                                    <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Refund ({rf.method})</Text>
-                                  </View>
-                                </View>
-                                <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{formatDate(rf.paidAt || rf.createdAt)}</Text>
-                              </View>
-                            </View>
-                          ))}
-            
-                          <Button title="View Full Payment History" variant="outline" size="sm" style={{ marginTop: 8 }} onPress={() => {}} />
-                        </Card>
-                      </FadeInView>
-                    )}
-          </>
-        ) : (
-          <FadeInView animValue={anims[7]}>
-            <Card>
-              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>WARRANTY</Text>
-              <InfoRow label="Warranty Offered" value={`${repair.warrantyDays} Days`} />
-              {repair.warrantyExpiry && (
-                <InfoRow label="Warranty Expiry" value={formatDate(repair.warrantyExpiry)} />
-              )}
-            </Card>
-          </FadeInView>
-        )}
-
-        {/* 9. CUSTOMER APPROVAL */}
-        <FadeInView animValue={anims[9]}>
-          <Card>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 12 }]}>CUSTOMER APPROVAL</Text>
-            
-            <InfoRow label="Estimated Amount" value={formatCurrency(repair.repairCharge + repair.partsCharge)} bold />
-            
-            <View style={styles.infoRow}>
-              <Text style={[styles.infoLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Approval Status</Text>
-              <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: repair.status === 'customer_approval' ? colors.warning + '22' : colors.success + '22' }}>
-                <Text style={{ fontSize: 12, color: repair.status === 'customer_approval' ? colors.warning : colors.success, fontFamily: 'Inter_600SemiBold' }}>
-                  {repair.status === 'customer_approval' ? 'Pending' : 'Approved'}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>ESTIMATE & PAYMENT</Text>
+              <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: (payRemaining <= 0 && payTotal > 0) ? colors.success + '22' : payPaid > 0 ? colors.warning + '22' : colors.muted + '33' }}>
+                <Text style={{ fontSize: 11, fontFamily: 'Inter_600SemiBold', color: (payRemaining <= 0 && payTotal > 0) ? colors.success : payPaid > 0 ? colors.warning : colors.mutedForeground }}>
+                  {(payRemaining <= 0 && payTotal > 0) ? 'Paid' : payPaid > 0 ? 'Partially Paid' : 'Pending'}
                 </Text>
               </View>
             </View>
-            
-            {approvals.length > 0 && (
-              <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 }}>
-                {approvals.map(app => (
-                  <View key={app.id} style={{ paddingVertical: 8 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>₹{app.oldAmount} → ₹{app.newAmount}</Text>
-                      <Text style={{ fontSize: 12, color: app.status === 'pending' ? colors.warning : app.status === 'approved' ? colors.success : colors.destructive, textTransform: 'uppercase', fontFamily: 'Inter_700Bold' }}>{app.status}</Text>
-                    </View>
-                    <Text style={{ fontSize: 13, color: colors.mutedForeground }}>{app.reason}</Text>
-                    
-                    <InfoRow label="Requested On" value={formatDate(app.createdAt)} />
-                    <InfoRow label="Requested By" value={app.requestedByName || 'Staff'} />
-                    
-                    {app.status === 'pending' && (
-                      <View style={{ marginTop: 10, gap: 10 }}>
-                        {showOtp ? (
-                          <View style={{ flexDirection: 'row', gap: 8 }}>
-                            <TextInput value={otpCode} onChangeText={setOtpCode} keyboardType="numeric" placeholder="OTP Code" style={[styles.input, { flex: 1, height: 36, minHeight: 36, color: colors.foreground, borderColor: colors.border }]} />
-                            <Button title="Verify" onPress={async () => {
-                              if (!otpCode) return;
-                              try {
-                                await estimateApprovalsDecide(app.id, { decision: 'approved', method: 'otp', otpCode: otpCode });
-                                setShowOtp(false);
-                                setOtpCode('');
-                                await loadAll();
-                                await approvalsRefetch();
-                                queryClient.invalidateQueries();
-                              } catch (e: any) { Alert.alert('Error', e.message); }
-                            }} size="sm" />
-                            <Button title="Cancel" variant="outline" onPress={() => setShowOtp(false)} size="sm" />
-                          </View>
-                        ) : (
-                          <>
-                            <View style={{ flexDirection: 'row', gap: 8 }}>
-                              <Button title="Approve" onPress={async () => {
-                                try {
-                                  await estimateApprovalsDecide(app.id, { decision: 'approved', method: 'dealer' });
-                                  await loadAll();
-                                  await approvalsRefetch();
-                                  queryClient.invalidateQueries();
-                                } catch (e: any) { Alert.alert('Error', e.message); }
-                              }} size="sm" style={{ flex: 1 }} />
-                              <Button title="Reject" variant="outline" onPress={async () => {
-                                try {
-                                  await estimateApprovalsDecide(app.id, { decision: 'rejected', method: 'dealer' });
-                                  await loadAll();
-                                  await approvalsRefetch();
-                                  queryClient.invalidateQueries();
-                                } catch (e: any) { Alert.alert('Error', e.message); }
-                              }} size="sm" style={{ flex: 1 }} />
-                            </View>
-                            <Button title="Send OTP to Customer" variant="outline" onPress={async () => {
-                              try {
-                                await estimateApprovalsSendOtp(app.id);
-                                setShowOtp(true);
-                              } catch (e: any) { Alert.alert('Error', e.message); }
-                            }} size="sm" />
-                          </>
-                        )}
+            <InfoRow label="Estimate" value={formatCurrency(payTotal)} bold />
+            <InfoRow label="Paid" value={formatCurrency(payPaid)} color={colors.success} />
+            <InfoRow label="Balance" value={formatCurrency(payRemaining)} color={payRemaining > 0 ? colors.warning : colors.success} bold />
+            <TouchableOpacity
+              onPress={() => {
+                setEditRepairCharge(repair.repairCharge.toString());
+                setEditServiceCharge((repair.serviceCharge || 0).toString());
+                setEditOtherCharge((repair.otherCharge || 0).toString());
+                setEditDiscount((repair.discount || 0).toString());
+                setEditTaxPercent((repair.taxPercent || 0).toString());
+                setShowFinancialEdit(true);
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}
+            >
+              <Feather name="edit-2" size={13} color={colors.primary} />
+              <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_500Medium' }}>Edit Estimate</Text>
+            </TouchableOpacity>
+          </Card>
+        ) : (
+          <Card>
+            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>WARRANTY</Text>
+            <InfoRow label="Warranty Offered" value={`${repair.warrantyDays || 0} Days`} />
+            {repair.warrantyExpiry && <InfoRow label="Warranty Expiry" value={formatDate(repair.warrantyExpiry)} />}
+          </Card>
+        )}
+
+        {/* 7. CUSTOMER APPROVAL — only when actually required */}
+        {canSeeFinance && (approvals.length > 0 || repair.status === 'customer_approval') && (
+          <Card>
+            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 8 }]}>CUSTOMER APPROVAL</Text>
+            {approvals.length === 0 && (
+              <>
+                <InfoRow label="Amount" value={formatCurrency(repair.repairCharge + repair.partsCharge)} bold />
+                <View style={styles.infoRow}>
+                  <Text style={[styles.infoLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Status</Text>
+                  <Text style={{ fontSize: 13, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>Pending</Text>
+                </View>
+                {isActiveRepair && (
+                  <Button title="Send Approval Request" onPress={() => setShowApproval(true)} style={{ marginTop: 10 }} />
+                )}
+              </>
+            )}
+            {approvals.map(app => (
+              <View key={app.id} style={{ paddingVertical: 6 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>₹{app.oldAmount} → ₹{app.newAmount}</Text>
+                  <Text style={{ fontSize: 12, color: app.status === 'pending' ? colors.warning : app.status === 'approved' ? colors.success : colors.destructive, textTransform: 'uppercase', fontFamily: 'Inter_700Bold' }}>{app.status}</Text>
+                </View>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground }}>{app.reason}</Text>
+
+                {app.status === 'pending' && (
+                  <View style={{ marginTop: 10, gap: 10 }}>
+                    {showOtp ? (
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TextInput value={otpCode} onChangeText={setOtpCode} keyboardType="numeric" placeholder="OTP Code" style={[styles.input, { flex: 1, height: 36, minHeight: 36, color: colors.foreground, borderColor: colors.border }]} />
+                        <Button title="Verify" onPress={async () => {
+                          if (!otpCode) return;
+                          try {
+                            await estimateApprovalsDecide(app.id, { decision: 'approved', method: 'otp', otpCode: otpCode });
+                            setShowOtp(false);
+                            setOtpCode('');
+                            await loadAll();
+                            await approvalsRefetch();
+                            queryClient.invalidateQueries();
+                          } catch (e: any) { Alert.alert('Error', e.message); }
+                        }} size="sm" />
+                        <Button title="Cancel" variant="outline" onPress={() => setShowOtp(false)} size="sm" />
                       </View>
+                    ) : (
+                      <>
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          <Button title="Approve" onPress={async () => {
+                            try {
+                              await estimateApprovalsDecide(app.id, { decision: 'approved', method: 'dealer' });
+                              await loadAll();
+                              await approvalsRefetch();
+                              queryClient.invalidateQueries();
+                            } catch (e: any) { Alert.alert('Error', e.message); }
+                          }} size="sm" style={{ flex: 1 }} />
+                          <Button title="Reject" variant="outline" onPress={async () => {
+                            try {
+                              await estimateApprovalsDecide(app.id, { decision: 'rejected', method: 'dealer' });
+                              await loadAll();
+                              await approvalsRefetch();
+                              queryClient.invalidateQueries();
+                            } catch (e: any) { Alert.alert('Error', e.message); }
+                          }} size="sm" style={{ flex: 1 }} />
+                        </View>
+                        <Button title="Send OTP to Customer" variant="outline" onPress={async () => {
+                          try {
+                            await estimateApprovalsSendOtp(app.id);
+                            setShowOtp(true);
+                          } catch (e: any) { Alert.alert('Error', e.message); }
+                        }} size="sm" />
+                      </>
                     )}
                   </View>
-                ))}
+                )}
               </View>
-            )}
-
-            {repair.status !== 'delivered' && repair.status !== 'cancelled' && (
-              <Button title="Send Approval Request" onPress={() => setShowApproval(true)} style={{ marginTop: 16 }} />
-            )}
+            ))}
           </Card>
-        </FadeInView>
-
-        {/* 10. ACTIVITY TIMELINE */}
-        {eventsData?.events && eventsData.events.length > 0 && (
-          <FadeInView animValue={anims[10]}>
-            <Card>
-              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 16 }]}>ACTIVITY TIMELINE</Text>
-              {eventsData.events.map((ev, i) => {
-                const isPending = ev.action.toLowerCase().includes('approval') || ev.action.toLowerCase().includes('pending');
-                const dotColor = isPending ? colors.warning : colors.success;
-
-                return (
-                  <View key={ev.id} style={{ flexDirection: 'row', gap: 12, marginBottom: i === eventsData.events.length - 1 ? 0 : 0 }}>
-                    <View style={{ alignItems: 'center', width: 24 }}>
-                      <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: dotColor + '22', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
-                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dotColor }} />
-                      </View>
-                      {i !== eventsData.events.length - 1 && <View style={{ width: 2, flex: 1, backgroundColor: colors.border, marginVertical: 4, minHeight: 30 }} />}
-                    </View>
-                    <View style={{ flex: 1, paddingBottom: i === eventsData.events.length - 1 ? 0 : 20 }}>
-                      <Text style={{ fontSize: 12, color: colors.mutedForeground, marginBottom: 2 }}>
-                        {new Date(ev.createdAt).toLocaleString('en-IN', { hour: 'numeric', minute: '2-digit', day: '2-digit', month: 'short', year: 'numeric' })}
-                      </Text>
-                      <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>
-                        {ev.action}
-                      </Text>
-                      <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 2 }}>
-                        By: {ev.userName} ({ev.userRole})
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
-              <Button title="View Full Timeline" variant="outline" size="sm" style={{ marginTop: 16 }} onPress={() => {}} />
-            </Card>
-          </FadeInView>
         )}
 
-        {/* 11. AFTER SALE SERVICE */}
-        <FadeInView animValue={anims[11]}>
+        {/* 8. PARTS REPLACED — only when parts exist */}
+        {parts.length > 0 && (
           <Card>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 12 }]}>AFTER SALE SERVICE</Text>
-            {repairReturns.length === 0 ? (
-              <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: repair.status === 'delivered' ? 16 : 0 }}>No after sale service yet.</Text>
-            ) : (
-              repairReturns.map(ret => (
-                <TouchableOpacity
-                  key={ret.id}
-                  onPress={() => router.push(`/(tabs)/repairs/return/${ret.id}` as any)}
-                  style={{ padding: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}
-                >
-                  <View>
-                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{ret.returnId}</Text>
-                    <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 2 }}>{formatDate(ret.createdAt)}</Text>
-                  </View>
-                  <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: getReturnStatusColor(ret.status, colors) + '22' }}>
-                    <Text style={{ fontSize: 11, color: getReturnStatusColor(ret.status, colors), fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }}>
-                      {ret.status.replace(/_/g, ' ')}
-                    </Text>
-                  </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>PARTS REPLACED</Text>
+              {isActiveRepair && (
+                <TouchableOpacity onPress={() => setShowAddPart(true)}>
+                  <Feather name="plus-circle" size={16} color={colors.primary} />
                 </TouchableOpacity>
-              ))
-            )}
-            {repair.status === 'delivered' && (
-              <Button title="+ Create After Sale Case" variant="outline" onPress={() => router.push(`/(tabs)/repairs/return/new?repairId=${repair.id}` as any)} />
-            )}
-          </Card>
-        </FadeInView>
-
-        {/* 12. DOCUMENTS & PHOTOS */}
-        {photosData?.photos && photosData.photos.length > 0 && (
-          <FadeInView animValue={anims[12]}>
-            <Card>
-              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 12 }]}>DOCUMENTS & PHOTOS</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-                {photosData.photos.map(p => (
-                  <View key={p.id} style={{ width: 80 }}>
-                    <View style={{ width: 80, height: 80, borderRadius: 8, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', marginBottom: 6 }}>
-                      <Image source={{ uri: getAbsoluteUrl(p.objectPath), headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} />
-                    </View>
-                    <Text style={{ fontSize: 10, color: colors.mutedForeground, textAlign: 'center' }} numberOfLines={1}>{p.kind.replace(/_/g, ' ')}</Text>
-                  </View>
-                ))}
-              </ScrollView>
-              <Button title="View All Documents" variant="outline" size="sm" style={{ marginTop: 16 }} onPress={() => {}} />
-            </Card>
-          </FadeInView>
-        )}
-
-        
-        {/* SIGNATURES */}
-        {(repair.receivingSignaturePath || repair.deliverySignaturePath) && (
-          <FadeInView animValue={anims[13]}>
-            <Card>
-              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>SIGNATURES</Text>
-              <View style={{ flexDirection: 'row', gap: 16 }}>
-                {repair.receivingSignaturePath && (
-                  <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
-                    <Image source={{ uri: getAbsoluteUrl(repair.receivingSignaturePath), headers: { Authorization: `Bearer ${token}` } }} style={styles.sigImg} contentFit="contain" />
-                    <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>Receiving</Text>
-                  </View>
-                )}
-                {repair.deliverySignaturePath && (
-                  <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
-                    <Image source={{ uri: getAbsoluteUrl(repair.deliverySignaturePath), headers: { Authorization: `Bearer ${token}` } }} style={styles.sigImg} contentFit="contain" />
-                    <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>Delivery</Text>
-                  </View>
+              )}
+            </View>
+            {parts.map((p, idx) => (
+              <View key={p.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: idx === parts.length - 1 ? 0 : 1, borderBottomColor: colors.border + '55' }}>
+                <View>
+                  <Text style={{ fontSize: 13, color: colors.foreground }}>{p.partName}</Text>
+                  <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Qty: {p.quantity} {p.canSeeCosts !== false ? `@ ${formatCurrency(p.unitCost)}` : ''}</Text>
+                </View>
+                {p.canSeeCosts !== false && (
+                  <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(p.quantity * p.unitCost)}</Text>
                 )}
               </View>
-            </Card>
-          </FadeInView>
+            ))}
+          </Card>
         )}
 
-        {/* 13. STAFF NOTES */}
-        <FadeInView animValue={anims[13]}>
-          <Card>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>STAFF NOTES</Text>
-              <Feather name="edit-2" size={14} color={colors.primary} />
+        {/* 9. Photos / More links */}
+        <Card style={{ paddingVertical: 4 }}>
+          <TouchableOpacity onPress={() => setShowMore(true)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Feather name="image" size={16} color={colors.primary} />
+              <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>Photos{photosData?.photos?.length ? ` (${photosData.photos.length})` : ''}</Text>
             </View>
-            
-            {repair.notes ? (
-              <>
-                <Text style={{ fontSize: 13, color: colors.foreground, lineHeight: 20 }}>{repair.notes}</Text>
-                <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 8 }}>- Staff</Text>
-              </>
-            ) : (
-              <Text style={{ fontSize: 13, color: colors.mutedForeground }}>No notes added.</Text>
-            )}
-            
-            <Button title="Add Notes" variant="outline" size="sm" style={{ marginTop: 16 }} onPress={() => {}} />
-          </Card>
-        </FadeInView>
-</KeyboardAwareScrollViewCompat>
+            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+          <View style={{ height: 1, backgroundColor: colors.border + '55' }} />
+          <TouchableOpacity onPress={() => setShowMore(true)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Feather name="list" size={16} color={colors.primary} />
+              <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>Full Details & History</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        </Card>
+      </KeyboardAwareScrollViewCompat>
 
-      {/* Status Picker Modal */}
-      <Modal visible={showStatusPicker} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+      {/* STICKY PRIMARY ACTIONS */}
+      <View style={[styles.actionBar, { backgroundColor: colors.background, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 12) }]}>
+        {repair.status === 'delivered' ? (
+          <View style={[styles.doneBar, { backgroundColor: colors.success + '18', borderColor: colors.success + '44' }]}>
+            <Feather name="check-circle" size={18} color={colors.success} />
+            <Text style={{ fontSize: 15, color: colors.success, fontFamily: 'Inter_700Bold' }}>JOB COMPLETED ✓</Text>
+          </View>
+        ) : (repair.status === 'cancelled' || repair.status === 'cannot_repair') ? (
+          <View style={[styles.doneBar, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '44' }]}>
+            <Feather name="x-circle" size={18} color={colors.destructive} />
+            <Text style={{ fontSize: 15, color: colors.destructive, fontFamily: 'Inter_700Bold' }}>{repair.status === 'cancelled' ? 'CANCELLED' : 'CANNOT REPAIR'}</Text>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            {canUpdateStatus && (
+              repair.status === 'ready' ? (
+                <View style={{ flex: 3 }}>
+                  <Button
+                    title="Mark as Delivered"
+                    onPress={() => {
+                      Alert.alert('Confirm Delivery', 'Has the customer received the device?', [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Confirm Delivery', onPress: () => setShowDeliveryHandover(true) },
+                      ]);
+                    }}
+                  />
+                </View>
+              ) : (
+                <View style={{ flex: 3 }}>
+                  <Button title="Update Status" onPress={() => setShowStatusPicker(true)} />
+                </View>
+              )
+            )}
+            {canSeeFinance && (
+              (payRemaining <= 0 && payTotal > 0) ? (
+                <View style={[styles.paidChip, { backgroundColor: colors.success + '18', borderColor: colors.success + '44', flex: 2 }]}>
+                  <Feather name="check" size={15} color={colors.success} />
+                  <Text style={{ fontSize: 14, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>Paid ✓</Text>
+                </View>
+              ) : (
+                <View style={{ flex: 2 }}>
+                  <Button title="Collect Payment" variant={canUpdateStatus ? 'outline' : undefined} onPress={openPaymentModal} />
+                </View>
+              )
+            )}
+          </View>
+        )}
+      </View>
+
+      {/* Update Status — next step only */}
+      <Modal visible={showStatusPicker} animationType="slide" transparent>
+        <View style={styles.sheetOverlay}>
+          <View style={[styles.sheetContent, { backgroundColor: colors.background, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, 16) }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Update Status</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-              {REPAIR_STATUSES.map(s => (
-                <TouchableOpacity
-                  key={s}
-                  onPress={() => handleStatusUpdate(s)}
-                  style={{
-                    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
-                    borderWidth: 1, borderColor: repair.status === s ? colors.primary : colors.border,
-                    backgroundColor: repair.status === s ? colors.primary + '22' : colors.card
-                  }}
-                >
-                  <Text style={{ fontSize: 13, color: repair.status === s ? colors.primary : colors.foreground }}>
-                    {REPAIR_STATUS_LABELS[s]}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {nextStep ? (
+              <TouchableOpacity
+                onPress={() => handleStatusUpdate(nextStep.id)}
+                disabled={updating}
+                style={{ borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primary + '15', borderRadius: 12, padding: 16, marginBottom: 12 }}
+              >
+                <Text style={{ fontSize: 16, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{nextStep.label}</Text>
+                <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 2 }}>{nextStep.desc}</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 12 }}>No further status. Use Mark as Delivered.</Text>
+            )}
+            {isActiveRepair && (user?.role === 'dealer' || user?.role === 'super_admin') && (
+              <TouchableOpacity
+                onPress={() => {
+                  Alert.alert('Cancel Repair', 'Mark this job as cancelled?', [
+                    { text: 'No', style: 'cancel' },
+                    { text: 'Yes, Cancel Job', style: 'destructive', onPress: () => handleStatusUpdate('cancelled') },
+                  ]);
+                }}
+                style={{ borderWidth: 1, borderColor: colors.destructive + '55', borderRadius: 12, padding: 12, marginBottom: 12, alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 13, color: colors.destructive, fontFamily: 'Inter_500Medium' }}>Cancel Repair Job</Text>
+              </TouchableOpacity>
+            )}
             <Button title="Cancel" variant="outline" onPress={() => setShowStatusPicker(false)} />
           </View>
+        </View>
+      </Modal>
+
+      {/* MORE — full details & history */}
+      <Modal visible={showMore} animationType="slide" onRequestClose={() => setShowMore(false)}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={[styles.header, { paddingTop: topPad + 14 }]}>
+            <TouchableOpacity onPress={() => setShowMore(false)} style={styles.backBtn}>
+              <Feather name="x" size={22} color={colors.foreground} />
+            </TouchableOpacity>
+            <Text style={{ fontSize: 17, color: colors.foreground, fontFamily: 'Inter_700Bold' }}>{repair.repairId} — Details</Text>
+            <View style={{ width: 44 }} />
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}>
+
+            <TouchableOpacity onPress={generatePDF} style={[styles.pdfBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '33' }]}>
+              <Feather name="file-text" size={18} color={colors.primary} />
+              <Text style={[styles.pdfBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Download Job Card PDF</Text>
+            </TouchableOpacity>
+
+            {/* Job Info */}
+            <Card style={{ paddingHorizontal: 16 }}>
+              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 4 }]}>JOB INFO</Text>
+              <SummaryRow icon="star" label="Priority" value="" rightElement={<PriorityBadge priority={repair.priority} />} />
+              <SummaryRow icon="clock" label="Received" value={formatDate(repair.receiveDate)} />
+              <SummaryRow icon="calendar" label="Expected" value={formatDate(repair.expectedDate)} />
+              {repair.repairStartedAt && <SummaryRow icon="play" label="Started" value={new Date(repair.repairStartedAt).toLocaleDateString()} />}
+              {repair.repairCompletedAt && <SummaryRow icon="check-square" label="Completed" value={new Date(repair.repairCompletedAt).toLocaleDateString()} />}
+              {repair.deliveryDate && <SummaryRow icon="check-circle" label="Delivered" value={formatDate(repair.deliveryDate)} />}
+              <SummaryRow icon="user" label="Received By" value={repair.receivedByName || 'System'} />
+              {repair.status === 'delivered' && <SummaryRow icon="user-check" label="Delivered By" value={repair.deliveredByName || 'N/A'} />}
+              <SummaryRow icon="tool" label="Technician" value={repair.technicianName || 'Unassigned'} rightElement={((user?.role === 'dealer' || user?.role === 'super_admin') && isActiveRepair) ? <TouchableOpacity onPress={() => { setShowMore(false); setTimeout(() => setShowAssign(true), 350); }}><Feather name="edit" size={14} color={colors.primary}/></TouchableOpacity> : null} />
+              <SummaryRow icon="shield" label="Warranty" value={`${repair.warrantyDays || 0} Days${repair.warrantyExpiry ? ` (Till ${formatDate(repair.warrantyExpiry)})` : ''}`} />
+            </Card>
+
+            {/* Full Device Details */}
+            <Card>
+              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>FULL DEVICE DETAILS</Text>
+              <InfoRow label="Brand & Model" value={`${repair.deviceType ? repair.deviceType + ' - ' : ''}${repair.brand} ${repair.model}`} bold />
+              {[repair.color, repair.storage, repair.ram].filter(Boolean).length > 0 && <InfoRow label="Color / Storage / RAM" value={[repair.color, repair.storage, repair.ram].filter(Boolean).join(' / ')} />}
+              {repair.imei ? <InfoRow label="IMEI 1" value={repair.imei} /> : null}
+              {repair.imei2 ? <InfoRow label="IMEI 2" value={repair.imei2} /> : null}
+              {repair.serialNumber ? <InfoRow label="Serial No" value={repair.serialNumber} /> : null}
+              <InfoRow label="SIM / SD Card" value={`SIM: ${repair.simPresent ? 'Yes' : 'No'} · SD: ${repair.memoryCardPresent ? 'Yes' : 'No'}`} />
+              {repair.alternateMobile ? <InfoRow label="Alternate Mobile" value={repair.alternateMobile} /> : null}
+              {(repair.accessoriesList?.length || repair.accessories) ? <InfoRow label="Accessories" value={(repair.accessoriesList?.length ? repair.accessoriesList.join(', ') : '') + (repair.accessories ? ` ${repair.accessories}` : '')} /> : null}
+              {repair.status === 'delivered' && repair.paymentMethod ? <InfoRow label="Payment Method" value={repair.paymentMethod} /> : null}
+            </Card>
+
+            {/* Condition Checklist */}
+            {(Object.keys(repair.checklist || {}).length > 0 || Object.values(repair.physicalCondition || {}).some(Boolean)) && (
+              <Card>
+                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 12 }]}>CONDITION CHECKLIST (At Intake)</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {Object.keys(repair.checklist || {}).map(k => {
+                    const isWorking = repair.checklist![k];
+                    return (
+                      <View key={k} style={{ padding: 8, borderRadius: 8, backgroundColor: isWorking ? colors.success + '15' : colors.destructive + '15', borderWidth: 1, borderColor: isWorking ? colors.success + '33' : colors.destructive + '33', width: '31%' }}>
+                        <Text style={{ fontSize: 11, color: isWorking ? colors.success : colors.destructive, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>{CHECKLIST_ITEMS.find(c => c.id === k)?.label || k}</Text>
+                        <Text style={{ fontSize: 10, color: isWorking ? colors.success : colors.destructive }}>{isWorking ? 'Working' : 'Not Working'}</Text>
+                      </View>
+                    );
+                  })}
+                  {Object.keys(repair.physicalCondition || {}).map(k => {
+                    if (!repair.physicalCondition![k]) return null;
+                    return (
+                      <View key={k} style={{ padding: 8, borderRadius: 8, backgroundColor: colors.warning + '15', borderWidth: 1, borderColor: colors.warning + '33', width: '31%' }}>
+                        <Text style={{ fontSize: 11, color: colors.warning, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>Body</Text>
+                        <Text style={{ fontSize: 10, color: colors.warning }}>{k.replace(/_/g, ' ')}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </Card>
+            )}
+
+            {/* Work / Parts */}
+            <Card>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>WORK & PARTS</Text>
+                {isActiveRepair && (
+                  <TouchableOpacity onPress={() => { setShowMore(false); setTimeout(() => setShowAddPart(true), 350); }}>
+                    <Feather name="plus-circle" size={16} color={colors.primary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Text style={{ fontSize: 12, color: colors.primary, marginBottom: 4, fontFamily: 'Inter_500Medium' }}>Work Performed</Text>
+              <Text style={{ fontSize: 13, color: colors.foreground, marginBottom: 12 }}>{repair.workPerformed || 'Pending'}</Text>
+              {parts.length > 0 && (
+                <>
+                  <Text style={{ fontSize: 12, color: colors.primary, marginBottom: 4, fontFamily: 'Inter_500Medium' }}>Parts Replaced</Text>
+                  {parts.map((p, idx) => (
+                    <View key={p.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: idx === parts.length - 1 ? 0 : 1, borderBottomColor: colors.border + '55' }}>
+                      <View>
+                        <Text style={{ fontSize: 13, color: colors.foreground }}>{p.partName}</Text>
+                        <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Qty: {p.quantity} {p.canSeeCosts !== false ? `@ ${formatCurrency(p.unitCost)}` : ''}</Text>
+                      </View>
+                      {p.canSeeCosts !== false && (
+                        <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(p.quantity * p.unitCost)}</Text>
+                      )}
+                    </View>
+                  ))}
+                </>
+              )}
+            </Card>
+
+            {/* Charge breakdown (finance only) */}
+            {canSeeFinance && (
+              <Card>
+                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>CHARGE BREAKDOWN</Text>
+                <InfoRow label="Parts Cost" value={formatCurrency(repair.partsCharge)} />
+                <InfoRow label="Labour Charge" value={formatCurrency(repair.repairCharge)} />
+                {!!repair.serviceCharge && <InfoRow label="Service Charge" value={formatCurrency(repair.serviceCharge)} />}
+                {!!repair.otherCharge && <InfoRow label="Other Charge" value={formatCurrency(repair.otherCharge)} />}
+                {!!repair.discount && <InfoRow label="Discount" value={`- ${formatCurrency(repair.discount)}`} />}
+                {!!repair.taxPercent && <InfoRow label={`Tax (${repair.taxPercent}%)`} value={formatCurrency(((repair.repairCharge + repair.partsCharge) * (repair.taxPercent || 0)) / 100)} />}
+                <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+                <InfoRow label="Total" value={formatCurrency(payTotal)} bold />
+              </Card>
+            )}
+
+            {/* Payment History */}
+            {canSeeFinance && (payments.length > 0 || visibleRefunds.length > 0) && (
+              <Card>
+                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 16 }]}>PAYMENT HISTORY</Text>
+                {payments.map(pmt => (
+                  <View key={pmt.id} style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ fontSize: 10, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{pmt.method === 'UPI' ? 'UPI' : pmt.method === 'Cash' ? 'Cash' : 'Card'}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+                        <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(pmt.amount)}</Text>
+                        <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{pmt.method}</Text>
+                        <Text style={{ fontSize: 10, color: colors.primary, backgroundColor: colors.primary + '22', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>{pmt.kind}</Text>
+                      </View>
+                      <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{formatDate(pmt.createdAt)}</Text>
+                      {pmt.referenceNo ? <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Txn ID: {pmt.referenceNo}</Text> : null}
+                      <Text style={{ fontSize: 11, color: colors.mutedForeground }}>By: {pmt.receivedByName || pmt.recordedByName || 'Staff'}</Text>
+                    </View>
+                  </View>
+                ))}
+                {visibleRefunds.map(rf => (
+                  <View key={rf.id} style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: colors.destructive + '15', borderWidth: 1, borderColor: colors.destructive + '33', alignItems: 'center', justifyContent: 'center' }}>
+                      <Feather name="corner-down-left" size={16} color={colors.destructive} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+                        <Text style={{ fontSize: 14, color: colors.destructive, fontFamily: 'Inter_600SemiBold' }}>-{formatCurrency(rf.amount)}</Text>
+                        <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Refund ({rf.method})</Text>
+                      </View>
+                      <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{formatDate(rf.paidAt || rf.createdAt)}</Text>
+                    </View>
+                  </View>
+                ))}
+              </Card>
+            )}
+
+            {/* Photos */}
+            {photosData?.photos && photosData.photos.length > 0 && (
+              <Card>
+                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 12 }]}>DOCUMENTS & PHOTOS</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                  {photosData.photos.map(p => (
+                    <View key={p.id} style={{ width: 80 }}>
+                      <View style={{ width: 80, height: 80, borderRadius: 8, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', marginBottom: 6 }}>
+                        <Image source={{ uri: getAbsoluteUrl(p.objectPath), headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} />
+                      </View>
+                      <Text style={{ fontSize: 10, color: colors.mutedForeground, textAlign: 'center' }} numberOfLines={1}>{p.kind.replace(/_/g, ' ')}</Text>
+                    </View>
+                  ))}
+                </View>
+              </Card>
+            )}
+
+            {/* Signatures */}
+            {(repair.receivingSignaturePath || repair.deliverySignaturePath) && (
+              <Card>
+                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>SIGNATURES</Text>
+                <View style={{ flexDirection: 'row', gap: 16 }}>
+                  {repair.receivingSignaturePath && (
+                    <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+                      <Image source={{ uri: getAbsoluteUrl(repair.receivingSignaturePath), headers: { Authorization: `Bearer ${token}` } }} style={styles.sigImg} contentFit="contain" />
+                      <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>Receiving</Text>
+                    </View>
+                  )}
+                  {repair.deliverySignaturePath && (
+                    <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+                      <Image source={{ uri: getAbsoluteUrl(repair.deliverySignaturePath), headers: { Authorization: `Bearer ${token}` } }} style={styles.sigImg} contentFit="contain" />
+                      <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>Delivery</Text>
+                    </View>
+                  )}
+                </View>
+              </Card>
+            )}
+
+            {/* Activity Timeline */}
+            {eventsData?.events && eventsData.events.length > 0 && (
+              <Card>
+                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 16 }]}>ACTIVITY TIMELINE</Text>
+                {eventsData.events.map((ev, i) => {
+                  const isPending = ev.action.toLowerCase().includes('approval') || ev.action.toLowerCase().includes('pending');
+                  const dotColor = isPending ? colors.warning : colors.success;
+                  return (
+                    <View key={ev.id} style={{ flexDirection: 'row', gap: 12 }}>
+                      <View style={{ alignItems: 'center', width: 24 }}>
+                        <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: dotColor + '22', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dotColor }} />
+                        </View>
+                        {i !== eventsData.events.length - 1 && <View style={{ width: 2, flex: 1, backgroundColor: colors.border, marginVertical: 4, minHeight: 30 }} />}
+                      </View>
+                      <View style={{ flex: 1, paddingBottom: i === eventsData.events.length - 1 ? 0 : 20 }}>
+                        <Text style={{ fontSize: 12, color: colors.mutedForeground, marginBottom: 2 }}>
+                          {new Date(ev.createdAt).toLocaleString('en-IN', { hour: 'numeric', minute: '2-digit', day: '2-digit', month: 'short', year: 'numeric' })}
+                        </Text>
+                        <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>{ev.action}</Text>
+                        <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 2 }}>By: {ev.userName} ({ev.userRole})</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </Card>
+            )}
+
+            {/* Staff Notes */}
+            {!!repair.notes && (
+              <Card>
+                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 8 }]}>STAFF NOTES</Text>
+                <Text style={{ fontSize: 13, color: colors.foreground, lineHeight: 20 }}>{repair.notes}</Text>
+              </Card>
+            )}
+
+            {/* After Sale Service */}
+            {(repairReturns.length > 0 || repair.status === 'delivered') && (
+              <Card>
+                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 12 }]}>AFTER SALE SERVICE</Text>
+                {repairReturns.map(ret => (
+                  <TouchableOpacity
+                    key={ret.id}
+                    onPress={() => { setShowMore(false); router.push(`/(tabs)/repairs/return/${ret.id}` as any); }}
+                    style={{ padding: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}
+                  >
+                    <View>
+                      <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{ret.returnId}</Text>
+                      <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 2 }}>{formatDate(ret.createdAt)}</Text>
+                    </View>
+                    <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: getReturnStatusColor(ret.status, colors) + '22' }}>
+                      <Text style={{ fontSize: 11, color: getReturnStatusColor(ret.status, colors), fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }}>
+                        {ret.status.replace(/_/g, ' ')}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+                {repair.status === 'delivered' && (
+                  <Button title="+ Create After Sale Case" variant="outline" onPress={() => { setShowMore(false); router.push(`/(tabs)/repairs/return/new?repairId=${repair.id}` as any); }} />
+                )}
+              </Card>
+            )}
+
+            {/* Extra actions */}
+            {repair.status === 'ready' && (
+              <Button title="Notify Customer (Ready)" variant="outline" onPress={async () => {
+                try {
+                  await repairNotifyReady(repair.id);
+                  Alert.alert('Success', 'Customer notified via email.');
+                  await loadAll();
+                  queryClient.invalidateQueries();
+                } catch(e: any) {
+                  Alert.alert('Notice', e.message || 'Email service not configured for this address');
+                }
+              }} />
+            )}
+            {isActiveRepair && approvals.length === 0 && repair.status !== 'customer_approval' && (
+              <Button title="Request Customer Approval" variant="outline" onPress={() => { setShowMore(false); setTimeout(() => setShowApproval(true), 350); }} />
+            )}
+          </ScrollView>
         </View>
       </Modal>
 
@@ -1264,15 +1259,17 @@ export default function RepairDetailScreen() {
 
             <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 16 }}>Review final amounts and collect payment before signature.</Text>
             
-            <View style={{ backgroundColor: colors.card, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 16 }}>
-              <InfoRow label="Labour / Repair Charge" value={formatCurrency(repair.repairCharge)} />
-              <InfoRow label="Parts Charge" value={formatCurrency(repair.partsCharge)} />
-              <View style={styles.divider} />
-              <InfoRow label="Total" value={formatCurrency(repair.repairCharge + repair.partsCharge)} />
-              <InfoRow label="Advance Paid" value={formatCurrency(repair.advance)} color={colors.success} />
-              <View style={styles.divider} />
-              <InfoRow label="Balance Payable" value={formatCurrency(balance)} color={balance > 0 ? colors.warning : colors.success} bold />
-            </View>
+            {canSeeFinance && (
+              <View style={{ backgroundColor: colors.card, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 16 }}>
+                <InfoRow label="Labour / Repair Charge" value={formatCurrency(repair.repairCharge)} />
+                <InfoRow label="Parts Charge" value={formatCurrency(repair.partsCharge)} />
+                <View style={styles.divider} />
+                <InfoRow label="Total" value={formatCurrency(repair.repairCharge + repair.partsCharge)} />
+                <InfoRow label="Advance Paid" value={formatCurrency(repair.advance)} color={colors.success} />
+                <View style={styles.divider} />
+                <InfoRow label="Balance Payable" value={formatCurrency(balance)} color={balance > 0 ? colors.warning : colors.success} bold />
+              </View>
+            )}
             
             <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_500Medium', marginBottom: 8 }}>Payment Method</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
@@ -1884,6 +1881,11 @@ const styles = StyleSheet.create({
   galleryBadgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
   sigImg: { width: '100%', height: 80, backgroundColor: '#FFF', borderRadius: 8, borderWidth: 1, borderColor: '#EEE' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
+  actionBar: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 12 },
+  doneBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderRadius: 12, paddingVertical: 14 },
+  paidChip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderRadius: 12 },
+  sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheetContent: { borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
   modalContent: { borderWidth: 1, borderRadius: 16, padding: 20 },
   modalTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', marginBottom: 12 },
   sigScreen: { flex: 1, paddingHorizontal: 20, paddingBottom: 24 },
