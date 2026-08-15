@@ -20,4 +20,5 @@
 - [Android focus loss fix](android-focus-collapsable.md) — focus-styled input wrappers need collapsable={false} or Android view flattening blurs the TextInput and kills the keyboard.
 - [Technician access scoping](technician-scoping.md) — technicians are server-side limited to assigned repairs + work-field allowlist; new repair sub-endpoints must repeat the assignment check.
 - [GitHub push via API fallback](github-push-api-fallback.md) — when auth() gives no token, push via proxyFetch Git Data API; local/remote SHAs then diverge, reconcile before next token push.
+- [Testing pass lock](testing-pass-lock.md) — testingChecklist true=Pass is immutable; validate in tx with FOR UPDATE; omission keeps passes, drops fails; Pass→Fail = 409 TESTING_ITEM_LOCKED.
 - [PIN throttle review bar](pin-throttle-reviews.md) — reviewers require every unlock method to reset attempts, sync pre-submit guards on PIN pads, and serialized counter writes.
