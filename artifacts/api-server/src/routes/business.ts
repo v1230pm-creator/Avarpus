@@ -1655,18 +1655,11 @@ router.post(
         };
       }
       const { totalAmount } = computeTotals(repair);
-      // Remember the stage the job is parked FROM so the decision endpoint
-      // can restore exactly that stage (a sideways move, never a rewind).
-      let previousStatus = repair.status;
-      if (previousStatus === "customer_approval") {
-        const [prior] = await tx
-          .select({ previousStatus: estimateApprovalsTable.previousStatus })
-          .from(estimateApprovalsTable)
-          .where(and(eq(estimateApprovalsTable.repairId, id), eq(estimateApprovalsTable.shopId, shopId)))
-          .orderBy(desc(estimateApprovalsTable.createdAt))
-          .limit(1);
-        previousStatus = prior?.previousStatus ?? "diagnosing";
-      }
+      // Record the stage at request time for the audit trail. The workflow
+      // status itself is NOT changed — a pending approval row is its own
+      // "awaiting customer" state, so the forward-only status graph is never
+      // rewound by the estimate flow.
+      const previousStatus = repair.status;
       const [row] = await tx
         .insert(estimateApprovalsTable)
         .values({
@@ -1681,10 +1674,6 @@ router.post(
           requestedByName: me.name,
         })
         .returning();
-      await tx
-        .update(repairsTable)
-        .set({ status: "customer_approval" })
-        .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)));
       await logRepairEvent(tx, {
         shopId,
         repairId: id,
@@ -1816,28 +1805,12 @@ router.post(
             .where(and(eq(repairsTable.id, claimed.repairId), eq(repairsTable.shopId, shopId)));
         }
       }
-      // Restore the exact stage the job was parked from (recorded on the
-      // approval row) — a sideways move under the workflow graph, never a
-      // rewind. Only early stages can be recorded there (creation rejects
-      // later stages), and the update is conditional on the repair still
-      // being parked in 'customer_approval'.
-      // Legacy approvals (created before previous_status existed) have an
-      // unknown provenance — restoring them to any earlier stage could
-      // reopen locked fields, so their status is left untouched (the
-      // dealer can move the job forward via the normal status flow).
-      const EARLY_STAGES = new Set(["received", "diagnosing", "waiting_parts", "repairing"]);
-      if (claimed.previousStatus && EARLY_STAGES.has(claimed.previousStatus)) {
-        await tx
-          .update(repairsTable)
-          .set({ status: claimed.previousStatus })
-          .where(
-            and(
-              eq(repairsTable.id, claimed.repairId),
-              eq(repairsTable.shopId, shopId),
-              eq(repairsTable.status, "customer_approval"),
-            ),
-          );
-      }
+      // The estimate flow never mutates the repair's workflow status —
+      // requesting an approval does not park it and deciding one does not
+      // restore anything, so the forward-only status graph cannot be
+      // rewound through this path. (Legacy repairs still parked in
+      // 'customer_approval' by the old behavior move forward via the
+      // normal status flow.)
       await logRepairEvent(tx, {
         shopId,
         repairId: claimed.repairId,

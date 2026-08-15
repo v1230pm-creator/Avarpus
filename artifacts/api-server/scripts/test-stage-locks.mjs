@@ -209,12 +209,13 @@ async function run(A) {
   await api("PATCH", `/repairs/${rep4}`, A.token, { status: "repairing" });
   r = await api("POST", `/repairs/${rep4}/estimate-approvals`, A.token, { newAmount: 500, reason: "extra part" });
   check("repairing: estimate approval request -> 200", r.status === 200, r);
-  // Deciding the approval must restore the exact pre-park stage (repairing),
-  // never rewind further (e.g. to diagnosing) or reopen anything else.
+  // The estimate flow must never mutate the workflow status — neither the
+  // request nor the decision may move a repair to an earlier (editable)
+  // stage or park it somewhere else.
   {
     const { json: lst } = await api("GET", "/repairs", A.token);
     const parked = (lst.repairs ?? []).find((x) => x.id === rep4);
-    check("estimate request parks repair in customer_approval", parked?.status === "customer_approval", parked?.status);
+    check("estimate request leaves status unchanged", parked?.status === "repairing", parked?.status);
   }
   {
     const { json: al } = await api("GET", `/repairs/${rep4}/estimate-approvals`, A.token);
@@ -228,7 +229,27 @@ async function run(A) {
       check("dealer decides estimate approval -> 200", dec.status === 200, dec);
       const { json: lst2 } = await api("GET", "/repairs", A.token);
       const after = (lst2.repairs ?? []).find((x) => x.id === rep4);
-      check("decision restores pre-park stage (repairing)", after?.status === "repairing", after?.status);
+      check("decision leaves status unchanged (repairing)", after?.status === "repairing", after?.status);
+    }
+  }
+  // Approvals initiated in every early stage: status must survive the full
+  // request+decision round-trip untouched, and stage locks must still hold.
+  for (const stage of ["received", "diagnosing", "waiting_parts"]) {
+    const rp = await createRepair(A);
+    if (stage !== "received") await api("PATCH", `/repairs/${rp}`, A.token, { status: stage });
+    const cr = await api("POST", `/repairs/${rp}/estimate-approvals`, A.token, { newAmount: 350, reason: `at ${stage}` });
+    check(`${stage}: estimate approval request -> 200`, cr.status === 200, cr);
+    const dec = await api("POST", `/estimate-approvals/${cr.json.estimateApproval?.id}/decide`, A.token, {
+      decision: "rejected",
+      method: "dealer",
+    });
+    check(`${stage}: decision -> 200`, dec.status === 200, dec);
+    const { json: lst3 } = await api("GET", "/repairs", A.token);
+    const now = (lst3.repairs ?? []).find((x) => x.id === rp);
+    check(`${stage}: status unchanged after round-trip`, now?.status === stage, now?.status);
+    if (stage !== "received") {
+      const pe = await api("PATCH", `/repairs/${rp}`, A.token, { problem: "reopened?" });
+      check(`${stage}: problem still locked after round-trip`, pe.status === 409 && pe.json.code === "FIELD_LOCKED_STAGE", pe);
     }
   }
   // customer_approval is NOT an authorized rewind source, even with a fail.
@@ -252,7 +273,7 @@ async function run(A) {
   {
     const { json: lst } = await api("GET", "/repairs", A.token);
     const after = (lst.repairs ?? []).find((x) => x.id === repLegacy);
-    check("legacy: NULL previous_status leaves repair parked", after?.status === "customer_approval", after?.status);
+    check("legacy: NULL previous_status never changes status", after?.status === "repairing", after?.status);
   }
 
   // ── Backdated approval writer honors the problem stage lock ─────────────
