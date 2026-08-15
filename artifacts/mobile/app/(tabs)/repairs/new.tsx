@@ -46,6 +46,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { File as ExpoFile } from 'expo-file-system';
 
 const CHECKLIST_ITEMS = [
+  { id: 'dead_condition', label: 'Dead Condition' },
   { id: 'power_on', label: 'Power On' },
   { id: 'display', label: 'Display' },
   { id: 'touch', label: 'Touch' },
