@@ -23,6 +23,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { GlassCard, ScreenGlow, FadeInView, useIsDark, useStaggerAnim } from '@/components/ui/Glass';
 import { formatDate } from '@/utils/helpers';
+import { KeyboardAvoidingCompat } from '@/components/KeyboardAvoidingCompat';
 import { 
   useApprovalsList, 
   approvalsApprove, 
@@ -244,7 +245,7 @@ export default function ApprovalsScreen() {
 
       {/* Reject Modal */}
       <Modal visible={!!rejectingId} animationType="fade" transparent>
-        <View style={[styles.overlayCenter, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
+        <KeyboardAvoidingCompat style={[styles.overlayCenter, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
           <View style={[styles.rejectModal, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Reject Request</Text>
             <Text style={[styles.modalSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
@@ -266,7 +267,7 @@ export default function ApprovalsScreen() {
               <Button title="Reject" onPress={submitReject} loading={processing} disabled={!rejectReason.trim()} style={{ flex: 1, backgroundColor: colors.destructive }} />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingCompat>
       </Modal>
 
     </View>

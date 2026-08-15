@@ -21,6 +21,7 @@ import { Card } from '@/components/ui/Card';
 import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { formatCurrency, getTodayStr } from '@/utils/helpers';
 import { returnsCreate } from '@workspace/api-client-react';
+import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 
 const RETURN_REASONS = [
   { id: 'same_problem', label: 'Same Problem Reoccurred' },
@@ -100,7 +101,7 @@ export default function NewReturnScreen() {
         <View style={{ width: 44 }} />
       </FadeInView>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
+      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]} bottomOffset={24}>
         
         <FadeInView animValue={anims[1]}>
           <Card>
@@ -181,7 +182,7 @@ export default function NewReturnScreen() {
           <Button title="Create Return Case" onPress={handleSubmit} loading={saving} style={{ marginTop: 12 }} />
         </FadeInView>
 
-      </ScrollView>
+      </KeyboardAwareScrollViewCompat>
     </View>
   );
 }

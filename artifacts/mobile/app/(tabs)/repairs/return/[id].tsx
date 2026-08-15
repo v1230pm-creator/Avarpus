@@ -22,6 +22,8 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { formatCurrency, formatDate, getReturnStatusColor } from '@/utils/helpers';
+import { KeyboardAvoidingCompat } from '@/components/KeyboardAvoidingCompat';
+import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import {
   useReturnsGet,
   getReturnsGetQueryKey,
@@ -264,7 +266,7 @@ export default function ReturnDetailScreen() {
         <View style={{ width: 44 }} />
       </FadeInView>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
+      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]} bottomOffset={24}>
         
         {/* Status Stepper / Actions */}
         <FadeInView animValue={anims[1]}>
@@ -422,11 +424,11 @@ export default function ReturnDetailScreen() {
           </Card>
         </FadeInView>
 
-      </ScrollView>
+      </KeyboardAwareScrollViewCompat>
 
       {/* Inspection Modal */}
       <Modal visible={showInspectionEdit} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Inspection</Text>
             
@@ -471,12 +473,12 @@ export default function ReturnDetailScreen() {
               <Button title="Save" onPress={handleSaveInspection} loading={updating} style={{ flex: 1 }} />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingCompat>
       </Modal>
 
       {/* Add Part Modal */}
       <Modal visible={showAddPart} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Add Part</Text>
             <Text style={{ fontSize: 12, color: colors.mutedForeground, marginBottom: 12 }}>
@@ -521,12 +523,12 @@ export default function ReturnDetailScreen() {
               <Button title="Add" onPress={handleAddPart} loading={updating} style={{ flex: 1 }} />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingCompat>
       </Modal>
 
       {/* Refund Modal */}
       <Modal visible={showRefundModal} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>{isDealer ? 'Create Refund' : 'Request Refund'}</Text>
             
@@ -541,7 +543,7 @@ export default function ReturnDetailScreen() {
               <Button title="Submit" onPress={handleCreateRefund} loading={updating} style={{ flex: 1 }} />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingCompat>
       </Modal>
       {/* Status Picker Modal */}
       <Modal visible={showStatusPicker} animationType="fade" transparent>

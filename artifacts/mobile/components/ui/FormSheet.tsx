@@ -1,14 +1,13 @@
 import React from 'react';
 import {
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { KeyboardAvoidingCompat } from '@/components/KeyboardAvoidingCompat';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
@@ -35,10 +34,7 @@ export function FormSheet({ visible, title, onClose, onSubmit, submitLabel = 'Sa
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={loading ? undefined : onClose}>
       <View style={styles.backdrop}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.avoider}
-        >
+        <KeyboardAvoidingCompat style={styles.avoider}>
           <View style={[styles.sheet, { backgroundColor: colors.background, paddingBottom: Math.max(insets.bottom, 16) }]}>
             <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
               <Text style={[styles.sheetTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{title}</Text>
@@ -57,7 +53,7 @@ export function FormSheet({ visible, title, onClose, onSubmit, submitLabel = 'Sa
               <Button title={submitLabel} onPress={onSubmit} loading={loading} fullWidth />
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardAvoidingCompat>
       </View>
     </Modal>
   );

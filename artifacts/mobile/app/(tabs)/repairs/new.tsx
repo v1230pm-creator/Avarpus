@@ -43,6 +43,7 @@ import {
 } from '@/utils/helpers';
 import { requestUploadUrl, repairPhotosAdd, approvalsCreate } from '@workspace/api-client-react';
 import { fetch as expoFetch } from 'expo/fetch';
+import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { File as ExpoFile } from 'expo-file-system';
 
 const CHECKLIST_ITEMS = [
@@ -533,10 +534,10 @@ export default function NewRepairScreen() {
         <View style={{ width: 44 }} />
       </FadeInView>
 
-      <ScrollView
+      <KeyboardAwareScrollViewCompat
         contentContainerStyle={[styles.scroll, { paddingBottom: 120 }]}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+        bottomOffset={24}
       >
         <FadeInView animValue={anims[1]} style={{ gap: 20 }}>
           
@@ -989,7 +990,7 @@ export default function NewRepairScreen() {
           )}
 
         </FadeInView>
-      </ScrollView>
+      </KeyboardAwareScrollViewCompat>
 
       {/* Signature Modal */}
       <Modal visible={showSignature} animationType="slide" transparent>

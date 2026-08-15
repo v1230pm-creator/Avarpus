@@ -34,6 +34,7 @@ import { RepairStatus } from '@/types';
 import { formatDate, formatCurrency, REPAIR_STATUS_LABELS, REPAIR_STATUSES, getReturnStatusColor } from '@/utils/helpers';
 import { storage, KEYS } from '@/utils/storage';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
+import { KeyboardAvoidingCompat } from '@/components/KeyboardAvoidingCompat';
 import { 
   useRepairPhotosList, getRepairPhotosListQueryKey, 
   useRepairEventsList, getRepairEventsListQueryKey, 
@@ -612,7 +613,7 @@ export default function RepairDetailScreen() {
         </View>
       </FadeInView>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
+      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]} bottomOffset={24}>
         
         <FadeInView animValue={anims[0]}>
           <TouchableOpacity onPress={generatePDF} style={[styles.pdfBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '33' }]}>
@@ -1221,7 +1222,7 @@ export default function RepairDetailScreen() {
             <Button title="Add Notes" variant="outline" size="sm" style={{ marginTop: 16 }} onPress={() => {}} />
           </Card>
         </FadeInView>
-</ScrollView>
+</KeyboardAwareScrollViewCompat>
 
       {/* Status Picker Modal */}
       <Modal visible={showStatusPicker} animationType="fade" transparent>
@@ -1252,7 +1253,7 @@ export default function RepairDetailScreen() {
 
       {/* Delivery Handover Modal */}
       <Modal visible={showDeliveryHandover} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground, marginBottom: 4 }]}>Delivery Handover</Text>
             
@@ -1336,12 +1337,12 @@ export default function RepairDetailScreen() {
             <Button title="Proceed to Signature (No OTP)" onPress={handleHandoverProceed} style={{ width: '100%' }} />
 
           </View>
-        </View>
+        </KeyboardAvoidingCompat>
       </Modal>
 
       {/* Add Part Modal */}
       <Modal visible={showAddPart} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Add Part</Text>
             <Text style={{ fontSize: 12, color: colors.mutedForeground, marginBottom: 12 }}>
@@ -1386,7 +1387,7 @@ export default function RepairDetailScreen() {
               <Button title="Add" onPress={handleAddPart} loading={updating} style={{ flex: 1 }} />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingCompat>
       </Modal>
 
       
