@@ -821,6 +821,48 @@ router.patch(
         }
       }
     }
+    // Workflow integrity: once a job has left 'received' it can never be
+    // rolled back to 'received' — otherwise the stage locks below could be
+    // bypassed by rewinding the status. (Testing-fail may return a job to
+    // 'repairing'; that is an authorized transition.)
+    if (
+      patch.status !== undefined &&
+      patch.status === "received" &&
+      existing.status !== "received"
+    ) {
+      res.status(409).json({
+        message: "A job cannot be moved back to Received.",
+        code: "INVALID_STATUS_TRANSITION",
+      });
+      return;
+    }
+    // Stage-based service-field locking: each service field is editable only
+    // while the repair is in its workflow stage. Once the job moves past a
+    // stage, that field is frozen (visible but read-only) for everyone.
+    //   problem        → only while 'received'
+    //   diagnosis      → only during the repairing stage (diagnosing/waiting_parts/repairing)
+    //   workPerformed  → only during the repairing stage
+    // Only actual value changes are rejected, so full-object PATCHes that
+    // echo the stored value back are unaffected.
+    {
+      const REPAIRING_STAGE = new Set(["diagnosing", "waiting_parts", "repairing"]);
+      const norm = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));
+      const stageLocks: Array<{ field: "problem" | "diagnosis" | "workPerformed"; allowed: boolean }> = [
+        { field: "problem", allowed: existing.status === "received" },
+        { field: "diagnosis", allowed: REPAIRING_STAGE.has(existing.status) },
+        { field: "workPerformed", allowed: REPAIRING_STAGE.has(existing.status) },
+      ];
+      for (const { field, allowed } of stageLocks) {
+        if (patch[field] !== undefined && norm(patch[field]) !== norm(existing[field]) && !allowed) {
+          res.status(409).json({
+            message: `This field can no longer be edited at the current stage (${existing.status}).`,
+            code: "FIELD_LOCKED_STAGE",
+            field,
+          });
+          return;
+        }
+      }
+    }
     // Validate the merged discount does not exceed the merged charge subtotal.
     const mergedRepairCharge = patch.repairCharge ?? existing.repairCharge;
     const mergedPartsCharge = patch.partsCharge ?? existing.partsCharge;
@@ -1373,6 +1415,7 @@ router.post(
         .select({
           id: repairsTable.id,
           technicianId: repairsTable.technicianId,
+          status: repairsTable.status,
           testingChecklist: repairsTable.testingChecklist,
         })
         .from(repairsTable)
@@ -1396,6 +1439,21 @@ router.post(
       let finalChecklist: Record<string, boolean> | null =
         Object.keys(existingChecklist).length ? existingChecklist : null;
       if (b.checklist !== undefined) {
+        // Stage lock: testing results may only be recorded during the testing
+        // stage of the workflow.
+        const TESTING_STAGE = new Set(["testing", "customer_approval"]);
+        if (!TESTING_STAGE.has(existingRepair.status)) {
+          return {
+            error: {
+              status: 409,
+              body: {
+                message: "Testing results can only be recorded while the job is in the Testing stage.",
+                code: "FIELD_LOCKED_STAGE",
+                field: "testingChecklist",
+              },
+            },
+          } as const;
+        }
         const incoming = checklist ?? {};
         // Pass lock: an item saved as Pass (true) can never be flipped to Fail.
         for (const [k, v] of Object.entries(incoming)) {

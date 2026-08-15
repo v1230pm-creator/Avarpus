@@ -44,7 +44,8 @@ import {
   useRepairPaymentsList, getRepairPaymentsListQueryKey, repairPaymentsCreate,
   useStaffList, getStaffListQueryKey, repairAssignTechnician,
   useRepairTesting, repairTesting, useEstimateApprovalsList, getEstimateApprovalsListQueryKey, estimateApprovalsCreate,
-  estimateApprovalsDecide, deliveryOtpSend, deliveryOtpVerify, repairNotifyReady, estimateApprovalsSendOtp
+  estimateApprovalsDecide, deliveryOtpSend, deliveryOtpVerify, repairNotifyReady, estimateApprovalsSendOtp,
+  repairsUpdate
 } from '@workspace/api-client-react';
 import { fetch as expoFetch } from 'expo/fetch';
 import { File as ExpoFile } from 'expo-file-system';
@@ -542,15 +543,24 @@ export default function RepairDetailScreen() {
     }
   };
 
+  // Stage of the service workflow, used to decide which Edit Service Details
+  // section is currently editable. Earlier stages stay visible but locked.
+  const svcStage =
+    repair.status === 'received' ? 0
+    : ['diagnosing', 'waiting_parts', 'repairing'].includes(repair.status as string) ? 1
+    : 2;
+  const testingEditable = ['testing', 'customer_approval'].includes(repair.status as string);
+
   // Shared Pass/Fail rows for testing checklists. An item already saved as
   // Pass on the server is locked: shown but not editable.
   const renderTestingRows = (
     values: Record<string, boolean>,
     setValues: React.Dispatch<React.SetStateAction<Record<string, boolean>>>,
+    disabledAll = false,
   ) => (
     <View style={{ gap: 8 }}>
       {CHECKLIST_ITEMS.map((item) => {
-        const locked = (repair.testingChecklist || {})[item.id] === true;
+        const locked = disabledAll || (repair.testingChecklist || {})[item.id] === true;
         const value = values[item.id]; // true = Pass, false = Fail, undefined = not tested
         const setValue = (v: boolean) => {
           if (locked) return;
@@ -596,19 +606,51 @@ export default function RepairDetailScreen() {
   const handleSaveService = async () => {
     setUpdating(true);
     try {
-      await updateRepair({
-        ...repair,
-        problem: editProblem,
-        diagnosis: editDiagnosis,
-        workPerformed: editWorkPerformed
-      });
-      const savedTesting = repair.testingChecklist || {};
-      if (JSON.stringify(editTesting) !== JSON.stringify(savedTesting)) {
-        await repairTesting(repair.id, { checklist: editTesting });
+      // Only the current stage's fields are sent; locked fields stay untouched.
+      if (svcStage === 0) {
+        await repairsUpdate(repair.id, { problem: editProblem });
+      } else if (svcStage === 1) {
+        await repairsUpdate(repair.id, { diagnosis: editDiagnosis, workPerformed: editWorkPerformed });
+      }
+      let savedFail = false;
+      if (testingEditable) {
+        const savedTesting = repair.testingChecklist || {};
+        if (JSON.stringify(editTesting) !== JSON.stringify(savedTesting)) {
+          await repairTesting(repair.id, { checklist: editTesting });
+          savedFail = Object.values(editTesting).some(v => v === false);
+        }
       }
       setShowServiceEdit(false);
       await loadAll();
       queryClient.invalidateQueries();
+      if (savedFail) {
+        // A testing item failed: the job either goes back to repair or the
+        // device is returned to the customer without repair.
+        setTimeout(() => {
+          Alert.alert(
+            'Testing Failed',
+            'Ek ya zyada testing items fail hain. Aage kya karna hai?',
+            [
+              { text: 'Baad mein', style: 'cancel' },
+              { text: 'Return to Repair', onPress: () => handleStatusUpdate('repairing') },
+              {
+                text: 'Customer Return',
+                style: 'destructive',
+                onPress: () => {
+                  Alert.alert(
+                    'Customer Return',
+                    'Device bina repair ke customer ko wapas kiya jayega aur job "Cannot Repair" mark hogi. Pakka?',
+                    [
+                      { text: 'Nahi', style: 'cancel' },
+                      { text: 'Haan, confirm', style: 'destructive', onPress: () => handleStatusUpdate('cannot_repair') },
+                    ],
+                  );
+                },
+              },
+            ],
+          );
+        }, 400);
+      }
     } catch (e: any) {
        Alert.alert('Error', e.message);
     } finally {
@@ -1772,17 +1814,37 @@ export default function RepairDetailScreen() {
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Service Details</Text>
 
             <ScrollView style={{ maxHeight: 440 }} keyboardShouldPersistTaps="handled">
-            <Text style={[styles.label, { color: colors.foreground }]}>Problem Reported</Text>
-            <TextInput value={editProblem} onChangeText={setEditProblem} multiline numberOfLines={3} style={[styles.input, { color: colors.foreground, borderColor: colors.border, height: 80, textAlignVertical: 'top' }]} />
-            
-            <Text style={[styles.label, { color: colors.foreground }]}>Diagnosis</Text>
-            <TextInput value={editDiagnosis} onChangeText={setEditDiagnosis} multiline numberOfLines={3} style={[styles.input, { color: colors.foreground, borderColor: colors.border, height: 80, textAlignVertical: 'top' }]} />
-            
-            <Text style={[styles.label, { color: colors.foreground }]}>Work Performed</Text>
-            <TextInput value={editWorkPerformed} onChangeText={setEditWorkPerformed} multiline numberOfLines={3} style={[styles.input, { color: colors.foreground, borderColor: colors.border, height: 80, textAlignVertical: 'top' }]} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[styles.label, { color: svcStage === 0 ? colors.foreground : colors.mutedForeground }]}>Problem Reported</Text>
+              {svcStage > 0 && <Feather name="lock" size={11} color={colors.mutedForeground} />}
+            </View>
+            <TextInput value={editProblem} onChangeText={setEditProblem} editable={svcStage === 0} multiline numberOfLines={3} style={[styles.input, { color: svcStage === 0 ? colors.foreground : colors.mutedForeground, borderColor: colors.border, height: 80, textAlignVertical: 'top', opacity: svcStage === 0 ? 1 : 0.7 }]} />
 
-            <Text style={[styles.label, { color: colors.foreground }]}>Testing</Text>
-            {renderTestingRows(editTesting, setEditTesting)}
+            {svcStage >= 1 && (
+              <>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={[styles.label, { color: svcStage === 1 ? colors.foreground : colors.mutedForeground }]}>Diagnosis</Text>
+                  {svcStage > 1 && <Feather name="lock" size={11} color={colors.mutedForeground} />}
+                </View>
+                <TextInput value={editDiagnosis} onChangeText={setEditDiagnosis} editable={svcStage === 1} multiline numberOfLines={3} style={[styles.input, { color: svcStage === 1 ? colors.foreground : colors.mutedForeground, borderColor: colors.border, height: 80, textAlignVertical: 'top', opacity: svcStage === 1 ? 1 : 0.7 }]} />
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={[styles.label, { color: svcStage === 1 ? colors.foreground : colors.mutedForeground }]}>Work Performed</Text>
+                  {svcStage > 1 && <Feather name="lock" size={11} color={colors.mutedForeground} />}
+                </View>
+                <TextInput value={editWorkPerformed} onChangeText={setEditWorkPerformed} editable={svcStage === 1} multiline numberOfLines={3} style={[styles.input, { color: svcStage === 1 ? colors.foreground : colors.mutedForeground, borderColor: colors.border, height: 80, textAlignVertical: 'top', opacity: svcStage === 1 ? 1 : 0.7 }]} />
+              </>
+            )}
+
+            {svcStage >= 2 && (
+              <>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={[styles.label, { color: testingEditable ? colors.foreground : colors.mutedForeground }]}>Testing</Text>
+                  {!testingEditable && <Feather name="lock" size={11} color={colors.mutedForeground} />}
+                </View>
+                {renderTestingRows(editTesting, setEditTesting, !testingEditable)}
+              </>
+            )}
             </ScrollView>
 
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
