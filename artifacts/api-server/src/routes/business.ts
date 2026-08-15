@@ -850,12 +850,16 @@ router.patch(
         const fromRank = STAGE_RANK[row.status] ?? 0;
         const toRank = STAGE_RANK[patch.status as string] ?? 0;
         // cancelled/cannot_repair are terminal for the working stages — a
-        // voided job may only be restored to 'ready'/'delivered' (statuses
-        // where every service field stays locked), never back into an
-        // editable stage. delivered may still move to a terminal outcome.
+        // voided job may only be restored by the dealer/owner, and only to
+        // 'ready'/'delivered' (statuses where every service field stays
+        // locked), never back into an editable stage. delivered may still
+        // move forward to a terminal outcome.
+        const requesterRole = (req as AuthedRequest).user.role;
         const isTerminalFrom = row.status === "cancelled" || row.status === "cannot_repair";
         const isRestoreFromVoid =
-          isTerminalFrom && (patch.status === "ready" || patch.status === "delivered");
+          isTerminalFrom &&
+          (requesterRole === "dealer" || requesterRole === "super_admin") &&
+          (patch.status === "ready" || patch.status === "delivered");
         const checklistNow = (row.testingChecklist as Record<string, boolean> | null) ?? {};
         const hasFailedTest = Object.values(checklistNow).some((v) => v === false);
         const isAuthorizedTestingFailReturn =
@@ -1564,7 +1568,7 @@ router.post(
       }
       return { row } as const;
     });
-    if ("error" in outcome) {
+    if ("error" in outcome && outcome.error) {
       res.status(outcome.error.status).json(outcome.error.body);
       return;
     }
@@ -1634,6 +1638,22 @@ router.post(
         .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)))
         .for("update");
       if (!repair) return { error: { status: 404, message: "Repair not found" } };
+      // Estimate approvals belong to the pre-repair/repairing stages. Parking
+      // a later-stage (testing/ready/delivered) or voided repair back into
+      // 'customer_approval' would reopen locked stages — reject it here so
+      // this writer honors the same forward-only workflow as the PATCH route.
+      const ESTIMATE_STAGES = new Set([
+        "received", "diagnosing", "waiting_parts", "repairing", "customer_approval",
+      ]);
+      if (!ESTIMATE_STAGES.has(repair.status)) {
+        return {
+          error: {
+            status: 409,
+            message: "Estimate approval can only be requested before testing/completion.",
+            code: "INVALID_STATUS_TRANSITION",
+          },
+        };
+      }
       const { totalAmount } = computeTotals(repair);
       const [row] = await tx
         .insert(estimateApprovalsTable)

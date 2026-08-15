@@ -200,6 +200,22 @@ async function run(A) {
   check("received -> cancelled allowed", r.status === 200, r);
   r = await api("PATCH", `/repairs/${rep3}`, A.token, { status: "repairing" });
   check("cancelled -> repairing -> 409", r.status === 409 && r.json.code === "INVALID_STATUS_TRANSITION", r);
+  // Dealer may restore a voided job, but only into locked statuses.
+  r = await api("PATCH", `/repairs/${rep3}`, A.token, { status: "delivered" });
+  check("dealer: cancelled -> delivered restore allowed", r.status === 200, r);
+
+  // ── Estimate approvals cannot reopen locked stages ───────────────────────
+  const rep4 = await createRepair(A);
+  await api("PATCH", `/repairs/${rep4}`, A.token, { status: "repairing" });
+  r = await api("POST", `/repairs/${rep4}/estimate-approvals`, A.token, { newAmount: 500, reason: "extra part" });
+  check("repairing: estimate approval request -> 200", r.status === 200, r);
+  const rep5 = await createRepair(A);
+  await api("PATCH", `/repairs/${rep5}`, A.token, { status: "repairing" });
+  await api("PATCH", `/repairs/${rep5}`, A.token, { status: "ready" });
+  r = await api("POST", `/repairs/${rep5}/estimate-approvals`, A.token, { newAmount: 500, reason: "too late" });
+  check("ready: estimate approval request -> 409", r.status === 409, r);
+  r = await api("PATCH", `/repairs/${rep3}`, A.token, { status: "repairing" });
+  check("restored delivered job cannot rewind -> 409", r.status === 409 && r.json.code === "INVALID_STATUS_TRANSITION", r);
 }
 
 async function main() {
