@@ -1,0 +1,529 @@
+Improve the existing VMC Electronics ERP Repair Job Detail screen.
+
+IMPORTANT:
+- Do NOT rebuild the entire app.
+- Do NOT delete existing repair data, database tables, APIs, authentication, permissions, or working functionality.
+- Do NOT change unrelated screens.
+- Modify ONLY the Repair Job Detail / Repair Details experience.
+- First inspect the existing implementation and understand the current data model and status flow.
+- Reuse the existing components, APIs and database wherever possible.
+- Keep the existing dark blue VMC design language.
+- The result must be mobile-first, fast and very easy for repair staff to use.
+
+GOAL:
+The current Repair Job Detail page contains too much information and too many sections.
+Make it simple, compact and action-oriented.
+
+NEW REPAIR STATUS FLOW:
+
+Received → Repairing → Testing → Ready → Delivered
+
+Do NOT show Diagnosis and Approval as separate progress steps.
+
+==================================================
+1. TOP HEADER
+==================================================
+
+Show:
+
+←   VMC-002   [Current Status]   ⋮
+
+Keep the Job ID visible.
+
+Remove unnecessary duplicate Job ID information from lower sections.
+
+==================================================
+2. REPAIR PROGRESS
+==================================================
+
+Create a compact 5-step progress indicator:
+
+Received
+Repairing
+Testing
+Ready
+Delivered
+
+Only the current status should be highlighted.
+
+Do not make this section unnecessarily tall.
+
+==================================================
+3. CUSTOMER CARD
+==================================================
+
+Show only:
+
+Customer
+Naveen
+9349483848        📞
+
+Phone number must be tappable and open the phone dialer.
+
+Do not show unnecessary customer information on this screen.
+
+==================================================
+4. DEVICE CARD
+==================================================
+
+Show only:
+
+Device
+Realme 12x 5G
+
+Hide empty/N/A fields.
+
+Do NOT display:
+- Color if unavailable
+- Storage/RAM if unavailable
+- Alternate mobile if unavailable
+- SIM information
+- SD card information
+- Received By
+
+These details can remain stored in the database but should not clutter the main Repair Detail screen.
+
+==================================================
+5. COMPLAINT CARD
+==================================================
+
+Show:
+
+Complaint
+On/Off problem
+
+This must always remain visible because it is important for the technician.
+
+==================================================
+6. DIAGNOSIS
+==================================================
+
+Show:
+
+Diagnosis
+Pending
+
+When technician enters diagnosis, display the diagnosis here.
+
+Make the Diagnosis card tappable/editable.
+
+Example:
+
+Diagnosis
+Power IC issue
+View Details >
+
+Do not create a separate Diagnosis status in the main progress bar.
+
+==================================================
+7. ESTIMATE & PAYMENT
+==================================================
+
+Replace the large existing Estimate & Payment section with a compact card.
+
+Show only:
+
+Estimate                         ₹850
+Paid                              ₹300
+Balance                           ₹550
+
+Add:
+
+Edit Estimate
+
+Do not show Parts Cost, Labour Charge, Tax, Discount etc. on the main screen.
+
+Those details should open only after tapping "Edit Estimate".
+
+If estimate is ₹0, still show the estimate card but keep it compact.
+
+==================================================
+8. CUSTOMER APPROVAL
+==================================================
+
+Remove Customer Approval from the normal main screen.
+
+Show it ONLY when customer approval is actually required.
+
+Rules:
+
+If approval is not required:
+- Hide the approval section completely.
+
+If approval is required:
+Show a compact card:
+
+Customer Approval
+Amount: ₹850
+Status: Pending
+[Send Approval Request]
+
+If approved:
+Show:
+Approved
+
+If rejected:
+Show:
+Rejected
+
+Do not permanently occupy screen space with this section.
+
+==================================================
+9. QUICK ACTIONS
+==================================================
+
+Remove these old buttons:
+
+- Customer Approval
+- Contact Customer
+
+Keep only:
+
+[ UPDATE STATUS ]
+[ COLLECT PAYMENT ]
+
+Customer contact is already available by tapping the phone number.
+
+Make UPDATE STATUS the primary action.
+
+==================================================
+10. UPDATE STATUS WORKFLOW
+==================================================
+
+When technician taps UPDATE STATUS, open a simple bottom sheet/modal.
+
+IMPORTANT:
+Only show the NEXT valid status.
+
+Example:
+
+Current status = Received
+
+Bottom sheet:
+
+Update Status
+
+[ Repairing ]
+Start repairing and add diagnosis
+
+[ Cancel ]
+
+After selecting Repairing:
+
+Current status = Repairing
+
+UPDATE STATUS opens:
+
+[ Testing ]
+Move job to testing
+
+[ Cancel ]
+
+After Testing:
+
+[ Ready ]
+Ready for customer pickup
+
+After Ready:
+
+Do NOT use UPDATE STATUS.
+
+Show a large:
+
+[ MARK AS DELIVERED ]
+
+When MARK AS DELIVERED is tapped, show confirmation:
+
+"Confirm Delivery"
+
+"Has the customer received the device?"
+
+[ Cancel ] [ Confirm Delivery ]
+
+After confirmation:
+Status becomes Delivered.
+
+==================================================
+11. STATUS-SPECIFIC INFORMATION
+==================================================
+
+Do not ask technicians for all information at once.
+
+Ask only what is required for the current stage.
+
+RECEIVED:
+Customer
+Device
+Complaint
+Basic intake information
+
+REPAIRING:
+Diagnosis
+Work performed
+Parts replaced if applicable
+
+TESTING:
+Testing result
+Pass / Fail
+
+READY:
+Ready for pickup
+Payment status
+
+DELIVERED:
+Delivery confirmation
+Final payment status
+
+==================================================
+12. PARTS REPLACED
+==================================================
+
+Do NOT permanently display "Parts Replaced: None" if there are no parts.
+
+Only show Parts Replaced when a part has actually been added.
+
+Example:
+
+Parts Replaced
+Display ₹2,500
+Battery ₹900
+
+Otherwise hide the section.
+
+==================================================
+13. PHOTOS
+==================================================
+
+Do not show a large photo section on the main screen.
+
+Add a small:
+
+Photos >
+
+button/link.
+
+Inside it:
+- Intake Photos
+- Repair Photos
+- Before
+- After
+
+Existing photos/data must remain intact.
+
+==================================================
+14. REMOVE FROM MAIN SCREEN
+==================================================
+
+Remove these unnecessary sections from the main Repair Job Detail screen:
+
+- Large Device Details section
+- N/A fields
+- SIM YES / SD Card NO
+- Alternate Mobile
+- Received By
+- Large Condition Checklist
+- Large Activity Timeline
+- Staff Notes
+- Permanent Customer Approval card
+- Duplicate Job ID
+- Duplicate contact information
+- Separate Contact Customer button
+- Separate Diagnosis progress step
+- Separate Approval progress step
+
+IMPORTANT:
+Do not delete this data from the database.
+Only remove/hide it from the main UI.
+
+If needed, put advanced information under:
+
+⋮ More
+
+with:
+- Job History
+- Notes
+- Photos
+- Full Device Details
+- Activity Timeline
+
+==================================================
+15. MAIN SCREEN FINAL ORDER
+==================================================
+
+The final Repair Detail screen should be:
+
+1. Header
+2. Status Progress
+3. Customer
+4. Device
+5. Complaint
+6. Diagnosis
+7. Estimate / Payment
+8. Primary Actions
+
+Nothing unnecessary.
+
+==================================================
+16. PRIMARY ACTION BEHAVIOR
+==================================================
+
+At the bottom use sticky action buttons when appropriate:
+
+[ UPDATE STATUS ]
+[ COLLECT PAYMENT ]
+
+When payment is already fully paid:
+Do not show Collect Payment as the primary action.
+
+Instead show:
+
+Paid ✓
+
+When status = Ready:
+Primary button:
+
+[ MARK AS DELIVERED ]
+
+After Delivered:
+Show:
+
+JOB COMPLETED ✓
+
+Do not allow accidental status changes after delivery unless the user has appropriate permission.
+
+==================================================
+17. PAYMENT LOGIC
+==================================================
+
+Preserve the existing payment system.
+
+Calculate:
+
+Balance = Total - Paid
+
+Show payment status:
+
+Paid
+Partially Paid
+Pending
+
+Do not hard-code ₹0.
+
+Use actual existing database values.
+
+==================================================
+18. RESPONSIVE DESIGN
+==================================================
+
+Optimize for Android phones first.
+
+The page must work correctly on:
+- Small Android phones
+- Normal Android phones
+- Large phones
+- Tablets
+- Desktop
+
+Do not create horizontal scrolling.
+
+Cards should be compact.
+
+Avoid excessive empty space.
+
+Avoid unnecessary animations.
+
+==================================================
+19. DESIGN
+==================================================
+
+Keep the existing VMC dark theme.
+
+Use:
+- Dark navy background
+- Blue primary action
+- Green for success/paid/ready
+- Orange for warning/payment balance
+- Red only for errors/rejected
+- White/light gray text
+
+Keep rounded cards but reduce excessive glow/shadow.
+
+Make typography clear and readable.
+
+The screen should feel like a professional repair technician application, not a dashboard full of information.
+
+==================================================
+20. DATA & FUNCTIONALITY SAFETY
+==================================================
+
+Before modifying anything:
+
+1. Inspect existing Repair Job Detail component.
+2. Inspect existing repair status values.
+3. Inspect existing API/database fields.
+4. Inspect existing payment logic.
+5. Inspect existing customer approval logic.
+6. Inspect existing photo system.
+7. Inspect existing permissions.
+
+Then implement the UI using the existing architecture.
+
+Do NOT create duplicate database fields.
+
+Do NOT create duplicate APIs.
+
+Do NOT break existing repair records.
+
+Existing jobs such as VMC-002 must continue displaying correctly.
+
+==================================================
+21. ACCEPTANCE TEST
+==================================================
+
+Test this complete flow:
+
+VMC-002
+Received
+↓
+Update Status
+↓
+Repairing
+↓
+Add Diagnosis
+↓
+Testing
+↓
+Testing Pass
+↓
+Ready
+↓
+Collect Payment
+↓
+Mark as Delivered
+↓
+Confirm Delivery
+↓
+Delivered
+
+Verify:
+
+- Data persists after refresh.
+- Status persists after refresh.
+- Payment persists after refresh.
+- Diagnosis persists after refresh.
+- Existing repair jobs still work.
+- Existing permissions still work.
+- No N/A fields clutter the screen.
+- No duplicate information appears.
+- No existing database data is deleted.
+- No unrelated module is changed.
+
+IMPORTANT FINAL REQUIREMENT:
+
+Do not just visually hide existing UI with CSS.
+
+Actually simplify the component structure and conditional rendering so unnecessary sections are not rendered on the main screen.
+
+After implementation, run the app and verify the Repair Job Detail screen on mobile.
+
+Do not stop after making only visual changes.
