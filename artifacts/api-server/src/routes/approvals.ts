@@ -158,6 +158,24 @@ async function executeApproved(
       // NOTE: `advance` is NEVER written directly — it is a cached mirror of the
       // payments ledger. If the approved payload asks to raise the advance we
       // record the delta as a real payment row via recordPayment() below.
+      // Lock the repair row and enforce the same stage lock as the generic
+      // PATCH route: `problem` is frozen once the job has left 'received'.
+      // Only an actual value change is rejected (payloads echo stored
+      // values). Throwing here rolls back the claim, so the request stays
+      // pending and nothing persists.
+      const [lockedRepair] = await tx
+        .select()
+        .from(repairsTable)
+        .where(and(eq(repairsTable.id, a.recordId), eq(repairsTable.shopId, a.shopId)))
+        .for("update");
+      if (!lockedRepair) throw new Error("APPROVAL_TARGET_GONE");
+      if (
+        p.problem !== undefined &&
+        (str(p.problem) ?? "") !== (lockedRepair.problem ?? "") &&
+        lockedRepair.status !== "received"
+      ) {
+        throw new Error("FIELD_LOCKED_STAGE");
+      }
       const patch: Partial<typeof repairsTable.$inferInsert> = { receiveDate: a.requestedDate };
       if (p.problem !== undefined) patch.problem = str(p.problem) ?? undefined;
       if (p.notes !== undefined) patch.notes = str(p.notes);
@@ -417,20 +435,36 @@ router.post(
     if (!shopId) return;
     const me = deciderOr403(req, res);
     if (!me) return;
-    const result = await db.transaction(async (tx) => {
-      const claimed = await claimPending(tx, shopId, String(req.params.id ?? ""), {
-        status: "approved",
-        decidedById: me.id,
-        decidedByName: me.name,
-        decidedAt: new Date(),
+    let result;
+    try {
+      result = await db.transaction(async (tx) => {
+        const claimed = await claimPending(tx, shopId, String(req.params.id ?? ""), {
+          status: "approved",
+          decidedById: me.id,
+          decidedByName: me.name,
+          decidedAt: new Date(),
+        });
+        if ("error" in claimed) return claimed;
+        // Save the record only after winning the claim; if this throws, the
+        // whole transaction (claim included) rolls back and the request stays
+        // pending.
+        await executeApproved(tx, { ...claimed, status: "pending" }, me);
+        return claimed;
       });
-      if ("error" in claimed) return claimed;
-      // Save the record only after winning the claim; if this throws, the
-      // whole transaction (claim included) rolls back and the request stays
-      // pending.
-      await executeApproved(tx, { ...claimed, status: "pending" }, me);
-      return claimed;
-    });
+    } catch (err) {
+      if (err instanceof Error && err.message === "FIELD_LOCKED_STAGE") {
+        res.status(409).json({
+          message: "The requested change edits a field that is locked at the repair's current stage.",
+          code: "FIELD_LOCKED_STAGE",
+        });
+        return;
+      }
+      if (err instanceof Error && err.message === "APPROVAL_TARGET_GONE") {
+        res.status(404).json({ message: "The repair for this request no longer exists." });
+        return;
+      }
+      throw err;
+    }
     if ("error" in result) {
       res.status(result.error.status).json({ message: result.error.message });
       return;

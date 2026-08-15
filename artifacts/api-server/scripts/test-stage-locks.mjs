@@ -255,6 +255,40 @@ async function run(A) {
     check("legacy: NULL previous_status leaves repair parked", after?.status === "customer_approval", after?.status);
   }
 
+  // ── Backdated approval writer honors the problem stage lock ─────────────
+  // An approved backdated update carrying a CHANGED problem on a repair
+  // that has left 'received' must be rejected (request stays pending) and
+  // nothing may persist.
+  const repApr = await createRepair(A);
+  await api("PATCH", `/repairs/${repApr}`, A.token, { status: "repairing" });
+  const {
+    rows: [aprRow],
+  } = await pool.query(
+    `INSERT INTO approval_requests (shop_id, requester_id, requester_name, requester_role, record_type, mode, record_id, payload, requested_date, reason)
+     VALUES ($1, $2, 'Stage Staff', 'staff', 'repair', 'update', $3, $4, '2026-08-01', 'backdate test') RETURNING id`,
+    [A.shopId, A.userId, repApr, JSON.stringify({ problem: "sneaky new problem" })],
+  );
+  r = await api("POST", `/approvals/${aprRow.id}/approve`, A.token);
+  check("approval with changed problem past received -> 409", r.status === 409 && r.json.code === "FIELD_LOCKED_STAGE", r);
+  {
+    const { json: lst } = await api("GET", "/repairs", A.token);
+    const after = (lst.repairs ?? []).find((x) => x.id === repApr);
+    check("approval rejected: problem unchanged", after?.problem === "no power", after?.problem);
+    const { rows: [ar] } = await pool.query(`SELECT status FROM approval_requests WHERE id = $1`, [aprRow.id]);
+    check("approval request stays pending", ar?.status === "pending", ar);
+  }
+  // An echoed (unchanged) problem must still approve fine.
+  const {
+    rows: [aprRow2],
+  } = await pool.query(
+    `INSERT INTO approval_requests (shop_id, requester_id, requester_name, requester_role, record_type, mode, record_id, payload, requested_date, reason)
+     VALUES ($1, $2, 'Stage Staff', 'staff', 'repair', 'update', $3, $4, '2026-08-01', 'backdate echo')
+     RETURNING id`,
+    [A.shopId, A.userId, repApr, JSON.stringify({ problem: "no power", notes: "backdated note" })],
+  );
+  r = await api("POST", `/approvals/${aprRow2.id}/approve`, A.token);
+  check("approval with echoed problem -> 200", r.status === 200, r);
+
   const rep5 = await createRepair(A);
   await api("PATCH", `/repairs/${rep5}`, A.token, { status: "repairing" });
   await api("PATCH", `/repairs/${rep5}`, A.token, { status: "ready" });
