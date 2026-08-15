@@ -292,7 +292,7 @@ export default function NewRepairScreen() {
         });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert('Request Sent', 'Request sent to Dealer/Owner for approval.\n\nNote: Photos and signatures can be added after the repair is approved.', [
-          { text: 'OK', onPress: () => router.back() }
+          { text: 'OK', onPress: () => router.replace('/(tabs)/repairs') }
         ]);
         return;
       }
@@ -512,7 +512,7 @@ export default function NewRepairScreen() {
 
           <View style={{ width: '100%', gap: 12, marginTop: 30 }}>
             <Button title="Download Job Card PDF" onPress={generatePDF} size="lg" />
-            <Button title="Back to Dashboard" onPress={() => router.back()} size="lg" variant="outline" />
+            <Button title="Back to Repairs" onPress={() => router.replace('/(tabs)/repairs')} size="lg" variant="outline" />
           </View>
         </View>
       </View>
@@ -524,7 +524,7 @@ export default function NewRepairScreen() {
       <ScreenGlow />
 
       <FadeInView animValue={anims[0]} style={[styles.header, { paddingTop: topPad + 14 }]}>
-        <TouchableOpacity onPress={() => step === 2 ? setStep(1) : router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => step === 2 ? setStep(1) : router.replace('/(tabs)/repairs')} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>

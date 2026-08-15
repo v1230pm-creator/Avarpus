@@ -101,7 +101,6 @@ const QuickActions = () => {
   const { canAccess } = useAuth();
   
   const actions = [
-    { id: 'repair', icon: 'tool', label: 'New Repair', path: '/(tabs)/repairs/new', color: colors.primary, req: 'repairs' },
     { id: 'customer', icon: 'user-plus', label: 'Add Customer', path: '/(tabs)/customers', color: colors.info, req: 'customers' },
     { id: 'inventory', icon: 'package', label: 'Add Product', path: '/(tabs)/inventory', color: colors.warning, req: 'inventory' },
     { id: 'finance', icon: 'bar-chart-2', label: 'Finance', path: '/(tabs)/more/finance', color: colors.success, req: 'finance' },
@@ -295,7 +294,6 @@ const QuickActionFAB = () => {
   });
   
   const actions = [
-    { id: 'repair', icon: 'tool', label: 'New Repair', path: '/(tabs)/repairs/new', color: colors.primary, req: 'repairs' },
     { id: 'customer', icon: 'user-plus', label: 'Add Customer', path: '/(tabs)/customers', color: colors.info, req: 'customers' },
     { id: 'inventory', icon: 'package', label: 'Add Product', path: '/(tabs)/inventory', color: colors.warning, req: 'inventory' },
   ].filter(a => canAccess(a.req));
