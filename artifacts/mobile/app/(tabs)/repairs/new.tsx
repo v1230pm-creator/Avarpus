@@ -158,6 +158,7 @@ export default function NewRepairScreen() {
   const [showAccessories, setShowAccessories] = useState(false);
   const [showPhysical, setShowPhysical] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
+  const [showWarranty, setShowWarranty] = useState(false);
   const [otherAccessories, setOtherAccessories] = useState('');
   const [physicalCondition, setPhysicalCondition] = useState<Record<string, boolean>>({});
   const [deviceCondition, setDeviceCondition] = useState('');
@@ -784,7 +785,45 @@ export default function NewRepairScreen() {
                 
                 <Input label="Expected Delivery *" value={expectedDate} onChangeText={setExpectedDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} leftIcon="calendar" error={errors.expectedDate} />
                 <SelectInput label="Priority" options={PRIORITIES} value={priority} onChange={setPriority} labelMap={PRIORITY_LABELS} />
-                <SelectInput label="Warranty Offered" options={WARRANTY_OPTIONS.map(o => o.value)} value={warrantyDays} onChange={setWarrantyDays} labelMap={WARRANTY_OPTIONS.reduce((acc, curr) => ({...acc, [curr.value]: curr.label}), {})} />
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setShowWarranty(v => !v)}
+                  style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: showWarranty ? colors.primary : colors.border }]}
+                >
+                  <View style={[styles.checkbox, { backgroundColor: showWarranty ? colors.primary : 'transparent', borderColor: showWarranty ? colors.primary : colors.muted }]}>
+                    {showWarranty && <Feather name="check" size={14} color="#FFF" />}
+                  </View>
+                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Warranty Offered</Text>
+                  <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
+                    <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
+                      {WARRANTY_OPTIONS.find(o => o.value === warrantyDays)?.label || 'No Warranty'}
+                    </Text>
+                  </View>
+                  <Feather name={showWarranty ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
+                </TouchableOpacity>
+                {showWarranty && (
+                  <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                    <ScrollView style={styles.vList} nestedScrollEnabled showsVerticalScrollIndicator>
+                      {WARRANTY_OPTIONS.map((opt) => {
+                        const selected = warrantyDays === opt.value;
+                        return (
+                          <TouchableOpacity
+                            key={opt.value}
+                            activeOpacity={0.7}
+                            onPress={() => { setWarrantyDays(opt.value); setShowWarranty(false); }}
+                            style={[styles.vItem, { borderBottomColor: colors.border, backgroundColor: selected ? colors.primary + '10' : 'transparent' }]}
+                          >
+                            <View style={[styles.radioOuter, { borderColor: selected ? colors.primary : colors.muted }]}>
+                              {selected && <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />}
+                            </View>
+                            <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>{opt.label}</Text>
+                            {selected && <Feather name="check" size={16} color={colors.primary} />}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
               </View>
 
               {/* Financials */}
@@ -961,6 +1000,8 @@ const styles = StyleSheet.create({
   countBadgeText: { fontSize: 11 },
   vListWrap: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
   vList: { maxHeight: 280 },
+  radioOuter: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  radioInner: { width: 10, height: 10, borderRadius: 5 },
   vItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth },
   checklistItem: { width: '48%', flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, gap: 10 },
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
