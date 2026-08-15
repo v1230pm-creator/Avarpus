@@ -778,8 +778,6 @@ export default function NewRepairScreen() {
                     </Text>
                   </View>
                 )}
-                <Input label="Receive Date *" value={receiveDate} onChangeText={setReceiveDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} leftIcon="calendar" error={errors.receiveDate} />
-                
                 {isBackdated && (
                   <Input label="Reason for backdating *" value={reason} onChangeText={setReason} placeholder="Explain why this is backdated..." error={errors.reason} />
                 )}
