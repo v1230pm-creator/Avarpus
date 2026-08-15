@@ -528,7 +528,7 @@ export default function NewRepairScreen() {
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-          {step === 1 ? 'Device Intake' : 'Review & Confirm'}
+          {step === 1 ? 'Receive Form' : 'Review & Confirm'}
         </Text>
         <View style={{ width: 44 }} />
       </FadeInView>
@@ -635,7 +635,7 @@ export default function NewRepairScreen() {
                     </ScrollView>
                   </View>
                 )}
-                <Input label="Model *" value={model} onChangeText={setModel} placeholder="e.g. Galaxy S23" leftIcon="smartphone" error={errors.model} />
+                <Input label="Model *" value={model} onChangeText={setModel} placeholder="Enter your model" leftIcon="smartphone" error={errors.model} />
                 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
@@ -909,11 +909,11 @@ export default function NewRepairScreen() {
               {/* Financials */}
               <View style={styles.section}>
                 <SectionHeader title="Estimate" />
-                <Input label="Estimated Charge (₹)" value={repairCharge} onChangeText={setRepairCharge} placeholder="0" keyboardType="decimal-pad" leftIcon="dollar-sign" />
+                <Input label="Estimated Charge (₹)" value={repairCharge} onChangeText={setRepairCharge} placeholder="0" keyboardType="decimal-pad" leftText="₹" />
               </View>
 
               <Button
-                title="Review Intake"
+                title="Complete"
                 onPress={handleReview}
                 fullWidth
                 size="lg"

@@ -7,6 +7,7 @@ interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
   leftIcon?: keyof typeof Feather.glyphMap;
+  leftText?: string;
   rightIcon?: keyof typeof Feather.glyphMap;
   onRightIconPress?: () => void;
   containerStyle?: ViewStyle;
@@ -26,7 +27,7 @@ const DARK = {
 };
 
 export function Input({
-  label, error, leftIcon, rightIcon, onRightIconPress,
+  label, error, leftIcon, leftText, rightIcon, onRightIconPress,
   containerStyle, isPassword = false, dark = false, ...props
 }: InputProps) {
   const themeColors = useColors();
@@ -54,11 +55,14 @@ export function Input({
         {leftIcon && (
           <Feather name={leftIcon} size={18} color={focused ? colors.primary : colors.mutedForeground} style={styles.leftIcon} />
         )}
+        {!!leftText && !leftIcon && (
+          <Text style={[styles.leftIcon, { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: focused ? colors.primary : colors.mutedForeground }]}>{leftText}</Text>
+        )}
         <TextInput
           style={[styles.input, {
             color: colors.text,
             fontFamily: 'Inter_400Regular',
-            paddingLeft: leftIcon ? 0 : 14,
+            paddingLeft: (leftIcon || leftText) ? 0 : 14,
             paddingRight: (isPassword || rightIcon) ? 0 : 14,
           }]}
           placeholderTextColor={colors.mutedForeground}
