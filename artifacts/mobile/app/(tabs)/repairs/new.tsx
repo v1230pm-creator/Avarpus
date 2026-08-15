@@ -442,34 +442,141 @@ export default function NewRepairScreen() {
         });
       }
 
+      // Signature image (if captured) as base64 for embedding
+      let sigBase64 = '';
+      if (receivingSignatureUri) {
+        try {
+          const b64 = await FileSystem.readAsStringAsync(receivingSignatureUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          sigBase64 = `data:image/png;base64,${b64}`;
+        } catch {}
+      }
+
+      const esc = (v: any) =>
+        String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      const row = (label: string, value?: string | number | null) => {
+        if (value === undefined || value === null || String(value).trim() === '') return '';
+        return `<tr><td class="lbl">${esc(label)}</td><td class="val">${esc(value)}</td></tr>`;
+      };
+
+      const r = createdRepair;
+      const shopName = user?.businessName || 'VMC Electronics';
+      const shopLines = [user?.shopAddress, user?.gstNumber ? `GSTIN: ${user.gstNumber}` : '', user?.mobile ? `Mobile: ${user.mobile}` : '']
+        .filter(Boolean).map(l => `<div class="shopline">${esc(l!)}</div>`).join('');
+
+      const accList = (r.accessoriesList && r.accessoriesList.length > 0)
+        ? r.accessoriesList.join(', ')
+        : (r.accessories || '');
+      const accessoriesStr = [accList, otherAccessories.trim()].filter(Boolean).join(', ');
+
+      const physical = Object.keys(r.physicalCondition || {}).filter(k => r.physicalCondition?.[k])
+        .map(k => PHYSICAL_CONDITION_ITEMS.find(p => p.id === k)?.label || k);
+      const physicalStr = physical.join(', ');
+
+      const checklistKeys = Object.keys(r.checklist || {});
+      const checklistHtml = checklistKeys.length === 0 ? '' : `
+        <div class="section">Pre-Repair Checklist</div>
+        <div class="chips">
+          ${checklistKeys.map(k => {
+            const label = CHECKLIST_ITEMS.find(c => c.id === k)?.label || k;
+            const ok = !!r.checklist?.[k];
+            return `<span class="chip ${ok ? 'ok' : 'fail'}">${esc(label)}: ${ok ? 'OK' : 'Not Working'}</span>`;
+          }).join('')}
+        </div>`;
+
+      const priorityLabel = PRIORITY_LABELS[r.priority as keyof typeof PRIORITY_LABELS] || r.priority;
+
       const html = `
         <html>
-          <body style="font-family: sans-serif; padding: 20px;">
-            <h1 style="text-align: center;">VMC Electronics - Job Card</h1>
-            <hr />
-            <div style="display: flex; justify-content: space-between;">
+          <head><meta charset="utf-8" />
+          <style>
+            body { font-family: Helvetica, Arial, sans-serif; color: #111; padding: 24px; font-size: 12px; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; }
+            h1 { margin: 0 0 2px; font-size: 20px; }
+            .sub { color: #555; margin: 0 0 6px; font-size: 12px; }
+            .shopline { color: #555; font-size: 11px; }
+            .ticket { font-size: 15px; font-weight: bold; margin-top: 8px; }
+            .section { background: #f0f2f5; border-left: 4px solid #1f4e8c; padding: 4px 8px; font-weight: bold; margin: 14px 0 6px; font-size: 12px; }
+            table { width: 100%; border-collapse: collapse; }
+            td { padding: 3px 6px; vertical-align: top; }
+            td.lbl { width: 38%; color: #555; }
+            td.val { font-weight: 600; }
+            tr:nth-child(even) { background: #fafafa; }
+            .chips span { display: inline-block; border: 1px solid #ccc; border-radius: 10px; padding: 2px 8px; margin: 2px; font-size: 10px; }
+            .chip.ok { border-color: #2e7d32; color: #2e7d32; }
+            .chip.fail { border-color: #c62828; color: #c62828; }
+            .terms { margin-top: 14px; font-size: 10px; color: #555; border-top: 1px solid #ddd; padding-top: 8px; }
+            .sigimg { height: 70px; }
+            .sigblock { margin-top: 16px; }
+          </style></head>
+          <body>
+            <div class="header">
               <div>
-                <p><strong>Ticket:</strong> ${createdRepair.repairId}</p>
-                <p><strong>Customer:</strong> ${createdRepair.customerName} (${createdRepair.mobile})</p>
-                <p><strong>Device:</strong> ${createdRepair.deviceType ? `${createdRepair.deviceType} - ` : ''}${createdRepair.brand} ${createdRepair.model}</p>
-                <p><strong>Problem:</strong> ${createdRepair.problem}</p>
-                <p><strong>Estimate:</strong> ₹${createdRepair.repairCharge}</p>
-                <p><strong>Warranty:</strong> ${createdRepair.warrantyDays} Days</p>
+                <h1>${esc(shopName)}</h1>
+                <p class="sub">Device Receive Receipt / Job Card</p>
+                ${shopLines}
+                <div class="ticket">Ticket No: ${esc(r.repairId)}</div>
               </div>
-              <div>
-                ${qrBase64 ? `<img src="${qrBase64}" width="150" height="150" />` : ''}
-              </div>
+              ${qrBase64 ? `<img src="${qrBase64}" width="110" height="110" />` : ''}
             </div>
-            <hr />
-            <p><strong>Checklist:</strong></p>
-            <ul>
-              ${Object.keys(createdRepair.checklist || {}).map(k => {
-                const label = CHECKLIST_ITEMS.find(c => c.id === k)?.label || k;
-                return `<li>${label}: ${createdRepair.checklist?.[k] ? 'Pass' : 'Fail'}</li>`;
-              }).join('')}
-            </ul>
-            <br/><br/><br/>
-            <p>Customer Signature: _______________________</p>
+
+            <div class="section">Customer Details</div>
+            <table>
+              ${row('Name', r.customerName)}
+              ${row('Mobile', r.mobile)}
+              ${row('Alternate Mobile', r.alternateMobile)}
+              ${row('Email', email.trim())}
+              ${row('Address', address.trim())}
+            </table>
+
+            <div class="section">Device Details</div>
+            <table>
+              ${row('Device', `${r.deviceType ? r.deviceType + ' - ' : ''}${r.brand} ${r.model}`)}
+              ${row('IMEI 1', r.imei)}
+              ${row('IMEI 2', r.imei2)}
+              ${row('Serial Number', r.serialNumber)}
+              ${row('Color', r.color)}
+              ${row('Storage', r.storage)}
+              ${row('RAM', r.ram)}
+              ${row('SIM Card Inside', r.simPresent ? 'Yes' : undefined)}
+              ${row('Memory Card Inside', r.memoryCardPresent ? 'Yes' : undefined)}
+              ${row('Accessories Received', accessoriesStr)}
+              ${row('Physical Condition', physicalStr)}
+              ${row('Condition Notes', r.deviceCondition)}
+            </table>
+
+            <div class="section">Repair Details</div>
+            <table>
+              ${row('Problem Reported', r.problem)}
+              ${row('Priority', priorityLabel)}
+              ${row('Receive Date', r.receiveDate)}
+              ${row('Expected Delivery', r.expectedDate)}
+              ${row('Estimated Charge', `Rs. ${r.repairCharge}`)}
+              ${row('Warranty', r.warrantyDays && r.warrantyDays > 0 ? `${r.warrantyDays} Days` : 'No Warranty')}
+              ${row('Notes', r.notes)}
+            </table>
+
+            ${checklistHtml}
+
+            <div class="terms">
+              This receipt confirms that the above device has been received by ${esc(shopName)} for repair.
+              Please present this receipt (or the ticket number) at the time of device collection.
+              The final charge may vary after diagnosis; any change will be confirmed with the customer before proceeding.
+            </div>
+
+            <div class="sigblock">
+              <table><tr>
+                <td style="width:50%;">
+                  ${sigBase64 ? `<img class="sigimg" src="${sigBase64}" />` : '<br/><br/>_______________________'}
+                  <div>Customer Signature</div>
+                </td>
+                <td style="width:50%; text-align:right;">
+                  <br/><br/>_______________________
+                  <div>For ${esc(shopName)}</div>
+                </td>
+              </tr></table>
+            </div>
           </body>
         </html>
       `;
