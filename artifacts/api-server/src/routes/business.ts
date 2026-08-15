@@ -824,66 +824,75 @@ router.patch(
     // Workflow integrity: statuses may only move forward through the stage
     // order (or sideways within a stage). The single authorized rewind is
     // testing → repairing, and only when the recorded testing checklist
-    // actually contains a failed item. Without this, the stage locks below
-    // could be bypassed by rewinding the status into an editable stage.
-    if (patch.status !== undefined && patch.status !== existing.status) {
-      const STAGE_RANK: Record<string, number> = {
-        received: 0,
-        diagnosing: 1,
-        waiting_parts: 1,
-        repairing: 1,
-        testing: 2,
-        customer_approval: 2,
-        ready: 3,
-        delivered: 4,
-        // Terminal outcomes: nothing may move out of these via status PATCH.
-        cancelled: 5,
-        cannot_repair: 5,
-      };
-      const fromRank = STAGE_RANK[existing.status] ?? 0;
-      const toRank = STAGE_RANK[patch.status as string] ?? 0;
-      const isTerminalFrom = existing.status === "cancelled" || existing.status === "cannot_repair" || existing.status === "delivered";
-      const checklistNow = (existing.testingChecklist as Record<string, boolean> | null) ?? {};
-      const hasFailedTest = Object.values(checklistNow).some((v) => v === false);
-      const isAuthorizedTestingFailReturn =
-        fromRank === 2 && patch.status === "repairing" && hasFailedTest;
-      const allowed =
-        !isTerminalFrom && (toRank >= fromRank || isAuthorizedTestingFailReturn);
-      if (!allowed) {
-        res.status(409).json({
-          message: "This status change is not allowed by the repair workflow.",
-          code: "INVALID_STATUS_TRANSITION",
-          from: existing.status,
-          to: patch.status,
-        });
-        return;
+    // actually contains a failed item. Service fields are editable only in
+    // their own stage (problem @ received; diagnosis/workPerformed during
+    // the repairing stage) — only actual value changes are rejected, so
+    // full-object PATCHes that echo stored values back are unaffected.
+    // These checks run twice: here (fast path against the pre-read snapshot)
+    // and again inside the update transaction against a FOR UPDATE re-read,
+    // so a concurrent testing/status write cannot invalidate them mid-flight.
+    const stageViolation = (
+      row: Pick<typeof existing, "status" | "testingChecklist" | "problem" | "diagnosis" | "workPerformed">,
+    ): { code: string; message: string; field?: string } | null => {
+      if (patch.status !== undefined && patch.status !== row.status) {
+        const STAGE_RANK: Record<string, number> = {
+          received: 0,
+          diagnosing: 1,
+          waiting_parts: 1,
+          repairing: 1,
+          testing: 2,
+          customer_approval: 2,
+          ready: 3,
+          delivered: 4,
+          cancelled: 5,
+          cannot_repair: 5,
+        };
+        const fromRank = STAGE_RANK[row.status] ?? 0;
+        const toRank = STAGE_RANK[patch.status as string] ?? 0;
+        // cancelled/cannot_repair are terminal for the working stages — a
+        // voided job may only be restored to 'ready'/'delivered' (statuses
+        // where every service field stays locked), never back into an
+        // editable stage. delivered may still move to a terminal outcome.
+        const isTerminalFrom = row.status === "cancelled" || row.status === "cannot_repair";
+        const isRestoreFromVoid =
+          isTerminalFrom && (patch.status === "ready" || patch.status === "delivered");
+        const checklistNow = (row.testingChecklist as Record<string, boolean> | null) ?? {};
+        const hasFailedTest = Object.values(checklistNow).some((v) => v === false);
+        const isAuthorizedTestingFailReturn =
+          fromRank === 2 && patch.status === "repairing" && hasFailedTest;
+        const allowed = isTerminalFrom
+          ? isRestoreFromVoid
+          : toRank >= fromRank || isAuthorizedTestingFailReturn;
+        if (!allowed) {
+          return {
+            code: "INVALID_STATUS_TRANSITION",
+            message: "This status change is not allowed by the repair workflow.",
+          };
+        }
       }
-    }
-    // Stage-based service-field locking: each service field is editable only
-    // while the repair is in its workflow stage. Once the job moves past a
-    // stage, that field is frozen (visible but read-only) for everyone.
-    //   problem        → only while 'received'
-    //   diagnosis      → only during the repairing stage (diagnosing/waiting_parts/repairing)
-    //   workPerformed  → only during the repairing stage
-    // Only actual value changes are rejected, so full-object PATCHes that
-    // echo the stored value back are unaffected.
-    {
       const REPAIRING_STAGE = new Set(["diagnosing", "waiting_parts", "repairing"]);
       const norm = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));
       const stageLocks: Array<{ field: "problem" | "diagnosis" | "workPerformed"; allowed: boolean }> = [
-        { field: "problem", allowed: existing.status === "received" },
-        { field: "diagnosis", allowed: REPAIRING_STAGE.has(existing.status) },
-        { field: "workPerformed", allowed: REPAIRING_STAGE.has(existing.status) },
+        { field: "problem", allowed: row.status === "received" },
+        { field: "diagnosis", allowed: REPAIRING_STAGE.has(row.status) },
+        { field: "workPerformed", allowed: REPAIRING_STAGE.has(row.status) },
       ];
       for (const { field, allowed } of stageLocks) {
-        if (patch[field] !== undefined && norm(patch[field]) !== norm(existing[field]) && !allowed) {
-          res.status(409).json({
-            message: `This field can no longer be edited at the current stage (${existing.status}).`,
+        if (patch[field] !== undefined && norm(patch[field]) !== norm(row[field]) && !allowed) {
+          return {
             code: "FIELD_LOCKED_STAGE",
+            message: `This field can no longer be edited at the current stage (${row.status}).`,
             field,
-          });
-          return;
+          };
         }
+      }
+      return null;
+    };
+    {
+      const violation = stageViolation(existing);
+      if (violation) {
+        res.status(409).json(violation);
+        return;
       }
     }
     // Validate the merged discount does not exceed the merged charge subtotal.
@@ -977,13 +986,34 @@ router.patch(
     let updated: typeof repairsTable.$inferSelect;
     try {
       updated = await db.transaction(async (tx) => {
-      // Lock the repair row: serializes with concurrent part postings so a
-      // stale partsCharge can never overwrite the parts-ledger-derived sum.
-      await tx
-        .select({ id: repairsTable.id })
+      // Lock the repair row: serializes with concurrent part postings and
+      // testing/status writers so a stale partsCharge can never overwrite the
+      // parts-ledger-derived sum and stage locks can't be raced mid-flight.
+      const [lockedRow] = await tx
+        .select()
         .from(repairsTable)
         .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)))
         .for("update");
+      if (!lockedRow) throw new Error("ROW_GONE");
+      // Re-validate the workflow invariants against the LOCKED row — the
+      // pre-transaction snapshot may be stale (e.g. a concurrent testing
+      // write cleared the failed item that authorized a rewind).
+      {
+        const violation = stageViolation(lockedRow);
+        if (violation) throw Object.assign(new Error("STAGE_VIOLATION"), { violation });
+      }
+      // Transition stamps (readyAt/repairCompletedAt/deliveryDate/warranty)
+      // were derived from the snapshot's status; if the status moved
+      // underneath us they may no longer apply — reject and let the client
+      // retry against fresh state.
+      if (patch.status !== undefined && lockedRow.status !== existing.status) {
+        throw Object.assign(new Error("STAGE_VIOLATION"), {
+          violation: {
+            code: "CONCURRENT_MODIFICATION",
+            message: "The repair changed while saving. Refresh and try again.",
+          },
+        });
+      }
       // Once parts are tracked in the ledger, partsCharge is server-derived
       // only — reject direct writes instead of silently drifting.
       if (patch.partsCharge !== undefined) {
@@ -1077,6 +1107,14 @@ router.patch(
       return row;
       });
     } catch (err) {
+      if (err instanceof Error && err.message === "STAGE_VIOLATION") {
+        res.status(409).json((err as Error & { violation: object }).violation);
+        return;
+      }
+      if (err instanceof Error && err.message === "ROW_GONE") {
+        res.status(404).json({ message: "Repair not found" });
+        return;
+      }
       if (err instanceof Error && err.message === "PARTS_LEDGER_MANAGED") {
         res.status(400).json({
           message: "Parts cost is calculated from the parts list on this repair and cannot be edited directly.",

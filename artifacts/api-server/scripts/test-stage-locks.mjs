@@ -166,6 +166,34 @@ async function run(A) {
   r = await api("POST", `/repairs/${rep2}/testing`, A.token, { checklist: { camera: true } });
   check("ready: checklist write -> 409", r.status === 409 && r.json.code === "FIELD_LOCKED_STAGE", r);
 
+  // ── Race: testing-fail rewind vs concurrent checklist clear ─────────────
+  // Fire "clear the only failed item" (POST /testing touch:true) and
+  // "return to repairing" (PATCH status) at the same time, repeatedly.
+  // Serialized correctly, at most one can win: if the checklist write lands
+  // first there is no failed item so the rewind must 409; if the rewind
+  // lands first the job left the testing stage so the checklist write must
+  // 409. Both succeeding means the FOR UPDATE revalidation is broken.
+  for (let i = 0; i < 5; i++) {
+    const rr = await createRepair(A);
+    await api("PATCH", `/repairs/${rr}`, A.token, { status: "repairing" });
+    await api("PATCH", `/repairs/${rr}`, A.token, { status: "testing" });
+    await api("POST", `/repairs/${rr}/testing`, A.token, { checklist: { touch: false } });
+    const [clear, rewind] = await Promise.all([
+      api("POST", `/repairs/${rr}/testing`, A.token, { checklist: { touch: true } }),
+      api("PATCH", `/repairs/${rr}`, A.token, { status: "repairing" }),
+    ]);
+    const bothWon = clear.status === 200 && rewind.status === 200;
+    check(`race ${i + 1}: fail-clear and rewind never both succeed`, !bothWon, { clear, rewind });
+    const { json: st } = await api("GET", "/repairs", A.token);
+    const repNow = (st.repairs ?? []).find((x) => x.id === rr) ?? {};
+    const cl = repNow.testingChecklist ?? {};
+    const consistent =
+      (repNow.status === "repairing" && cl.touch === false) ||
+      (["testing", "customer_approval"].includes(repNow.status) && cl.touch === true) ||
+      (["testing", "customer_approval"].includes(repNow.status) && cl.touch === false && rewind.status !== 200 && clear.status !== 200);
+    check(`race ${i + 1}: final state consistent`, consistent, { status: repNow.status, cl, clear: clear.status, rewind: rewind.status });
+  }
+
   // ── Terminal statuses are frozen ─────────────────────────────────────────
   const rep3 = await createRepair(A);
   r = await api("PATCH", `/repairs/${rep3}`, A.token, { status: "cancelled" });
