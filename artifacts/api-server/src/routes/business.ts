@@ -1655,6 +1655,18 @@ router.post(
         };
       }
       const { totalAmount } = computeTotals(repair);
+      // Remember the stage the job is parked FROM so the decision endpoint
+      // can restore exactly that stage (a sideways move, never a rewind).
+      let previousStatus = repair.status;
+      if (previousStatus === "customer_approval") {
+        const [prior] = await tx
+          .select({ previousStatus: estimateApprovalsTable.previousStatus })
+          .from(estimateApprovalsTable)
+          .where(and(eq(estimateApprovalsTable.repairId, id), eq(estimateApprovalsTable.shopId, shopId)))
+          .orderBy(desc(estimateApprovalsTable.createdAt))
+          .limit(1);
+        previousStatus = prior?.previousStatus ?? "diagnosing";
+      }
       const [row] = await tx
         .insert(estimateApprovalsTable)
         .values({
@@ -1664,6 +1676,7 @@ router.post(
           newAmount,
           reason,
           status: "pending",
+          previousStatus,
           requestedById: me.id,
           requestedByName: me.name,
         })
@@ -1803,9 +1816,18 @@ router.post(
             .where(and(eq(repairsTable.id, claimed.repairId), eq(repairsTable.shopId, shopId)));
         }
       }
+      // Restore the exact stage the job was parked from (recorded on the
+      // approval row) — a sideways move under the workflow graph, never a
+      // rewind. Only early stages can be recorded there (creation rejects
+      // later stages), and the update is conditional on the repair still
+      // being parked in 'customer_approval'.
+      const EARLY_STAGES = new Set(["received", "diagnosing", "waiting_parts", "repairing"]);
+      const restoreTo = EARLY_STAGES.has(claimed.previousStatus ?? "")
+        ? (claimed.previousStatus as string)
+        : "diagnosing";
       await tx
         .update(repairsTable)
-        .set({ status: "diagnosing" })
+        .set({ status: restoreTo })
         .where(
           and(
             eq(repairsTable.id, claimed.repairId),

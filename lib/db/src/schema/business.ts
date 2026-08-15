@@ -434,6 +434,9 @@ export const estimateApprovalsTable = pgTable("estimate_approvals", {
   newAmount: doublePrecision("new_amount").notNull(),
   reason: text("reason").notNull(),
   status: text("status").notNull().default("pending"), // pending | approved | rejected
+  // Repair status at the moment the job was parked in 'customer_approval';
+  // the decision endpoint restores this exact stage (never a rewind).
+  previousStatus: text("previous_status"),
   method: text("method"), // otp | signature | dealer
   signaturePath: text("signature_path"),
   requestedById: uuid("requested_by_id"),

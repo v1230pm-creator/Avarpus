@@ -209,6 +209,28 @@ async function run(A) {
   await api("PATCH", `/repairs/${rep4}`, A.token, { status: "repairing" });
   r = await api("POST", `/repairs/${rep4}/estimate-approvals`, A.token, { newAmount: 500, reason: "extra part" });
   check("repairing: estimate approval request -> 200", r.status === 200, r);
+  // Deciding the approval must restore the exact pre-park stage (repairing),
+  // never rewind further (e.g. to diagnosing) or reopen anything else.
+  {
+    const { json: lst } = await api("GET", "/repairs", A.token);
+    const parked = (lst.repairs ?? []).find((x) => x.id === rep4);
+    check("estimate request parks repair in customer_approval", parked?.status === "customer_approval", parked?.status);
+  }
+  {
+    const { json: al } = await api("GET", `/repairs/${rep4}/estimate-approvals`, A.token);
+    const pending = (al.estimateApprovals ?? []).find((x) => x.status === "pending");
+    check("pending estimate approval listed", !!pending, al);
+    if (pending) {
+      const dec = await api("POST", `/estimate-approvals/${pending.id}/decide`, A.token, {
+        decision: "approved",
+        method: "dealer",
+      });
+      check("dealer decides estimate approval -> 200", dec.status === 200, dec);
+      const { json: lst2 } = await api("GET", "/repairs", A.token);
+      const after = (lst2.repairs ?? []).find((x) => x.id === rep4);
+      check("decision restores pre-park stage (repairing)", after?.status === "repairing", after?.status);
+    }
+  }
   const rep5 = await createRepair(A);
   await api("PATCH", `/repairs/${rep5}`, A.token, { status: "repairing" });
   await api("PATCH", `/repairs/${rep5}`, A.token, { status: "ready" });

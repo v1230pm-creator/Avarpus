@@ -1,0 +1,1 @@
+ALTER TABLE "estimate_approvals" ADD COLUMN "previous_status" text;
