@@ -821,20 +821,43 @@ router.patch(
         }
       }
     }
-    // Workflow integrity: once a job has left 'received' it can never be
-    // rolled back to 'received' — otherwise the stage locks below could be
-    // bypassed by rewinding the status. (Testing-fail may return a job to
-    // 'repairing'; that is an authorized transition.)
-    if (
-      patch.status !== undefined &&
-      patch.status === "received" &&
-      existing.status !== "received"
-    ) {
-      res.status(409).json({
-        message: "A job cannot be moved back to Received.",
-        code: "INVALID_STATUS_TRANSITION",
-      });
-      return;
+    // Workflow integrity: statuses may only move forward through the stage
+    // order (or sideways within a stage). The single authorized rewind is
+    // testing → repairing, and only when the recorded testing checklist
+    // actually contains a failed item. Without this, the stage locks below
+    // could be bypassed by rewinding the status into an editable stage.
+    if (patch.status !== undefined && patch.status !== existing.status) {
+      const STAGE_RANK: Record<string, number> = {
+        received: 0,
+        diagnosing: 1,
+        waiting_parts: 1,
+        repairing: 1,
+        testing: 2,
+        customer_approval: 2,
+        ready: 3,
+        delivered: 4,
+        // Terminal outcomes: nothing may move out of these via status PATCH.
+        cancelled: 5,
+        cannot_repair: 5,
+      };
+      const fromRank = STAGE_RANK[existing.status] ?? 0;
+      const toRank = STAGE_RANK[patch.status as string] ?? 0;
+      const isTerminalFrom = existing.status === "cancelled" || existing.status === "cannot_repair" || existing.status === "delivered";
+      const checklistNow = (existing.testingChecklist as Record<string, boolean> | null) ?? {};
+      const hasFailedTest = Object.values(checklistNow).some((v) => v === false);
+      const isAuthorizedTestingFailReturn =
+        fromRank === 2 && patch.status === "repairing" && hasFailedTest;
+      const allowed =
+        !isTerminalFrom && (toRank >= fromRank || isAuthorizedTestingFailReturn);
+      if (!allowed) {
+        res.status(409).json({
+          message: "This status change is not allowed by the repair workflow.",
+          code: "INVALID_STATUS_TRANSITION",
+          from: existing.status,
+          to: patch.status,
+        });
+        return;
+      }
     }
     // Stage-based service-field locking: each service field is editable only
     // while the repair is in its workflow stage. Once the job moves past a

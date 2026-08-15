@@ -32,6 +32,10 @@ args = "customer-balances"
 task = "workflow.run"
 args = "registration-gate"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "stage-locks"
+
 [[workflows.workflow]]
 name = "typecheck"
 author = "agent"
@@ -75,6 +79,17 @@ isValidation = true
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock sh -c 'pnpm run build && node scripts/test-registration-gate.mjs'"
+
+[[workflows.workflow]]
+name = "stage-locks"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock sh -c 'pnpm run build && node scripts/test-stage-locks.mjs'"
+
+[workflows.workflow.metadata]
+isValidation = true
 
 [agent]
 stack = "PNPM_WORKSPACE"
