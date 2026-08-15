@@ -1633,7 +1633,7 @@ export default function RepairDetailScreen() {
 
       {/* Estimate Approval Modal */}
       <Modal visible={showApproval} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Request Customer Approval</Text>
             
@@ -1667,18 +1667,18 @@ export default function RepairDetailScreen() {
               }} loading={updating} style={{ flex: 1 }} />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingCompat>
       </Modal>
 {/* Financial Edit Modal */}
       <Modal visible={showFinancialEdit} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Financials</Text>
             <Text style={{ fontSize: 12, color: colors.mutedForeground, marginBottom: 12 }}>
               Parts charge is computed automatically. Advances are recorded via Payments.
             </Text>
 
-            <ScrollView style={{ maxHeight: 300 }}>
+            <KeyboardAwareScrollViewCompat style={{ maxHeight: 300 }} bottomOffset={24}>
               <Text style={[styles.label, { color: colors.foreground }]}>Labour / Repair Charge</Text>
               <TextInput value={editRepairCharge} onChangeText={setEditRepairCharge} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
               
@@ -1693,19 +1693,19 @@ export default function RepairDetailScreen() {
               
               <Text style={[styles.label, { color: colors.foreground }]}>Tax %</Text>
               <TextInput value={editTaxPercent} onChangeText={setEditTaxPercent} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
-            </ScrollView>
+            </KeyboardAwareScrollViewCompat>
             
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
               <Button title="Cancel" variant="outline" onPress={() => setShowFinancialEdit(false)} style={{ flex: 1 }} />
               <Button title="Save" onPress={handleSaveFinancials} loading={updating} style={{ flex: 1 }} />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingCompat>
       </Modal>
 
       {/* Service Edit Modal */}
       <Modal visible={showServiceEdit} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Service Details</Text>
 
@@ -1723,7 +1723,7 @@ export default function RepairDetailScreen() {
               <Button title="Save" onPress={handleSaveService} loading={updating} style={{ flex: 1 }} />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingCompat>
       </Modal>
 
       {/* Delivery Signature Modal */}
@@ -1767,7 +1767,7 @@ export default function RepairDetailScreen() {
     
       {/* Delivery OTP Modal */}
       <Modal visible={showDeliveryOtp} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Verify Delivery OTP</Text>
             <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 16 }}>Sent to customer email.</Text>
@@ -1813,7 +1813,7 @@ export default function RepairDetailScreen() {
               }} loading={updating} style={{ flex: 1 }} />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingCompat>
       </Modal>
 
       {/* Assign Technician Modal */}
