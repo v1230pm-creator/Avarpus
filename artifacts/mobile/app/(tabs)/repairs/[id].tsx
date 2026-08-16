@@ -1271,9 +1271,30 @@ export default function RepairDetailScreen() {
             </View>
           )
         ) : (repair.status === 'cancelled' || repair.status === 'cannot_repair') ? (
-          <View style={[styles.doneBar, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '44' }]}>
-            <Feather name="x-circle" size={18} color={colors.destructive} />
-            <Text style={{ fontSize: 15, color: colors.destructive, fontFamily: 'Inter_700Bold' }}>{repair.status === 'cancelled' ? 'CANCELLED' : 'CANNOT REPAIR'}</Text>
+          <View>
+            <View style={[styles.doneBar, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '44' }]}>
+              <Feather name="x-circle" size={18} color={colors.destructive} />
+              <Text style={{ fontSize: 15, color: colors.destructive, fontFamily: 'Inter_700Bold' }}>{repair.status === 'cancelled' ? 'CANCELLED' : 'CANNOT REPAIR'}</Text>
+            </View>
+            {/* Dealer/owner can permanently remove a cancelled / cannot-repair job. */}
+            {isDealer && (
+              <View style={{ marginTop: 10 }}>
+                <Button
+                  title="Delete Repair"
+                  variant="outline"
+                  onPress={() => {
+                    Alert.alert(
+                      'Delete Repair',
+                      `${repair.repairId} hamesha ke liye delete ho jayega — payments, parts, photos aur history bhi. Yeh wapas nahi aa sakta. Pakka delete karein?`,
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Haan, Delete Karein', style: 'destructive', onPress: handleDeleteRepair },
+                      ],
+                    );
+                  }}
+                />
+              </View>
+            )}
           </View>
         ) : repair.status === 'ready' ? (
           // READY: Mark as Delivered stays hidden until payment is fully collected.
