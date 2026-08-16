@@ -82,13 +82,13 @@ const Header = () => {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <TouchableOpacity style={{ 
             width: 44, height: 44, borderRadius: 22, 
-            backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
+            backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassBorder,
             alignItems: 'center', justifyContent: 'center' 
           }}>
             <Feather name="bell" size={20} color={colors.foreground} />
             <View style={{ position: 'absolute', top: 10, right: 12, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.destructive, borderWidth: 2, borderColor: colors.card }} />
           </TouchableOpacity>
-          <Avatar name={user?.name ?? 'User'} size={44} />
+          <Avatar name={user?.name ?? 'User'} size={44} variant="glass" />
         </View>
       </View>
     </View>
@@ -117,16 +117,16 @@ const QuickActions = () => {
       {allowed.map((a) => (
         <TouchableOpacity key={a.id} onPress={() => router.push(a.path as any)} activeOpacity={0.7}>
           <View style={{ 
-            backgroundColor: colors.card,
-            borderWidth: 1, borderColor: colors.border,
-            borderRadius: 16,
+            backgroundColor: colors.glass,
+            borderWidth: 1, borderColor: colors.glassBorder,
+            borderRadius: 18,
             padding: 16,
             alignItems: 'center', justifyContent: 'center',
             width: 105,
-            shadowColor: colors.foreground, shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+            shadowColor: '#000000', shadowOpacity: 0.14, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
             elevation: 2,
           }}>
-            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: a.color + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: a.color + '15', borderWidth: 1, borderColor: a.color + '2E', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
               <Feather name={a.icon as any} size={20} color={a.color} />
             </View>
             <Text style={{ fontSize: 12, color: colors.foreground, fontFamily: 'Inter_600SemiBold', textAlign: 'center' }}>
@@ -349,17 +349,18 @@ const QuickActionFAB = () => {
         )
       })}
       
-      <TouchableOpacity activeOpacity={0.8} onPress={toggle} style={{ shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 6 }}>
-        <LinearGradient
-          colors={[colors.primary, colors.info]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' }}
+      <TouchableOpacity activeOpacity={0.8} onPress={toggle} style={{ shadowColor: '#000000', shadowOpacity: 0.28, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 6 }}>
+        <View
+          style={{
+            width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center',
+            backgroundColor: colors.blueBright,
+            borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+          }}
         >
           <Animated.View style={{ transform: [{ rotate: spin }] }}>
             <Feather name="plus" size={24} color="#FFFFFF" />
           </Animated.View>
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -557,13 +558,15 @@ export default function DashboardScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <LinearGradient
-          colors={isDark ? ['rgba(59, 130, 246, 0.12)', 'transparent'] : ['rgba(26, 86, 219, 0.06)', 'transparent']}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 0.4 }}
-        />
-        <View style={{ position: 'absolute', top: -100, right: -100, width: 300, height: 300, borderRadius: 150, backgroundColor: colors.primary, opacity: isDark ? 0.08 : 0.04, transform: [{ scale: 1.5 }] }} />
+        {isDark && (
+          <LinearGradient
+            colors={['#0B0F1A', '#0E1422']}
+            style={StyleSheet.absoluteFill}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+          />
+        )}
+        <View style={{ position: 'absolute', top: -120, right: -120, width: 320, height: 320, borderRadius: 160, backgroundColor: isDark ? colors.blueBright : colors.primary, opacity: isDark ? 0.08 : 0.04, transform: [{ scale: 1.5 }] }} />
       </View>
 
       {isLoading && !hasAnyData ? (

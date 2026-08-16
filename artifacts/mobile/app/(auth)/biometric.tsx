@@ -315,19 +315,19 @@ export default function BiometricScreen() {
   return (
     <View style={styles.root}>
       <LinearGradient
-        colors={['#050912', '#091525', '#030710']}
-        locations={[0, 0.5, 1]}
+        colors={['#0B0F1A', '#0E1422']}
+        locations={[0, 1]}
         style={StyleSheet.absoluteFill}
       />
 
       {/* Glow circles */}
-      <View style={[styles.glow, { top: -100, left: -80, width: 280, height: 280, backgroundColor: '#2563EB' }]} />
-      <View style={[styles.glow, { bottom: -80, right: -60, width: 220, height: 220, backgroundColor: '#1D4ED8' }]} />
+      <View style={[styles.glow, { top: -100, left: -80, width: 280, height: 280, backgroundColor: '#3A8FF7' }]} />
+      <View style={[styles.glow, { bottom: -80, right: -60, width: 220, height: 220, backgroundColor: '#2F80ED' }]} />
 
       <View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
         {/* Icon */}
         <Reanimated.View style={[styles.iconWrap, cardStyle]}>
-          <LinearGradient colors={['#1D4ED8', '#3B82F6']} style={styles.iconGrad}>
+          <LinearGradient colors={['#2F80ED', '#3A8FF7']} style={styles.iconGrad}>
             <Feather
               name={mode === 'enter_mpin' || mode === 'setup_mpin' || mode === 'confirm_mpin'
                 ? 'lock' : biometricType === 'face' ? 'camera' : 'shield'}
@@ -350,9 +350,9 @@ export default function BiometricScreen() {
               {Platform.OS === 'ios' ? (
                 <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
               ) : null}
-              <LinearGradient colors={['#1E3A6E22', '#2563EB11']} style={StyleSheet.absoluteFill} />
+              <LinearGradient colors={['#1E3A6E22', '#3A8FF711']} style={StyleSheet.absoluteFill} />
               <View style={styles.optionIcon}>
-                <Feather name={biometricType === 'face' ? 'camera' : 'shield'} size={28} color="#3B82F6" />
+                <Feather name={biometricType === 'face' ? 'camera' : 'shield'} size={28} color="#3A8FF7" />
               </View>
               <View style={styles.optionText}>
                 <Text style={[styles.optionTitle, { fontFamily: 'Inter_600SemiBold' }]}>
@@ -362,7 +362,7 @@ export default function BiometricScreen() {
                   Tap to authenticate
                 </Text>
               </View>
-              <Feather name="chevron-right" size={18} color="#3B82F6" />
+              <Feather name="chevron-right" size={18} color="#3A8FF7" />
             </TouchableOpacity>
 
             {/* Recovery: always available, even when biometric hardware/enrollment is unavailable */}
@@ -388,9 +388,9 @@ export default function BiometricScreen() {
                 {Platform.OS === 'ios' ? (
                   <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
                 ) : null}
-                <LinearGradient colors={['#1E3A6E22', '#2563EB11']} style={StyleSheet.absoluteFill} />
+                <LinearGradient colors={['#1E3A6E22', '#3A8FF711']} style={StyleSheet.absoluteFill} />
                 <View style={styles.optionIcon}>
-                  <Feather name={biometricType === 'face' ? 'camera' : 'shield'} size={28} color="#3B82F6" />
+                  <Feather name={biometricType === 'face' ? 'camera' : 'shield'} size={28} color="#3A8FF7" />
                 </View>
                 <View style={styles.optionText}>
                   <Text style={[styles.optionTitle, { fontFamily: 'Inter_600SemiBold' }]}>
@@ -400,7 +400,7 @@ export default function BiometricScreen() {
                     Use biometric to unlock instantly
                   </Text>
                 </View>
-                <Feather name="chevron-right" size={18} color="#3B82F6" />
+                <Feather name="chevron-right" size={18} color="#3A8FF7" />
               </TouchableOpacity>
             )}
 
@@ -413,9 +413,9 @@ export default function BiometricScreen() {
               {Platform.OS === 'ios' ? (
                 <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
               ) : null}
-              <LinearGradient colors={['#1E3A6E22', '#2563EB11']} style={StyleSheet.absoluteFill} />
+              <LinearGradient colors={['#1E3A6E22', '#3A8FF711']} style={StyleSheet.absoluteFill} />
               <View style={styles.optionIcon}>
-                <Feather name="lock" size={28} color="#D4AF37" />
+                <Feather name="lock" size={28} color="#3A8FF7" />
               </View>
               <View style={styles.optionText}>
                 <Text style={[styles.optionTitle, { fontFamily: 'Inter_600SemiBold' }]}>Set MPIN</Text>
@@ -423,7 +423,7 @@ export default function BiometricScreen() {
                   Create a 6-digit security PIN
                 </Text>
               </View>
-              <Feather name="chevron-right" size={18} color="#D4AF37" />
+              <Feather name="chevron-right" size={18} color="#3A8FF7" />
             </TouchableOpacity>
 
             {/* Skip */}
@@ -484,7 +484,7 @@ export default function BiometricScreen() {
                         disabled={mode === 'enter_mpin' && (cooldownActive || submitting)}
                       >
                         {key === '⌫' ? (
-                          <Feather name="delete" size={20} color="#94A3B8" />
+                          <Feather name="delete" size={20} color="#A8B3C7" />
                         ) : (
                           <Text style={[styles.padKeyText, { fontFamily: 'Inter_600SemiBold' }]}>{key}</Text>
                         )}
@@ -499,7 +499,7 @@ export default function BiometricScreen() {
             <View style={styles.pinActions}>
               {mode === 'enter_mpin' && hasBiometric && biometricEnabled && (
                 <TouchableOpacity onPress={triggerBiometric} style={styles.bioBtnSmall} activeOpacity={0.7}>
-                  <Feather name={biometricType === 'face' ? 'camera' : 'shield'} size={18} color="#3B82F6" />
+                  <Feather name={biometricType === 'face' ? 'camera' : 'shield'} size={18} color="#3A8FF7" />
                   <Text style={[styles.bioBtnText, { fontFamily: 'Inter_500Medium' }]}>
                     Use {biometricType === 'face' ? 'Face ID' : 'Fingerprint'}
                   </Text>
@@ -527,7 +527,7 @@ export default function BiometricScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  glow: { position: 'absolute', borderRadius: 999, opacity: 0.08 },
+  glow: { position: 'absolute', borderRadius: 999, opacity: 0.02 },
   container: {
     flex: 1,
     alignItems: 'center',
@@ -555,45 +555,45 @@ const styles = StyleSheet.create({
   iconGrad: {
     width: 80, height: 80, borderRadius: 24,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#2563EB', shadowOpacity: 0.45, shadowRadius: 18,
+    shadowColor: '#3A8FF7', shadowOpacity: 0.45, shadowRadius: 18,
     shadowOffset: { width: 0, height: 0 }, elevation: 10,
   },
 
   // Title
   titleWrap: { alignItems: 'center', gap: 8 },
-  title: { fontSize: 22, color: '#F1F5F9', textAlign: 'center' },
-  subtitle: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 20, maxWidth: 260 },
+  title: { fontSize: 22, color: '#F5F7FA', textAlign: 'center' },
+  subtitle: { fontSize: 13, color: '#A8B3C7', textAlign: 'center', lineHeight: 20, maxWidth: 260 },
 
   // Options (choose mode)
   optionsWrap: { width: '100%', gap: 14 },
   optionCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     borderRadius: 16, padding: 18,
-    borderWidth: 1, borderColor: '#1E3A5F66',
-    backgroundColor: Platform.OS === 'ios' ? '#0B1526AA' : '#0D1B2E',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: Platform.OS === 'ios' ? 'rgba(20, 30, 48, 0.58)' : 'rgba(20, 30, 48, 0.58)',
     overflow: 'hidden',
   },
   optionIcon: {
     width: 48, height: 48, borderRadius: 14,
-    backgroundColor: '#0A1628', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#1E3A5F55',
+    backgroundColor: 'rgba(17, 27, 45, 0.68)', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
   },
   optionText: { flex: 1, gap: 4 },
-  optionTitle: { fontSize: 15, color: '#F1F5F9' },
-  optionSub: { fontSize: 12, color: '#64748B' },
+  optionTitle: { fontSize: 15, color: '#F5F7FA' },
+  optionSub: { fontSize: 12, color: '#A8B3C7' },
 
   skipBtn: { alignItems: 'center', paddingVertical: 10 },
-  skipText: { fontSize: 13, color: '#475569' },
+  skipText: { fontSize: 13, color: '#7F8BA3' },
 
   // PIN pad
   pinWrap: { width: '100%', alignItems: 'center', gap: 24 },
   dotsRow: { flexDirection: 'row', gap: 14 },
   dot: {
     width: 14, height: 14, borderRadius: 7,
-    borderWidth: 2, borderColor: '#334155',
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.10)',
     backgroundColor: 'transparent',
   },
-  dotFilled: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
+  dotFilled: { backgroundColor: '#3A8FF7', borderColor: '#3A8FF7' },
   dotError: { borderColor: '#EF4444' },
   pinError: { fontSize: 13, color: '#F87171', marginTop: -8 },
 
@@ -601,17 +601,17 @@ const styles = StyleSheet.create({
   padRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   padKey: {
     flex: 1, height: 68, borderRadius: 16,
-    backgroundColor: '#0D1B2E', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#1E3A5F55',
+    backgroundColor: 'rgba(20, 30, 48, 0.58)', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
   },
-  padBackspace: { backgroundColor: '#080F1D' },
+  padBackspace: { backgroundColor: 'rgba(17, 27, 45, 0.68)' },
   padEmpty: { flex: 1, height: 68 },
-  padKeyText: { fontSize: 22, color: '#F1F5F9' },
+  padKeyText: { fontSize: 22, color: '#F5F7FA' },
 
   pinActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24 },
   bioBtnSmall: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
-  bioBtnText: { fontSize: 13, color: '#3B82F6' },
-  backText: { fontSize: 13, color: '#475569' },
-  forgotText: { fontSize: 13, color: '#94A3B8' },
+  bioBtnText: { fontSize: 13, color: '#3A8FF7' },
+  backText: { fontSize: 13, color: '#7F8BA3' },
+  forgotText: { fontSize: 13, color: '#A8B3C7' },
   forgotBtnCentered: { alignItems: 'center', paddingVertical: 10 },
 });

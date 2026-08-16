@@ -164,8 +164,8 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <LinearGradient colors={['#050912', '#091525', '#030710']} style={{ flex: 1 }}>
-      <View style={[s.glow, { top: -80, left: -60, width: 240, height: 240, backgroundColor: '#2563EB' }]} />
+    <LinearGradient colors={['#0B0F1A', '#0E1422']} style={{ flex: 1 }}>
+      <View style={[s.glow, { top: -80, left: -60, width: 240, height: 240, backgroundColor: '#3A8FF7' }]} />
               <KeyboardAwareScrollViewCompat
           contentContainerStyle={[s.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
           keyboardShouldPersistTaps="handled"
@@ -173,7 +173,7 @@ export default function ForgotPasswordScreen() {
         >
           <View style={s.headerRow}>
             <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-              <Feather name="arrow-left" size={22} color="#F1F5F9" />
+              <Feather name="arrow-left" size={22} color="#F5F7FA" />
             </TouchableOpacity>
             <View>
               <Text style={[s.title, { fontFamily: 'Inter_700Bold' }]}>Forgot Password</Text>
@@ -186,7 +186,7 @@ export default function ForgotPasswordScreen() {
             {step === 'email' && (
               <>
                 <View style={s.iconWrap}>
-                  <Feather name="key" size={28} color="#3B82F6" />
+                  <Feather name="key" size={28} color="#3A8FF7" />
                 </View>
                 <Text style={[s.cardTitle, { fontFamily: 'Inter_700Bold' }]}>Enter Your Email</Text>
                 <Text style={[s.cardSub, { fontFamily: 'Inter_400Regular' }]}>
@@ -203,12 +203,12 @@ export default function ForgotPasswordScreen() {
             {step === 'otp' && (
               <>
                 <View style={s.iconWrap}>
-                  <Feather name="shield" size={28} color="#3B82F6" />
+                  <Feather name="shield" size={28} color="#3A8FF7" />
                 </View>
                 <Text style={[s.cardTitle, { fontFamily: 'Inter_700Bold' }]}>Verify OTP</Text>
                 <Text style={[s.cardSub, { fontFamily: 'Inter_400Regular' }]}>
                   Enter the 6-digit OTP sent to{' '}
-                  <Text style={{ color: '#93C5FD', fontFamily: 'Inter_600SemiBold' }}>{email}</Text>
+                  <Text style={{ color: '#4DA3FF', fontFamily: 'Inter_600SemiBold' }}>{email}</Text>
                 </Text>
 
                 <View style={s.otpRow}>
@@ -252,7 +252,7 @@ export default function ForgotPasswordScreen() {
                   disabled={timer > 0}
                   style={{ alignItems: 'center' }}
                 >
-                  <Text style={[s.timerText, { color: timer > 0 ? '#475569' : '#60A5FA', fontFamily: 'Inter_500Medium' }]}>
+                  <Text style={[s.timerText, { color: timer > 0 ? '#7F8BA3' : '#4DA3FF', fontFamily: 'Inter_500Medium' }]}>
                     {timer > 0 ? `Resend OTP in ${timer}s` : 'Resend OTP'}
                   </Text>
                 </TouchableOpacity>
@@ -266,7 +266,7 @@ export default function ForgotPasswordScreen() {
             {step === 'reset' && (
               <>
                 <View style={s.iconWrap}>
-                  <Feather name="lock" size={28} color="#D4AF37" />
+                  <Feather name="lock" size={28} color="#3A8FF7" />
                 </View>
                 <Text style={[s.cardTitle, { fontFamily: 'Inter_700Bold' }]}>Set New Password</Text>
                 <Text style={[s.cardSub, { fontFamily: 'Inter_400Regular' }]}>
@@ -300,41 +300,41 @@ export default function ForgotPasswordScreen() {
 }
 
 const s = StyleSheet.create({
-  glow: { position: 'absolute', borderRadius: 999, opacity: 0.07 },
+  glow: { position: 'absolute', borderRadius: 999, opacity: 0.04 },
   scroll: { paddingHorizontal: 24, gap: 20, flexGrow: 1, justifyContent: 'center' },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 22, color: '#F1F5F9' },
-  subtitle: { fontSize: 13, color: '#64748B' },
+  title: { fontSize: 22, color: '#F5F7FA' },
+  subtitle: { fontSize: 13, color: '#A8B3C7' },
 
   card: {
-    backgroundColor: '#0D1B2E', borderRadius: 20,
-    borderWidth: 1, borderColor: '#1E3A5F66', padding: 24, gap: 14,
+    backgroundColor: 'rgba(20, 30, 48, 0.58)', borderRadius: 20,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', padding: 24, gap: 14,
     alignItems: 'stretch',
   },
   iconWrap: {
     width: 64, height: 64, borderRadius: 20, alignSelf: 'center',
     backgroundColor: '#1E3A6E22', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#1E3A5F44',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
   },
-  cardTitle: { fontSize: 20, color: '#F1F5F9', textAlign: 'center' },
-  cardSub: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 20 },
+  cardTitle: { fontSize: 20, color: '#F5F7FA', textAlign: 'center' },
+  cardSub: { fontSize: 13, color: '#A8B3C7', textAlign: 'center', lineHeight: 20 },
 
   otpRow: { flexDirection: 'row', justifyContent: 'center', gap: 10 },
   otpCell: {
     width: 44, height: 54, borderRadius: 12,
     fontSize: 20, fontFamily: 'Inter_700Bold',
-    color: '#F1F5F9', backgroundColor: '#0A1628',
-    borderWidth: 1.5, borderColor: '#1E3A5F66',
+    color: '#F5F7FA', backgroundColor: 'rgba(17, 27, 45, 0.68)',
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.10)',
   },
-  otpCellFilled: { borderColor: '#2563EB', backgroundColor: '#0D1E3A' },
+  otpCellFilled: { borderColor: '#3A8FF7', backgroundColor: 'rgba(20, 30, 48, 0.58)' },
 
   demoHint: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
     backgroundColor: '#1A1200', borderRadius: 10, padding: 10,
-    borderWidth: 1, borderColor: '#D4AF3733',
+    borderWidth: 1, borderColor: '#3A8FF733',
   },
-  demoHintText: { fontSize: 12, color: '#94A3B8' },
+  demoHintText: { fontSize: 12, color: '#A8B3C7' },
 
   errorBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

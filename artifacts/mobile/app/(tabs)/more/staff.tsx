@@ -13,12 +13,12 @@ import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/
 import { ROLE_LABELS } from '@/utils/helpers';
 
 const ROLE_COLORS: Record<string, string> = {
-  super_admin: '#DC2626',
-  dealer: '#7C3AED',
-  reception: '#0284C7',
-  technician: '#059669',
-  store_manager: '#D97706',
-  accountant: '#64748B',
+  super_admin: '#F87171',
+  dealer: '#8B5CF6',
+  reception: '#4DA3FF',
+  technician: '#34D399',
+  store_manager: '#F59E0B',
+  accountant: '#A8B3C7',
 };
 
 type StaffUser = {

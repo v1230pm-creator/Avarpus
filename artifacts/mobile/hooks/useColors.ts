@@ -7,5 +7,11 @@ export function useColors() {
     scheme === 'dark' && 'dark' in colors
       ? (colors as any).dark
       : colors.light;
-  return { ...palette, radius: colors.radius };
+  return {
+    ...palette,
+    radius: colors.radius,
+    radiusSm: (colors as any).radiusSm,
+    radiusLg: (colors as any).radiusLg,
+    radiusXl: (colors as any).radiusXl,
+  };
 }

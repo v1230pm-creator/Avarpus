@@ -76,10 +76,10 @@ const otpStyles = StyleSheet.create({
   cell: {
     width: 48, height: 58, borderRadius: 12,
     fontSize: 22, fontFamily: 'Inter_700Bold',
-    color: '#F1F5F9', backgroundColor: '#0A1628',
-    borderWidth: 1.5, borderColor: '#1E3A5F66',
+    color: '#F5F7FA', backgroundColor: 'rgba(17, 27, 45, 0.68)',
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.10)',
   },
-  cellFilled: { borderColor: '#2563EB', backgroundColor: '#0D1E3A' },
+  cellFilled: { borderColor: '#3A8FF7', backgroundColor: 'rgba(20, 30, 48, 0.58)' },
 });
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
@@ -114,16 +114,16 @@ const bar = StyleSheet.create({
   item: { alignItems: 'center', gap: 6 },
   dot: {
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: '#0A1628', borderWidth: 1.5, borderColor: '#334155',
+    backgroundColor: 'rgba(17, 27, 45, 0.68)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.10)',
     alignItems: 'center', justifyContent: 'center',
   },
-  dotActive: { borderColor: '#2563EB', backgroundColor: '#1D3A70' },
-  dotDone: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
-  dotNum: { fontSize: 11, color: '#64748B' },
-  label: { fontSize: 10, color: '#475569' },
-  labelActive: { color: '#60A5FA' },
+  dotActive: { borderColor: '#3A8FF7', backgroundColor: '#1D3A70' },
+  dotDone: { backgroundColor: '#3A8FF7', borderColor: '#3A8FF7' },
+  dotNum: { fontSize: 11, color: '#A8B3C7' },
+  label: { fontSize: 10, color: '#7F8BA3' },
+  labelActive: { color: '#4DA3FF' },
   line: { flex: 1, height: 1.5, backgroundColor: '#1E3A5F', marginBottom: 18, marginHorizontal: 6 },
-  lineDone: { backgroundColor: '#2563EB' },
+  lineDone: { backgroundColor: '#3A8FF7' },
 });
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
@@ -332,10 +332,10 @@ export default function RegisterScreen() {
   const stepIndex = step === 'form' ? 0 : step === 'email_otp' ? 1 : 2;
 
   return (
-    <LinearGradient colors={['#050912', '#091525', '#030710']} style={{ flex: 1 }}>
+    <LinearGradient colors={['#0B0F1A', '#0E1422']} style={{ flex: 1 }}>
       {/* Glow */}
-      <View style={[gs.glow, { top: -80, left: -60, width: 240, height: 240, backgroundColor: '#2563EB' }]} />
-      <View style={[gs.glow, { bottom: -60, right: -40, width: 180, height: 180, backgroundColor: '#1D4ED8' }]} />
+      <View style={[gs.glow, { top: -80, left: -60, width: 240, height: 240, backgroundColor: '#3A8FF7' }]} />
+      <View style={[gs.glow, { bottom: -60, right: -40, width: 180, height: 180, backgroundColor: '#2F80ED' }]} />
 
               <KeyboardAwareScrollViewCompat
           contentContainerStyle={[gs.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
@@ -351,7 +351,7 @@ export default function RegisterScreen() {
               }}
               style={gs.backBtn}
             >
-              <Feather name="arrow-left" size={22} color="#F1F5F9" />
+              <Feather name="arrow-left" size={22} color="#F5F7FA" />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
               <Text style={[gs.title, { fontFamily: 'Inter_700Bold' }]}>
@@ -381,7 +381,7 @@ export default function RegisterScreen() {
                     onPress={() => { setAccountType(opt.key); setErrors({}); }}
                     activeOpacity={0.8}
                   >
-                    <Feather name={opt.icon} size={15} color={accountType === opt.key ? '#60A5FA' : '#475569'} />
+                    <Feather name={opt.icon} size={15} color={accountType === opt.key ? '#4DA3FF' : '#7F8BA3'} />
                     <Text style={[gs.roleText, accountType === opt.key && gs.roleTextActive, { fontFamily: 'Inter_600SemiBold' }]}>
                       {opt.label}
                     </Text>
@@ -453,7 +453,7 @@ export default function RegisterScreen() {
                   {profilePhoto ? (
                     <Image source={{ uri: profilePhoto }} style={gs.photoImg} contentFit="cover" />
                   ) : (
-                    <Feather name="user" size={22} color="#475569" />
+                    <Feather name="user" size={22} color="#7F8BA3" />
                   )}
                   <Text style={[gs.photoLabel, { fontFamily: 'Inter_500Medium' }]}>Profile Photo</Text>
                 </TouchableOpacity>
@@ -461,14 +461,14 @@ export default function RegisterScreen() {
                   {companyLogo ? (
                     <Image source={{ uri: companyLogo }} style={gs.photoImg} contentFit="cover" />
                   ) : (
-                    <Feather name="image" size={22} color="#475569" />
+                    <Feather name="image" size={22} color="#7F8BA3" />
                   )}
                   <Text style={[gs.photoLabel, { fontFamily: 'Inter_500Medium' }]}>Company Logo</Text>
                 </TouchableOpacity>
               </View>
 
               <View style={gs.infoBox}>
-                <Feather name="info" size={14} color="#60A5FA" />
+                <Feather name="info" size={14} color="#4DA3FF" />
                 <Text style={[gs.infoText, { fontFamily: 'Inter_400Regular' }]}>
                   {accountType === 'dealer'
                     ? "We'll send a 6-digit OTP to your email to verify your identity. Your account is created as the shop owner (Dealer) — you can add staff later from Staff Management."
@@ -486,7 +486,7 @@ export default function RegisterScreen() {
             <Reanimated.View style={[gs.card, cardStyle]}>
               <View style={gs.otpHeader}>
                 <View style={gs.otpIconWrap}>
-                  <Feather name="mail" size={28} color="#3B82F6" />
+                  <Feather name="mail" size={28} color="#3A8FF7" />
                 </View>
                 <Text style={[gs.otpTitle, { fontFamily: 'Inter_700Bold' }]}>Verify Email</Text>
                 <Text style={[gs.otpSub, { fontFamily: 'Inter_400Regular' }]}>
@@ -514,7 +514,7 @@ export default function RegisterScreen() {
                 disabled={emailTimer > 0}
                 style={{ alignItems: 'center' }}
               >
-                <Text style={[gs.timerText, { color: emailTimer > 0 ? '#475569' : '#60A5FA', fontFamily: 'Inter_500Medium' }]}>
+                <Text style={[gs.timerText, { color: emailTimer > 0 ? '#7F8BA3' : '#4DA3FF', fontFamily: 'Inter_500Medium' }]}>
                   {emailTimer > 0 ? `Resend OTP in ${emailTimer}s` : 'Resend OTP'}
                 </Text>
               </TouchableOpacity>
@@ -529,7 +529,7 @@ export default function RegisterScreen() {
           {step === 'success' && (
             <Reanimated.View style={[gs.successCard, cardStyle]}>
               <LinearGradient
-                colors={['#0D1B2E', '#0A1628']}
+                colors={['rgba(20, 30, 48, 0.58)', 'rgba(17, 27, 45, 0.68)']}
                 style={StyleSheet.absoluteFill}
               />
               <View style={gs.successIcon}>
@@ -552,12 +552,12 @@ export default function RegisterScreen() {
               <View style={gs.successSteps}>
                 {(pendingApproval
                   ? [
-                      { icon: 'mail', color: '#3B82F6', label: 'Email verified' },
+                      { icon: 'mail', color: '#3A8FF7', label: 'Email verified' },
                       { icon: 'clock', color: '#D97706', label: 'Waiting for owner approval' },
                     ]
                   : [
-                      { icon: 'mail', color: '#3B82F6', label: 'Email verified' },
-                      { icon: 'briefcase', color: '#D4AF37', label: 'Shop workspace created' },
+                      { icon: 'mail', color: '#3A8FF7', label: 'Email verified' },
+                      { icon: 'briefcase', color: '#3A8FF7', label: 'Shop workspace created' },
                     ]
                 ).map((item, i) => (
                   <View key={i} style={gs.successStep}>
@@ -574,7 +574,7 @@ export default function RegisterScreen() {
                 onPress={() => (pendingApproval ? router.replace('/(auth)') : router.replace('/(tabs)'))}
                 activeOpacity={0.8}
               >
-                <LinearGradient colors={['#1D4ED8', '#2563EB', '#3B82F6']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={gs.goLoginGrad}>
+                <LinearGradient colors={['#2F80ED', '#3A8FF7', '#3A8FF7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={gs.goLoginGrad}>
                   <Text style={[gs.goLoginText, { fontFamily: 'Inter_600SemiBold' }]}>
                     {pendingApproval ? 'Back to Sign In' : 'Go to Dashboard'}
                   </Text>
@@ -588,7 +588,7 @@ export default function RegisterScreen() {
             <TouchableOpacity onPress={() => router.back()} style={{ alignItems: 'center' }}>
               <Text style={[gs.loginLink, { fontFamily: 'Inter_400Regular' }]}>
                 Already have an account?{' '}
-                <Text style={{ color: '#60A5FA', fontFamily: 'Inter_600SemiBold' }}>Sign In</Text>
+                <Text style={{ color: '#4DA3FF', fontFamily: 'Inter_600SemiBold' }}>Sign In</Text>
               </Text>
             </TouchableOpacity>
           )}
@@ -598,68 +598,68 @@ export default function RegisterScreen() {
 }
 
 const gs = StyleSheet.create({
-  glow: { position: 'absolute', borderRadius: 999, opacity: 0.07 },
+  glow: { position: 'absolute', borderRadius: 999, opacity: 0.04 },
   scroll: { paddingHorizontal: 24, gap: 20 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 22, color: '#F1F5F9' },
-  subtitle: { fontSize: 13, color: '#64748B' },
+  title: { fontSize: 22, color: '#F5F7FA' },
+  subtitle: { fontSize: 13, color: '#A8B3C7' },
 
   card: {
-    backgroundColor: '#0D1B2E', borderRadius: 20,
-    borderWidth: 1, borderColor: '#1E3A5F66', padding: 24, gap: 16,
+    backgroundColor: 'rgba(20, 30, 48, 0.58)', borderRadius: 20,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', padding: 24, gap: 16,
   },
 
   infoBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     backgroundColor: '#1E40AF11', borderRadius: 10, padding: 12,
-    borderWidth: 1, borderColor: '#3B82F622',
+    borderWidth: 1, borderColor: '#3A8FF722',
   },
-  infoText: { fontSize: 12, color: '#93C5FD', flex: 1, lineHeight: 18 },
+  infoText: { fontSize: 12, color: '#4DA3FF', flex: 1, lineHeight: 18 },
 
   roleRow: { flexDirection: 'row', gap: 12 },
   roleBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    height: 46, borderRadius: 12, backgroundColor: '#0A1628',
-    borderWidth: 1.5, borderColor: '#1E3A5F66',
+    height: 46, borderRadius: 12, backgroundColor: 'rgba(17, 27, 45, 0.68)',
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.10)',
   },
-  roleBtnActive: { borderColor: '#2563EB', backgroundColor: '#1D3A7040' },
-  roleText: { fontSize: 14, color: '#475569' },
-  roleTextActive: { color: '#60A5FA' },
-  fieldLabel: { fontSize: 13, color: '#94A3B8', marginBottom: 8 },
+  roleBtnActive: { borderColor: '#3A8FF7', backgroundColor: '#1D3A7040' },
+  roleText: { fontSize: 14, color: '#7F8BA3' },
+  roleTextActive: { color: '#4DA3FF' },
+  fieldLabel: { fontSize: 13, color: '#A8B3C7', marginBottom: 8 },
   staffRoleWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   staffRoleChip: {
     paddingHorizontal: 14, height: 38, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#0A1628', borderWidth: 1.5, borderColor: '#1E3A5F66',
+    backgroundColor: 'rgba(17, 27, 45, 0.68)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.10)',
   },
 
   photoRow: { flexDirection: 'row', gap: 12 },
   photoBox: {
     flex: 1, height: 96, borderRadius: 14,
-    backgroundColor: '#0A1628', borderWidth: 1.5, borderColor: '#1E3A5F66', borderStyle: 'dashed',
+    backgroundColor: 'rgba(17, 27, 45, 0.68)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.10)', borderStyle: 'dashed',
     alignItems: 'center', justifyContent: 'center', gap: 8, overflow: 'hidden',
   },
   photoImg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 26 },
-  photoLabel: { fontSize: 11, color: '#64748B', position: 'absolute', bottom: 8 },
+  photoLabel: { fontSize: 11, color: '#A8B3C7', position: 'absolute', bottom: 8 },
 
   // OTP
   otpHeader: { alignItems: 'center', gap: 6 },
   otpIconWrap: {
     width: 64, height: 64, borderRadius: 20,
     backgroundColor: '#1E3A6E22', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#1E3A5F44', marginBottom: 6,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', marginBottom: 6,
   },
-  otpTitle: { fontSize: 20, color: '#F1F5F9' },
-  otpSub: { fontSize: 13, color: '#64748B' },
-  otpTarget: { fontSize: 14, color: '#93C5FD' },
+  otpTitle: { fontSize: 20, color: '#F5F7FA' },
+  otpSub: { fontSize: 13, color: '#A8B3C7' },
+  otpTarget: { fontSize: 14, color: '#4DA3FF' },
 
   demoHint: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
     backgroundColor: '#1A1200', borderRadius: 10, padding: 10,
-    borderWidth: 1, borderColor: '#D4AF3733',
+    borderWidth: 1, borderColor: '#3A8FF733',
   },
-  demoHintText: { fontSize: 12, color: '#94A3B8' },
+  demoHintText: { fontSize: 12, color: '#A8B3C7' },
 
   errorBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -669,12 +669,12 @@ const gs = StyleSheet.create({
   errorText: { fontSize: 12, color: '#F87171', flex: 1 },
 
   timerText: { fontSize: 13 },
-  loginLink: { fontSize: 14, color: '#64748B', textAlign: 'center' },
+  loginLink: { fontSize: 14, color: '#A8B3C7', textAlign: 'center' },
 
   // Success
   successCard: {
     borderRadius: 24, overflow: 'hidden',
-    borderWidth: 1, borderColor: '#1E3A5F66',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
     padding: 32, gap: 18, alignItems: 'center',
   },
   successIcon: { marginBottom: 4 },
@@ -684,21 +684,21 @@ const gs = StyleSheet.create({
     shadowColor: '#10B981', shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 0 },
     elevation: 10,
   },
-  successTitle: { fontSize: 24, color: '#F1F5F9' },
-  successSub: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 20, maxWidth: 280 },
+  successTitle: { fontSize: 24, color: '#F5F7FA' },
+  successSub: { fontSize: 13, color: '#A8B3C7', textAlign: 'center', lineHeight: 20, maxWidth: 280 },
   successSteps: { width: '100%', gap: 10 },
   successStep: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#080F1D', borderRadius: 12, padding: 12,
-    borderWidth: 1, borderColor: '#1E3A5F44',
+    backgroundColor: 'rgba(17, 27, 45, 0.68)', borderRadius: 12, padding: 12,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
   },
   successStepDot: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  successStepText: { fontSize: 13, color: '#94A3B8' },
+  successStepText: { fontSize: 13, color: '#A8B3C7' },
   goLoginBtn: { width: '100%', borderRadius: 14, overflow: 'hidden' },
   goLoginGrad: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
     height: 54,
-    shadowColor: '#2563EB', shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#3A8FF7', shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 4 },
   },
   goLoginText: { fontSize: 16, color: '#FFFFFF' },
 });

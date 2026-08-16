@@ -15,14 +15,15 @@ interface InputProps extends TextInputProps {
   dark?: boolean;
 }
 
+// Forced-dark palette (auth screens) — mirrors the premium glass tokens.
 const DARK = {
-  foreground: '#94A3B8',
-  input: '#0A1628',
-  border: '#1E3A5F66',
-  primary: '#3B82F6',
-  mutedForeground: '#475569',
+  foreground: '#A8B3C7',
+  input: 'rgba(17, 27, 45, 0.68)',
+  border: 'rgba(255,255,255,0.10)',
+  primary: '#3A8FF7',
+  mutedForeground: '#7F8BA3',
   destructive: '#F87171',
-  text: '#F1F5F9',
+  text: '#F5F7FA',
   radius: 14,
 };
 
@@ -46,7 +47,7 @@ export function Input({
           {label}
         </Text>
       )}
-      <View style={[styles.row, {
+      <View collapsable={false} style={[styles.row, {
         backgroundColor: colors.input,
         borderColor,
         borderWidth: 1.5,

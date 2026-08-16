@@ -91,20 +91,20 @@ export default function OTPScreen() {
   const filled = otp.join('').length === 6;
 
   return (
-    <LinearGradient colors={['#060A14', '#0D1528', '#060A14']} style={{ flex: 1 }}>
+    <LinearGradient colors={['#0B0F1A', '#0E1422']} style={{ flex: 1 }}>
       <KeyboardAwareScrollViewCompat
         style={{ flex: 1 }}
         contentContainerStyle={{ flexGrow: 1 }}
       >
         <View style={[styles.container, { flex: 1, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Feather name="arrow-left" size={22} color="#F1F5F9" />
+            <Feather name="arrow-left" size={22} color="#F5F7FA" />
           </TouchableOpacity>
 
           <View style={{ flex: 1, justifyContent: 'center', gap: 36 }}>
             <View style={styles.header}>
               <View style={styles.iconCircle}>
-                <Feather name="smartphone" size={32} color="#60A5FA" />
+                <Feather name="smartphone" size={32} color="#4DA3FF" />
               </View>
               <Text style={[styles.title, { fontFamily: 'Inter_700Bold' }]}>Verify Your Mobile</Text>
               <Text style={[styles.subtitle, { fontFamily: 'Inter_400Regular' }]}>
@@ -128,10 +128,10 @@ export default function OTPScreen() {
                   style={[
                     styles.otpCell,
                     {
-                      borderColor: digit ? '#3B82F6' : '#1E293B',
-                      color: '#F1F5F9',
+                      borderColor: digit ? '#3A8FF7' : 'rgba(255,255,255,0.10)',
+                      color: '#F5F7FA',
                       fontFamily: 'Inter_700Bold',
-                      backgroundColor: '#0F172A',
+                      backgroundColor: 'rgba(17, 27, 45, 0.68)',
                       borderRadius: colors.radius - 2,
                     },
                   ]}
@@ -153,7 +153,7 @@ export default function OTPScreen() {
               style={{ alignItems: 'center' }}
             >
               <Text style={[styles.resendText, {
-                color: timer > 0 ? '#475569' : '#60A5FA',
+                color: timer > 0 ? '#7F8BA3' : '#4DA3FF',
                 fontFamily: 'Inter_500Medium',
               }]}>
                 {timer > 0 ? `Resend OTP in ${timer}s` : 'Resend OTP'}
@@ -183,8 +183,8 @@ const styles = StyleSheet.create({
     width: 80, height: 80, borderRadius: 40,
     backgroundColor: '#1E40AF22', alignItems: 'center', justifyContent: 'center',
   },
-  title: { fontSize: 26, color: '#F1F5F9' },
-  subtitle: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22 },
+  title: { fontSize: 26, color: '#F5F7FA' },
+  subtitle: { fontSize: 14, color: '#A8B3C7', textAlign: 'center', lineHeight: 22 },
   otpRow: { flexDirection: 'row', justifyContent: 'center', gap: 10 },
   otpCell: { width: 48, height: 60, fontSize: 24, borderWidth: 1.5 },
   resendText: { fontSize: 14 },

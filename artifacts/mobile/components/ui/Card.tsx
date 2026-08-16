@@ -23,12 +23,12 @@ export function Card({ children, style, variant = 'default', padding = 16 }: Car
       style={[
         styles.base,
         {
-          backgroundColor: isDark ? 'rgba(17, 24, 39, 0.6)' : 'rgba(255, 255, 255, 0.8)',
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+          backgroundColor: variant === 'elevated' ? colors.glassStrong : colors.glass,
+          borderColor: variant === 'outline' ? colors.glassBorderActive : colors.glassBorder,
           padding,
-          shadowColor: colors.foreground,
+          shadowColor: '#000000',
           shadowOpacity:
-            variant === 'elevated' ? (isDark ? 0.25 : 0.08) : isDark ? 0.2 : 0.05,
+            variant === 'elevated' ? (isDark ? 0.22 : 0.08) : isDark ? 0.18 : 0.05,
           elevation: variant === 'elevated' ? 6 : 4,
         },
         style,

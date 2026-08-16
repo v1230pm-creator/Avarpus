@@ -41,7 +41,7 @@ const PARTICLES = Array.from({ length: 10 }, (_, i) => ({
   size: (i % 3) + 1.5,
   duration: 7000 + (i % 5) * 1500,
   delay: i * 600,
-  opacity: 0.12 + (i % 4) * 0.06,
+  opacity: 0.08 + (i % 4) * 0.04,
 }));
 
 function Particle({ data }: { data: typeof PARTICLES[0] }) {
@@ -75,7 +75,7 @@ function Particle({ data }: { data: typeof PARTICLES[0] }) {
         width: data.size,
         height: data.size,
         borderRadius: data.size / 2,
-        backgroundColor: '#60A5FA',
+        backgroundColor: '#4DA3FF',
         transform: [{ translateY: anim }],
         opacity: opacityAnim,
       }}
@@ -90,7 +90,7 @@ function GlowCircle({ style }: { style: object }) {
 function SecurityBadge({ icon, label }: { icon: keyof typeof Feather.glyphMap; label: string }) {
   return (
     <View style={styles.secBadge}>
-      <Feather name={icon} size={12} color="#D4AF37" />
+      <Feather name={icon} size={12} color="#3A8FF7" />
       <Text style={[styles.secBadgeText, { fontFamily: 'Inter_500Medium' }]}>{label}</Text>
     </View>
   );
@@ -222,16 +222,16 @@ export default function LoginScreen() {
     <View style={styles.root}>
       {/* Background */}
       <LinearGradient
-        colors={['#050912', '#091525', '#030710']}
-        locations={[0, 0.5, 1]}
+        colors={['#0B0F1A', '#0E1422']}
+        locations={[0, 1]}
         style={StyleSheet.absoluteFill}
       />
 
       {/* Glow circles */}
-      <GlowCircle style={{ top: -160, left: -100, width: 340, height: 340, backgroundColor: '#2563EB', opacity: 0.1 }} />
-      <GlowCircle style={{ top: SCREEN_H * 0.3, right: -140, width: 280, height: 280, backgroundColor: '#1D4ED8', opacity: 0.08 }} />
-      <GlowCircle style={{ bottom: -120, left: SCREEN_W * 0.2, width: 240, height: 240, backgroundColor: '#3B82F6', opacity: 0.06 }} />
-      <GlowCircle style={{ top: SCREEN_H * 0.15, left: SCREEN_W * 0.5, width: 180, height: 180, backgroundColor: '#D4AF37', opacity: 0.04 }} />
+      <GlowCircle style={{ top: -160, left: -100, width: 340, height: 340, backgroundColor: '#3A8FF7', opacity: 0.05 }} />
+      <GlowCircle style={{ top: SCREEN_H * 0.3, right: -140, width: 280, height: 280, backgroundColor: '#2F80ED', opacity: 0.02 }} />
+      <GlowCircle style={{ bottom: -120, left: SCREEN_W * 0.2, width: 240, height: 240, backgroundColor: '#3A8FF7', opacity: 0.03 }} />
+      <GlowCircle style={{ top: SCREEN_H * 0.15, left: SCREEN_W * 0.5, width: 180, height: 180, backgroundColor: '#3A8FF7', opacity: 0.02 }} />
 
       {/* Particles */}
       {Platform.OS !== 'web' && PARTICLES.map((p) => <Particle key={p.id} data={p} />)}
@@ -288,9 +288,9 @@ export default function LoginScreen() {
                   style={[styles.tabBtn, { width: tabW }]}
                   activeOpacity={0.8}
                 >
-                  <Feather name="mail" size={14} color={activeTab === 'email' ? '#FFFFFF' : '#64748B'} />
+                  <Feather name="mail" size={14} color={activeTab === 'email' ? '#FFFFFF' : '#A8B3C7'} />
                   <Text style={[styles.tabText, {
-                    color: activeTab === 'email' ? '#FFFFFF' : '#64748B',
+                    color: activeTab === 'email' ? '#FFFFFF' : '#A8B3C7',
                     fontFamily: activeTab === 'email' ? 'Inter_600SemiBold' : 'Inter_400Regular',
                   }]}>Email</Text>
                 </TouchableOpacity>
@@ -299,9 +299,9 @@ export default function LoginScreen() {
                   style={[styles.tabBtn, { width: tabW }]}
                   activeOpacity={0.8}
                 >
-                  <Feather name="smartphone" size={14} color={activeTab === 'mobile' ? '#FFFFFF' : '#64748B'} />
+                  <Feather name="smartphone" size={14} color={activeTab === 'mobile' ? '#FFFFFF' : '#A8B3C7'} />
                   <Text style={[styles.tabText, {
-                    color: activeTab === 'mobile' ? '#FFFFFF' : '#64748B',
+                    color: activeTab === 'mobile' ? '#FFFFFF' : '#A8B3C7',
                     fontFamily: activeTab === 'mobile' ? 'Inter_600SemiBold' : 'Inter_400Regular',
                   }]}>Mobile OTP</Text>
                 </TouchableOpacity>
@@ -309,8 +309,8 @@ export default function LoginScreen() {
 
               {/* Signed-out notice (e.g. session revoked from another device) */}
               {!!signedOutNotice && !error && (
-                <View style={[styles.otpInfo, { borderColor: '#2563EB33' }]}>
-                  <Feather name="info" size={13} color="#60A5FA" />
+                <View style={[styles.otpInfo, { borderColor: '#3A8FF733' }]}>
+                  <Feather name="info" size={13} color="#4DA3FF" />
                   <Text style={[styles.otpInfoText, { fontFamily: 'Inter_400Regular' }]}>{signedOutNotice}</Text>
                 </View>
               )}
@@ -330,18 +330,18 @@ export default function LoginScreen() {
                   <View style={styles.fieldWrap}>
                     <Text style={[styles.fieldLabel, { fontFamily: 'Inter_500Medium' }]}>Email Address</Text>
                     <View collapsable={false} style={[styles.inputRow, emailFocused && styles.inputFocused]}>
-                      <Feather name="mail" size={16} color={emailFocused ? '#3B82F6' : '#475569'} />
+                      <Feather name="mail" size={16} color={emailFocused ? '#3A8FF7' : '#7F8BA3'} />
                       <TextInput
                         value={email}
                         onChangeText={setEmail}
                         placeholder="Enter email id"
-                        placeholderTextColor="#475569"
+                        placeholderTextColor="#7F8BA3"
                         keyboardType="email-address"
                         autoCapitalize="none"
                         autoCorrect={false}
                         onFocus={() => setEmailFocused(true)}
                         onBlur={() => setEmailFocused(false)}
-                        style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
+                        style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F5F7FA' }]}
                       />
                     </View>
                   </View>
@@ -350,21 +350,21 @@ export default function LoginScreen() {
                   <View style={styles.fieldWrap}>
                     <Text style={[styles.fieldLabel, { fontFamily: 'Inter_500Medium' }]}>Password</Text>
                     <View collapsable={false} style={[styles.inputRow, passFocused && styles.inputFocused]}>
-                      <Feather name="lock" size={16} color={passFocused ? '#3B82F6' : '#475569'} />
+                      <Feather name="lock" size={16} color={passFocused ? '#3A8FF7' : '#7F8BA3'} />
                       <TextInput
                         value={password}
                         onChangeText={setPassword}
                         placeholder="Enter password"
-                        placeholderTextColor="#475569"
+                        placeholderTextColor="#7F8BA3"
                         secureTextEntry={!showPassword}
                         onFocus={() => setPassFocused(true)}
                         onBlur={() => setPassFocused(false)}
                         returnKeyType="done"
                         onSubmitEditing={handleSignIn}
-                        style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
+                        style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F5F7FA' }]}
                       />
                       <TouchableOpacity onPress={() => setShowPassword((v) => !v)} activeOpacity={0.7}>
-                        <Feather name={showPassword ? 'eye-off' : 'eye'} size={16} color="#475569" />
+                        <Feather name={showPassword ? 'eye-off' : 'eye'} size={16} color="#7F8BA3" />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -384,7 +384,7 @@ export default function LoginScreen() {
                     style={styles.altBtn}
                     activeOpacity={0.7}
                   >
-                    <Feather name="smartphone" size={15} color="#60A5FA" />
+                    <Feather name="smartphone" size={15} color="#4DA3FF" />
                     <Text style={[styles.altBtnText, { fontFamily: 'Inter_500Medium' }]}>Login with OTP</Text>
                   </TouchableOpacity>
                 </View>
@@ -398,7 +398,7 @@ export default function LoginScreen() {
                     <View collapsable={false} style={[styles.inputRow, mobileFocused && styles.inputFocused]}>
                       {/* Country code */}
                       <View style={styles.countryCode}>
-                        <Text style={[styles.countryFlag, { fontFamily: 'Inter_400Regular' }]}>🇮🇳</Text>
+                        
                         <Text style={[styles.countryDial, { fontFamily: 'Inter_600SemiBold' }]}>+91</Text>
                         <View style={styles.codeDivider} />
                       </View>
@@ -406,19 +406,19 @@ export default function LoginScreen() {
                         value={mobile}
                         onChangeText={(t) => setMobile(t.replace(/[^0-9]/g, '').slice(0, 10))}
                         placeholder="Enter mobile number"
-                        placeholderTextColor="#475569"
+                        placeholderTextColor="#7F8BA3"
                         keyboardType="phone-pad"
                         maxLength={10}
                         onFocus={() => setMobileFocused(true)}
                         onBlur={() => setMobileFocused(false)}
-                        style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F1F5F9' }]}
+                        style={[styles.textInput, { fontFamily: 'Inter_400Regular', color: '#F5F7FA' }]}
                       />
                       <Text style={[styles.digitCount, { fontFamily: 'Inter_400Regular' }]}>{mobile.length}/10</Text>
                     </View>
                   </View>
 
-                  <View style={[styles.otpInfo, { borderColor: '#2563EB33' }]}>
-                    <Feather name="info" size={13} color="#60A5FA" />
+                  <View style={[styles.otpInfo, { borderColor: '#3A8FF733' }]}>
+                    <Feather name="info" size={13} color="#4DA3FF" />
                     <Text style={[styles.otpInfoText, { fontFamily: 'Inter_400Regular' }]}>
                       A 6-digit OTP will be sent to your registered mobile number.
                     </Text>
@@ -442,7 +442,7 @@ export default function LoginScreen() {
                     style={styles.altBtn}
                     activeOpacity={0.7}
                   >
-                    <Feather name="mail" size={15} color="#60A5FA" />
+                    <Feather name="mail" size={15} color="#4DA3FF" />
                     <Text style={[styles.altBtnText, { fontFamily: 'Inter_500Medium' }]}>Sign in with Email instead</Text>
                   </TouchableOpacity>
                 </View>
@@ -494,7 +494,7 @@ function GradientButton({ title, onPress, loading, icon }: { title: string; onPr
         activeOpacity={1}
       >
         <LinearGradient
-          colors={['#1D4ED8', '#2563EB', '#3B82F6']}
+          colors={['#2F80ED', '#3A8FF7', '#3A8FF7']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.gradBtn}
@@ -554,13 +554,13 @@ const styles = StyleSheet.create({
   // Logo
   logoWrap: { alignItems: 'center', gap: 2 },
   logoImg: { width: 200, height: 50 },
-  electronicText: { fontSize: 13, color: '#94A3B8', letterSpacing: 5, marginTop: 4 },
+  electronicText: { fontSize: 13, color: '#A8B3C7', letterSpacing: 5, marginTop: 4 },
   adminBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10,
     paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
-    backgroundColor: '#D4AF3715', borderWidth: 1, borderColor: '#D4AF3740',
+    backgroundColor: '#3A8FF715', borderWidth: 1, borderColor: '#3A8FF740',
   },
-  adminBadgeText: { fontSize: 11, color: '#D4AF37', letterSpacing: 1.5 },
+  adminBadgeText: { fontSize: 11, color: '#3A8FF7', letterSpacing: 1.5 },
   handsImg: { width: 190, height: 40, marginTop: 2 },
 
   // Header
@@ -569,54 +569,54 @@ const styles = StyleSheet.create({
     width: 72, height: 72, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',
     position: 'relative',
-    shadowColor: '#2563EB', shadowOpacity: 0.45, shadowRadius: 18, shadowOffset: { width: 0, height: 0 },
+    shadowColor: '#3A8FF7', shadowOpacity: 0.45, shadowRadius: 18, shadowOffset: { width: 0, height: 0 },
     elevation: 10, marginBottom: 4,
   },
   monogramText: { fontSize: 22, color: '#FFFFFF', letterSpacing: 1 },
   goldDot: {
     position: 'absolute', top: -3, right: -3,
     width: 14, height: 14, borderRadius: 7,
-    backgroundColor: '#D4AF37',
-    borderWidth: 2, borderColor: '#050912',
+    backgroundColor: '#3A8FF7',
+    borderWidth: 2, borderColor: '#0B0F1A',
   },
-  appName: { fontSize: 30, color: '#F1F5F9', letterSpacing: -0.5 },
-  tagline: { fontSize: 13, color: '#64748B', letterSpacing: 0.2 },
+  appName: { fontSize: 30, color: '#F5F7FA', letterSpacing: -0.5 },
+  tagline: { fontSize: 13, color: '#A8B3C7', letterSpacing: 0.2 },
   versionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  versionDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#D4AF37' },
-  version: { fontSize: 11, color: '#D4AF37', letterSpacing: 0.5 },
+  versionDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#3A8FF7' },
+  version: { fontSize: 11, color: '#3A8FF7', letterSpacing: 0.5 },
 
   // Security badges
   secRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 0, backgroundColor: '#0D1C35', borderRadius: 30,
-    borderWidth: 1, borderColor: '#1E3A5F55', paddingVertical: 10, paddingHorizontal: 16,
+    gap: 0, backgroundColor: 'rgba(17, 27, 45, 0.68)', borderRadius: 30,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', paddingVertical: 10, paddingHorizontal: 16,
   },
   secBadge: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  secBadgeText: { fontSize: 11, color: '#94A3B8' },
-  secDivider: { width: 1, height: 14, backgroundColor: '#1E3A5F', marginHorizontal: 12 },
+  secBadgeText: { fontSize: 11, color: '#A8B3C7' },
+  secDivider: { width: 1, height: 14, backgroundColor: 'rgba(255,255,255,0.10)', marginHorizontal: 12 },
 
   // Glass card
   cardOuter: {
     borderRadius: 20, overflow: 'hidden',
-    borderWidth: 1, borderColor: '#1E3A5F66',
-    backgroundColor: Platform.OS === 'ios' ? '#0B1526AA' : '#0D1B2E',
-    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 30, shadowOffset: { width: 0, height: 8 },
-    elevation: 12,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: Platform.OS === 'ios' ? 'rgba(20, 30, 48, 0.58)' : 'rgba(20, 30, 48, 0.58)',
+    shadowColor: '#000000', shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
   },
   cardInner: { padding: 24, gap: 16 },
   cardHeader: { gap: 4 },
-  cardTitle: { fontSize: 22, color: '#F1F5F9' },
-  cardSub: { fontSize: 13, color: '#64748B', lineHeight: 19 },
+  cardTitle: { fontSize: 22, color: '#F5F7FA' },
+  cardSub: { fontSize: 13, color: '#A8B3C7', lineHeight: 19 },
 
   // Tabs
   tabContainer: {
-    flexDirection: 'row', backgroundColor: '#0A1628', borderRadius: 12,
+    flexDirection: 'row', backgroundColor: 'rgba(17, 27, 45, 0.68)', borderRadius: 12,
     padding: 2, position: 'relative', height: 44, overflow: 'hidden',
-    borderWidth: 1, borderColor: '#1E3A5F44',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
   },
   tabIndicator: {
     position: 'absolute', top: 2, left: 2, bottom: 2,
-    backgroundColor: '#2563EB', borderRadius: 10,
+    backgroundColor: '#3A8FF7', borderRadius: 10,
   },
   tabBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, zIndex: 1 },
   tabText: { fontSize: 13 },
@@ -632,36 +632,36 @@ const styles = StyleSheet.create({
   // Form
   form: { gap: 14 },
   fieldWrap: { gap: 7 },
-  fieldLabel: { fontSize: 12, color: '#94A3B8', letterSpacing: 0.3 },
+  fieldLabel: { fontSize: 12, color: '#A8B3C7', letterSpacing: 0.3 },
   inputRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#0A1628', borderRadius: 12, paddingHorizontal: 14, height: 52,
-    borderWidth: 1, borderColor: '#1E3A5F66',
+    backgroundColor: 'rgba(17, 27, 45, 0.68)', borderRadius: 12, paddingHorizontal: 14, height: 52,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
   },
-  inputFocused: { borderColor: '#2563EB', shadowColor: '#2563EB', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 0 } },
+  inputFocused: { borderColor: '#3A8FF7', shadowColor: '#3A8FF7', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 0 } },
   textInput: { flex: 1, fontSize: 14, height: '100%' as any },
   countryCode: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   countryFlag: { fontSize: 16 },
-  countryDial: { fontSize: 13, color: '#F1F5F9' },
-  codeDivider: { width: 1, height: 18, backgroundColor: '#1E3A5F', marginLeft: 6 },
-  digitCount: { fontSize: 11, color: '#475569' },
+  countryDial: { fontSize: 13, color: '#F5F7FA' },
+  codeDivider: { width: 1, height: 18, backgroundColor: 'rgba(255,255,255,0.10)', marginLeft: 6 },
+  digitCount: { fontSize: 11, color: '#7F8BA3' },
 
   // Remember Me
   rememberRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   checkbox: {
-    width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: '#334155',
-    backgroundColor: '#0A1628', alignItems: 'center', justifyContent: 'center',
+    width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(17, 27, 45, 0.68)', alignItems: 'center', justifyContent: 'center',
   },
-  checkboxChecked: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
-  rememberText: { fontSize: 13, color: '#94A3B8' },
-  forgotText: { fontSize: 13, color: '#60A5FA' },
+  checkboxChecked: { backgroundColor: '#3A8FF7', borderColor: '#3A8FF7' },
+  rememberText: { fontSize: 13, color: '#A8B3C7' },
+  forgotText: { fontSize: 13, color: '#4DA3FF' },
 
   // Gradient button
   gradBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
     height: 54, borderRadius: 14,
-    shadowColor: '#2563EB', shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#3A8FF7', shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
   gradBtnText: { fontSize: 16, color: '#FFFFFF' },
@@ -670,22 +670,22 @@ const styles = StyleSheet.create({
   altBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
     paddingVertical: 12, borderRadius: 12,
-    borderWidth: 1, borderColor: '#1E3A5F66', backgroundColor: '#0A1628',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', backgroundColor: 'rgba(17, 27, 45, 0.68)',
   },
-  altBtnText: { fontSize: 13, color: '#60A5FA' },
+  altBtnText: { fontSize: 13, color: '#4DA3FF' },
 
   // OTP info
   otpInfo: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: '#0D1E3A', borderRadius: 10, padding: 12, borderWidth: 1,
+    backgroundColor: 'rgba(20, 30, 48, 0.58)', borderRadius: 10, padding: 12, borderWidth: 1,
   },
-  otpInfoText: { fontSize: 12, color: '#94A3B8', flex: 1, lineHeight: 18 },
+  otpInfoText: { fontSize: 12, color: '#A8B3C7', flex: 1, lineHeight: 18 },
 
   // Bottom
   bottomSection: { alignItems: 'center', gap: 14 },
-  registerText: { fontSize: 13, color: '#64748B', textAlign: 'center' },
-  registerLink: { color: '#60A5FA' },
+  registerText: { fontSize: 13, color: '#A8B3C7', textAlign: 'center' },
+  registerLink: { color: '#4DA3FF' },
   legalRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  legalText: { fontSize: 11, color: '#334155' },
-  legalDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#334155' },
+  legalText: { fontSize: 11, color: 'rgba(255,255,255,0.10)' },
+  legalDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.10)' },
 });

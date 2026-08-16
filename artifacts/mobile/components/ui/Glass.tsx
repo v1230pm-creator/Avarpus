@@ -53,13 +53,13 @@ export function GlassCard({ children, style, animValue }: GlassCardProps) {
         {
           borderRadius: 20,
           borderWidth: 1,
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
-          backgroundColor: isDark ? 'rgba(17, 24, 39, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+          borderColor: colors.glassBorder,
+          backgroundColor: colors.glass,
           overflow: 'hidden',
-          shadowColor: colors.foreground,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: isDark ? 0.2 : 0.05,
-          shadowRadius: 12,
+          shadowColor: '#000000',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: isDark ? 0.18 : 0.06,
+          shadowRadius: 24,
           elevation: 4,
         },
         style,
@@ -70,6 +70,13 @@ export function GlassCard({ children, style, animValue }: GlassCardProps) {
           intensity={isDark ? 30 : 60}
           tint={isDark ? 'dark' : 'light'}
           style={StyleSheet.absoluteFill}
+        />
+      )}
+      {/* Subtle inset top highlight (spec: inset 0 1px 0 rgba(255,255,255,0.035)) */}
+      {isDark && (
+        <View
+          pointerEvents="none"
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.05)' }}
         />
       )}
       {children}
@@ -87,25 +94,24 @@ export function ScreenGlow() {
   const isDark = useIsDark();
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      <LinearGradient
-        colors={
-          isDark
-            ? ['rgba(59, 130, 246, 0.12)', 'transparent']
-            : ['rgba(26, 86, 219, 0.06)', 'transparent']
-        }
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 0.4 }}
-      />
+      {/* Spec background: linear #0B0F1A → #0E1422 with a soft blue radial at top-right */}
+      {isDark && (
+        <LinearGradient
+          colors={['#0B0F1A', '#0E1422']}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+        />
+      )}
       <View
         style={{
           position: 'absolute',
-          top: -100,
-          right: -100,
-          width: 300,
-          height: 300,
-          borderRadius: 150,
-          backgroundColor: colors.primary,
+          top: -120,
+          right: -120,
+          width: 320,
+          height: 320,
+          borderRadius: 160,
+          backgroundColor: isDark ? '#2F80ED' : colors.primary,
           opacity: isDark ? 0.08 : 0.04,
           transform: [{ scale: 1.5 }],
         }}

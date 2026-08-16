@@ -54,9 +54,9 @@ function ClassicTabLayout() {
         headerShown: false,
         tabBarStyle: {
           position: 'absolute',
-          backgroundColor: isIOS ? 'transparent' : colors.card,
+          backgroundColor: isIOS ? 'transparent' : colors.glassNav,
           borderTopWidth: 1,
-          borderTopColor: colors.border,
+          borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : colors.border,
           elevation: 0,
           ...(isWeb ? { height: 84, paddingBottom: 34 } : {}),
         },
@@ -68,7 +68,7 @@ function ClassicTabLayout() {
               style={StyleSheet.absoluteFill}
             />
           ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.glassNav, ...(Platform.OS === 'web' ? ({ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' } as any) : {}) }]} />
           ) : null,
       }}
     >
