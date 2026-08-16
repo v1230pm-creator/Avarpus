@@ -497,6 +497,7 @@ export type RepairPhotoKind = typeof RepairPhotoKind[keyof typeof RepairPhotoKin
 export const RepairPhotoKind = {
   front: 'front',
   back: 'back',
+  imei: 'imei',
   left: 'left',
   right: 'right',
   top: 'top',
@@ -522,6 +523,7 @@ export type RepairPhotoInputKind = typeof RepairPhotoInputKind[keyof typeof Repa
 export const RepairPhotoInputKind = {
   front: 'front',
   back: 'back',
+  imei: 'imei',
   left: 'left',
   right: 'right',
   top: 'top',

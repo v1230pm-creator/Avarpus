@@ -805,7 +805,7 @@ export const RepairPhotosListResponse = zod.object({
   "photos": zod.array(zod.object({
   "id": zod.string(),
   "repairId": zod.string(),
-  "kind": zod.enum(['front', 'back', 'left', 'right', 'top', 'bottom', 'damage', 'bill', 'customer_id', 'other']),
+  "kind": zod.enum(['front', 'back', 'imei', 'left', 'right', 'top', 'bottom', 'damage', 'bill', 'customer_id', 'other']),
   "objectPath": zod.string(),
   "uploadedByName": zod.string().optional(),
   "createdAt": zod.string()
@@ -821,7 +821,7 @@ export const RepairPhotosAddParams = zod.object({
 })
 
 export const RepairPhotosAddBody = zod.object({
-  "kind": zod.enum(['front', 'back', 'left', 'right', 'top', 'bottom', 'damage', 'bill', 'customer_id', 'other']),
+  "kind": zod.enum(['front', 'back', 'imei', 'left', 'right', 'top', 'bottom', 'damage', 'bill', 'customer_id', 'other']),
   "objectPath": zod.string()
 })
 
@@ -829,7 +829,7 @@ export const RepairPhotosAddResponse = zod.object({
   "photo": zod.object({
   "id": zod.string(),
   "repairId": zod.string(),
-  "kind": zod.enum(['front', 'back', 'left', 'right', 'top', 'bottom', 'damage', 'bill', 'customer_id', 'other']),
+  "kind": zod.enum(['front', 'back', 'imei', 'left', 'right', 'top', 'bottom', 'damage', 'bill', 'customer_id', 'other']),
   "objectPath": zod.string(),
   "uploadedByName": zod.string().optional(),
   "createdAt": zod.string()

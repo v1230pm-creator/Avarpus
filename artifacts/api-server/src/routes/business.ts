@@ -1172,7 +1172,7 @@ router.patch(
 
 // ── Repair photos & timeline ────────────────────────────────────────────────
 
-const PHOTO_KINDS = ["front", "back", "left", "right", "top", "bottom", "damage", "bill", "customer_id", "other"] as const;
+const PHOTO_KINDS = ["front", "back", "imei", "left", "right", "top", "bottom", "damage", "bill", "customer_id", "other"] as const;
 
 async function repairInShop(shopId: string, id: string) {
   const [row] = await db

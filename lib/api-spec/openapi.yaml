@@ -2003,7 +2003,7 @@ components:
       properties:
         id: { type: string }
         repairId: { type: string }
-        kind: { type: string, enum: [front, back, left, right, top, bottom, damage, bill, customer_id, other] }
+        kind: { type: string, enum: [front, back, imei, left, right, top, bottom, damage, bill, customer_id, other] }
         objectPath: { type: string }
         uploadedByName: { type: string }
         createdAt: { type: string }
@@ -2011,7 +2011,7 @@ components:
     RepairPhotoInput:
       type: object
       properties:
-        kind: { type: string, enum: [front, back, left, right, top, bottom, damage, bill, customer_id, other] }
+        kind: { type: string, enum: [front, back, imei, left, right, top, bottom, damage, bill, customer_id, other] }
         objectPath: { type: string }
       required: [kind, objectPath]
     RepairEvent:
