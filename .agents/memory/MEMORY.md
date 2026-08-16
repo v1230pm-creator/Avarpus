@@ -18,6 +18,7 @@
 - [API validation steps](api-validation-steps.md) — isolation/balances/registration scripts run as validation steps; whole-command flock + api-server cwd, or concurrent builds clobber dist.
 - [Android APK builds](android-apk-builds.md) — APK only via expo.dev GitHub builds (base dir artifacts/mobile); pnpm/Node/image pins in eas.json are load-bearing; user holds the keystore.
 - [Android focus loss fix](android-focus-collapsable.md) — focus-styled input wrappers need collapsable={false} or Android view flattening blurs the TextInput and kills the keyboard.
+- [Dealer portal](dealer-portal.md) — B2B dealers vs owner `dealer` role; portal subresources need dealer-level (not just shop) checks; DataContext.addRepair maps fields explicitly.
 - [Technician access scoping](technician-scoping.md) — technicians are server-side limited to assigned repairs + work-field allowlist; new repair sub-endpoints must repeat the assignment check.
 - [GitHub push via API fallback](github-push-api-fallback.md) — when auth() gives no token, push via proxyFetch Git Data API; local/remote SHAs then diverge, reconcile before next token push.
 - [Testing pass lock](testing-pass-lock.md) — testingChecklist true=Pass is immutable; validate in tx with FOR UPDATE; omission keeps passes, drops fails; Pass→Fail = 409 TESTING_ITEM_LOCKED.
