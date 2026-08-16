@@ -439,7 +439,20 @@ export default function RepairDetailScreen() {
     }
   };
 
+  // Delivery is allowed only after full payment. Central guard so every
+  // path into the handover/signature flow enforces the same rule.
+  const deliveryPaymentBlocked = () => {
+    if (payRemainingCents > 0) {
+      setShowDeliveryHandover(false);
+      setShowDeliverySig(false);
+      Alert.alert('Payment Pending', `Delivery se pehle poora payment collect karein. ${formatCurrency(payRemaining)} abhi baaki hai.`);
+      return true;
+    }
+    return false;
+  };
+
   const markDelivered = async (signatureUri: string) => {
+    if (deliveryPaymentBlocked()) return;
     setUpdating(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -498,6 +511,7 @@ export default function RepairDetailScreen() {
     if (newStatus === 'delivered') {
       // Same modal-swap rule: let the status picker dismiss first.
       setShowStatusPicker(false);
+      if (deliveryPaymentBlocked()) return;
       setTimeout(() => setShowDeliveryHandover(true), 350);
       return;
     }
@@ -531,6 +545,7 @@ export default function RepairDetailScreen() {
   };
 
   const handleHandoverProceed = () => {
+    if (deliveryPaymentBlocked()) return;
     // RN can't swap two <Modal>s in the same tick — the signature modal
     // silently fails to appear if opened before the handover modal has
     // finished dismissing. Close first, then open after the transition.
@@ -1206,6 +1221,43 @@ export default function RepairDetailScreen() {
             <Feather name="x-circle" size={18} color={colors.destructive} />
             <Text style={{ fontSize: 15, color: colors.destructive, fontFamily: 'Inter_700Bold' }}>{repair.status === 'cancelled' ? 'CANCELLED' : 'CANNOT REPAIR'}</Text>
           </View>
+        ) : repair.status === 'ready' ? (
+          // READY: Mark as Delivered stays hidden until payment is fully collected.
+          payRemainingCents > 0 ? (
+            <View>
+              {canSeeFinance ? (
+                <Button title="Collect Payment" onPress={openPaymentModal} />
+              ) : (
+                <View style={[styles.paidChip, { backgroundColor: colors.warning + '15', borderColor: colors.warning + '44', paddingVertical: 12, paddingHorizontal: 16 }]}>
+                  <Feather name="clock" size={15} color={colors.warning} />
+                  <Text style={{ fontSize: 14, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>Payment Pending</Text>
+                </View>
+              )}
+              <Text style={{ fontSize: 12, color: colors.mutedForeground, textAlign: 'center', marginTop: 6, fontFamily: 'Inter_400Regular' }}>
+                Delivery tabhi hogi jab poora payment collect ho jaye ({formatCurrency(payRemaining)} baaki hai)
+              </Text>
+            </View>
+          ) : (
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={[styles.paidChip, { backgroundColor: colors.success + '18', borderColor: colors.success + '44', flex: 2, paddingVertical: 12 }]}>
+                <Feather name="check" size={15} color={colors.success} />
+                <Text style={{ fontSize: 14, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>Paid ✓</Text>
+              </View>
+              {canUpdateStatus && (
+                <View style={{ flex: 3 }}>
+                  <Button
+                    title="Mark as Delivered"
+                    onPress={() => {
+                      Alert.alert('Confirm Delivery', 'Has the customer received the device?', [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Confirm Delivery', onPress: () => setShowDeliveryHandover(true) },
+                      ]);
+                    }}
+                  />
+                </View>
+              )}
+            </View>
+          )
         ) : (
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {/* Collect Payment on the LEFT, Continue & Save on the RIGHT */}
@@ -1222,23 +1274,9 @@ export default function RepairDetailScreen() {
               )
             )}
             {canUpdateStatus && (
-              repair.status === 'ready' ? (
-                <View style={{ flex: 3 }}>
-                  <Button
-                    title="Mark as Delivered"
-                    onPress={() => {
-                      Alert.alert('Confirm Delivery', 'Has the customer received the device?', [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Confirm Delivery', onPress: () => setShowDeliveryHandover(true) },
-                      ]);
-                    }}
-                  />
-                </View>
-              ) : (
-                <View style={{ flex: 3 }}>
-                  <Button title="Continue & Save" onPress={handleContinueAndSave} loading={updating} />
-                </View>
-              )
+              <View style={{ flex: 3 }}>
+                <Button title="Continue & Save" onPress={handleContinueAndSave} loading={updating} />
+              </View>
             )}
           </View>
         )}
