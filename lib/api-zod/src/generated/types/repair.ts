@@ -15,6 +15,8 @@ export interface Repair {
   customerId?: string;
   customerName: string;
   mobile: string;
+  dealerId?: string;
+  dealerName?: string;
   deviceType: string;
   brand: string;
   model: string;
@@ -76,5 +78,10 @@ export interface Repair {
   repairStartedAt?: string;
   repairCompletedAt?: string;
   isSample: boolean;
+  createdById?: string;
+  createdByName?: string;
+  updatedById?: string;
+  updatedByName?: string;
+  updatedAt?: string;
   createdAt: string;
 }

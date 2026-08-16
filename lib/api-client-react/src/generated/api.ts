@@ -40,6 +40,13 @@ import type {
   CustomersList200,
   CustomersUpdate200,
   DashboardStats200,
+  DealerInput,
+  DealerProfile,
+  DealersCreate200,
+  DealersList200,
+  DealersListParams,
+  DealersOverview200,
+  DealersUpdate200,
   DeliveryOtpVerify200,
   DeliveryOtpVerifyInput,
   ErrorEnvelope,
@@ -1519,6 +1526,464 @@ export const useAuthLogout = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAuthLogoutMutationOptions(options));
+    }
+
+export const getDealersListUrl = (params?: DealersListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/dealers?${stringifiedParams}` : `/api/dealers`
+}
+
+/**
+ * @summary List B2B dealers of the caller's shop with live repair counts
+ */
+export const dealersList = async (params?: DealersListParams, options?: Parameters<typeof customFetch>[1]): Promise<DealersList200> => {
+
+  return customFetch<DealersList200>(getDealersListUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDealersListQueryKey = (params?: DealersListParams,) => {
+    return [
+    `/api/dealers`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getDealersListQueryOptions = <TData = Awaited<ReturnType<typeof dealersList>>, TError = ErrorType<unknown>>(params?: DealersListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDealersListQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof dealersList>>> = ({ signal }) => dealersList(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof dealersList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DealersListQueryResult = NonNullable<Awaited<ReturnType<typeof dealersList>>>
+export type DealersListQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List B2B dealers of the caller's shop with live repair counts
+ */
+
+export function useDealersList<TData = Awaited<ReturnType<typeof dealersList>>, TError = ErrorType<unknown>>(
+ params?: DealersListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDealersListQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDealersCreateUrl = () => {
+
+
+
+
+  return `/api/dealers`
+}
+
+/**
+ * @summary Create a B2B dealer in the caller's shop
+ */
+export const dealersCreate = async (dealerInput: DealerInput, options?: Parameters<typeof customFetch>[1]): Promise<DealersCreate200> => {
+
+  return customFetch<DealersCreate200>(getDealersCreateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(dealerInput)
+  }
+);}
+
+
+
+
+
+export const getDealersCreateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dealersCreate>>, TError,{data: BodyType<DealerInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof dealersCreate>>, TError,{data: BodyType<DealerInput>}, TContext> => {
+
+const mutationKey = ['dealersCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof dealersCreate>>, {data: BodyType<DealerInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  dealersCreate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DealersCreateMutationResult = NonNullable<Awaited<ReturnType<typeof dealersCreate>>>
+    export type DealersCreateMutationBody = BodyType<DealerInput>
+    export type DealersCreateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a B2B dealer in the caller's shop
+ */
+export const useDealersCreate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dealersCreate>>, TError,{data: BodyType<DealerInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof dealersCreate>>,
+        TError,
+        {data: BodyType<DealerInput>},
+        TContext
+      > => {
+      return useMutation(getDealersCreateMutationOptions(options));
+    }
+
+export const getDealersMeUrl = () => {
+
+
+
+
+  return `/api/dealers/me`
+}
+
+/**
+ * @summary Dealer-portal account's own dealer profile + stats
+ */
+export const dealersMe = async ( options?: Parameters<typeof customFetch>[1]): Promise<DealerProfile> => {
+
+  return customFetch<DealerProfile>(getDealersMeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDealersMeQueryKey = () => {
+    return [
+    `/api/dealers/me`
+    ] as const;
+    }
+
+
+export const getDealersMeQueryOptions = <TData = Awaited<ReturnType<typeof dealersMe>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDealersMeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof dealersMe>>> = ({ signal }) => dealersMe({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof dealersMe>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DealersMeQueryResult = NonNullable<Awaited<ReturnType<typeof dealersMe>>>
+export type DealersMeQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Dealer-portal account's own dealer profile + stats
+ */
+
+export function useDealersMe<TData = Awaited<ReturnType<typeof dealersMe>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDealersMeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDealersOverviewUrl = () => {
+
+
+
+
+  return `/api/dealers/overview`
+}
+
+/**
+ * @summary Overall dealer-repair statistics (dealer/owner only)
+ */
+export const dealersOverview = async ( options?: Parameters<typeof customFetch>[1]): Promise<DealersOverview200> => {
+
+  return customFetch<DealersOverview200>(getDealersOverviewUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDealersOverviewQueryKey = () => {
+    return [
+    `/api/dealers/overview`
+    ] as const;
+    }
+
+
+export const getDealersOverviewQueryOptions = <TData = Awaited<ReturnType<typeof dealersOverview>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDealersOverviewQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof dealersOverview>>> = ({ signal }) => dealersOverview({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof dealersOverview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DealersOverviewQueryResult = NonNullable<Awaited<ReturnType<typeof dealersOverview>>>
+export type DealersOverviewQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Overall dealer-repair statistics (dealer/owner only)
+ */
+
+export function useDealersOverview<TData = Awaited<ReturnType<typeof dealersOverview>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDealersOverviewQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDealersGetUrl = (id: string,) => {
+
+
+
+
+  return `/api/dealers/${id}`
+}
+
+/**
+ * @summary Dealer profile + full stats
+ */
+export const dealersGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<DealerProfile> => {
+
+  return customFetch<DealerProfile>(getDealersGetUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDealersGetQueryKey = (id: string,) => {
+    return [
+    `/api/dealers/${id}`
+    ] as const;
+    }
+
+
+export const getDealersGetQueryOptions = <TData = Awaited<ReturnType<typeof dealersGet>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDealersGetQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof dealersGet>>> = ({ signal }) => dealersGet(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof dealersGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DealersGetQueryResult = NonNullable<Awaited<ReturnType<typeof dealersGet>>>
+export type DealersGetQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Dealer profile + full stats
+ */
+
+export function useDealersGet<TData = Awaited<ReturnType<typeof dealersGet>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDealersGetQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDealersUpdateUrl = (id: string,) => {
+
+
+
+
+  return `/api/dealers/${id}`
+}
+
+/**
+ * @summary Update a dealer (dealer/owner only)
+ */
+export const dealersUpdate = async (id: string,
+    dealerInput: DealerInput, options?: Parameters<typeof customFetch>[1]): Promise<DealersUpdate200> => {
+
+  return customFetch<DealersUpdate200>(getDealersUpdateUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(dealerInput)
+  }
+);}
+
+
+
+
+
+export const getDealersUpdateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dealersUpdate>>, TError,{id: string;data: BodyType<DealerInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof dealersUpdate>>, TError,{id: string;data: BodyType<DealerInput>}, TContext> => {
+
+const mutationKey = ['dealersUpdate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof dealersUpdate>>, {id: string;data: BodyType<DealerInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  dealersUpdate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DealersUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof dealersUpdate>>>
+    export type DealersUpdateMutationBody = BodyType<DealerInput>
+    export type DealersUpdateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a dealer (dealer/owner only)
+ */
+export const useDealersUpdate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dealersUpdate>>, TError,{id: string;data: BodyType<DealerInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof dealersUpdate>>,
+        TError,
+        {id: string;data: BodyType<DealerInput>},
+        TContext
+      > => {
+      return useMutation(getDealersUpdateMutationOptions(options));
     }
 
 export const getCustomersListUrl = () => {

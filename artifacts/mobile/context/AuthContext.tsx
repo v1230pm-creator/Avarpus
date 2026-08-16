@@ -41,6 +41,10 @@ const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   technician: ['dashboard', 'repairs_assigned', 'repairs_update'],
   store_manager: ['dashboard', 'inventory', 'purchases'],
   accountant: ['dashboard', 'finance', 'reports', 'income', 'expense', 'profit'],
+  // Dealer-portal accounts: read-only view of their own repairs. The server
+  // enforces this fail-closed; these entries only shape the visible UI.
+  dealer_owner: ['repairs_portal'],
+  dealer_staff: ['repairs_portal'],
 };
 
 function apiErrorMessage(err: unknown, fallback: string): string {

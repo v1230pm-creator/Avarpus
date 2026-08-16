@@ -133,6 +133,7 @@ export interface AuthUser {
   profilePhoto?: string;
   companyLogo?: string;
   shopId?: string;
+  dealerId?: string;
 }
 
 export type StaffCreateInputRole = typeof StaffCreateInputRole[keyof typeof StaffCreateInputRole];
@@ -143,6 +144,8 @@ export const StaffCreateInputRole = {
   technician: 'technician',
   store_manager: 'store_manager',
   accountant: 'accountant',
+  dealer_owner: 'dealer_owner',
+  dealer_staff: 'dealer_staff',
 } as const;
 
 export interface StaffCreateInput {
@@ -152,6 +155,7 @@ export interface StaffCreateInput {
   password: string;
   role: StaffCreateInputRole;
   designation?: string;
+  dealerId?: string;
 }
 
 export type StaffUpdateInputRole = typeof StaffUpdateInputRole[keyof typeof StaffUpdateInputRole];
@@ -162,6 +166,8 @@ export const StaffUpdateInputRole = {
   technician: 'technician',
   store_manager: 'store_manager',
   accountant: 'accountant',
+  dealer_owner: 'dealer_owner',
+  dealer_staff: 'dealer_staff',
 } as const;
 
 export interface StaffUpdateInput {
@@ -182,6 +188,65 @@ export interface RegisterVerifyResult {
 export interface AuthSession {
   token: string;
   user: AuthUser;
+}
+
+export interface Dealer {
+  id: string;
+  dealerCode: string;
+  name: string;
+  shopName?: string;
+  mobile: string;
+  location?: string;
+  isActive: boolean;
+  createdById?: string;
+  createdByName?: string;
+  createdAt: string;
+}
+
+export type DealerWithCounts = Dealer & {
+  totalRepairs: number;
+  received: number;
+  repairing: number;
+  ready: number;
+  delivered: number;
+};
+
+export interface DealerInput {
+  name?: string;
+  shopName?: string;
+  mobile?: string;
+  location?: string;
+  isActive?: boolean;
+}
+
+export interface DealerStats {
+  totalRepairs: number;
+  received: number;
+  repairing: number;
+  ready: number;
+  delivered: number;
+  cancelled: number;
+  afterSaleReturns: number;
+  refunded: number;
+  refundedAmount: number;
+  totalRepairValue: number;
+  pendingAmount: number;
+}
+
+export interface DealerProfile {
+  dealer: Dealer;
+  stats: DealerStats;
+}
+
+export interface DealerOverviewStats {
+  totalDealerRepairs: number;
+  activeRepairs: number;
+  completedRepairs: number;
+  deliveredRepairs: number;
+  afterSaleReturns: number;
+  refunds: number;
+  totalRepairRevenue: number;
+  pendingPayments: number;
 }
 
 export interface Customer {
@@ -217,6 +282,8 @@ export interface Repair {
   customerId?: string;
   customerName: string;
   mobile: string;
+  dealerId?: string;
+  dealerName?: string;
   deviceType: string;
   brand: string;
   model: string;
@@ -278,6 +345,11 @@ export interface Repair {
   repairStartedAt?: string;
   repairCompletedAt?: string;
   isSample: boolean;
+  createdById?: string;
+  createdByName?: string;
+  updatedById?: string;
+  updatedByName?: string;
+  updatedAt?: string;
   createdAt: string;
 }
 
@@ -289,6 +361,7 @@ export interface RepairInput {
   customerId?: string;
   customerName?: string;
   mobile?: string;
+  dealerId?: string;
   deviceType?: string;
   brand?: string;
   model?: string;
@@ -912,6 +985,26 @@ export type AuthSessions200 = {
   sessions: SessionInfo[];
 };
 
+export type DealersListParams = {
+q?: string;
+};
+
+export type DealersList200 = {
+  dealers: DealerWithCounts[];
+};
+
+export type DealersCreate200 = {
+  dealer: Dealer;
+};
+
+export type DealersOverview200 = {
+  stats: DealerOverviewStats;
+};
+
+export type DealersUpdate200 = {
+  dealer: Dealer;
+};
+
 export type CustomersList200 = {
   customers: Customer[];
 };
@@ -934,6 +1027,7 @@ priority?: string;
 dateFrom?: string;
 dateTo?: string;
 warranty?: RepairsListWarranty;
+dealerId?: string;
 page?: number;
 limit?: number;
 };

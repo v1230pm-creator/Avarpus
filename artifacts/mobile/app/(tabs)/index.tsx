@@ -11,7 +11,8 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
+import { isDealerPortalRole } from '@/types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -475,6 +476,12 @@ export default function DashboardScreen() {
   const dashboardStats = statsData?.stats;
 
   const [refreshing, setRefreshing] = useState(false);
+
+  // Dealer-portal accounts have no dashboard — their home is My Repairs.
+  // (Placed after all hooks to respect the rules of hooks.)
+  if (isDealerPortalRole(user?.role)) {
+    return <Redirect href="/(tabs)/repairs" />;
+  }
 
   const onRefresh = async () => {
     setRefreshing(true);

@@ -20,16 +20,18 @@ import { RepairStatusBadge, PriorityBadge, SampleBadge } from '@/components/ui/B
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
-import { Repair } from '@/types';
+import { Repair, isDealerPortalRole } from '@/types';
 import { formatDate, formatCurrency, getReturnStatusColor } from '@/utils/helpers';
 import * as Network from 'expo-network';
 import { offlineQueue, QueuedRepair } from '@/utils/offlineQueue';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { useReturnsList, useRepairsList, getRepairsListQueryKey } from '@workspace/api-client-react';
+import { useReturnsList, useRepairsList, getRepairsListQueryKey, useDealersList, useDealersMe, useDealersOverview } from '@workspace/api-client-react';
 
-const FILTERS = ['Received', 'Repair', 'Ready', 'Delivered', 'After-Sales Service'] as const;
+const FILTERS = ['Received', 'Repair', 'Ready', 'Delivered', 'Dealers', 'After-Sales Service'] as const;
 type Filter = (typeof FILTERS)[number];
+// Dealer-portal accounts see a simplified read-only view of their own repairs.
+const PORTAL_FILTERS = ['All', 'Received', 'Repair', 'Ready', 'Delivered'] as const;
 
 function RepairCard({ repair, onPress, variant }: { repair: Repair; onPress: () => void; variant: 'received' | 'repair' | 'ready' | 'delivered' }) {
   const colors = useColors();
@@ -126,9 +128,13 @@ export default function RepairsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { canAccess, user } = useAuth();
+  const isPortal = isDealerPortalRole(user?.role);
+  const isOwner = user?.role === 'dealer' || user?.role === 'super_admin';
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('Received');
+  const [portalFilter, setPortalFilter] = useState<(typeof PORTAL_FILTERS)[number]>('All');
+  const [dealerSearch, setDealerSearch] = useState('');
   const [showCancelled, setShowCancelled] = useState(false);
   const [techOnly, setTechOnly] = useState(true);
   const [page, setPage] = useState(1);
@@ -171,11 +177,29 @@ export default function RepairsScreen() {
 
   React.useEffect(() => {
     setPage(1);
-  }, [filter, debouncedSearch, showCancelled, techOnly]);
+  }, [filter, portalFilter, debouncedSearch, showCancelled, techOnly]);
 
-  const { data: returnsData, isLoading: returnsLoading, error: returnsError, refetch: returnsRefetch } = useReturnsList();
+  const { data: returnsData, isLoading: returnsLoading, error: returnsError, refetch: returnsRefetch } = useReturnsList({ query: { enabled: !isPortal } } as any);
+
+  // Dealer directory (staff view) — live counts per dealer.
+  const dealersParams: any = { q: debouncedSearch || undefined };
+  const { data: dealersData, isLoading: dealersLoading, error: dealersError, refetch: dealersRefetch } =
+    useDealersList(dealersParams, { query: { enabled: !isPortal && filter === 'Dealers' } } as any);
+
+  // Admin overview stats across all dealer repairs (owner only).
+  const { data: overviewData } = useDealersOverview({ query: { enabled: !isPortal && filter === 'Dealers' && isOwner } } as any);
+
+  // Dealer-portal: own dealer profile + stats.
+  const { data: myDealer } = useDealersMe({ query: { enabled: isPortal } } as any);
 
   const getStatusQuery = () => {
+    if (isPortal) {
+      if (portalFilter === 'Received') return 'received';
+      if (portalFilter === 'Repair') return 'diagnosing,waiting_parts,repairing,testing,customer_approval,cannot_repair';
+      if (portalFilter === 'Ready') return 'ready';
+      if (portalFilter === 'Delivered') return 'delivered';
+      return undefined;
+    }
     if (filter === 'Received') return 'received';
     if (filter === 'Repair') return 'diagnosing,waiting_parts,repairing,testing,customer_approval,cannot_repair';
     if (filter === 'Ready') return 'ready';
@@ -202,7 +226,7 @@ export default function RepairsScreen() {
     isFetching: repairsFetching
   } = useRepairsList(repairsParams, { 
     query: { 
-      enabled: filter !== 'After-Sales Service',
+      enabled: isPortal || (filter !== 'After-Sales Service' && filter !== 'Dealers'),
       queryKey: getRepairsListQueryKey(repairsParams)
     } 
   });
@@ -218,7 +242,9 @@ export default function RepairsScreen() {
   }, [repairsData, page]);
 
   const onRefresh = async () => {
-    if (filter === 'After-Sales Service') await returnsRefetch();
+    if (isPortal) await repairsRefetch();
+    else if (filter === 'After-Sales Service') await returnsRefetch();
+    else if (filter === 'Dealers') await dealersRefetch();
     else await repairsRefetch();
   };
 
@@ -244,13 +270,31 @@ export default function RepairsScreen() {
     return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [returnsData, filter, search, user]);
 
-  const canCreateRepair = canAccess('repairs') && user?.role !== 'technician';
+  const canCreateRepair = !isPortal && canAccess('repairs') && user?.role !== 'technician';
 
   const headerAnims = useStaggerAnim(3);
 
-  const totalCount = filter === 'After-Sales Service' ? filteredReturns.length : repairsData?.total || 0;
-  const isGlobalLoading = filter === 'After-Sales Service' ? returnsLoading : repairsLoading;
-  const isGlobalError = filter === 'After-Sales Service' ? returnsError : repairsError;
+  const filteredDealers = useMemo(() => {
+    let list = dealersData?.dealers || [];
+    if (dealerSearch.trim()) {
+      const q = dealerSearch.toLowerCase();
+      list = list.filter((d) =>
+        d.name.toLowerCase().includes(q) ||
+        (d.shopName || '').toLowerCase().includes(q) ||
+        d.dealerCode.toLowerCase().includes(q) ||
+        d.mobile.includes(q),
+      );
+    }
+    return list;
+  }, [dealersData, dealerSearch]);
+
+  const totalCount = isPortal
+    ? repairsData?.total || 0
+    : filter === 'After-Sales Service' ? filteredReturns.length
+    : filter === 'Dealers' ? filteredDealers.length
+    : repairsData?.total || 0;
+  const isGlobalLoading = isPortal ? repairsLoading : filter === 'After-Sales Service' ? returnsLoading : filter === 'Dealers' ? dealersLoading : repairsLoading;
+  const isGlobalError = isPortal ? repairsError : filter === 'After-Sales Service' ? returnsError : filter === 'Dealers' ? dealersError : repairsError;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -260,13 +304,27 @@ export default function RepairsScreen() {
       <FadeInView animValue={headerAnims[0]} style={[styles.header, { paddingTop: topPad + 16 }]}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Repairs</Text>
+            <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+              {isPortal ? 'My Repairs' : 'Repairs'}
+            </Text>
             <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
-              {totalCount} jobs
+              {isPortal
+                ? (myDealer?.dealer ? `${myDealer.dealer.dealerCode} · ${myDealer.dealer.name}` : `${totalCount} jobs`)
+                : filter === 'Dealers' ? `${totalCount} dealers` : `${totalCount} jobs`}
             </Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            {canCreateRepair && filter !== 'Delivered' && filter !== 'Repair' && filter !== 'Ready' && (
+            {!isPortal && filter === 'Dealers' && canCreateRepair && (
+              <TouchableOpacity
+                onPress={() => router.push('/(tabs)/repairs/dealer-new')}
+                activeOpacity={0.85}
+                style={[styles.addBtn, { backgroundColor: colors.primary }]}
+              >
+                <Feather name="plus" size={18} color="#FFFFFF" />
+                <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Dealer</Text>
+              </TouchableOpacity>
+            )}
+            {canCreateRepair && filter !== 'Delivered' && filter !== 'Repair' && filter !== 'Ready' && filter !== 'Dealers' && (
               <TouchableOpacity
                 onPress={() => router.push('/(tabs)/repairs/new')}
                 activeOpacity={0.85}
@@ -276,13 +334,15 @@ export default function RepairsScreen() {
                 <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>New</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              onPress={() => router.push('/(tabs)/repairs/scanner')}
-              activeOpacity={0.85}
-              style={[styles.addBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12 }]}
-            >
-              <Feather name="maximize" size={18} color={colors.foreground} />
-            </TouchableOpacity>
+            {!isPortal && (
+              <TouchableOpacity
+                onPress={() => router.push('/(tabs)/repairs/scanner')}
+                activeOpacity={0.85}
+                style={[styles.addBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12 }]}
+              >
+                <Feather name="maximize" size={18} color={colors.foreground} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -305,7 +365,7 @@ export default function RepairsScreen() {
 
 
         {/* Offline Sync Banner */}
-        {offlineItems.length > 0 && (
+        {!isPortal && offlineItems.length > 0 && (
           <View style={{ backgroundColor: colors.warning + '22', borderWidth: 1, borderColor: colors.warning + '44', padding: 12, borderRadius: 8, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 14, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>
@@ -336,14 +396,31 @@ export default function RepairsScreen() {
           </View>
         )}
         
+        {/* Dealer-portal stats header */}
+        {isPortal && myDealer?.stats && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {[
+              { label: 'Total', value: String(myDealer.stats.totalRepairs), color: colors.primary },
+              { label: 'In Progress', value: String(myDealer.stats.received + myDealer.stats.repairing), color: colors.warning },
+              { label: 'Ready', value: String(myDealer.stats.ready), color: colors.info },
+              { label: 'Delivered', value: String(myDealer.stats.delivered), color: colors.success },
+            ].map((s) => (
+              <GlassCard key={s.label} style={{ flex: 1, minWidth: '22%', padding: 10, alignItems: 'center', gap: 2 }}>
+                <Text style={{ fontSize: 16, color: s.color, fontFamily: 'Inter_700Bold' }}>{s.value}</Text>
+                <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{s.label}</Text>
+              </GlassCard>
+            ))}
+          </View>
+        )}
+
         {/* Filter Tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 2 }}>
-          {FILTERS.map((item) => {
-            const active = filter === item;
+          {(isPortal ? PORTAL_FILTERS : FILTERS).map((item) => {
+            const active = isPortal ? portalFilter === item : filter === item;
             return (
               <TouchableOpacity
                 key={item}
-                onPress={() => setFilter(item)}
+                onPress={() => (isPortal ? setPortalFilter(item as any) : setFilter(item as Filter))}
                 activeOpacity={0.8}
                 style={[styles.filterTab, {
                   backgroundColor: active ? colors.primary : colors.primary + '12',
@@ -385,7 +462,72 @@ export default function RepairsScreen() {
       <>
       {!!isGlobalError && <DataErrorBanner onRetry={onRefresh} />}
       
-      {filter === 'After-Sales Service' ? (
+      {!isPortal && filter === 'Dealers' ? (
+        <FlatList
+          data={filteredDealers}
+          keyExtractor={(d) => d.id}
+          contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={dealersLoading} onRefresh={onRefresh} tintColor={colors.primary} />}
+          ListHeaderComponent={
+            isOwner && overviewData?.stats ? (
+              <GlassCard style={{ padding: 14, gap: 10, marginBottom: 2 }}>
+                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold', letterSpacing: 1 }}>DEALER REPAIRS OVERVIEW</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                  {[
+                    { label: 'Total Repairs', value: String(overviewData.stats.totalDealerRepairs), color: colors.primary },
+                    { label: 'Active', value: String(overviewData.stats.activeRepairs), color: colors.warning },
+                    { label: 'Delivered', value: String(overviewData.stats.deliveredRepairs), color: colors.success },
+                    { label: 'Returns', value: String(overviewData.stats.afterSaleReturns), color: colors.destructive },
+                    { label: 'Revenue', value: formatCurrency(overviewData.stats.totalRepairRevenue), color: colors.success },
+                    { label: 'Pending', value: formatCurrency(overviewData.stats.pendingPayments), color: colors.warning },
+                  ].map((s) => (
+                    <View key={s.label} style={{ minWidth: '28%' }}>
+                      <Text style={{ fontSize: 15, color: s.color, fontFamily: 'Inter_700Bold' }}>{s.value}</Text>
+                      <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{s.label}</Text>
+                    </View>
+                  ))}
+                </View>
+              </GlassCard>
+            ) : null
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon="briefcase"
+              title="No dealers yet"
+              description={search ? 'Try a different search term' : 'Add your B2B dealers to track their bulk repairs'}
+              actionLabel={canCreateRepair ? 'Add Dealer' : undefined}
+              onAction={canCreateRepair ? () => router.push('/(tabs)/repairs/dealer-new') : undefined}
+            />
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity onPress={() => router.push(`/(tabs)/repairs/dealer/${item.id}`)} activeOpacity={0.8}>
+              <GlassCard style={styles.card}>
+                <View style={styles.cardTop}>
+                  <View style={[styles.repairIdBadge, { backgroundColor: colors.primary + '15' }]}>
+                    <Text style={[styles.repairId, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{item.dealerCode}</Text>
+                  </View>
+                  {!item.isActive && (
+                    <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, backgroundColor: colors.destructive + '22' }}>
+                      <Text style={{ fontSize: 10, color: colors.destructive, fontFamily: 'Inter_600SemiBold' }}>INACTIVE</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.customerName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{item.name}</Text>
+                <Text style={[styles.deviceLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  {[item.shopName, item.location].filter(Boolean).join(' · ') || item.mobile}
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 4 }}>
+                  <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Total: <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{item.totalRepairs}</Text></Text>
+                  <Text style={{ fontSize: 12, color: colors.warning }}>In Progress: {item.received + item.repairing}</Text>
+                  <Text style={{ fontSize: 12, color: colors.info }}>Ready: {item.ready}</Text>
+                  <Text style={{ fontSize: 12, color: colors.success }}>Delivered: {item.delivered}</Text>
+                </View>
+              </GlassCard>
+            </TouchableOpacity>
+          )}
+        />
+      ) : !isPortal && filter === 'After-Sales Service' ? (
         <FlatList
           data={filteredReturns}
           keyExtractor={(r) => r.id}
@@ -466,7 +608,12 @@ export default function RepairsScreen() {
           }}
           onEndReachedThreshold={0.5}
           renderItem={({ item }) => {
-            const variant = filter === 'Received' ? 'received' : filter === 'Repair' ? 'repair' : filter === 'Ready' ? 'ready' : 'delivered';
+            // Portal accounts get a read-only card: variant derived from the
+            // repair's own status, never the staff 'ready' variant (which
+            // shows Notify/Payment/Hand Over actions).
+            const variant = isPortal
+              ? item.status === 'received' ? 'received' : item.status === 'delivered' ? 'delivered' : 'repair'
+              : filter === 'Received' ? 'received' : filter === 'Repair' ? 'repair' : filter === 'Ready' ? 'ready' : 'delivered';
             return <RepairCard repair={item} onPress={() => router.push(`/(tabs)/repairs/${item.id}`)} variant={variant} />;
           }}
         />

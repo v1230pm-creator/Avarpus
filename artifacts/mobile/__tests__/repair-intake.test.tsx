@@ -62,6 +62,7 @@ jest.mock('@workspace/api-client-react', () => {
     financeCreate: jest.fn(),
     financeUpdate: jest.fn(),
     approvalsCreate: (...a: unknown[]) => mockApprovalsCreate(...a),
+    useDealersList: jest.fn(() => ({ data: { dealers: [] }, isLoading: false })),
     requestUploadUrl: jest.fn(),
     repairPhotosAdd: jest.fn(),
     sampleDataLoad: jest.fn(),

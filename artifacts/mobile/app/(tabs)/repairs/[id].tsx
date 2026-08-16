@@ -952,6 +952,12 @@ export default function RepairDetailScreen() {
         <Card>
           <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>CUSTOMER</Text>
           <Text style={{ fontSize: 15, color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginTop: 2 }}>{repair.customerName}</Text>
+          {!!repair.dealerName && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: colors.primary + '15', borderWidth: 1, borderColor: colors.primary + '33' }}>
+              <Feather name="briefcase" size={12} color={colors.primary} />
+              <Text style={{ fontSize: 12, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Dealer: {repair.dealerName}</Text>
+            </View>
+          )}
           <TouchableOpacity onPress={() => Linking.openURL(`tel:${repair.mobile}`)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
             <Text style={{ fontSize: 14, color: colors.primary, fontFamily: 'Inter_500Medium' }}>{repair.mobile}</Text>
             <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: colors.primary + '15', borderWidth: 1, borderColor: colors.primary + '33', alignItems: 'center', justifyContent: 'center' }}>

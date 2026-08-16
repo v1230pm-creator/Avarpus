@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import type { DbUser } from "@workspace/db";
 import { getSessionUser } from "../lib/authUtils";
+import { isDealerPortalRole, dealerPortalAllowed } from "../lib/dealerPortal";
 
 declare global {
   namespace Express {
@@ -29,6 +30,17 @@ export function requireAuth(
     .then((user) => {
       if (!user || !user.isActive) {
         res.status(401).json({ message: "Session expired. Please sign in again." });
+        return;
+      }
+      // Dealer-portal accounts (external B2B dealer logins) are read-only
+      // and restricted to their own dealer's repair data. Enforced here at
+      // the auth boundary so every endpoint — present and future — is
+      // blocked by default unless explicitly allowlisted.
+      if (isDealerPortalRole(user.role) && !dealerPortalAllowed(req)) {
+        res.status(403).json({
+          message: "Dealer account: access limited to your own repairs.",
+          code: "DEALER_PORTAL_FORBIDDEN",
+        });
         return;
       }
       req.user = user;

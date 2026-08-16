@@ -367,6 +367,118 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
+  /dealers:
+    get:
+      operationId: dealersList
+      tags: [business]
+      summary: List B2B dealers of the caller's shop with live repair counts
+      parameters:
+        - { name: q, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: Dealers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dealers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DealerWithCounts"
+                required: [dealers]
+    post:
+      operationId: dealersCreate
+      tags: [business]
+      summary: Create a B2B dealer in the caller's shop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DealerInput"
+      responses:
+        "200":
+          description: Created dealer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dealer:
+                    $ref: "#/components/schemas/Dealer"
+                required: [dealer]
+  /dealers/me:
+    get:
+      operationId: dealersMe
+      tags: [business]
+      summary: Dealer-portal account's own dealer profile + stats
+      responses:
+        "200":
+          description: Own dealer profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DealerProfile"
+  /dealers/overview:
+    get:
+      operationId: dealersOverview
+      tags: [business]
+      summary: Overall dealer-repair statistics (dealer/owner only)
+      responses:
+        "200":
+          description: Overview stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    $ref: "#/components/schemas/DealerOverviewStats"
+                required: [stats]
+  /dealers/{id}:
+    get:
+      operationId: dealersGet
+      tags: [business]
+      summary: Dealer profile + full stats
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Dealer profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DealerProfile"
+    patch:
+      operationId: dealersUpdate
+      tags: [business]
+      summary: Update a dealer (dealer/owner only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DealerInput"
+      responses:
+        "200":
+          description: Updated dealer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dealer:
+                    $ref: "#/components/schemas/Dealer"
+                required: [dealer]
   /customers:
     get:
       operationId: customersList
@@ -448,6 +560,7 @@ paths:
         - { name: dateFrom, in: query, required: false, schema: { type: string } }
         - { name: dateTo, in: query, required: false, schema: { type: string } }
         - { name: warranty, in: query, required: false, schema: { type: string, enum: [active, expired, none] } }
+        - { name: dealerId, in: query, required: false, schema: { type: string } }
         - { name: page, in: query, required: false, schema: { type: number } }
         - { name: limit, in: query, required: false, schema: { type: number } }
       responses:
@@ -1712,6 +1825,7 @@ components:
         profilePhoto: { type: string }
         companyLogo: { type: string }
         shopId: { type: string }
+        dealerId: { type: string }
       required: [id, name, email, mobile, role, isActive]
     StaffCreateInput:
       type: object
@@ -1720,15 +1834,16 @@ components:
         email: { type: string }
         mobile: { type: string }
         password: { type: string }
-        role: { type: string, enum: [reception, technician, store_manager, accountant] }
+        role: { type: string, enum: [reception, technician, store_manager, accountant, dealer_owner, dealer_staff] }
         designation: { type: string }
+        dealerId: { type: string }
       required: [name, email, mobile, password, role]
     StaffUpdateInput:
       type: object
       properties:
         name: { type: string }
         mobile: { type: string }
-        role: { type: string, enum: [reception, technician, store_manager, accountant] }
+        role: { type: string, enum: [reception, technician, store_manager, accountant, dealer_owner, dealer_staff] }
         designation: { type: string }
         password: { type: string }
     RegisterVerifyResult:
@@ -1746,6 +1861,74 @@ components:
         user:
           $ref: "#/components/schemas/AuthUser"
       required: [token, user]
+    Dealer:
+      type: object
+      properties:
+        id: { type: string }
+        dealerCode: { type: string }
+        name: { type: string }
+        shopName: { type: string }
+        mobile: { type: string }
+        location: { type: string }
+        isActive: { type: boolean }
+        createdById: { type: string }
+        createdByName: { type: string }
+        createdAt: { type: string }
+      required: [id, dealerCode, name, mobile, isActive, createdAt]
+    DealerWithCounts:
+      allOf:
+        - $ref: "#/components/schemas/Dealer"
+        - type: object
+          properties:
+            totalRepairs: { type: number }
+            received: { type: number }
+            repairing: { type: number }
+            ready: { type: number }
+            delivered: { type: number }
+          required: [totalRepairs, received, repairing, ready, delivered]
+    DealerInput:
+      type: object
+      properties:
+        name: { type: string }
+        shopName: { type: string }
+        mobile: { type: string }
+        location: { type: string }
+        isActive: { type: boolean }
+    DealerStats:
+      type: object
+      properties:
+        totalRepairs: { type: number }
+        received: { type: number }
+        repairing: { type: number }
+        ready: { type: number }
+        delivered: { type: number }
+        cancelled: { type: number }
+        afterSaleReturns: { type: number }
+        refunded: { type: number }
+        refundedAmount: { type: number }
+        totalRepairValue: { type: number }
+        pendingAmount: { type: number }
+      required: [totalRepairs, received, repairing, ready, delivered, cancelled, afterSaleReturns, refunded, refundedAmount, totalRepairValue, pendingAmount]
+    DealerProfile:
+      type: object
+      properties:
+        dealer:
+          $ref: "#/components/schemas/Dealer"
+        stats:
+          $ref: "#/components/schemas/DealerStats"
+      required: [dealer, stats]
+    DealerOverviewStats:
+      type: object
+      properties:
+        totalDealerRepairs: { type: number }
+        activeRepairs: { type: number }
+        completedRepairs: { type: number }
+        deliveredRepairs: { type: number }
+        afterSaleReturns: { type: number }
+        refunds: { type: number }
+        totalRepairRevenue: { type: number }
+        pendingPayments: { type: number }
+      required: [totalDealerRepairs, activeRepairs, completedRepairs, deliveredRepairs, afterSaleReturns, refunds, totalRepairRevenue, pendingPayments]
     Customer:
       type: object
       properties:
@@ -1776,6 +1959,8 @@ components:
         customerId: { type: string }
         customerName: { type: string }
         mobile: { type: string }
+        dealerId: { type: string }
+        dealerName: { type: string }
         deviceType: { type: string }
         brand: { type: string }
         model: { type: string }
@@ -1845,6 +2030,11 @@ components:
         repairStartedAt: { type: string }
         repairCompletedAt: { type: string }
         isSample: { type: boolean }
+        createdById: { type: string }
+        createdByName: { type: string }
+        updatedById: { type: string }
+        updatedByName: { type: string }
+        updatedAt: { type: string }
         createdAt: { type: string }
       required: [id, repairId, customerName, mobile, deviceType, brand, model, problem, status, priority, repairCharge, partsCharge, serviceCharge, otherCharge, discount, taxPercent, advance, simPresent, memoryCardPresent, totalAmount, paidAmount, balance, receiveDate, expectedDate, warrantyDays, isSample, createdAt]
     RepairInput:
@@ -1853,6 +2043,7 @@ components:
         customerId: { type: string }
         customerName: { type: string }
         mobile: { type: string }
+        dealerId: { type: string }
         deviceType: { type: string }
         brand: { type: string }
         model: { type: string }

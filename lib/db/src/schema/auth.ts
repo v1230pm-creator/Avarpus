@@ -21,6 +21,10 @@ export const usersTable = pgTable("users", {
   // by a dealer inherit the dealer's shop. (No FK to avoid a circular
   // users<->shops reference; integrity is maintained by the API layer.)
   shopId: uuid("shop_id"),
+  // For dealer-portal accounts (role dealer_owner / dealer_staff): the B2B
+  // dealer this login belongs to. (No FK — dealers table lives in business
+  // schema; integrity is maintained by the API layer, like shopId.)
+  dealerId: uuid("dealer_id"),
   isActive: boolean("is_active").notNull().default(false),
   designation: text("designation"),
   joinDate: text("join_date"),

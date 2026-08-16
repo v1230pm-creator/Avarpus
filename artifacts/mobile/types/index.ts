@@ -4,7 +4,14 @@ export type UserRole =
   | 'reception'
   | 'technician'
   | 'store_manager'
-  | 'accountant';
+  | 'accountant'
+  | 'dealer_owner'
+  | 'dealer_staff';
+
+/** Dealer-portal login roles — external B2B dealer accounts (read-only). */
+export const DEALER_PORTAL_ROLES: UserRole[] = ['dealer_owner', 'dealer_staff'];
+export const isDealerPortalRole = (role?: string | null): boolean =>
+  role === 'dealer_owner' || role === 'dealer_staff';
 
 export interface User {
   id: string;
@@ -20,6 +27,8 @@ export interface User {
   shopAddress?: string;
   profilePhoto?: string;
   companyLogo?: string;
+  /** For dealer-portal accounts: the dealer (B2B party) this login belongs to. */
+  dealerId?: string;
 }
 
 export type RepairStatus =
@@ -103,6 +112,14 @@ export interface Repair {
   paymentMethod?: string;
   otpVerified?: boolean;
   isSample?: boolean;
+  /** B2B dealer link — set at intake, snapshot of the dealer's name. */
+  dealerId?: string;
+  dealerName?: string;
+  createdById?: string;
+  createdByName?: string;
+  updatedById?: string;
+  updatedByName?: string;
+  updatedAt?: string;
   createdAt: string;
 }
 

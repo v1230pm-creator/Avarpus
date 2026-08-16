@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, eq, ne, or } from "drizzle-orm";
-import { db, usersTable, type DbUser } from "@workspace/db";
+import { db, usersTable, dealersTable, type DbUser } from "@workspace/db";
 import { hashPassword, publicUser } from "../lib/authUtils";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireRole } from "../middlewares/requireRole";
@@ -15,6 +15,12 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Roles a dealer may assign to staff. Dealer/admin/super_admin can NEVER be
 // created here — dealers register publicly, super_admins are seeded.
 const STAFF_ROLES = ["reception", "technician", "store_manager", "accountant"] as const;
+
+// Dealer-portal login roles: read-only accounts for external B2B dealers.
+// They must be linked to a dealers row (dealerId) at creation time.
+const DEALER_PORTAL_ROLES = ["dealer_owner", "dealer_staff"] as const;
+
+const MANAGEABLE_ROLES = [...STAFF_ROLES, ...DEALER_PORTAL_ROLES] as const;
 
 function validPassword(p: unknown): p is string {
   return (
@@ -70,15 +76,33 @@ router.post(
       });
       return;
     }
-    const { name, email, mobile, password, role, designation } = req.body ?? {};
+    const { name, email, mobile, password, role, designation, dealerId } = req.body ?? {};
     if (
       typeof role !== "string" ||
-      !(STAFF_ROLES as readonly string[]).includes(role)
+      !(MANAGEABLE_ROLES as readonly string[]).includes(role)
     ) {
       res.status(403).json({
-        message: "Staff role must be one of: reception, technician, store_manager, accountant",
+        message: "Staff role must be one of: reception, technician, store_manager, accountant, dealer_owner, dealer_staff",
       });
       return;
+    }
+    // Dealer-portal accounts MUST be tied to a dealer of this shop — that
+    // link is what scopes every repair they can see.
+    let linkedDealerId: string | null = null;
+    if ((DEALER_PORTAL_ROLES as readonly string[]).includes(role)) {
+      if (typeof dealerId !== "string" || !dealerId.trim()) {
+        res.status(400).json({ message: "Dealer account needs a dealerId (the dealer this login belongs to)" });
+        return;
+      }
+      const [dealer] = await db
+        .select({ id: dealersTable.id })
+        .from(dealersTable)
+        .where(and(eq(dealersTable.id, dealerId.trim()), eq(dealersTable.shopId, me.shopId)));
+      if (!dealer) {
+        res.status(400).json({ message: "Dealer not found in your shop" });
+        return;
+      }
+      linkedDealerId = dealer.id;
     }
     if (
       typeof name !== "string" || !name.trim() ||
@@ -111,6 +135,7 @@ router.post(
       passwordHash: hashPassword(password),
       role,
       shopId: me.shopId,
+      dealerId: linkedDealerId,
       isActive: true,
       designation:
         typeof designation === "string" && designation.trim()
@@ -187,9 +212,9 @@ router.patch(
       res.status(check.status).json({ message: check.message });
       return;
     }
-    // Dealers may only manage staff-role accounts; they can never edit
-    // another dealer, and can never promote staff to dealer/super_admin.
-    if (!(STAFF_ROLES as readonly string[]).includes(check.target.role)) {
+    // Dealers may only manage staff/dealer-portal accounts; they can never
+    // edit another dealer, and can never promote staff to dealer/super_admin.
+    if (!(MANAGEABLE_ROLES as readonly string[]).includes(check.target.role)) {
       res.status(403).json({ message: "This account cannot be edited here" });
       return;
     }
@@ -227,9 +252,15 @@ router.patch(
       set.mobile = mobile;
     }
     if (role !== undefined) {
-      if (typeof role !== "string" || !(STAFF_ROLES as readonly string[]).includes(role)) {
+      // Role changes stay within the account's own family: staff roles are
+      // interchangeable, dealer-portal roles are interchangeable, but an
+      // account can never cross between them (the dealer link would be
+      // orphaned / missing).
+      const targetIsPortal = (DEALER_PORTAL_ROLES as readonly string[]).includes(check.target.role);
+      const allowedSet: readonly string[] = targetIsPortal ? DEALER_PORTAL_ROLES : STAFF_ROLES;
+      if (typeof role !== "string" || !allowedSet.includes(role)) {
         res.status(403).json({
-          message: "Staff role must be one of: reception, technician, store_manager, accountant",
+          message: `Role must be one of: ${allowedSet.join(", ")}`,
         });
         return;
       }

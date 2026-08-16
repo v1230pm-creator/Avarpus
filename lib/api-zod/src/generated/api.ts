@@ -34,7 +34,8 @@ export const AuthLoginResponse = zod.object({
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
-  "shopId": zod.string().optional()
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional()
 })
 })
 
@@ -77,7 +78,8 @@ export const AuthOtpVerifyResponse = zod.object({
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
-  "shopId": zod.string().optional()
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional()
 })
 })
 
@@ -126,7 +128,8 @@ export const AuthRegisterVerifyResponse = zod.object({
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
-  "shopId": zod.string().optional()
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional()
 }).optional(),
   "pending": zod.boolean().optional(),
   "message": zod.string().optional()
@@ -190,7 +193,8 @@ export const AuthMeResponse = zod.object({
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
-  "shopId": zod.string().optional()
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional()
 })
 })
 
@@ -213,7 +217,8 @@ export const StaffListResponse = zod.object({
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
-  "shopId": zod.string().optional()
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional()
 }))
 })
 
@@ -226,8 +231,9 @@ export const StaffCreateBody = zod.object({
   "email": zod.string(),
   "mobile": zod.string(),
   "password": zod.string(),
-  "role": zod.enum(['reception', 'technician', 'store_manager', 'accountant']),
-  "designation": zod.string().optional()
+  "role": zod.enum(['reception', 'technician', 'store_manager', 'accountant', 'dealer_owner', 'dealer_staff']),
+  "designation": zod.string().optional(),
+  "dealerId": zod.string().optional()
 })
 
 export const StaffCreateResponse = zod.object({
@@ -245,7 +251,8 @@ export const StaffCreateResponse = zod.object({
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
-  "shopId": zod.string().optional()
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional()
 })
 })
 
@@ -272,7 +279,8 @@ export const StaffActivateResponse = zod.object({
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
-  "shopId": zod.string().optional()
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional()
 })
 })
 
@@ -287,7 +295,7 @@ export const StaffUpdateParams = zod.object({
 export const StaffUpdateBody = zod.object({
   "name": zod.string().optional(),
   "mobile": zod.string().optional(),
-  "role": zod.enum(['reception', 'technician', 'store_manager', 'accountant']).optional(),
+  "role": zod.enum(['reception', 'technician', 'store_manager', 'accountant', 'dealer_owner', 'dealer_staff']).optional(),
   "designation": zod.string().optional(),
   "password": zod.string().optional()
 })
@@ -307,7 +315,8 @@ export const StaffUpdateResponse = zod.object({
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
-  "shopId": zod.string().optional()
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional()
 })
 })
 
@@ -377,6 +386,178 @@ export const AuthRevokeOtherSessionsResponse = zod.object({
  */
 export const AuthLogoutResponse = zod.object({
   "message": zod.string()
+})
+
+
+/**
+ * @summary List B2B dealers of the caller's shop with live repair counts
+ */
+export const DealersListQueryParams = zod.object({
+  "q": zod.coerce.string().optional()
+})
+
+export const DealersListResponse = zod.object({
+  "dealers": zod.array(zod.object({
+  "id": zod.string(),
+  "dealerCode": zod.string(),
+  "name": zod.string(),
+  "shopName": zod.string().optional(),
+  "mobile": zod.string(),
+  "location": zod.string().optional(),
+  "isActive": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "totalRepairs": zod.number(),
+  "received": zod.number(),
+  "repairing": zod.number(),
+  "ready": zod.number(),
+  "delivered": zod.number()
+})))
+})
+
+
+/**
+ * @summary Create a B2B dealer in the caller's shop
+ */
+export const DealersCreateBody = zod.object({
+  "name": zod.string().optional(),
+  "shopName": zod.string().optional(),
+  "mobile": zod.string().optional(),
+  "location": zod.string().optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const DealersCreateResponse = zod.object({
+  "dealer": zod.object({
+  "id": zod.string(),
+  "dealerCode": zod.string(),
+  "name": zod.string(),
+  "shopName": zod.string().optional(),
+  "mobile": zod.string(),
+  "location": zod.string().optional(),
+  "isActive": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Dealer-portal account's own dealer profile + stats
+ */
+export const DealersMeResponse = zod.object({
+  "dealer": zod.object({
+  "id": zod.string(),
+  "dealerCode": zod.string(),
+  "name": zod.string(),
+  "shopName": zod.string().optional(),
+  "mobile": zod.string(),
+  "location": zod.string().optional(),
+  "isActive": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "createdAt": zod.string()
+}),
+  "stats": zod.object({
+  "totalRepairs": zod.number(),
+  "received": zod.number(),
+  "repairing": zod.number(),
+  "ready": zod.number(),
+  "delivered": zod.number(),
+  "cancelled": zod.number(),
+  "afterSaleReturns": zod.number(),
+  "refunded": zod.number(),
+  "refundedAmount": zod.number(),
+  "totalRepairValue": zod.number(),
+  "pendingAmount": zod.number()
+})
+})
+
+
+/**
+ * @summary Overall dealer-repair statistics (dealer/owner only)
+ */
+export const DealersOverviewResponse = zod.object({
+  "stats": zod.object({
+  "totalDealerRepairs": zod.number(),
+  "activeRepairs": zod.number(),
+  "completedRepairs": zod.number(),
+  "deliveredRepairs": zod.number(),
+  "afterSaleReturns": zod.number(),
+  "refunds": zod.number(),
+  "totalRepairRevenue": zod.number(),
+  "pendingPayments": zod.number()
+})
+})
+
+
+/**
+ * @summary Dealer profile + full stats
+ */
+export const DealersGetParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DealersGetResponse = zod.object({
+  "dealer": zod.object({
+  "id": zod.string(),
+  "dealerCode": zod.string(),
+  "name": zod.string(),
+  "shopName": zod.string().optional(),
+  "mobile": zod.string(),
+  "location": zod.string().optional(),
+  "isActive": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "createdAt": zod.string()
+}),
+  "stats": zod.object({
+  "totalRepairs": zod.number(),
+  "received": zod.number(),
+  "repairing": zod.number(),
+  "ready": zod.number(),
+  "delivered": zod.number(),
+  "cancelled": zod.number(),
+  "afterSaleReturns": zod.number(),
+  "refunded": zod.number(),
+  "refundedAmount": zod.number(),
+  "totalRepairValue": zod.number(),
+  "pendingAmount": zod.number()
+})
+})
+
+
+/**
+ * @summary Update a dealer (dealer/owner only)
+ */
+export const DealersUpdateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DealersUpdateBody = zod.object({
+  "name": zod.string().optional(),
+  "shopName": zod.string().optional(),
+  "mobile": zod.string().optional(),
+  "location": zod.string().optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const DealersUpdateResponse = zod.object({
+  "dealer": zod.object({
+  "id": zod.string(),
+  "dealerCode": zod.string(),
+  "name": zod.string(),
+  "shopName": zod.string().optional(),
+  "mobile": zod.string(),
+  "location": zod.string().optional(),
+  "isActive": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "createdAt": zod.string()
+})
 })
 
 
@@ -470,6 +651,7 @@ export const RepairsListQueryParams = zod.object({
   "dateFrom": zod.coerce.string().optional(),
   "dateTo": zod.coerce.string().optional(),
   "warranty": zod.enum(['active', 'expired', 'none']).optional(),
+  "dealerId": zod.coerce.string().optional(),
   "page": zod.coerce.number().optional(),
   "limit": zod.coerce.number().optional()
 })
@@ -481,6 +663,8 @@ export const RepairsListResponse = zod.object({
   "customerId": zod.string().optional(),
   "customerName": zod.string(),
   "mobile": zod.string(),
+  "dealerId": zod.string().optional(),
+  "dealerName": zod.string().optional(),
   "deviceType": zod.string(),
   "brand": zod.string(),
   "model": zod.string(),
@@ -542,6 +726,11 @@ export const RepairsListResponse = zod.object({
   "repairStartedAt": zod.string().optional(),
   "repairCompletedAt": zod.string().optional(),
   "isSample": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "updatedById": zod.string().optional(),
+  "updatedByName": zod.string().optional(),
+  "updatedAt": zod.string().optional(),
   "createdAt": zod.string()
 })),
   "total": zod.number().optional(),
@@ -557,6 +746,7 @@ export const RepairsCreateBody = zod.object({
   "customerId": zod.string().optional(),
   "customerName": zod.string().optional(),
   "mobile": zod.string().optional(),
+  "dealerId": zod.string().optional(),
   "deviceType": zod.string().optional(),
   "brand": zod.string().optional(),
   "model": zod.string().optional(),
@@ -604,6 +794,8 @@ export const RepairsCreateResponse = zod.object({
   "customerId": zod.string().optional(),
   "customerName": zod.string(),
   "mobile": zod.string(),
+  "dealerId": zod.string().optional(),
+  "dealerName": zod.string().optional(),
   "deviceType": zod.string(),
   "brand": zod.string(),
   "model": zod.string(),
@@ -665,6 +857,11 @@ export const RepairsCreateResponse = zod.object({
   "repairStartedAt": zod.string().optional(),
   "repairCompletedAt": zod.string().optional(),
   "isSample": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "updatedById": zod.string().optional(),
+  "updatedByName": zod.string().optional(),
+  "updatedAt": zod.string().optional(),
   "createdAt": zod.string()
 })
 })
@@ -681,6 +878,7 @@ export const RepairsUpdateBody = zod.object({
   "customerId": zod.string().optional(),
   "customerName": zod.string().optional(),
   "mobile": zod.string().optional(),
+  "dealerId": zod.string().optional(),
   "deviceType": zod.string().optional(),
   "brand": zod.string().optional(),
   "model": zod.string().optional(),
@@ -728,6 +926,8 @@ export const RepairsUpdateResponse = zod.object({
   "customerId": zod.string().optional(),
   "customerName": zod.string(),
   "mobile": zod.string(),
+  "dealerId": zod.string().optional(),
+  "dealerName": zod.string().optional(),
   "deviceType": zod.string(),
   "brand": zod.string(),
   "model": zod.string(),
@@ -789,6 +989,11 @@ export const RepairsUpdateResponse = zod.object({
   "repairStartedAt": zod.string().optional(),
   "repairCompletedAt": zod.string().optional(),
   "isSample": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "updatedById": zod.string().optional(),
+  "updatedByName": zod.string().optional(),
+  "updatedAt": zod.string().optional(),
   "createdAt": zod.string()
 })
 })
@@ -1022,6 +1227,8 @@ export const RepairAssignTechnicianResponse = zod.object({
   "customerId": zod.string().optional(),
   "customerName": zod.string(),
   "mobile": zod.string(),
+  "dealerId": zod.string().optional(),
+  "dealerName": zod.string().optional(),
   "deviceType": zod.string(),
   "brand": zod.string(),
   "model": zod.string(),
@@ -1083,6 +1290,11 @@ export const RepairAssignTechnicianResponse = zod.object({
   "repairStartedAt": zod.string().optional(),
   "repairCompletedAt": zod.string().optional(),
   "isSample": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "updatedById": zod.string().optional(),
+  "updatedByName": zod.string().optional(),
+  "updatedAt": zod.string().optional(),
   "createdAt": zod.string()
 })
 })
@@ -1107,6 +1319,8 @@ export const RepairTestingResponse = zod.object({
   "customerId": zod.string().optional(),
   "customerName": zod.string(),
   "mobile": zod.string(),
+  "dealerId": zod.string().optional(),
+  "dealerName": zod.string().optional(),
   "deviceType": zod.string(),
   "brand": zod.string(),
   "model": zod.string(),
@@ -1168,6 +1382,11 @@ export const RepairTestingResponse = zod.object({
   "repairStartedAt": zod.string().optional(),
   "repairCompletedAt": zod.string().optional(),
   "isSample": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "updatedById": zod.string().optional(),
+  "updatedByName": zod.string().optional(),
+  "updatedAt": zod.string().optional(),
   "createdAt": zod.string()
 })
 })
@@ -1317,6 +1536,8 @@ export const RepairNotifyReadyResponse = zod.object({
   "customerId": zod.string().optional(),
   "customerName": zod.string(),
   "mobile": zod.string(),
+  "dealerId": zod.string().optional(),
+  "dealerName": zod.string().optional(),
   "deviceType": zod.string(),
   "brand": zod.string(),
   "model": zod.string(),
@@ -1378,6 +1599,11 @@ export const RepairNotifyReadyResponse = zod.object({
   "repairStartedAt": zod.string().optional(),
   "repairCompletedAt": zod.string().optional(),
   "isSample": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "updatedById": zod.string().optional(),
+  "updatedByName": zod.string().optional(),
+  "updatedAt": zod.string().optional(),
   "createdAt": zod.string()
 })
 })

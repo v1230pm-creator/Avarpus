@@ -43,6 +43,9 @@ jest.mock('@workspace/api-client-react', () => {
       }),
     useReturnsList: () =>
       useQuery({ queryKey: ['returns'], queryFn: async () => ({ returns: [] }) }),
+    useDealersList: jest.fn(() => ({ data: { dealers: [] }, isLoading: false, refetch: jest.fn() })),
+    useDealersMe: jest.fn(() => ({ data: undefined })),
+    useDealersOverview: jest.fn(() => ({ data: undefined })),
   };
 });
 

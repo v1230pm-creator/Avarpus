@@ -41,7 +41,7 @@ import {
   PRIORITIES,
   PRIORITY_LABELS,
 } from '@/utils/helpers';
-import { requestUploadUrl, repairPhotosAdd, approvalsCreate } from '@workspace/api-client-react';
+import { requestUploadUrl, repairPhotosAdd, approvalsCreate, useDealersList } from '@workspace/api-client-react';
 import { fetch as expoFetch } from 'expo/fetch';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { File as ExpoFile } from 'expo-file-system';
@@ -168,6 +168,11 @@ export default function NewRepairScreen() {
   const [problem, setProblem] = useState('');
   
   const [priority, setPriority] = useState('normal');
+  // Optional B2B dealer link — permanent association made at intake.
+  const [dealerId, setDealerId] = useState<string | null>(null);
+  const [showDealerPick, setShowDealerPick] = useState(false);
+  const { data: dealersData } = useDealersList({}, { query: { enabled: showDealerPick } } as any);
+  const selectedDealer = dealersData?.dealers?.find((d) => d.id === dealerId);
   const [repairCharge, setRepairCharge] = useState('');
   const [notes, setNotes] = useState('');
   const [warrantyDays, setWarrantyDays] = useState('0');
@@ -281,6 +286,7 @@ export default function NewRepairScreen() {
         repairCharge: parseFloat(repairCharge) || 0, partsCharge: 0,
         expectedDate: expectedDate.trim(), notes: notes.trim() || undefined,
         checklist, warrantyDays: parseInt(warrantyDays, 10) || 0,
+        dealerId: dealerId || undefined,
       };
 
       if (isBackdated) {
@@ -303,7 +309,7 @@ export default function NewRepairScreen() {
         ...basePayload,
         receiveDate: receiveDate.trim(),
         createdAt: new Date().toISOString(),
-      } as Repair;
+      } as unknown as Repair;
 
       const apiPayload = {
         customerId: newRepair.customerId || undefined,
@@ -330,6 +336,7 @@ export default function NewRepairScreen() {
         priority: newRepair.priority,
         repairCharge: newRepair.repairCharge,
         expectedDate: newRepair.expectedDate || new Date().toISOString(),
+        dealerId: dealerId || undefined,
       };
 
       const net = await Network.getNetworkStateAsync();
@@ -658,6 +665,57 @@ export default function NewRepairScreen() {
                 <Input label="Alternate Mobile" value={alternateMobile} onChangeText={setAlternateMobile} placeholder="Optional" keyboardType="phone-pad" leftIcon="phone" />
                 <Input label="Email" value={email} onChangeText={setEmail} placeholder="Optional" keyboardType="email-address" leftIcon="mail" autoCapitalize="none" />
                 <Input label="Address" value={address} onChangeText={setAddress} placeholder="Optional" leftIcon="map-pin" />
+              </View>
+
+              {/* Dealer (optional B2B link) */}
+              <View style={styles.section}>
+                <SectionHeader title="Dealer (Optional)" />
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setShowDealerPick(v => !v)}
+                  style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: dealerId ? colors.primary : colors.border }]}
+                >
+                  <Feather name="briefcase" size={16} color={dealerId ? colors.primary : colors.mutedForeground} />
+                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                    {selectedDealer ? `${selectedDealer.dealerCode} · ${selectedDealer.name}` : 'Link to a Dealer'}
+                  </Text>
+                  <Feather name={showDealerPick ? 'chevron-up' : 'chevron-down'} size={16} color={colors.mutedForeground} />
+                </TouchableOpacity>
+                {showDealerPick && (
+                  <View style={{ gap: 8 }}>
+                    {(dealersData?.dealers || []).map((d) => {
+                      const active = dealerId === d.id;
+                      return (
+                        <TouchableOpacity
+                          key={d.id}
+                          onPress={() => { setDealerId(active ? null : d.id); setShowDealerPick(false); }}
+                          activeOpacity={0.8}
+                          style={{
+                            flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12,
+                            borderWidth: 1, backgroundColor: active ? colors.primary + '15' : colors.card,
+                            borderColor: active ? colors.primary : colors.border,
+                          }}
+                        >
+                          <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: colors.primary + '15' }}>
+                            <Text style={{ fontSize: 11, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{d.dealerCode}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{d.name}</Text>
+                            {!!d.shopName && <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{d.shopName}</Text>}
+                          </View>
+                          {active && <Feather name="check" size={16} color={colors.primary} />}
+                        </TouchableOpacity>
+                      );
+                    })}
+                    <TouchableOpacity
+                      onPress={() => router.push('/(tabs)/repairs/dealer-new')}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 }}
+                    >
+                      <Feather name="plus-circle" size={16} color={colors.primary} />
+                      <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Add New Dealer</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
 
               {/* Device */}

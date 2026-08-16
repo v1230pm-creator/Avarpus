@@ -34,6 +34,30 @@ export const customersTable = pgTable("customers", {
     .defaultNow(),
 });
 
+// B2B dealers (wholesale/partner shops) who send devices in for repair.
+// Distinct from the `dealer` user role (which is the shop OWNER) — these are
+// external parties tracked per shop. Portal login accounts (users with role
+// dealer_owner / dealer_staff) reference a dealer row via users.dealer_id.
+export const dealersTable = pgTable("dealers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  shopId: uuid("shop_id")
+    .notNull()
+    .references(() => shopsTable.id, { onDelete: "cascade" }),
+  dealerCode: text("dealer_code").notNull(), // human-readable, e.g. DLR-001
+  name: text("name").notNull(),
+  shopName: text("shop_name"),
+  mobile: text("mobile").notNull(),
+  location: text("location"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdById: uuid("created_by_id"),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (t) => [
+  uniqueIndex("dealers_shop_code_unique").on(t.shopId, t.dealerCode),
+]);
+
 export const repairsTable = pgTable("repairs", {
   id: uuid("id").primaryKey().defaultRandom(),
   shopId: uuid("shop_id")
@@ -45,6 +69,11 @@ export const repairsTable = pgTable("repairs", {
   }),
   customerName: text("customer_name").notNull(),
   mobile: text("mobile").notNull(),
+  // Optional permanent link to a B2B dealer — set at intake, never duplicated.
+  dealerId: uuid("dealer_id").references(() => dealersTable.id, {
+    onDelete: "set null",
+  }),
+  dealerName: text("dealer_name"), // snapshot for display/search
   deviceType: text("device_type").notNull(),
   brand: text("brand").notNull(),
   model: text("model").notNull(),
@@ -111,6 +140,12 @@ export const repairsTable = pgTable("repairs", {
   repairStartedAt: timestamp("repair_started_at", { withTimezone: true }),
   repairCompletedAt: timestamp("repair_completed_at", { withTimezone: true }),
   isSample: boolean("is_sample").notNull().default(false),
+  // Audit: who created / last updated the record (stamped server-side).
+  createdById: uuid("created_by_id"),
+  createdByName: text("created_by_name"),
+  updatedById: uuid("updated_by_id"),
+  updatedByName: text("updated_by_name"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -483,6 +518,7 @@ export type DbRefund = typeof refundsTable.$inferSelect;
 export type DbApprovalRequest = typeof approvalRequestsTable.$inferSelect;
 
 export type DbCustomer = typeof customersTable.$inferSelect;
+export type DbDealer = typeof dealersTable.$inferSelect;
 export type DbRepair = typeof repairsTable.$inferSelect;
 export type DbInventoryItem = typeof inventoryItemsTable.$inferSelect;
 export type DbPurchase = typeof purchasesTable.$inferSelect;

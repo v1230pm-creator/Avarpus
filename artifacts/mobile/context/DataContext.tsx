@@ -7,7 +7,7 @@ import {
   financeList, financeCreate, financeUpdate,
   sampleDataLoad, sampleDataClear,
 } from '@workspace/api-client-react';
-import { Repair, Customer, InventoryItem, Purchase, FinanceEntry } from '@/types';
+import { Repair, Customer, InventoryItem, Purchase, FinanceEntry, isDealerPortalRole } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { toFriendlyError } from '@/utils/friendlyError';
 
@@ -71,7 +71,11 @@ const DataContext = createContext<DataContextType>({
 });
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  // Dealer-portal accounts are read-only and only allowed to fetch their own
+  // repairs — bulk shop data (customers/inventory/purchases/finance) would
+  // just 403 server-side, so skip loading it entirely.
+  const isPortal = isDealerPortalRole(user?.role);
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -81,6 +85,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
+    if (isPortal) {
+      // Portal accounts: only their own repairs (server-scoped).
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const r = await repairsList();
+        setRepairs(r.repairs as Repair[]);
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : 'Could not load repairs');
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
     setIsLoading(true);
     setLoadError(null);
     try {
@@ -101,7 +119,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isPortal]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -162,6 +180,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       physicalCondition: r.physicalCondition,
       deviceCondition: r.deviceCondition,
       problem: r.problem,
+      dealerId: r.dealerId,
       status: r.status,
       priority: r.priority,
       repairCharge: r.repairCharge,

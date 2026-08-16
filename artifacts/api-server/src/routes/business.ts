@@ -3,6 +3,7 @@ import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-o
 import {
   db,
   customersTable,
+  dealersTable,
   repairsTable,
   repairPhotosTable,
   repairPartsTable,
@@ -24,6 +25,7 @@ import { asyncHandler } from "../lib/asyncHandler";
 import { sha256, generateOtpCode } from "../lib/authUtils";
 import { sendOtpEmail } from "../lib/mailer";
 import { recordPayment, PAYMENT_KINDS } from "../lib/repairPayments";
+import { isDealerPortalRole } from "../lib/dealerPortal";
 import type { Request, Response } from "express";
 
 // Shop-scoped business data: repairs, customers, inventory, purchases and
@@ -310,6 +312,8 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
     customerId: r.customerId ?? undefined,
     customerName: r.customerName,
     mobile: r.mobile,
+    dealerId: r.dealerId ?? undefined,
+    dealerName: r.dealerName ?? undefined,
     deviceType: r.deviceType,
     brand: r.brand,
     model: r.model,
@@ -368,6 +372,11 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
     repairStartedAt: r.repairStartedAt ? iso(r.repairStartedAt) : undefined,
     repairCompletedAt: r.repairCompletedAt ? iso(r.repairCompletedAt) : undefined,
     isSample: r.isSample,
+    createdById: r.createdById ?? undefined,
+    createdByName: r.createdByName ?? undefined,
+    updatedById: r.updatedById ?? undefined,
+    updatedByName: r.updatedByName ?? undefined,
+    updatedAt: r.updatedAt ? iso(r.updatedAt) : undefined,
     createdAt: iso(r.createdAt),
     ...(() => {
       const t = computeTotals(r);
@@ -391,6 +400,25 @@ router.get(
 
     const conds: SQL[] = [eq(repairsTable.shopId, shopId)];
 
+    // Dealer-portal accounts only EVER see their own dealer's repairs —
+    // enforced server-side regardless of any client-supplied filters.
+    if (isDealerPortalRole(me.role)) {
+      if (!me.dealerId) {
+        res.status(403).json({ message: "Your dealer account is not linked to a dealer profile." });
+        return;
+      }
+      conds.push(eq(repairsTable.dealerId, me.dealerId));
+    } else {
+      const dealerFilter = qstr("dealerId");
+      if (dealerFilter === "none") {
+        conds.push(sql`${repairsTable.dealerId} IS NULL`);
+      } else if (dealerFilter === "any") {
+        conds.push(sql`${repairsTable.dealerId} IS NOT NULL`);
+      } else if (dealerFilter) {
+        conds.push(eq(repairsTable.dealerId, dealerFilter));
+      }
+    }
+
     const search = qstr("q");
     if (search) {
       const like = `%${search}%`;
@@ -403,6 +431,7 @@ router.get(
         ilike(repairsTable.serialNumber, like),
         ilike(repairsTable.brand, like),
         ilike(repairsTable.model, like),
+        ilike(repairsTable.dealerName, like),
       );
       if (orCond) conds.push(orCond);
     }
@@ -577,6 +606,23 @@ router.post(
     }
     const intakeAltMobile = str(b.alternateMobile);
 
+    // Optional permanent dealer link — the dealer must belong to this shop.
+    // The repair stays a single record; the dealer relationship is only a
+    // foreign key + display snapshot (never a duplicate job card).
+    let dealerId = str(b.dealerId);
+    let dealerName: string | null = null;
+    if (dealerId) {
+      const [dealer] = await db
+        .select({ id: dealersTable.id, name: dealersTable.name })
+        .from(dealersTable)
+        .where(and(eq(dealersTable.id, dealerId), eq(dealersTable.shopId, shopId)));
+      if (!dealer) {
+        res.status(400).json({ message: "Dealer not found in your shop" });
+        return;
+      }
+      dealerName = dealer.name;
+    }
+
     let created: typeof repairsTable.$inferSelect;
     try {
       created = await db.transaction(async (tx) => {
@@ -636,6 +682,10 @@ router.post(
           // for the intake step, not client-supplied.
           receivedById: (req as AuthedRequest).user.id,
           receivedByName: (req as AuthedRequest).user.name,
+          dealerId,
+          dealerName,
+          createdById: (req as AuthedRequest).user.id,
+          createdByName: (req as AuthedRequest).user.name,
         })
         .returning();
       await logRepairEvent(tx, {
@@ -643,7 +693,12 @@ router.post(
         repairId: row.id,
         user: (req as AuthedRequest).user,
         action: "created",
-        details: { ticket: row.repairId, status: row.status, priority: row.priority },
+        details: {
+          ticket: row.repairId,
+          status: row.status,
+          priority: row.priority,
+          ...(row.dealerId ? { dealerId: row.dealerId, dealerName: row.dealerName } : {}),
+        },
       });
       // Backfill the customer's alternate mobile from the intake form when the
       // customer record doesn't have one yet — so the contact captured at
@@ -777,6 +832,33 @@ router.patch(
         return;
       }
       patch.warrantyDays = wd;
+    }
+    // Dealer link changes are privileged — the association is permanent for
+    // staff; only the shop owner / super admin may correct it.
+    if (b.dealerId !== undefined) {
+      if (!isPrivileged(req)) {
+        res.status(403).json({
+          message: "Only the dealer/owner can change a repair's dealer link.",
+          code: "DEALER_LINK_PRIVILEGED",
+        });
+        return;
+      }
+      const newDealerId = str(b.dealerId);
+      if (newDealerId) {
+        const [dealer] = await db
+          .select({ id: dealersTable.id, name: dealersTable.name })
+          .from(dealersTable)
+          .where(and(eq(dealersTable.id, newDealerId), eq(dealersTable.shopId, shopId)));
+        if (!dealer) {
+          res.status(400).json({ message: "Dealer not found in your shop" });
+          return;
+        }
+        patch.dealerId = dealer.id;
+        patch.dealerName = dealer.name;
+      } else {
+        patch.dealerId = null;
+        patch.dealerName = null;
+      }
     }
     const id = String(req.params.id ?? "");
     const [existing] = await db
@@ -1072,12 +1154,30 @@ router.patch(
           .where(and(eq(repairPartsTable.repairId, id), eq(repairPartsTable.shopId, shopId)));
         if (partRows > 0) throw new Error("PARTS_LEDGER_MANAGED");
       }
+      // Audit: every update is attributed to the authenticated user —
+      // stamped server-side, never client-supplied. No anonymous changes.
+      {
+        const meUser = (req as AuthedRequest).user;
+        patch.updatedById = meUser.id;
+        patch.updatedByName = meUser.name;
+        patch.updatedAt = new Date();
+      }
       const [row] = await tx
         .update(repairsTable)
         .set(patch)
         .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)))
         .returning();
       const user = (req as AuthedRequest).user;
+      if (patch.dealerId !== undefined && patch.dealerId !== existing.dealerId) {
+        await logRepairEvent(tx, {
+          shopId, repairId: id, user,
+          action: "dealer_link_changed",
+          details: {
+            from: existing.dealerName ?? null,
+            to: patch.dealerName ?? null,
+          },
+        });
+      }
       if (patch.status !== undefined && patch.status !== existing.status) {
         await logRepairEvent(tx, {
           shopId, repairId: id, user,
@@ -1271,6 +1371,21 @@ async function repairInShop(shopId: string, id: string) {
   return row ?? null;
 }
 
+// Portal-aware variant: dealer-portal accounts may only touch repairs that
+// belong to THEIR dealer — a shop-level match alone is not enough (IDOR).
+async function repairAccessible(req: Request, shopId: string, id: string) {
+  const me = (req as AuthedRequest).user;
+  if (isDealerPortalRole(me.role)) {
+    if (!me.dealerId) return null;
+    const [row] = await db
+      .select({ id: repairsTable.id })
+      .from(repairsTable)
+      .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId), eq(repairsTable.dealerId, me.dealerId)));
+    return row ?? null;
+  }
+  return repairInShop(shopId, id);
+}
+
 router.get(
   "/repairs/:id/photos",
   requireAuth,
@@ -1278,7 +1393,7 @@ router.get(
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
     const id = String(req.params.id ?? "");
-    if (!(await repairInShop(shopId, id))) {
+    if (!(await repairAccessible(req, shopId, id))) {
       res.status(404).json({ message: "Repair not found" });
       return;
     }
@@ -1358,7 +1473,7 @@ router.get(
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
     const id = String(req.params.id ?? "");
-    if (!(await repairInShop(shopId, id))) {
+    if (!(await repairAccessible(req, shopId, id))) {
       res.status(404).json({ message: "Repair not found" });
       return;
     }
@@ -1408,7 +1523,7 @@ router.get(
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
     const id = String(req.params.id ?? "");
-    if (!(await repairInShop(shopId, id))) {
+    if (!(await repairAccessible(req, shopId, id))) {
       res.status(404).json({ message: "Repair not found" });
       return;
     }

@@ -14,4 +14,5 @@ export interface StaffCreateInput {
   password: string;
   role: StaffCreateInputRole;
   designation?: string;
+  dealerId?: string;
 }

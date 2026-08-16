@@ -1,8 +1,10 @@
 import { Readable } from "stream";
 import { Router, type IRouter, type Request, type Response } from "express";
-import type { DbUser } from "@workspace/db";
+import { and, eq, or } from "drizzle-orm";
+import { db, repairsTable, repairPhotosTable, type DbUser } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
+import { isDealerPortalRole } from "../lib/dealerPortal";
 import {
   ObjectNotFoundError,
   ObjectStorageService,
@@ -59,6 +61,47 @@ router.get(
     if (!wildcardPath.startsWith(`uploads/${shopId}/`)) {
       res.status(404).json({ error: "Object not found" });
       return;
+    }
+    // Dealer-portal accounts: shop scoping is NOT enough — the object must be
+    // attached (photo or signature) to a repair belonging to THEIR dealer.
+    const me = (req as Request & { user: DbUser }).user;
+    if (isDealerPortalRole(me.role)) {
+      const objectPath = `/objects/${wildcardPath}`;
+      const dealerId = me.dealerId;
+      if (!dealerId) {
+        res.status(404).json({ error: "Object not found" });
+        return;
+      }
+      const [photoHit] = await db
+        .select({ id: repairPhotosTable.id })
+        .from(repairPhotosTable)
+        .innerJoin(repairsTable, eq(repairPhotosTable.repairId, repairsTable.id))
+        .where(and(
+          eq(repairPhotosTable.objectPath, objectPath),
+          eq(repairPhotosTable.shopId, shopId),
+          eq(repairsTable.dealerId, dealerId),
+        ))
+        .limit(1);
+      let allowed = !!photoHit;
+      if (!allowed) {
+        const [sigHit] = await db
+          .select({ id: repairsTable.id })
+          .from(repairsTable)
+          .where(and(
+            eq(repairsTable.shopId, shopId),
+            eq(repairsTable.dealerId, dealerId),
+            or(
+              eq(repairsTable.receivingSignaturePath, objectPath),
+              eq(repairsTable.deliverySignaturePath, objectPath),
+            ),
+          ))
+          .limit(1);
+        allowed = !!sigHit;
+      }
+      if (!allowed) {
+        res.status(404).json({ error: "Object not found" });
+        return;
+      }
     }
     try {
       const objectFile = await objectStorageService.getObjectEntityFile(

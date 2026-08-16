@@ -237,6 +237,7 @@ export function publicUser(u: DbUser) {
     role: u.role,
     isActive: u.isActive,
     shopId: u.shopId ?? undefined,
+    dealerId: u.dealerId ?? undefined,
     designation: u.designation ?? undefined,
     joinDate: u.joinDate ?? undefined,
     businessName: u.businessName ?? undefined,

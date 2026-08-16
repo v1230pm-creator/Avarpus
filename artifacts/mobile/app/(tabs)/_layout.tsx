@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
+import { isDealerPortalRole } from '@/types';
 import { useColors } from '@/hooks/useColors';
 import { isLockEnabled, isUnlocked, subscribeLockState } from '@/utils/appLock';
 import { InactivityGuard } from '@/components/InactivityGuard';
@@ -12,25 +13,33 @@ import { Tabs } from 'expo-router';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
 
-function NativeTabLayout() {
+function NativeTabLayout({ portal }: { portal: boolean }) {
+  // Dealer-portal accounts only get Repairs (their read-only "My Repairs"
+  // view) and More (profile/sign-out). All other tabs are hidden.
   return (
     <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: 'house', selected: 'house.fill' }} />
-        <Label>Dashboard</Label>
-      </NativeTabs.Trigger>
+      {!portal && (
+        <NativeTabs.Trigger name="index">
+          <Icon sf={{ default: 'house', selected: 'house.fill' }} />
+          <Label>Dashboard</Label>
+        </NativeTabs.Trigger>
+      )}
       <NativeTabs.Trigger name="repairs">
         <Icon sf={{ default: 'wrench', selected: 'wrench.fill' }} />
         <Label>Repairs</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="customers">
-        <Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} />
-        <Label>Customers</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="inventory">
-        <Icon sf={{ default: 'shippingbox', selected: 'shippingbox.fill' }} />
-        <Label>Inventory</Label>
-      </NativeTabs.Trigger>
+      {!portal && (
+        <NativeTabs.Trigger name="customers">
+          <Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} />
+          <Label>Customers</Label>
+        </NativeTabs.Trigger>
+      )}
+      {!portal && (
+        <NativeTabs.Trigger name="inventory">
+          <Icon sf={{ default: 'shippingbox', selected: 'shippingbox.fill' }} />
+          <Label>Inventory</Label>
+        </NativeTabs.Trigger>
+      )}
       <NativeTabs.Trigger name="more">
         <Icon sf={{ default: 'ellipsis.circle', selected: 'ellipsis.circle.fill' }} />
         <Label>More</Label>
@@ -39,7 +48,7 @@ function NativeTabLayout() {
   );
 }
 
-function ClassicTabLayout() {
+function ClassicTabLayout({ portal }: { portal: boolean }) {
   const colors = useColors();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -75,6 +84,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="index"
         options={{
+          href: portal ? null : undefined,
           title: 'Dashboard',
           tabBarIcon: ({ color }) =>
             isIOS ? (
@@ -99,6 +109,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="customers"
         options={{
+          href: portal ? null : undefined,
           title: 'Customers',
           tabBarIcon: ({ color }) =>
             isIOS ? (
@@ -111,6 +122,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="inventory"
         options={{
+          href: portal ? null : undefined,
           title: 'Inventory',
           tabBarIcon: ({ color }) =>
             isIOS ? (
@@ -138,7 +150,8 @@ function ClassicTabLayout() {
 
 export default function TabLayout() {
   const colors = useColors();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const portal = isDealerPortalRole(user?.role);
   const [lockCheck, setLockCheck] = useState<'pending' | 'locked' | 'open'>(
     isUnlocked() ? 'open' : 'pending',
   );
@@ -195,7 +208,7 @@ export default function TabLayout() {
 
   return (
     <InactivityGuard>
-      {isLiquidGlassAvailable() ? <NativeTabLayout /> : <ClassicTabLayout />}
+      {isLiquidGlassAvailable() ? <NativeTabLayout portal={portal} /> : <ClassicTabLayout portal={portal} />}
     </InactivityGuard>
   );
 }

@@ -12,7 +12,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { staffCreate } from '@workspace/api-client-react';
+import { staffCreate, useDealersList } from '@workspace/api-client-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
@@ -20,14 +20,20 @@ import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
 
 // Roles a dealer can assign — dealer/admin accounts can never be created here.
-const STAFF_ROLES = ['reception', 'technician', 'store_manager', 'accountant'] as const;
+// dealer_owner / dealer_staff are read-only B2B dealer-portal logins that must
+// be linked to a dealer profile.
+const STAFF_ROLES = ['reception', 'technician', 'store_manager', 'accountant', 'dealer_owner', 'dealer_staff'] as const;
 type StaffRole = (typeof STAFF_ROLES)[number];
+
+const PORTAL_ROLES: StaffRole[] = ['dealer_owner', 'dealer_staff'];
 
 const ROLE_ICONS: Record<StaffRole, keyof typeof Feather.glyphMap> = {
   reception: 'phone',
   technician: 'tool',
   store_manager: 'package',
   accountant: 'dollar-sign',
+  dealer_owner: 'briefcase',
+  dealer_staff: 'users',
 };
 
 const ROLE_PERMISSION_HINTS: Record<StaffRole, string> = {
@@ -35,6 +41,8 @@ const ROLE_PERMISSION_HINTS: Record<StaffRole, string> = {
   technician: 'Assigned repairs & status updates',
   store_manager: 'Inventory & purchases',
   accountant: 'Finance, reports, income & expenses',
+  dealer_owner: 'B2B dealer login — sees only their own repairs (read-only)',
+  dealer_staff: 'B2B dealer staff login — same read-only view',
 };
 
 export default function AddStaffScreen() {
@@ -48,8 +56,12 @@ export default function AddStaffScreen() {
   const [password, setPassword] = useState('');
   const [designation, setDesignation] = useState('');
   const [role, setRole] = useState<StaffRole>('reception');
+  const [dealerId, setDealerId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+
+  const isPortalRole = PORTAL_ROLES.includes(role);
+  const { data: dealersData } = useDealersList({}, { query: { enabled: isPortalRole } } as any);
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
@@ -64,6 +76,7 @@ export default function AddStaffScreen() {
     else if (!/[A-Z]/.test(password)) e.password = 'Include an uppercase letter';
     else if (!/[a-z]/.test(password)) e.password = 'Include a lowercase letter';
     else if (!/[0-9]/.test(password)) e.password = 'Include a number';
+    if (isPortalRole && !dealerId) e.dealer = 'Select the dealer this login belongs to';
     setErrors(e);
     if (Object.keys(e).length > 0) return;
 
@@ -76,6 +89,7 @@ export default function AddStaffScreen() {
         password,
         role,
         designation: designation.trim() || undefined,
+        dealerId: isPortalRole ? dealerId ?? undefined : undefined,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
@@ -138,6 +152,43 @@ export default function AddStaffScreen() {
               );
             })}
           </View>
+
+          {isPortalRole && (
+            <View style={{ gap: 8 }}>
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>LINK TO DEALER</Text>
+              {errors.dealer ? (
+                <Text style={{ fontSize: 12, color: colors.destructive, fontFamily: 'Inter_500Medium' }}>{errors.dealer}</Text>
+              ) : null}
+              {(dealersData?.dealers || []).length === 0 ? (
+                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+                  No dealers yet — add a dealer first from Repairs → Dealers.
+                </Text>
+              ) : (
+                (dealersData?.dealers || []).map((d) => {
+                  const active = dealerId === d.id;
+                  return (
+                    <TouchableOpacity
+                      key={d.id}
+                      onPress={() => setDealerId(d.id)}
+                      activeOpacity={0.8}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12,
+                        borderWidth: 1.5, backgroundColor: active ? colors.primary + '15' : colors.primary + '08',
+                        borderColor: active ? colors.primary : colors.primary + '18',
+                      }}
+                    >
+                      <Text style={{ fontSize: 11, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{d.dealerCode}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{d.name}</Text>
+                        {!!d.shopName && <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{d.shopName}</Text>}
+                      </View>
+                      {active && <Feather name="check" size={16} color={colors.primary} />}
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </View>
+          )}
           </FadeInView>
 
           <FadeInView animValue={anims[1]} style={styles.section}>

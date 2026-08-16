@@ -7,12 +7,14 @@ import storageRouter from "./storage";
 import approvalsRouter from "./approvals";
 import returnsRouter from "./returns";
 import dashboardRouter from "./dashboard";
+import dealersRouter from "./dealers";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
 router.use(staffRouter);
+router.use(dealersRouter);
 router.use(businessRouter);
 router.use(storageRouter);
 router.use(approvalsRouter);

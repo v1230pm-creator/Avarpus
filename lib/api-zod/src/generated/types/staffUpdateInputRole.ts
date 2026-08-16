@@ -14,4 +14,6 @@ export const StaffUpdateInputRole = {
   technician: 'technician',
   store_manager: 'store_manager',
   accountant: 'accountant',
+  dealer_owner: 'dealer_owner',
+  dealer_staff: 'dealer_staff',
 } as const;

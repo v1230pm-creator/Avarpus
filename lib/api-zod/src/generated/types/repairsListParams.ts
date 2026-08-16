@@ -18,6 +18,7 @@ priority?: string;
 dateFrom?: string;
 dateTo?: string;
 warranty?: RepairsListWarranty;
+dealerId?: string;
 page?: number;
 limit?: number;
 };

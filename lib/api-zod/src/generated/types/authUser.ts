@@ -21,4 +21,5 @@ export interface AuthUser {
   profilePhoto?: string;
   companyLogo?: string;
   shopId?: string;
+  dealerId?: string;
 }

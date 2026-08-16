@@ -46,6 +46,8 @@ export const ROLE_LABELS: Record<string, string> = {
   technician: 'Technician',
   store_manager: 'Store Manager',
   accountant: 'Accountant',
+  dealer_owner: 'Dealer (Portal)',
+  dealer_staff: 'Dealer Staff (Portal)',
 };
 
 export const DEVICE_TYPES = ['Smartphone', 'Tablet', 'Laptop', 'Desktop', 'Smart Watch', 'Feature Phone', 'Other'];
