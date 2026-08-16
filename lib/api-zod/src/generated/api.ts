@@ -795,6 +795,18 @@ export const RepairsUpdateResponse = zod.object({
 
 
 /**
+ * @summary Permanently delete a repair (dealer/owner only)
+ */
+export const RepairsDeleteParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RepairsDeleteResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
  * @summary List photos/documents attached to a repair
  */
 export const RepairPhotosListParams = zod.object({

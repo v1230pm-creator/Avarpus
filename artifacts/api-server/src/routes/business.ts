@@ -913,12 +913,18 @@ router.patch(
         }
       }
       const REPAIRING_STAGE = new Set(["diagnosing", "waiting_parts", "repairing"]);
-      // The complaint (problem) is permanently fixed once noted at intake —
+      // The dealer/owner may correct the repair-work fields on a DELIVERED
+      // job (post-delivery corrections); staff stays stage-locked, and
+      // pre-delivery stages keep their locks for everyone. The complaint
+      // (problem) is permanently fixed once noted at intake for EVERYONE —
       // it can never be replaced at ANY stage. Echoed unchanged values pass.
+      const lockRole = (req as AuthedRequest).user.role;
+      const dealerDeliveredFix =
+        (lockRole === "dealer" || lockRole === "super_admin") && row.status === "delivered";
       const stageLocks: Array<{ field: "problem" | "diagnosis" | "workPerformed"; allowed: boolean }> = [
         { field: "problem", allowed: false },
-        { field: "diagnosis", allowed: REPAIRING_STAGE.has(row.status) },
-        { field: "workPerformed", allowed: REPAIRING_STAGE.has(row.status) },
+        { field: "diagnosis", allowed: REPAIRING_STAGE.has(row.status) || dealerDeliveredFix },
+        { field: "workPerformed", allowed: REPAIRING_STAGE.has(row.status) || dealerDeliveredFix },
       ];
       for (const { field, allowed } of stageLocks) {
         if (patch[field] !== undefined && norm(patch[field]) !== norm(row[field]) && !allowed) {
@@ -1167,6 +1173,89 @@ router.patch(
       throw err;
     }
     res.json({ repair: repairOut(updated) });
+  }),
+);
+
+// Permanently delete a repair — dealer/owner only (any status, including
+// delivered). Child rows (photos, events, parts, payments, returns, refunds,
+// estimate approvals) are removed by FK cascade; customer stats are
+// recomputed afterwards. Staff never gets this.
+router.delete(
+  "/repairs/:id",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    if (me.role !== "dealer" && me.role !== "super_admin") {
+      res.status(403).json({ message: "Only the dealer/owner can delete a repair.", code: "DEALER_ONLY" });
+      return;
+    }
+    const id = String(req.params.id ?? "");
+    try {
+      const deleted = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .select()
+          .from(repairsTable)
+          .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)))
+          .for("update");
+        if (!row) return null;
+        // A repair with a return/warranty case carries a live (or auditable)
+        // customer obligation — deleting it would erase the case, its refunds
+        // and rework history. Block; the return workflow owns that lifecycle.
+        const [ret] = await tx
+          .select({ id: repairReturnsTable.id })
+          .from(repairReturnsTable)
+          .where(and(eq(repairReturnsTable.repairId, id), eq(repairReturnsTable.shopId, shopId)))
+          .limit(1);
+        if (ret) throw new Error("RETURN_CASE_EXISTS");
+        // Consumed tracked parts already deducted inventory. Put that stock
+        // back and append compensating ledger rows (stock_movements are not
+        // FK-cascaded, so the original deductions stay auditable).
+        const parts = await tx
+          .select()
+          .from(repairPartsTable)
+          .where(and(eq(repairPartsTable.repairId, id), eq(repairPartsTable.shopId, shopId)));
+        for (const p of parts) {
+          if (!p.inventoryItemId) continue;
+          const [item] = await tx
+            .update(inventoryItemsTable)
+            .set({ quantity: sql`${inventoryItemsTable.quantity} + ${p.quantity}` })
+            .where(and(eq(inventoryItemsTable.id, p.inventoryItemId), eq(inventoryItemsTable.shopId, shopId)))
+            .returning();
+          if (item) {
+            await tx.insert(stockMovementsTable).values({
+              shopId,
+              inventoryItemId: p.inventoryItemId,
+              itemName: p.partName,
+              quantityChange: p.quantity,
+              reason: "repair_deleted",
+              byId: me.id,
+              byName: me.name,
+            });
+          }
+        }
+        await tx
+          .delete(repairsTable)
+          .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)));
+        if (row.customerId) await syncCustomerStats(tx, shopId, row.customerId);
+        return row;
+      });
+      if (!deleted) {
+        res.status(404).json({ message: "Repair not found" });
+        return;
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message === "RETURN_CASE_EXISTS") {
+        res.status(409).json({
+          message: "Is repair par return/warranty case bana hua hai — pehle return case close/handle karein, repair delete nahi ho sakta.",
+          code: "RETURN_CASE_EXISTS",
+        });
+        return;
+      }
+      throw err;
+    }
+    res.json({ message: "Repair deleted" });
   }),
 );
 

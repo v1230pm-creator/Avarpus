@@ -104,7 +104,7 @@ export default function RepairDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { repairs, updateRepair, inventory, loadAll } = useData();
+  const { repairs, updateRepair, deleteRepair, inventory, loadAll } = useData();
   const { user, canAccess } = useAuth();
   const queryClient = useQueryClient();
   
@@ -243,6 +243,9 @@ export default function RepairDetailScreen() {
   const canUpdateStatus = canAccess('repairs_update') || (canAccess('repairs') && user?.role !== 'reception');
   const canSeeFinance = canAccess('finance') || user?.role === 'reception' || user?.role === 'dealer' || user?.role === 'super_admin';
   const isActiveRepair = repair.status !== 'delivered' && repair.status !== 'cancelled' && repair.status !== 'cannot_repair';
+  const isDealer = user?.role === 'dealer' || user?.role === 'super_admin';
+  // Dealer/owner may correct or delete a delivered job — staff cannot.
+  const dealerDeliveredEdit = isDealer && repair.status === 'delivered';
 
   // Simplified 5-step flow: Received → Repairing → Testing → Ready → Delivered
   const stageIndex =
@@ -624,8 +627,27 @@ export default function RepairDetailScreen() {
   const activeSvcTab = svcTab ?? defaultSvcTab;
   const testingTabDirty = JSON.stringify(editTesting) !== JSON.stringify(repair.testingChecklist || {});
 
+  // Whether the diagnosis/work fields are editable right now: staff during
+  // the repairing stage, and the dealer/owner also after delivery.
+  const svcEditable = svcStage === 1 || dealerDeliveredEdit;
+
+  // Dealer/owner only — permanently remove this repair and all its records.
+  const handleDeleteRepair = async () => {
+    if (updating) return;
+    setUpdating(true);
+    try {
+      await deleteRepair(repair.id);
+      queryClient.invalidateQueries();
+      router.back();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const openServiceEdit = () => {
-    if (!isActiveRepair) return;
+    if (!isActiveRepair && !dealerDeliveredEdit) return;
     setEditDiagnosis(repair.diagnosis || '');
     setEditWorkPerformed(repair.workPerformed || '');
     setEditTesting({ ...(repair.testingChecklist || {}) });
@@ -750,7 +772,7 @@ export default function RepairDetailScreen() {
       // Only the current stage's fields are sent; locked fields stay
       // untouched. The complaint is permanently fixed at intake — it is
       // never sent from here.
-      if (svcStage === 1) {
+      if (svcEditable) {
         await repairsUpdate(repair.id, { diagnosis: editDiagnosis, workPerformed: editWorkPerformed });
       }
       let savedFail = false;
@@ -764,9 +786,10 @@ export default function RepairDetailScreen() {
       setShowServiceEdit(false);
       await loadAll();
       queryClient.invalidateQueries();
-      if (!savedFail) {
+      if (!savedFail && isActiveRepair) {
         // "Update Status" flow: after saving, go straight to the status
-        // picker so the job can continue to the next stage.
+        // picker so the job can continue to the next stage. (Delivered jobs
+        // being corrected by the dealer just save — no status change.)
         setTimeout(() => setShowStatusPicker(true), 400);
       }
       if (savedFail) {
@@ -988,9 +1011,9 @@ export default function RepairDetailScreen() {
               <Text style={{ fontSize: 14, color: repair.diagnosis ? colors.foreground : colors.warning, marginTop: 4, lineHeight: 20 }}>
                 {repair.diagnosis || (svcStage === 0 ? 'Diagnosis repairing stage mein add hogi' : 'Diagnosis pending')}
               </Text>
-              {isActiveRepair && svcStage === 1 && (
+              {((isActiveRepair && svcStage === 1) || dealerDeliveredEdit) && (
                 <Button
-                  title={repair.diagnosis ? 'Continue / Update' : 'Add Diagnosis'}
+                  title={dealerDeliveredEdit ? 'Edit Diagnosis' : repair.diagnosis ? 'Continue / Update' : 'Add Diagnosis'}
                   onPress={openServiceEdit}
                   style={{ marginTop: 12 }}
                 />
@@ -1020,9 +1043,9 @@ export default function RepairDetailScreen() {
               <Text style={{ fontSize: 13, color: repair.workPerformed ? colors.foreground : colors.warning, marginTop: 2, lineHeight: 19 }}>
                 {repair.workPerformed || 'Repairing pending'}
               </Text>
-              {isActiveRepair && svcStage === 1 && (
+              {((isActiveRepair && svcStage === 1) || dealerDeliveredEdit) && (
                 <Button
-                  title={repair.workPerformed ? 'Update Repair Work' : 'Add Repair Work'}
+                  title={dealerDeliveredEdit ? 'Edit Repair Work' : repair.workPerformed ? 'Update Repair Work' : 'Add Repair Work'}
                   onPress={openServiceEdit}
                   style={{ marginTop: 12 }}
                 />
@@ -1212,10 +1235,41 @@ export default function RepairDetailScreen() {
       {/* STICKY PRIMARY ACTIONS */}
       <View style={[styles.actionBar, { backgroundColor: colors.background, borderTopColor: colors.border, bottom: tabBarHeight, paddingBottom: 12 }]}>
         {repair.status === 'delivered' ? (
-          <View style={[styles.doneBar, { backgroundColor: colors.success + '18', borderColor: colors.success + '44' }]}>
-            <Feather name="check-circle" size={18} color={colors.success} />
-            <Text style={{ fontSize: 15, color: colors.success, fontFamily: 'Inter_700Bold' }}>JOB COMPLETED ✓</Text>
-          </View>
+          isDealer ? (
+            <View>
+              <View style={[styles.doneBar, { backgroundColor: colors.success + '18', borderColor: colors.success + '44' }]}>
+                <Feather name="check-circle" size={18} color={colors.success} />
+                <Text style={{ fontSize: 15, color: colors.success, fontFamily: 'Inter_700Bold' }}>JOB COMPLETED ✓</Text>
+              </View>
+              {/* Dealer/owner corrections on a delivered job: edit or delete. */}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Button title="Edit Details" variant="outline" onPress={openServiceEdit} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Button
+                    title="Delete Repair"
+                    variant="outline"
+                    onPress={() => {
+                      Alert.alert(
+                        'Delete Repair',
+                        `${repair.repairId} hamesha ke liye delete ho jayega — payments, parts, photos aur history bhi. Yeh wapas nahi aa sakta. Pakka delete karein?`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Haan, Delete Karein', style: 'destructive', onPress: handleDeleteRepair },
+                        ],
+                      );
+                    }}
+                  />
+                </View>
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.doneBar, { backgroundColor: colors.success + '18', borderColor: colors.success + '44' }]}>
+              <Feather name="check-circle" size={18} color={colors.success} />
+              <Text style={{ fontSize: 15, color: colors.success, fontFamily: 'Inter_700Bold' }}>JOB COMPLETED ✓</Text>
+            </View>
+          )
         ) : (repair.status === 'cancelled' || repair.status === 'cannot_repair') ? (
           <View style={[styles.doneBar, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '44' }]}>
             <Feather name="x-circle" size={18} color={colors.destructive} />
@@ -2076,16 +2130,16 @@ export default function RepairDetailScreen() {
             {svcStage >= 1 && (
               <>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={[styles.label, { color: svcStage === 1 ? colors.foreground : colors.mutedForeground }]}>Diagnosis</Text>
-                  {svcStage > 1 && <Feather name="lock" size={11} color={colors.mutedForeground} />}
+                  <Text style={[styles.label, { color: svcEditable ? colors.foreground : colors.mutedForeground }]}>Diagnosis</Text>
+                  {!svcEditable && <Feather name="lock" size={11} color={colors.mutedForeground} />}
                 </View>
-                <TextInput value={editDiagnosis} onChangeText={setEditDiagnosis} editable={svcStage === 1} multiline numberOfLines={3} style={[styles.input, { color: svcStage === 1 ? colors.foreground : colors.mutedForeground, borderColor: colors.border, height: 80, textAlignVertical: 'top', opacity: svcStage === 1 ? 1 : 0.7 }]} />
+                <TextInput value={editDiagnosis} onChangeText={setEditDiagnosis} editable={svcEditable} multiline numberOfLines={3} style={[styles.input, { color: svcEditable ? colors.foreground : colors.mutedForeground, borderColor: colors.border, height: 80, textAlignVertical: 'top', opacity: svcEditable ? 1 : 0.7 }]} />
 
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={[styles.label, { color: svcStage === 1 ? colors.foreground : colors.mutedForeground }]}>Work Performed</Text>
-                  {svcStage > 1 && <Feather name="lock" size={11} color={colors.mutedForeground} />}
+                  <Text style={[styles.label, { color: svcEditable ? colors.foreground : colors.mutedForeground }]}>Work Performed</Text>
+                  {!svcEditable && <Feather name="lock" size={11} color={colors.mutedForeground} />}
                 </View>
-                <TextInput value={editWorkPerformed} onChangeText={setEditWorkPerformed} editable={svcStage === 1} multiline numberOfLines={3} style={[styles.input, { color: svcStage === 1 ? colors.foreground : colors.mutedForeground, borderColor: colors.border, height: 80, textAlignVertical: 'top', opacity: svcStage === 1 ? 1 : 0.7 }]} />
+                <TextInput value={editWorkPerformed} onChangeText={setEditWorkPerformed} editable={svcEditable} multiline numberOfLines={3} style={[styles.input, { color: svcEditable ? colors.foreground : colors.mutedForeground, borderColor: colors.border, height: 80, textAlignVertical: 'top', opacity: svcEditable ? 1 : 0.7 }]} />
               </>
             )}
 
@@ -2108,7 +2162,7 @@ export default function RepairDetailScreen() {
                   // Discarding unsaved edits needs a confirmation; saved data
                   // is never touched by closing this sheet.
                   const dirty =
-                    (svcStage === 1 && (editDiagnosis !== (repair.diagnosis || '') || editWorkPerformed !== (repair.workPerformed || ''))) ||
+                    (svcEditable && (editDiagnosis !== (repair.diagnosis || '') || editWorkPerformed !== (repair.workPerformed || ''))) ||
                     (testingEditable && JSON.stringify(editTesting) !== JSON.stringify(repair.testingChecklist || {}));
                   if (dirty) {
                     Alert.alert('Unsaved changes', 'Aapke changes save nahi hue hain. Bina save kiye band karein?', [
@@ -2121,7 +2175,7 @@ export default function RepairDetailScreen() {
                 }}
                 style={{ flex: 1 }}
               />
-              <Button title="Update Status" onPress={handleSaveService} loading={updating} style={{ flex: 1 }} />
+              <Button title={dealerDeliveredEdit ? 'Save Changes' : 'Update Status'} onPress={handleSaveService} loading={updating} style={{ flex: 1 }} />
             </View>
           </View>
         </KeyboardAvoidingCompat>

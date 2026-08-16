@@ -971,6 +971,10 @@ export type RepairsUpdate200 = {
   repair: Repair;
 };
 
+export type RepairsDelete200 = {
+  message: string;
+};
+
 export type RepairPhotosList200 = {
   photos: RepairPhoto[];
 };

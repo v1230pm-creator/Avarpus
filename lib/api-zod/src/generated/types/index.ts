@@ -124,6 +124,7 @@ export * from './repairPhysicalCondition';
 export * from './repairReturn';
 export * from './repairReturnStatus';
 export * from './repairsCreate200';
+export * from './repairsDelete200';
 export * from './repairsList200';
 export * from './repairsListParams';
 export * from './repairsListPaymentStatus';

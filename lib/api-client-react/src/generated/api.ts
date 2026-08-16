@@ -96,6 +96,7 @@ import type {
   RepairTesting200,
   RepairTestingInput,
   RepairsCreate200,
+  RepairsDelete200,
   RepairsList200,
   RepairsListParams,
   RepairsUpdate200,
@@ -1965,6 +1966,77 @@ export const useRepairsUpdate = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getRepairsUpdateMutationOptions(options));
+    }
+
+export const getRepairsDeleteUrl = (id: string,) => {
+
+
+
+
+  return `/api/repairs/${id}`
+}
+
+/**
+ * @summary Permanently delete a repair (dealer/owner only)
+ */
+export const repairsDelete = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<RepairsDelete200> => {
+
+  return customFetch<RepairsDelete200>(getRepairsDeleteUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRepairsDeleteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repairsDelete>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof repairsDelete>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['repairsDelete'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof repairsDelete>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  repairsDelete(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RepairsDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof repairsDelete>>>
+
+    export type RepairsDeleteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Permanently delete a repair (dealer/owner only)
+ */
+export const useRepairsDelete = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repairsDelete>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof repairsDelete>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getRepairsDeleteMutationOptions(options));
     }
 
 export const getRepairPhotosListUrl = (id: string,) => {

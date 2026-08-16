@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import {
   customersList, customersCreate, customersUpdate,
-  repairsList, repairsCreate, repairsUpdate,
+  repairsList, repairsCreate, repairsUpdate, repairsDelete,
   inventoryList, inventoryCreate, inventoryUpdate,
   purchasesList, purchasesCreate, purchasesUpdate,
   financeList, financeCreate, financeUpdate,
@@ -31,6 +31,8 @@ interface DataContextType {
   loadAll: () => Promise<void>;
   addRepair: (r: Repair) => Promise<Repair>;
   updateRepair: (r: Repair) => Promise<void>;
+  /** Permanently delete a repair — dealer/owner only (server-enforced). */
+  deleteRepair: (id: string) => Promise<void>;
   addCustomer: (c: NewCustomer) => Promise<Customer>;
   updateCustomer: (c: Customer) => Promise<void>;
   addInventoryItem: (i: InventoryItem) => Promise<void>;
@@ -54,6 +56,7 @@ const DataContext = createContext<DataContextType>({
   loadAll: async () => {},
   addRepair: async (r) => r,
   updateRepair: async () => {},
+  deleteRepair: async () => {},
   addCustomer: async (c) => c as Customer,
   updateCustomer: async () => {},
   addInventoryItem: async () => {},
@@ -230,6 +233,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     refreshCustomers();
   });
 
+  const deleteRepair = async (id: string) => guarded('delete the repair', async () => {
+    await repairsDelete(id);
+    setRepairs((prev) => prev.filter((x) => x.id !== id));
+    // Customer dueAmount/totalRepairs are derived from repairs server-side.
+    refreshCustomers();
+  });
+
   // dueAmount / totalRepairs are derived server-side from repairs — the
   // client never sends them.
   const addCustomer = async (c: NewCustomer): Promise<Customer> => guarded('save the customer', async () => {
@@ -368,7 +378,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     <DataContext.Provider value={{
       repairs, customers, inventory, purchases, finance,
       isLoading, loadError,
-      loadAll, addRepair, updateRepair, addCustomer, updateCustomer,
+      loadAll, addRepair, updateRepair, deleteRepair, addCustomer, updateCustomer,
       addInventoryItem, updateInventoryItem, addPurchase, updatePurchase,
       addFinanceEntry, updateFinanceEntry,
       hasSampleData, loadSampleData, clearSampleData,

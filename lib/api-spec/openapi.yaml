@@ -514,6 +514,25 @@ paths:
                   repair:
                     $ref: "#/components/schemas/Repair"
                 required: [repair]
+    delete:
+      operationId: repairsDelete
+      tags: [business]
+      summary: Permanently delete a repair (dealer/owner only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Repair deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                required: [message]
   /repairs/{id}/photos:
     get:
       operationId: repairPhotosList
