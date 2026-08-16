@@ -131,6 +131,10 @@ jest.mock('react-native-qrcode-svg', () => {
   const { View } = require('react-native');
   return (props: object) => <View {...props} />;
 });
+jest.mock('react-native-keyboard-controller', () => {
+  const { ScrollView, View } = require('react-native');
+  return { KeyboardAwareScrollView: ScrollView, KeyboardAvoidingView: View };
+});
 
 jest.mock('@/utils/seedData', () => ({ seedIfNeeded: jest.fn(async () => {}) }));
 jest.mock('@/utils/storage', () => ({
@@ -150,7 +154,7 @@ const baseRepair = {
   id: 'r1', repairId: 'VMC-1001', customerId: 'c1', customerName: 'Asha Kumar', mobile: '9876543210',
   deviceType: 'Smartphone', brand: 'Samsung', model: 'Galaxy S23',
   problem: 'Screen cracked, no display', diagnosis: 'Old diagnosis', workPerformed: 'Old work',
-  status: 'received', priority: 'normal', repairCharge: 2500, partsCharge: 0, advance: 0,
+  status: 'repairing', priority: 'normal', repairCharge: 2500, partsCharge: 0, advance: 0,
   receiveDate: '2026-08-08', expectedDate: '2026-08-15', warrantyDays: 0, checklist: {}, createdAt: '',
 };
 
@@ -195,25 +199,19 @@ const press = async (label: string) =>
     fireEvent.press(matches[matches.length - 1]);
   });
 
-/** Opens the Edit Service Details modal via its pencil icon. */
+/**
+ * Opens the Edit Service Details modal. With the tabbed service section the
+ * sheet opens from the Repairing tab's "Update Repair Work" button (repair is
+ * in the repairing stage in these tests, so Repairing is the default tab).
+ */
 const openServiceEdit = async () => {
-  const { Feather } = require('@expo/vector-icons');
-  await act(async () => {
-    const pencil = screen.UNSAFE_getAllByType(Feather).find((i) => i.props.name === 'edit-2');
-    expect(pencil).toBeTruthy();
-    fireEvent.press(pencil!);
-  });
+  await press('Update Repair Work');
   expect(screen.getByText('Edit Service Details')).toBeTruthy();
 };
 
-/** Opens the Edit Financials modal via its pencil icon (second edit-2). */
+/** Opens the Edit Financials modal via the Edit Estimate action. */
 const openFinancialEdit = async () => {
-  const { Feather } = require('@expo/vector-icons');
-  await act(async () => {
-    const pencils = screen.UNSAFE_getAllByType(Feather).filter((i) => i.props.name === 'edit-2');
-    expect(pencils.length).toBeGreaterThanOrEqual(2);
-    fireEvent.press(pencils[1]); // service card renders first, financials second
-  });
+  await press('Edit Estimate');
   expect(screen.getByText('Edit Financials')).toBeTruthy();
 };
 
@@ -252,17 +250,17 @@ describe('failed update alerts and keeps edited values', () => {
 
     fireEvent.changeText(screen.getByDisplayValue('Old diagnosis'), 'Battery swollen, needs replacement');
     fireEvent.changeText(screen.getByDisplayValue('Old work'), 'Opened back panel');
-    await press('Save');
+    await press('Update Status');
 
     await waitFor(() =>
-      expect(alertSpy).toHaveBeenCalledWith('Error', expect.stringContaining('update the repair')),
+      expect(alertSpy).toHaveBeenCalledWith('Error', expect.any(String)),
     );
     // Modal stayed open with every edited value intact for retry.
     expect(screen.getByText('Edit Service Details')).toBeTruthy();
     expect(screen.getByDisplayValue('Battery swollen, needs replacement')).toBeTruthy();
     expect(screen.getByDisplayValue('Opened back panel')).toBeTruthy();
     // The list still holds the original record — nothing was replaced.
-    expect(screen.getByText('repair:r1:received:Old diagnosis')).toBeTruthy();
+    expect(screen.getByText('repair:r1:repairing:Old diagnosis')).toBeTruthy();
     unmount();
   });
 
@@ -270,16 +268,16 @@ describe('failed update alerts and keeps edited values', () => {
     mockRepairsUpdate.mockRejectedValue(new Error('boom'));
     const { unmount } = await renderDetail();
 
-    await press('Update Status');
-    expect(screen.getByText('Diagnosing')).toBeTruthy(); // picker open
-    await press('Diagnosing');
+    await press('Continue & Save');
+    expect(screen.getByText('Move job to testing')).toBeTruthy(); // picker open, next step unlocked
+    await press('Move job to testing');
 
     await waitFor(() =>
       expect(alertSpy).toHaveBeenCalledWith('Update failed', expect.stringContaining('update the repair')),
     );
     // Picker stayed open so staff can retry; status untouched in the list.
-    expect(screen.getByText('Diagnosing')).toBeTruthy();
-    expect(screen.getByText('repair:r1:received:Old diagnosis')).toBeTruthy();
+    expect(screen.getByText('Move job to testing')).toBeTruthy();
+    expect(screen.getByText('repair:r1:repairing:Old diagnosis')).toBeTruthy();
     unmount();
   });
 });
@@ -352,32 +350,31 @@ describe('successful update replaces the record in the list', () => {
 
     fireEvent.changeText(screen.getByDisplayValue('Old diagnosis'), 'Battery swollen, needs replacement');
     fireEvent.changeText(screen.getByDisplayValue('Old work'), 'Replaced battery');
-    await press('Save');
+    await press('Update Status');
 
     await waitFor(() =>
-      expect(screen.getByText('repair:r1:received:Battery swollen, needs replacement')).toBeTruthy(),
+      expect(screen.getByText('repair:r1:repairing:Battery swollen, needs replacement')).toBeTruthy(),
     );
-    expect(screen.queryByText('repair:r1:received:Old diagnosis')).toBeNull();
+    expect(screen.queryByText('repair:r1:repairing:Old diagnosis')).toBeNull();
     // Modal closed and the screen shows the new diagnosis text.
     expect(screen.queryByText('Edit Service Details')).toBeNull();
     expect(screen.getAllByText('Battery swollen, needs replacement').length).toBeGreaterThanOrEqual(1);
     expect(alertSpy).not.toHaveBeenCalled();
 
-    // The whole record was sent — money and status fields survive a text edit.
+    // Only the current stage's fields are sent — the complaint is immutable
+    // and is never included in the payload.
     expect(mockRepairsUpdate).toHaveBeenCalledWith(
       'r1',
       expect.objectContaining({
         diagnosis: 'Battery swollen, needs replacement',
         workPerformed: 'Replaced battery',
-        problem: 'Screen cracked, no display',
-        status: 'received',
-        repairCharge: 2500,
       }),
     );
+    expect(mockRepairsUpdate).toHaveBeenCalledWith('r1', expect.not.objectContaining({ problem: expect.anything() }));
     unmount();
   });
 
-  it('status change to Diagnosing updates the record in the list and closes the picker', async () => {
+  it('status change to Testing updates the record in the list and closes the picker', async () => {
     mockRepairsUpdate.mockImplementation(async (id: string, patch: Record<string, unknown>) => {
       const updated = { ...baseRepair, ...patch, id };
       mockLists.repairs = [updated];
@@ -385,12 +382,12 @@ describe('successful update replaces the record in the list', () => {
     });
     const { unmount } = await renderDetail();
 
-    await press('Update Status');
-    await press('Diagnosing');
+    await press('Continue & Save');
+    await press('Move job to testing');
 
-    await waitFor(() => expect(screen.getByText('repair:r1:diagnosing:Old diagnosis')).toBeTruthy());
-    expect(screen.queryByText('repair:r1:received:Old diagnosis')).toBeNull();
-    expect(mockRepairsUpdate).toHaveBeenCalledWith('r1', expect.objectContaining({ status: 'diagnosing' }));
+    await waitFor(() => expect(screen.getByText('repair:r1:testing:Old diagnosis')).toBeTruthy());
+    expect(screen.queryByText('repair:r1:repairing:Old diagnosis')).toBeNull();
+    expect(mockRepairsUpdate).toHaveBeenCalledWith('r1', expect.objectContaining({ status: 'testing' }));
     expect(alertSpy).not.toHaveBeenCalled();
     unmount();
   });

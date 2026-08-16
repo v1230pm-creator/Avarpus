@@ -913,8 +913,10 @@ router.patch(
         }
       }
       const REPAIRING_STAGE = new Set(["diagnosing", "waiting_parts", "repairing"]);
+      // The complaint (problem) is permanently fixed once noted at intake —
+      // it can never be replaced at ANY stage. Echoed unchanged values pass.
       const stageLocks: Array<{ field: "problem" | "diagnosis" | "workPerformed"; allowed: boolean }> = [
-        { field: "problem", allowed: row.status === "received" },
+        { field: "problem", allowed: false },
         { field: "diagnosis", allowed: REPAIRING_STAGE.has(row.status) },
         { field: "workPerformed", allowed: REPAIRING_STAGE.has(row.status) },
       ];

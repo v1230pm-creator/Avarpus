@@ -110,8 +110,13 @@ async function run(A) {
   // ── Stage 0: received — only problem editable ────────────────────────────
   const rep = await createRepair(A);
 
+  // Complaint is permanently fixed once noted at intake — even at 'received'.
   let r = await api("PATCH", `/repairs/${rep}`, A.token, { problem: "no power at all" });
-  check("received: problem edit -> 200", r.status === 200, r);
+  check("received: problem edit -> 409 FIELD_LOCKED_STAGE", r.status === 409 && r.json.code === "FIELD_LOCKED_STAGE", r);
+
+  // Echoing the stored complaint back must still pass (full-object PATCH).
+  r = await api("PATCH", `/repairs/${rep}`, A.token, { problem: "no power", notes: "echo at received ok" });
+  check("received: echoed unchanged problem -> 200", r.status === 200, r);
 
   r = await api("PATCH", `/repairs/${rep}`, A.token, { diagnosis: "too early" });
   check("received: diagnosis edit -> 409 FIELD_LOCKED_STAGE", r.status === 409 && r.json.code === "FIELD_LOCKED_STAGE", r);
@@ -130,7 +135,7 @@ async function run(A) {
   check("repairing: problem edit -> 409", r.status === 409 && r.json.code === "FIELD_LOCKED_STAGE", r);
 
   // Echoing the stored value back must NOT trip the lock (full-object PATCH).
-  r = await api("PATCH", `/repairs/${rep}`, A.token, { problem: "no power at all", notes: "echo ok" });
+  r = await api("PATCH", `/repairs/${rep}`, A.token, { problem: "no power", notes: "echo ok" });
   check("repairing: echoed unchanged problem -> 200", r.status === 200, r);
 
   r = await api("PATCH", `/repairs/${rep}`, A.token, { status: "received" });

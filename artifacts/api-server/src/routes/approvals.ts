@@ -169,10 +169,11 @@ async function executeApproved(
         .where(and(eq(repairsTable.id, a.recordId), eq(repairsTable.shopId, a.shopId)))
         .for("update");
       if (!lockedRepair) throw new Error("APPROVAL_TARGET_GONE");
+      // The complaint (problem) is permanently fixed once noted at intake —
+      // no approval path may replace it at any stage. Echoed values pass.
       if (
         p.problem !== undefined &&
-        (str(p.problem) ?? "") !== (lockedRepair.problem ?? "") &&
-        lockedRepair.status !== "received"
+        (str(p.problem) ?? "") !== (lockedRepair.problem ?? "")
       ) {
         throw new Error("FIELD_LOCKED_STAGE");
       }
