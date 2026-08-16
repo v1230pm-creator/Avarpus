@@ -309,7 +309,7 @@ export default function LoginScreen() {
 
               {/* Signed-out notice (e.g. session revoked from another device) */}
               {!!signedOutNotice && !error && (
-                <View style={[styles.otpInfo, { borderColor: '#3A8FF733' }]}>
+                <View style={[styles.otpInfo, { borderColor: 'rgba(47, 128, 237, 0.16)' }]}>
                   <Feather name="info" size={13} color="#4DA3FF" />
                   <Text style={[styles.otpInfoText, { fontFamily: 'Inter_400Regular' }]}>{signedOutNotice}</Text>
                 </View>
@@ -318,7 +318,7 @@ export default function LoginScreen() {
               {/* Error */}
               {!!error && (
                 <View style={styles.errorBox}>
-                  <Feather name="alert-circle" size={14} color="#F87171" />
+                  <Feather name="alert-circle" size={14} color="#EF4444" />
                   <Text style={[styles.errorText, { fontFamily: 'Inter_400Regular' }]}>{error}</Text>
                 </View>
               )}
@@ -417,7 +417,7 @@ export default function LoginScreen() {
                     </View>
                   </View>
 
-                  <View style={[styles.otpInfo, { borderColor: '#3A8FF733' }]}>
+                  <View style={[styles.otpInfo, { borderColor: 'rgba(47, 128, 237, 0.16)' }]}>
                     <Feather name="info" size={13} color="#4DA3FF" />
                     <Text style={[styles.otpInfoText, { fontFamily: 'Inter_400Regular' }]}>
                       A 6-digit OTP will be sent to your registered mobile number.
@@ -494,7 +494,7 @@ function GradientButton({ title, onPress, loading, icon }: { title: string; onPr
         activeOpacity={1}
       >
         <LinearGradient
-          colors={['#2F80ED', '#3A8FF7', '#3A8FF7']}
+          colors={['#2F80ED', '#3A8FF7']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.gradBtn}
@@ -558,7 +558,7 @@ const styles = StyleSheet.create({
   adminBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10,
     paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
-    backgroundColor: '#3A8FF715', borderWidth: 1, borderColor: '#3A8FF740',
+    backgroundColor: 'rgba(47, 128, 237, 0.10)', borderWidth: 1, borderColor: 'rgba(47, 128, 237, 0.16)',
   },
   adminBadgeText: { fontSize: 11, color: '#3A8FF7', letterSpacing: 1.5 },
   handsImg: { width: 190, height: 40, marginTop: 2 },
@@ -624,10 +624,10 @@ const styles = StyleSheet.create({
   // Error
   errorBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: '#7F1D1D22', borderRadius: 10, padding: 12,
-    borderWidth: 1, borderColor: '#EF444433',
+    backgroundColor: 'rgba(239, 68, 68, 0.10)', borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.16)',
   },
-  errorText: { fontSize: 12, color: '#F87171', flex: 1, lineHeight: 18 },
+  errorText: { fontSize: 12, color: '#EF4444', flex: 1, lineHeight: 18 },
 
   // Form
   form: { gap: 14 },

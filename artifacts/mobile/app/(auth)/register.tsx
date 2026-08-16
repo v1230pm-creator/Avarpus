@@ -504,7 +504,7 @@ export default function RegisterScreen() {
 
               {!!emailError && (
                 <View style={gs.errorBox}>
-                  <Feather name="alert-circle" size={13} color="#F87171" />
+                  <Feather name="alert-circle" size={13} color="#EF4444" />
                   <Text style={[gs.errorText, { fontFamily: 'Inter_400Regular' }]}>{emailError}</Text>
                 </View>
               )}
@@ -534,7 +534,7 @@ export default function RegisterScreen() {
               />
               <View style={gs.successIcon}>
                 <LinearGradient
-                  colors={pendingApproval ? ['#B45309', '#D97706'] : ['#059669', '#10B981']}
+                  colors={pendingApproval ? ['#B45309', '#D97706'] : ['#20C997', '#34D399']}
                   style={gs.successIconGrad}
                 >
                   <Feather name={pendingApproval ? 'clock' : 'check'} size={36} color="#FFFFFF" />
@@ -574,7 +574,7 @@ export default function RegisterScreen() {
                 onPress={() => (pendingApproval ? router.replace('/(auth)') : router.replace('/(tabs)'))}
                 activeOpacity={0.8}
               >
-                <LinearGradient colors={['#2F80ED', '#3A8FF7', '#3A8FF7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={gs.goLoginGrad}>
+                <LinearGradient colors={['#2F80ED', '#3A8FF7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={gs.goLoginGrad}>
                   <Text style={[gs.goLoginText, { fontFamily: 'Inter_600SemiBold' }]}>
                     {pendingApproval ? 'Back to Sign In' : 'Go to Dashboard'}
                   </Text>
@@ -612,8 +612,8 @@ const gs = StyleSheet.create({
 
   infoBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    backgroundColor: '#1E40AF11', borderRadius: 10, padding: 12,
-    borderWidth: 1, borderColor: '#3A8FF722',
+    backgroundColor: 'rgba(47, 128, 237, 0.10)', borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: 'rgba(47, 128, 237, 0.16)',
   },
   infoText: { fontSize: 12, color: '#4DA3FF', flex: 1, lineHeight: 18 },
 
@@ -623,7 +623,7 @@ const gs = StyleSheet.create({
     height: 46, borderRadius: 12, backgroundColor: 'rgba(17, 27, 45, 0.68)',
     borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.10)',
   },
-  roleBtnActive: { borderColor: '#3A8FF7', backgroundColor: '#1D3A7040' },
+  roleBtnActive: { borderColor: '#3A8FF7', backgroundColor: 'rgba(47, 128, 237, 0.10)' },
   roleText: { fontSize: 14, color: '#7F8BA3' },
   roleTextActive: { color: '#4DA3FF' },
   fieldLabel: { fontSize: 13, color: '#A8B3C7', marginBottom: 8 },
@@ -647,7 +647,7 @@ const gs = StyleSheet.create({
   otpHeader: { alignItems: 'center', gap: 6 },
   otpIconWrap: {
     width: 64, height: 64, borderRadius: 20,
-    backgroundColor: '#1E3A6E22', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(47, 128, 237, 0.10)', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', marginBottom: 6,
   },
   otpTitle: { fontSize: 20, color: '#F5F7FA' },
@@ -656,17 +656,17 @@ const gs = StyleSheet.create({
 
   demoHint: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    backgroundColor: '#1A1200', borderRadius: 10, padding: 10,
-    borderWidth: 1, borderColor: '#3A8FF733',
+    backgroundColor: 'rgba(47, 128, 237, 0.05)', borderRadius: 10, padding: 10,
+    borderWidth: 1, borderColor: 'rgba(47, 128, 237, 0.16)',
   },
   demoHintText: { fontSize: 12, color: '#A8B3C7' },
 
   errorBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#7F1D1D22', borderRadius: 10, padding: 10,
-    borderWidth: 1, borderColor: '#EF444433',
+    backgroundColor: 'rgba(239, 68, 68, 0.10)', borderRadius: 10, padding: 10,
+    borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.16)',
   },
-  errorText: { fontSize: 12, color: '#F87171', flex: 1 },
+  errorText: { fontSize: 12, color: '#EF4444', flex: 1 },
 
   timerText: { fontSize: 13 },
   loginLink: { fontSize: 14, color: '#A8B3C7', textAlign: 'center' },
@@ -681,7 +681,7 @@ const gs = StyleSheet.create({
   successIconGrad: {
     width: 88, height: 88, borderRadius: 28,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#10B981', shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 0 },
+    shadowColor: '#34D399', shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 0 },
     elevation: 10,
   },
   successTitle: { fontSize: 24, color: '#F5F7FA' },

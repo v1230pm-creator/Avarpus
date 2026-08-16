@@ -232,7 +232,7 @@ export default function ForgotPasswordScreen() {
 
                 {!!error && (
                   <View style={s.errorBox}>
-                    <Feather name="alert-circle" size={13} color="#F87171" />
+                    <Feather name="alert-circle" size={13} color="#EF4444" />
                     <Text style={[s.errorText, { fontFamily: 'Inter_400Regular' }]}>{error}</Text>
                   </View>
                 )}
@@ -283,8 +283,8 @@ export default function ForgotPasswordScreen() {
             {/* Step: done */}
             {step === 'done' && (
               <>
-                <View style={[s.iconWrap, { backgroundColor: '#05966922', borderColor: '#10B98144' }]}>
-                  <Feather name="check-circle" size={30} color="#10B981" />
+                <View style={[s.iconWrap, { backgroundColor: 'rgba(52, 211, 153, 0.09)', borderColor: 'rgba(52, 211, 153, 0.09)' }]}>
+                  <Feather name="check-circle" size={30} color="#34D399" />
                 </View>
                 <Text style={[s.cardTitle, { fontFamily: 'Inter_700Bold' }]}>Password Reset!</Text>
                 <Text style={[s.cardSub, { fontFamily: 'Inter_400Regular' }]}>
@@ -314,7 +314,7 @@ const s = StyleSheet.create({
   },
   iconWrap: {
     width: 64, height: 64, borderRadius: 20, alignSelf: 'center',
-    backgroundColor: '#1E3A6E22', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(47, 128, 237, 0.10)', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
   },
   cardTitle: { fontSize: 20, color: '#F5F7FA', textAlign: 'center' },
@@ -331,16 +331,16 @@ const s = StyleSheet.create({
 
   demoHint: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    backgroundColor: '#1A1200', borderRadius: 10, padding: 10,
-    borderWidth: 1, borderColor: '#3A8FF733',
+    backgroundColor: 'rgba(47, 128, 237, 0.05)', borderRadius: 10, padding: 10,
+    borderWidth: 1, borderColor: 'rgba(47, 128, 237, 0.16)',
   },
   demoHintText: { fontSize: 12, color: '#A8B3C7' },
 
   errorBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#7F1D1D22', borderRadius: 10, padding: 10,
-    borderWidth: 1, borderColor: '#EF444433',
+    backgroundColor: 'rgba(239, 68, 68, 0.10)', borderRadius: 10, padding: 10,
+    borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.16)',
   },
-  errorText: { fontSize: 12, color: '#F87171', flex: 1 },
+  errorText: { fontSize: 12, color: '#EF4444', flex: 1 },
   timerText: { fontSize: 13 },
 });

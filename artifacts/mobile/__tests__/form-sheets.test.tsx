@@ -184,8 +184,8 @@ describe('required-field validation blocks submit', () => {
     );
     type('Customer name', 'Asha');
     type('10-digit mobile', '9876543210');
-    // Two fields share the "Optional" placeholder — the first is email.
-    fireEvent.changeText(screen.getAllByPlaceholderText('Optional')[0], 'not-an-email');
+    // Three fields share the "Optional" placeholder — alt mobile, email, address.
+    fireEvent.changeText(screen.getAllByPlaceholderText('Optional')[1], 'not-an-email');
     await press('Add Customer');
     expect(screen.getByText('Enter a valid email')).toBeTruthy();
     expect(mockCustomersCreate).not.toHaveBeenCalled();

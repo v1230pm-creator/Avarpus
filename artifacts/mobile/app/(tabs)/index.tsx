@@ -601,7 +601,7 @@ export default function DashboardScreen() {
               <TouchableOpacity
                 onPress={() => router.push('/(tabs)/more/approvals')}
                 activeOpacity={0.8}
-                style={{ flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: colors.destructive + '15', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.destructive + '33' }}
+                style={{ flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: colors.glass, padding: 16, borderRadius: 18, borderWidth: 1, borderColor: colors.destructive + '33' }}
               >
                 <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.destructive + '22', alignItems: 'center', justifyContent: 'center' }}>
                   <Feather name="check-circle" size={20} color={colors.destructive} />
@@ -618,7 +618,7 @@ export default function DashboardScreen() {
           {hasSampleData && <SampleDataBanner />}
           
           <Animated.View style={{ opacity: cardAnims[1], transform: [{ translateY: cardAnims[1].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
-            <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: isDark ? colors.primary + '15' : colors.primary + '11', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.primary + '22' }}>
+            <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: isDark ? colors.glass : colors.primary + '11', padding: 16, borderRadius: 18, borderWidth: 1, borderColor: isDark ? colors.glassBorder : colors.primary + '22' }}>
               <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary + '22', alignItems: 'center', justifyContent: 'center' }}>
                 <Feather name="zap" size={20} color={colors.primary} />
               </View>

@@ -176,14 +176,15 @@ const CONFIRM_LABEL = 'I have submitted the device and the above details are cor
 const fillRequiredFields = async () => {
   type('Full name', 'Asha Kumar');
   type('10-digit number', '9876543210');
-  await press('Samsung'); // brand chip
-  type('e.g. Galaxy S23', 'Galaxy S23');
+  await press('Brand *');
+  await press('Samsung');
+  type('Enter your model', 'Galaxy S23');
   type('Describe the issue...', 'Screen cracked, no display');
 };
 
 /** Step 1 → review summary → confirm checkbox → submit. */
 const reviewConfirmAndSubmit = async () => {
-  await press('Review Intake');
+  await press('Complete');
   await press(CONFIRM_LABEL);
   await press('Complete Intake');
 };
@@ -204,7 +205,7 @@ afterEach(() => {
 describe('required-field validation blocks submit', () => {
   it('empty review shows field errors and fires no API call', async () => {
     const { unmount } = await renderIntake();
-    await press('Review Intake');
+    await press('Complete');
 
     // brand / model / problem all flag "Required" (name too)
     expect(screen.getAllByText('Required').length).toBeGreaterThanOrEqual(3);
@@ -222,7 +223,7 @@ describe('required-field validation blocks submit', () => {
     const { unmount } = await renderIntake();
     await fillRequiredFields();
     type('10-digit number', '98765'); // too short
-    await press('Review Intake');
+    await press('Complete');
 
     expect(screen.getByText('10-digit mobile required')).toBeTruthy();
     expect(screen.queryByText('Complete Intake')).toBeNull();
@@ -233,10 +234,10 @@ describe('required-field validation blocks submit', () => {
   it('rejects an expected date before the receive date without calling the API', async () => {
     const { unmount } = await renderIntake();
     await fillRequiredFields();
-    // Both date inputs share the placeholder — first is receive, second expected.
+    // Expected Delivery is the (only) visible date input unless backdating is on.
     const dates = screen.getAllByPlaceholderText('YYYY-MM-DD');
-    fireEvent.changeText(dates[1], '2000-01-01');
-    await press('Review Intake');
+    fireEvent.changeText(dates[dates.length - 1], '2000-01-01');
+    await press('Complete');
 
     expect(screen.getByText('Cannot be before the receive date')).toBeTruthy();
     expect(screen.queryByText('Complete Intake')).toBeNull();
@@ -255,6 +256,7 @@ describe('failed save shows the alert and keeps entered values', () => {
     mockRepairsCreate.mockRejectedValue(new Error('boom'));
     const { unmount } = await renderIntake();
     await fillRequiredFields();
+    await press('Accessories Received'); // open the collapsed accessories section
     type('e.g. Broken cover, mixed cables...', 'Charger, Cover');
     fireEvent.changeText(screen.getByPlaceholderText('0'), '2500'); // estimate
     await reviewConfirmAndSubmit();
@@ -265,7 +267,7 @@ describe('failed save shows the alert and keeps entered values', () => {
     // The review summary stayed up with everything the user entered.
     expect(screen.getByText('Asha Kumar')).toBeTruthy();
     expect(screen.getByText('9876543210')).toBeTruthy();
-    expect(screen.getByText('Samsung Galaxy S23')).toBeTruthy();
+    expect(screen.getByText('Smartphone - Samsung Galaxy S23')).toBeTruthy();
     expect(screen.getByText('Screen cracked, no display')).toBeTruthy();
     expect(screen.getByText('₹2500')).toBeTruthy();
     // No success screen, no navigation, nothing added to the list.

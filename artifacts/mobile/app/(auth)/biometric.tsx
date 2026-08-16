@@ -350,7 +350,7 @@ export default function BiometricScreen() {
               {Platform.OS === 'ios' ? (
                 <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
               ) : null}
-              <LinearGradient colors={['#1E3A6E22', '#3A8FF711']} style={StyleSheet.absoluteFill} />
+              <LinearGradient colors={['rgba(47, 128, 237, 0.10)', 'rgba(47, 128, 237, 0.10)']} style={StyleSheet.absoluteFill} />
               <View style={styles.optionIcon}>
                 <Feather name={biometricType === 'face' ? 'camera' : 'shield'} size={28} color="#3A8FF7" />
               </View>
@@ -388,7 +388,7 @@ export default function BiometricScreen() {
                 {Platform.OS === 'ios' ? (
                   <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
                 ) : null}
-                <LinearGradient colors={['#1E3A6E22', '#3A8FF711']} style={StyleSheet.absoluteFill} />
+                <LinearGradient colors={['rgba(47, 128, 237, 0.10)', 'rgba(47, 128, 237, 0.10)']} style={StyleSheet.absoluteFill} />
                 <View style={styles.optionIcon}>
                   <Feather name={biometricType === 'face' ? 'camera' : 'shield'} size={28} color="#3A8FF7" />
                 </View>
@@ -413,7 +413,7 @@ export default function BiometricScreen() {
               {Platform.OS === 'ios' ? (
                 <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
               ) : null}
-              <LinearGradient colors={['#1E3A6E22', '#3A8FF711']} style={StyleSheet.absoluteFill} />
+              <LinearGradient colors={['rgba(47, 128, 237, 0.10)', 'rgba(47, 128, 237, 0.10)']} style={StyleSheet.absoluteFill} />
               <View style={styles.optionIcon}>
                 <Feather name="lock" size={28} color="#3A8FF7" />
               </View>
@@ -595,7 +595,7 @@ const styles = StyleSheet.create({
   },
   dotFilled: { backgroundColor: '#3A8FF7', borderColor: '#3A8FF7' },
   dotError: { borderColor: '#EF4444' },
-  pinError: { fontSize: 13, color: '#F87171', marginTop: -8 },
+  pinError: { fontSize: 13, color: '#EF4444', marginTop: -8 },
 
   pad: { gap: 12, width: '100%', maxWidth: 300 },
   padRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },

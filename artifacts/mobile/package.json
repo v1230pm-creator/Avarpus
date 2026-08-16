@@ -84,6 +84,9 @@
     "testMatch": [
       "**/__tests__/**/*.test.tsx"
     ],
+    "setupFiles": [
+      "<rootDir>/jest.setup.js"
+    ],
     "fakeTimers": {
       "enableGlobally": true
     }

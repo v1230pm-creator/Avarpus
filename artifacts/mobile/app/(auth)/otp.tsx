@@ -142,7 +142,7 @@ export default function OTPScreen() {
 
             {!!error && (
               <View style={styles.errorBox}>
-                <Feather name="alert-circle" size={14} color="#F87171" />
+                <Feather name="alert-circle" size={14} color="#EF4444" />
                 <Text style={[styles.errorText, { fontFamily: 'Inter_400Regular' }]}>{error}</Text>
               </View>
             )}
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', gap: 14 },
   iconCircle: {
     width: 80, height: 80, borderRadius: 40,
-    backgroundColor: '#1E40AF22', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(47, 128, 237, 0.10)', alignItems: 'center', justifyContent: 'center',
   },
   title: { fontSize: 26, color: '#F5F7FA' },
   subtitle: { fontSize: 14, color: '#A8B3C7', textAlign: 'center', lineHeight: 22 },
@@ -190,8 +190,8 @@ const styles = StyleSheet.create({
   resendText: { fontSize: 14 },
   errorBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#7F1D1D22', borderRadius: 10, padding: 12,
-    borderWidth: 1, borderColor: '#EF444433',
+    backgroundColor: 'rgba(239, 68, 68, 0.10)', borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.16)',
   },
-  errorText: { fontSize: 12, color: '#F87171', flex: 1 },
+  errorText: { fontSize: 12, color: '#EF4444', flex: 1 },
 });

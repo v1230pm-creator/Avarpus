@@ -164,7 +164,9 @@ const baseRepair = {
   id: 'r1', repairId: 'VMC-1001', customerId: 'c1', customerName: 'Asha Kumar', mobile: '9876543210',
   deviceType: 'Smartphone', brand: 'Samsung', model: 'Galaxy S23',
   problem: 'Screen cracked, no display', diagnosis: 'Panel damaged', workPerformed: 'Replaced panel',
-  status: 'ready', priority: 'normal', repairCharge: 2500, partsCharge: 0, advance: 0,
+  // Fully paid (advance == charge): delivery is payment-gated, so the
+  // "Mark as Delivered" button only appears once nothing is left to pay.
+  status: 'ready', priority: 'normal', repairCharge: 2500, partsCharge: 0, advance: 2500,
   receiveDate: '2026-08-08', expectedDate: '2026-08-15', warrantyDays: 0, checklist: {}, createdAt: '',
 };
 
@@ -212,8 +214,14 @@ const flushModalSwap = async () =>
 
 /** Update Status → Delivered → handover modal (after the modal-swap delay). */
 const openHandover = async () => {
-  await press('Update Status');
-  await press('Delivered');
+  await press('Mark as Delivered');
+  // Pressing the button raises a native confirm Alert; drive its confirm action.
+  const confirmCall = alertSpy.mock.calls.find((c) => c[0] === 'Confirm Delivery');
+  expect(confirmCall).toBeTruthy();
+  await act(async () => {
+    confirmCall![2][1].onPress();
+  });
+  alertSpy.mockClear();
   await flushModalSwap();
   expect(screen.getByText('Delivery Handover')).toBeTruthy();
 };
@@ -222,7 +230,7 @@ const openHandover = async () => {
 const proceedToSignature = async () => {
   await press('Proceed to Signature (No OTP)');
   await flushModalSwap();
-  expect(screen.getByText('Customer Delivery Signature')).toBeTruthy();
+  expect(screen.getByText('Delivery Signature')).toBeTruthy();
   expect(mockSigProps.current.onOK).toBeTruthy();
 };
 
