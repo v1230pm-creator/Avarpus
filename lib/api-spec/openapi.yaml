@@ -408,6 +408,26 @@ paths:
                   dealer:
                     $ref: "#/components/schemas/Dealer"
                 required: [dealer]
+  /dealers/detect:
+    get:
+      operationId: dealersDetect
+      tags: [business]
+      summary: Detect active dealers whose registered mobile exactly matches
+      parameters:
+        - { name: mobile, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Matching active dealers (empty when none)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dealers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Dealer"
+                required: [dealers]
   /dealers/me:
     get:
       operationId: dealersMe
@@ -1961,6 +1981,7 @@ components:
         mobile: { type: string }
         dealerId: { type: string }
         dealerName: { type: string }
+        dealerDetectedByPhone: { type: boolean }
         deviceType: { type: string }
         brand: { type: string }
         model: { type: string }
@@ -2043,7 +2064,7 @@ components:
         customerId: { type: string }
         customerName: { type: string }
         mobile: { type: string }
-        dealerId: { type: string }
+        dealerId: { type: string, nullable: true }
         deviceType: { type: string }
         brand: { type: string }
         model: { type: string }

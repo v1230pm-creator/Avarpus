@@ -74,6 +74,9 @@ export const repairsTable = pgTable("repairs", {
     onDelete: "set null",
   }),
   dealerName: text("dealer_name"), // snapshot for display/search
+  // True when the dealer link was assigned automatically because the intake
+  // mobile number exactly matched a single active dealer's registered mobile.
+  dealerDetectedByPhone: boolean("dealer_detected_by_phone").notNull().default(false),
   deviceType: text("device_type").notNull(),
   brand: text("brand").notNull(),
   model: text("model").notNull(),

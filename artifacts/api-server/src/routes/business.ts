@@ -314,6 +314,7 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
     mobile: r.mobile,
     dealerId: r.dealerId ?? undefined,
     dealerName: r.dealerName ?? undefined,
+    dealerDetectedByPhone: r.dealerDetectedByPhone || undefined,
     deviceType: r.deviceType,
     brand: r.brand,
     model: r.model,
@@ -611,16 +612,49 @@ router.post(
     // foreign key + display snapshot (never a duplicate job card).
     let dealerId = str(b.dealerId);
     let dealerName: string | null = null;
+    let dealerDetectedByPhone = false;
     if (dealerId) {
       const [dealer] = await db
-        .select({ id: dealersTable.id, name: dealersTable.name })
+        .select({ id: dealersTable.id, name: dealersTable.name, mobile: dealersTable.mobile, isActive: dealersTable.isActive })
         .from(dealersTable)
         .where(and(eq(dealersTable.id, dealerId), eq(dealersTable.shopId, shopId)));
       if (!dealer) {
         res.status(400).json({ message: "Dealer not found in your shop" });
         return;
       }
+      dealerDetectedByPhone = dealer.isActive && dealer.mobile === mobile;
+      // Manual dealer links are privileged. Non-privileged receiving roles may
+      // only supply a dealerId that the server can independently verify by
+      // phone match (this also covers picking one of several exact matches) —
+      // otherwise they could attach any repair to any dealer.
+      if (!dealerDetectedByPhone && !isPrivileged(req)) {
+        res.status(403).json({
+          message: "Only the dealer/owner can manually link a repair to a dealer.",
+          code: "DEALER_LINK_PRIVILEGED",
+        });
+        return;
+      }
       dealerName = dealer.name;
+    } else if (b.dealerId !== null) {
+      // (an explicit dealerId: null means the user removed a detected dealer
+      // before saving — respect that and skip auto-detection entirely)
+      // Server-side automatic dealer detection: never trust the client alone.
+      // If the intake mobile exactly matches exactly ONE active dealer's
+      // registered mobile, link that dealer automatically. Multiple matches
+      // are ambiguous — the client must show a picker, so we do NOT assign.
+      const matches = await db
+        .select({ id: dealersTable.id, name: dealersTable.name })
+        .from(dealersTable)
+        .where(and(
+          eq(dealersTable.shopId, shopId),
+          eq(dealersTable.mobile, mobile),
+          eq(dealersTable.isActive, true),
+        ));
+      if (matches.length === 1) {
+        dealerId = matches[0].id;
+        dealerName = matches[0].name;
+        dealerDetectedByPhone = true;
+      }
     }
 
     let created: typeof repairsTable.$inferSelect;
@@ -684,6 +718,7 @@ router.post(
           receivedByName: (req as AuthedRequest).user.name,
           dealerId,
           dealerName,
+          dealerDetectedByPhone,
           createdById: (req as AuthedRequest).user.id,
           createdByName: (req as AuthedRequest).user.name,
         })
@@ -855,9 +890,12 @@ router.patch(
         }
         patch.dealerId = dealer.id;
         patch.dealerName = dealer.name;
+        // Manual (privileged) change — no longer an automatic phone match.
+        patch.dealerDetectedByPhone = false;
       } else {
         patch.dealerId = null;
         patch.dealerName = null;
+        patch.dealerDetectedByPhone = false;
       }
     }
     const id = String(req.params.id ?? "");

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Alert,
   Platform,
@@ -41,7 +41,7 @@ import {
   PRIORITIES,
   PRIORITY_LABELS,
 } from '@/utils/helpers';
-import { requestUploadUrl, repairPhotosAdd, approvalsCreate, useDealersList } from '@workspace/api-client-react';
+import { requestUploadUrl, repairPhotosAdd, approvalsCreate, useDealersList, useDealersDetect } from '@workspace/api-client-react';
 import { fetch as expoFetch } from 'expo/fetch';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { File as ExpoFile } from 'expo-file-system';
@@ -171,8 +171,38 @@ export default function NewRepairScreen() {
   // Optional B2B dealer link — permanent association made at intake.
   const [dealerId, setDealerId] = useState<string | null>(null);
   const [showDealerPick, setShowDealerPick] = useState(false);
+  // True when the current dealerId came from automatic phone detection (not a
+  // manual pick); cleared/re-run whenever the mobile number changes.
+  const [autoDetected, setAutoDetected] = useState(false);
+  // True when the user explicitly removed an auto-detected dealer — we then
+  // send dealerId: null so the server does NOT re-link it silently.
+  const [dealerCleared, setDealerCleared] = useState(false);
   const { data: dealersData } = useDealersList({}, { query: { enabled: showDealerPick } } as any);
-  const selectedDealer = dealersData?.dealers?.find((d) => d.id === dealerId);
+  const cleanMobile = mobile.trim();
+  const { data: detectData } = useDealersDetect(
+    { mobile: cleanMobile },
+    { query: { enabled: /^\d{10}$/.test(cleanMobile) } } as any,
+  );
+  const detectMatches = /^\d{10}$/.test(cleanMobile) ? (detectData?.dealers ?? []) : [];
+  // Auto-link: exactly ONE active dealer with this exact registered mobile.
+  // Multiple matches are ambiguous — the user must choose from the list.
+  useEffect(() => {
+    if (detectMatches.length === 1 && !dealerCleared) {
+      if (dealerId !== detectMatches[0].id) {
+        setDealerId(detectMatches[0].id);
+        setAutoDetected(true);
+      }
+    } else if (autoDetected && (detectMatches.length === 0 || !detectMatches.some((d) => d.id === dealerId))) {
+      // Number changed and no longer matches the auto-detected dealer.
+      setDealerId(null);
+      setAutoDetected(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detectData, cleanMobile, dealerCleared]);
+  // A new number resets the "user removed the dealer" decision.
+  useEffect(() => { setDealerCleared(false); }, [cleanMobile]);
+  const detectedDealer = autoDetected ? detectMatches.find((d) => d.id === dealerId) : undefined;
+  const selectedDealer = dealersData?.dealers?.find((d) => d.id === dealerId) || detectedDealer || detectMatches.find((d) => d.id === dealerId);
   const [repairCharge, setRepairCharge] = useState('');
   const [notes, setNotes] = useState('');
   const [warrantyDays, setWarrantyDays] = useState('0');
@@ -286,7 +316,9 @@ export default function NewRepairScreen() {
         repairCharge: parseFloat(repairCharge) || 0, partsCharge: 0,
         expectedDate: expectedDate.trim(), notes: notes.trim() || undefined,
         checklist, warrantyDays: parseInt(warrantyDays, 10) || 0,
-        dealerId: dealerId || undefined,
+        // null = user explicitly removed a detected dealer (server must not
+        // silently re-link); undefined = let the server auto-detect by phone.
+        dealerId: dealerId ?? (dealerCleared ? null : undefined),
       };
 
       if (isBackdated) {
@@ -336,7 +368,7 @@ export default function NewRepairScreen() {
         priority: newRepair.priority,
         repairCharge: newRepair.repairCharge,
         expectedDate: newRepair.expectedDate || new Date().toISOString(),
-        dealerId: dealerId || undefined,
+        dealerId: dealerId ?? (dealerCleared ? null : undefined),
       };
 
       const net = await Network.getNetworkStateAsync();
@@ -662,13 +694,50 @@ export default function NewRepairScreen() {
                 <SectionHeader title="Customer Details" />
                 <Input label="Name *" value={customerName} onChangeText={setCustomerName} placeholder="Full name" leftIcon="user" error={errors.customerName} />
                 <Input label="Mobile *" value={mobile} onChangeText={setMobile} placeholder="10-digit number" keyboardType="phone-pad" leftIcon="phone" error={errors.mobile} />
+                {detectedDealer && (
+                  <View style={{ borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.card, borderRadius: 12, padding: 12, marginBottom: 12 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                      <Feather name="check-circle" size={15} color={colors.primary} />
+                      <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_700Bold' }}>Dealer Account Detected</Text>
+                    </View>
+                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{detectedDealer.name}</Text>
+                    <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 2 }}>
+                      {detectedDealer.dealerCode}{detectedDealer.shopName ? ` · ${detectedDealer.shopName}` : ''} · {detectedDealer.mobile}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => { setDealerId(null); setAutoDetected(false); setDealerCleared(true); }}
+                      style={{ marginTop: 8, alignSelf: 'flex-start' }}
+                    >
+                      <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }}>Remove dealer link</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {detectMatches.length > 1 && !dealerId && (
+                  <View style={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, borderRadius: 12, padding: 12, marginBottom: 12 }}>
+                    <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginBottom: 8 }}>
+                      This number matches {detectMatches.length} dealers — choose one:
+                    </Text>
+                    {detectMatches.map((d) => (
+                      <TouchableOpacity
+                        key={d.id}
+                        onPress={() => { setDealerId(d.id); setAutoDetected(false); setDealerCleared(false); }}
+                        style={{ paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}
+                      >
+                        <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{d.name}</Text>
+                        <Text style={{ fontSize: 11, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{d.dealerCode}{d.shopName ? ` · ${d.shopName}` : ''}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
                 <Input label="Alternate Mobile" value={alternateMobile} onChangeText={setAlternateMobile} placeholder="Optional" keyboardType="phone-pad" leftIcon="phone" />
                 <Input label="Email" value={email} onChangeText={setEmail} placeholder="Optional" keyboardType="email-address" leftIcon="mail" autoCapitalize="none" />
                 <Input label="Address" value={address} onChangeText={setAddress} placeholder="Optional" leftIcon="map-pin" />
               </View>
 
-              {/* Dealer (optional B2B link) */}
-              <View style={styles.section}>
+              {/* Dealer (optional B2B link) — manual linking is privileged.
+                  Staff/technicians get automatic phone detection only (the
+                  server rejects any other manual dealerId with 403). */}
+              {!isStaff && <View style={styles.section}>
                 <SectionHeader title="Dealer (Optional)" />
                 <TouchableOpacity
                   activeOpacity={0.7}
@@ -688,7 +757,15 @@ export default function NewRepairScreen() {
                       return (
                         <TouchableOpacity
                           key={d.id}
-                          onPress={() => { setDealerId(active ? null : d.id); setShowDealerPick(false); }}
+                          onPress={() => {
+                            // Manual pick/removal always overrides auto-detection:
+                            // removal must serialize as an explicit dealerId: null
+                            // so the server does not silently re-link by phone.
+                            setDealerId(active ? null : d.id);
+                            setAutoDetected(false);
+                            setDealerCleared(active);
+                            setShowDealerPick(false);
+                          }}
                           activeOpacity={0.8}
                           style={{
                             flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12,
@@ -716,7 +793,7 @@ export default function NewRepairScreen() {
                     </TouchableOpacity>
                   </View>
                 )}
-              </View>
+              </View>}
 
               {/* Device */}
               <View style={styles.section}>

@@ -12,7 +12,7 @@ export interface RepairInput {
   customerId?: string;
   customerName?: string;
   mobile?: string;
-  dealerId?: string;
+  dealerId?: string | null;
   deviceType?: string;
   brand?: string;
   model?: string;

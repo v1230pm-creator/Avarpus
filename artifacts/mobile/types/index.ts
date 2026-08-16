@@ -115,6 +115,7 @@ export interface Repair {
   /** B2B dealer link — set at intake, snapshot of the dealer's name. */
   dealerId?: string;
   dealerName?: string;
+  dealerDetectedByPhone?: boolean;
   createdById?: string;
   createdByName?: string;
   updatedById?: string;

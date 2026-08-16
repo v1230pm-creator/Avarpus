@@ -43,6 +43,8 @@ import type {
   DealerInput,
   DealerProfile,
   DealersCreate200,
+  DealersDetect200,
+  DealersDetectParams,
   DealersList200,
   DealersListParams,
   DealersOverview200,
@@ -1682,6 +1684,90 @@ export const useDealersCreate = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getDealersCreateMutationOptions(options));
     }
+
+export const getDealersDetectUrl = (params: DealersDetectParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/dealers/detect?${stringifiedParams}` : `/api/dealers/detect`
+}
+
+/**
+ * @summary Detect active dealers whose registered mobile exactly matches
+ */
+export const dealersDetect = async (params: DealersDetectParams, options?: Parameters<typeof customFetch>[1]): Promise<DealersDetect200> => {
+
+  return customFetch<DealersDetect200>(getDealersDetectUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDealersDetectQueryKey = (params?: DealersDetectParams,) => {
+    return [
+    `/api/dealers/detect`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getDealersDetectQueryOptions = <TData = Awaited<ReturnType<typeof dealersDetect>>, TError = ErrorType<unknown>>(params: DealersDetectParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersDetect>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDealersDetectQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof dealersDetect>>> = ({ signal }) => dealersDetect(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof dealersDetect>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DealersDetectQueryResult = NonNullable<Awaited<ReturnType<typeof dealersDetect>>>
+export type DealersDetectQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Detect active dealers whose registered mobile exactly matches
+ */
+
+export function useDealersDetect<TData = Awaited<ReturnType<typeof dealersDetect>>, TError = ErrorType<unknown>>(
+ params: DealersDetectParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersDetect>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDealersDetectQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getDealersMeUrl = () => {
 

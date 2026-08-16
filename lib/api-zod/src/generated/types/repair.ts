@@ -17,6 +17,7 @@ export interface Repair {
   mobile: string;
   dealerId?: string;
   dealerName?: string;
+  dealerDetectedByPhone?: boolean;
   deviceType: string;
   brand: string;
   model: string;

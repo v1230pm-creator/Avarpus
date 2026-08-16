@@ -1,0 +1,203 @@
+ADD THIS FEATURE TO THE EXISTING REAL VMC ELECTRONIC BMS.
+
+Do NOT create a demo, test screen, diagnostic screen or separate prototype.
+Implement this directly into the existing production Repair > Received Phone workflow.
+
+FEATURE NAME:
+Automatic Dealer Detection During Phone Receiving
+
+REQUIREMENT:
+
+Whenever a phone is received from ANYWHERE in the application, the system must automatically detect whether the entered mobile number belongs to a registered dealer.
+
+The phone may be received from:
+- Super Admin
+- VMC Staff
+- Technician
+- Dealer Owner
+- Dealer Staff
+- Any existing authorized repair receiving screen
+
+The receiving location must NOT matter.
+
+PHONE RECEIVE FORM:
+
+When the user enters the customer's/dealer's mobile number:
+
+1. Search the production database for a VERIFIED active dealer account whose registered primary mobile number matches the entered number.
+
+2. If a matching dealer is found, immediately show a clear UI indicator:
+
+"Dealer Account Detected ✓"
+
+Show:
+- Dealer Name
+- Dealer ID
+- Shop Name
+- Dealer Mobile
+
+3. Automatically associate the repair with that dealer.
+
+Save the dealer relationship in the repair record:
+
+dealer_id
+dealer_name/reference
+dealer_detected_by_phone = true
+
+4. The user must NOT need to manually select the dealer when an exact verified dealer mobile-number match exists.
+
+5. The repair must immediately appear inside that dealer's:
+
+Dealer Repair
+My Repairs
+Dealer Dashboard
+Repair History
+
+6. Keep RECEIVED BY completely separate from DEALER.
+
+Example:
+
+Received By:
+Rahul
+VMC Staff
+Staff ID: ST-001
+
+Dealer:
+ABC Mobile
+Dealer ID: DLR-014
+
+These are two different fields and must never be confused.
+
+IMPORTANT:
+
+The person receiving the phone is NOT necessarily the dealer.
+
+A VMC staff member can receive a phone belonging to Dealer DLR-014.
+
+A technician can receive a phone belonging to Dealer DLR-014.
+
+A dealer can receive a phone belonging to their own dealer account.
+
+All cases must use the same repair record.
+
+DETECTION RULES:
+
+Only match against:
+- Active dealer accounts
+- Verified dealer accounts
+- Primary registered dealer mobile number
+
+Do NOT classify a normal customer as a dealer.
+
+If no dealer match exists:
+Treat the person as a normal customer and continue the normal customer workflow.
+
+If the number matches multiple dealer records:
+DO NOT automatically assign a dealer.
+Show a clear selection requiring an authorized user to choose the correct dealer.
+
+If the number is changed:
+Re-run dealer detection.
+
+If a detected dealer is removed or changed before saving:
+Update the dealer relationship accordingly.
+
+SECURITY:
+
+Do NOT rely only on frontend detection.
+
+Dealer detection and dealer_id assignment must also be validated on the backend/server.
+
+Never allow a user to manually change dealer_id to another dealer unless their role has permission.
+
+Dealer Owner:
+Can see only their own dealer's repairs.
+
+Dealer Staff:
+Can see only their authorized dealer's repairs.
+
+VMC Staff:
+Follow existing permissions.
+
+Technician:
+Follow existing permissions.
+
+Super Admin:
+Can see all dealers.
+
+DATA CONSISTENCY:
+
+Use the existing dealer table/account system and existing authentication system.
+
+Do NOT create another dealer database/table if an existing dealer system already exists.
+
+Use the existing production database.
+
+Use dealer_id as the permanent relationship between repair and dealer.
+
+The same dealer_id must be used everywhere:
+
+Repair Received
+Repair
+Delivered
+After-Sale Service
+Dealer Dashboard
+Dealer Repair History
+Reports
+Search
+Filters
+
+UI:
+
+Keep the existing premium VMC Electronic dark navy + blue design.
+
+Do not create a new visual style.
+
+The dealer detection should be lightweight and easy to understand.
+
+Example:
+
+Mobile Number
+[ 98XXXXXXXX ]
+
+✓ Dealer Account Detected
+
+ABC Mobile
+Dealer ID: DLR-014
+
+Then continue the normal receive-phone process.
+
+Do NOT make the form longer than necessary.
+
+Also display a small status label on the saved repair:
+
+Dealer: ABC Mobile · DLR-014
+
+FINAL CHECK:
+
+Test the complete real workflow:
+
+Case 1:
+Enter registered dealer mobile → dealer automatically detected → save → repair appears in dealer account.
+
+Case 2:
+Enter normal customer mobile → no dealer detected → normal customer repair.
+
+Case 3:
+VMC staff receives a dealer's phone → Received By = VMC Staff, Dealer = correct Dealer.
+
+Case 4:
+Technician receives a dealer's phone → Received By = Technician, Dealer = correct Dealer.
+
+Case 5:
+Dealer staff receives their own dealer's phone → correct dealer automatically assigned.
+
+Case 6:
+Same dealer phone number is used later for another repair → automatically associate with the same dealer.
+
+Case 7:
+Dealer mobile number is changed in the dealer profile → future detection must use the updated verified number.
+
+Implement this in the REAL existing application and integrate it with the existing production database, authentication, repair workflow and dealer dashboard.
+
+Do not create mock data or test screens.

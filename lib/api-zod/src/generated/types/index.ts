@@ -47,6 +47,8 @@ export * from './dealerInput';
 export * from './dealerOverviewStats';
 export * from './dealerProfile';
 export * from './dealersCreate200';
+export * from './dealersDetect200';
+export * from './dealersDetectParams';
 export * from './dealersList200';
 export * from './dealersListParams';
 export * from './dealersOverview200';

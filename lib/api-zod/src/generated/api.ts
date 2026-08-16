@@ -446,6 +446,29 @@ export const DealersCreateResponse = zod.object({
 
 
 /**
+ * @summary Detect active dealers whose registered mobile exactly matches
+ */
+export const DealersDetectQueryParams = zod.object({
+  "mobile": zod.coerce.string()
+})
+
+export const DealersDetectResponse = zod.object({
+  "dealers": zod.array(zod.object({
+  "id": zod.string(),
+  "dealerCode": zod.string(),
+  "name": zod.string(),
+  "shopName": zod.string().optional(),
+  "mobile": zod.string(),
+  "location": zod.string().optional(),
+  "isActive": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
  * @summary Dealer-portal account's own dealer profile + stats
  */
 export const DealersMeResponse = zod.object({
@@ -665,6 +688,7 @@ export const RepairsListResponse = zod.object({
   "mobile": zod.string(),
   "dealerId": zod.string().optional(),
   "dealerName": zod.string().optional(),
+  "dealerDetectedByPhone": zod.boolean().optional(),
   "deviceType": zod.string(),
   "brand": zod.string(),
   "model": zod.string(),
@@ -746,7 +770,7 @@ export const RepairsCreateBody = zod.object({
   "customerId": zod.string().optional(),
   "customerName": zod.string().optional(),
   "mobile": zod.string().optional(),
-  "dealerId": zod.string().optional(),
+  "dealerId": zod.string().nullish(),
   "deviceType": zod.string().optional(),
   "brand": zod.string().optional(),
   "model": zod.string().optional(),
@@ -796,6 +820,7 @@ export const RepairsCreateResponse = zod.object({
   "mobile": zod.string(),
   "dealerId": zod.string().optional(),
   "dealerName": zod.string().optional(),
+  "dealerDetectedByPhone": zod.boolean().optional(),
   "deviceType": zod.string(),
   "brand": zod.string(),
   "model": zod.string(),
@@ -878,7 +903,7 @@ export const RepairsUpdateBody = zod.object({
   "customerId": zod.string().optional(),
   "customerName": zod.string().optional(),
   "mobile": zod.string().optional(),
-  "dealerId": zod.string().optional(),
+  "dealerId": zod.string().nullish(),
   "deviceType": zod.string().optional(),
   "brand": zod.string().optional(),
   "model": zod.string().optional(),
@@ -928,6 +953,7 @@ export const RepairsUpdateResponse = zod.object({
   "mobile": zod.string(),
   "dealerId": zod.string().optional(),
   "dealerName": zod.string().optional(),
+  "dealerDetectedByPhone": zod.boolean().optional(),
   "deviceType": zod.string(),
   "brand": zod.string(),
   "model": zod.string(),
@@ -1229,6 +1255,7 @@ export const RepairAssignTechnicianResponse = zod.object({
   "mobile": zod.string(),
   "dealerId": zod.string().optional(),
   "dealerName": zod.string().optional(),
+  "dealerDetectedByPhone": zod.boolean().optional(),
   "deviceType": zod.string(),
   "brand": zod.string(),
   "model": zod.string(),
@@ -1321,6 +1348,7 @@ export const RepairTestingResponse = zod.object({
   "mobile": zod.string(),
   "dealerId": zod.string().optional(),
   "dealerName": zod.string().optional(),
+  "dealerDetectedByPhone": zod.boolean().optional(),
   "deviceType": zod.string(),
   "brand": zod.string(),
   "model": zod.string(),
@@ -1538,6 +1566,7 @@ export const RepairNotifyReadyResponse = zod.object({
   "mobile": zod.string(),
   "dealerId": zod.string().optional(),
   "dealerName": zod.string().optional(),
+  "dealerDetectedByPhone": zod.boolean().optional(),
   "deviceType": zod.string(),
   "brand": zod.string(),
   "model": zod.string(),

@@ -284,6 +284,7 @@ export interface Repair {
   mobile: string;
   dealerId?: string;
   dealerName?: string;
+  dealerDetectedByPhone?: boolean;
   deviceType: string;
   brand: string;
   model: string;
@@ -361,7 +362,7 @@ export interface RepairInput {
   customerId?: string;
   customerName?: string;
   mobile?: string;
-  dealerId?: string;
+  dealerId?: string | null;
   deviceType?: string;
   brand?: string;
   model?: string;
@@ -995,6 +996,14 @@ export type DealersList200 = {
 
 export type DealersCreate200 = {
   dealer: Dealer;
+};
+
+export type DealersDetectParams = {
+mobile: string;
+};
+
+export type DealersDetect200 = {
+  dealers: Dealer[];
 };
 
 export type DealersOverview200 = {

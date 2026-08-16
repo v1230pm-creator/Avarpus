@@ -135,6 +135,35 @@ router.get(
   }),
 );
 
+// ── Detect dealer by mobile number (intake auto-detection) ──────────────────
+// Any repair-receiving role (incl. technicians) may check whether an entered
+// mobile belongs to an ACTIVE dealer. Only exact matches on the registered
+// primary mobile count — normal customers must never be classified as dealers.
+// NOTE: registered before /dealers/:id so "detect" isn't captured as an id.
+router.get(
+  "/dealers/detect",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const mobile = str(req.query.mobile);
+    if (!mobile || !/^\d{10}$/.test(mobile)) {
+      res.json({ dealers: [] });
+      return;
+    }
+    const rows = await db
+      .select()
+      .from(dealersTable)
+      .where(and(
+        eq(dealersTable.shopId, shopId),
+        eq(dealersTable.mobile, mobile),
+        eq(dealersTable.isActive, true),
+      ))
+      .orderBy(asc(dealersTable.createdAt));
+    res.json({ dealers: rows.map(dealerOut) });
+  }),
+);
+
 // ── List dealers (shop staff) with live counts ──────────────────────────────
 router.get(
   "/dealers",
