@@ -1,0 +1,139 @@
+# VMC Repair App — Task Completion Gate Rule
+
+## Main Rule
+
+**Jab tak current task/page ka required kaam complete nahi hota, user next step/page par nahi ja sakta.**
+
+### 1. Sequential Workflow
+
+Repair job ka workflow strictly sequence mein chale:
+
+**Received → Repairing → Testing → Ready → Delivered**
+
+User current stage complete kiye bina next stage open nahi kar sakta.
+
+### 2. Required Fields
+
+Har stage mein sirf us stage ke **necessary required fields** honge.
+
+Agar required field empty hai:
+
+* Next button disabled rahe.
+* User ko next page par navigate nahi karne dena.
+* Missing field ke paas clear error dikhana.
+* Message: **“Please complete this step first.”**
+
+### 3. Save & Complete
+
+Har page par:
+
+**Save & Continue**
+
+button hoga.
+
+Button tabhi active hoga jab required information complete ho.
+
+Save successful hone ke baad hi next stage unlock hoga.
+
+### 4. Back Navigation
+
+Previous page par wapas ja sakte hain, lekin:
+
+* Unsaved changes hone par confirmation dikhaye.
+* Previous completed data delete na ho.
+* Current stage incomplete ho to next stage locked rahe.
+
+### 5. Direct Navigation Block
+
+User progress bar, menu, URL, browser back/forward ya kisi shortcut se locked next stage open karne ki koshish kare to:
+
+**“Complete the current task first.”**
+
+dikhaye aur user ko current incomplete task par rakhe.
+
+### 6. Repair Stage Rules
+
+**Received**
+
+* Customer required
+* Phone required
+* Device required
+* Complaint required
+* Intake information save
+
+Complete होने पर → **Repairing unlock**
+
+**Repairing**
+
+* Diagnosis required
+* Work performed required
+* Parts replaced only if applicable
+
+Complete होने पर → **Testing unlock**
+
+**Testing**
+
+* Testing result required
+* Pass/Fail required
+
+Pass होने पर → **Ready unlock**
+
+Fail होने पर → वापस **Repairing**
+
+**Ready**
+
+* Repair completed confirmation required
+* Payment/balance status checked
+
+Complete होने पर → **Delivered unlock**
+
+**Delivered**
+
+* Delivery confirmation required
+* Final payment/balance confirmation required
+
+Complete होने पर → **Job Completed**
+
+### 7. Conditional Tasks
+
+हर field हमेशा required नहीं होगी।
+
+Example:
+
+अगर कोई part replace नहीं हुआ है तो:
+
+**Parts Replaced = None**
+
+select करके task complete किया जा सकता है।
+
+अगर customer approval की जरूरत नहीं है तो approval step automatically skip होगा।
+
+### 8. No Fake Completion
+
+User केवल page खोलने या button दबाने से task complete नहीं कर सकता।
+
+हर stage का completion backend/database में save होगा:
+
+`Incomplete → Completed`
+
+और तभी अगला stage unlock होगा.
+
+### 9. Job Status Must Match Completed Task
+
+App में status manually आगे नहीं बढ़ाया जा सकेगा।
+
+Example:
+
+`Received` रहते हुए user सीधे `Testing` या `Ready` नहीं कर सकता।
+
+पहले:
+
+**Received → Repairing → Testing → Ready**
+
+complete करना जरूरी होगा.
+
+### 10. Final Principle
+
+**“Complete Current Task First → Save → Unlock Next Task.”**
+
+किसी भी स्थिति में incomplete task को bypass करके next page/stage access नहीं दिया जाएगा.
