@@ -14,3 +14,9 @@ All four tabs are views over the same repairs table (same VMC-xxx ticket); After
 - After-sales cases use the 13 spec statuses (`returned`…`closed`); refund_requested/approved/paid are set ONLY by the refund endpoints (mirrored onto the case), never via PATCH; rework_required/closed are dealer-only; case PATCH writes are CAS-guarded (`WHERE status = <read status>`, 409 on race). Case IDs are `AS-<ticket>-NN` (legacy `RET-` ids remain in old data).
 
 **How to apply:** any new repair mutation path (or approval execution branch) must respect the delivered lock, avoid direct partsCharge writes, and stamp accountability fields server-side.
+
+## Task-completion gate (stage unlock)
+- Status moves must be ADJACENT (same rank or +1); skipping stages is INVALID_STATUS_TRANSITION even with a complete payload. Voiding and dealer restore-from-void are exempt.
+- STAGE_INCOMPLETE (409, with `missing[]`) blocks forward moves until required saved work exists: rank1 intake fields, rank2 diagnosis+workPerformed, rank3 non-empty all-Pass checklist.
+- POST /repairs ignores client status — always starts at 'received' (no create-as-delivered).
+- Tests that deliver a repair must walk received→repairing(+diag/work)→testing(+all-pass checklist)→ready→delivered.

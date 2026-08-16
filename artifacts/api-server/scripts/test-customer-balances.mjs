@@ -119,9 +119,23 @@ async function run(token) {
       problem: "does not boot",
       ...extra,
     });
-  // Delivery requires the testing gate (testingConfirmedAt) to be set first.
-  const confirmTesting = (repairId) =>
-    api("POST", `/repairs/${repairId}/testing`, token, { confirm: true });
+  // Delivery requires the full completion-gated workflow: each stage's
+  // required work must be saved before the next stage unlocks.
+  const confirmTesting = async (repairId) => {
+    await api("PATCH", `/repairs/${repairId}`, token, { status: "repairing" });
+    await api("PATCH", `/repairs/${repairId}`, token, {
+      diagnosis: "board fault",
+      workPerformed: "reflowed board",
+    });
+    await api("PATCH", `/repairs/${repairId}`, token, { status: "testing" });
+    const t = await api("POST", `/repairs/${repairId}/testing`, token, {
+      checklist: { power_on: true, display: true },
+      confirm: true,
+    });
+    // Stages advance one at a time: testing -> ready must precede delivered.
+    await api("PATCH", `/repairs/${repairId}`, token, { status: "ready" });
+    return t;
+  };
   // Advance is a cache of the append-only payments ledger — it can only be
   // recorded through POST /repairs/:id/payments, never on create/patch.
   const payAdvance = (repairId, amount) =>

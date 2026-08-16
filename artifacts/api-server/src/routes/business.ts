@@ -517,16 +517,11 @@ router.post(
       res.status(400).json({ message: "Missing required repair details" });
       return;
     }
-    const status = REPAIR_STATUSES.includes(b.status) ? b.status : "received";
-    // Creating a repair directly as "delivered" gets the same server-side
-    // stamping as the PATCH handover — no client-controlled delivery facts.
-    const creatorIsDealer = ["dealer", "super_admin"].includes((req as AuthedRequest).user.role);
-    const createDeliveredOn =
-      status === "delivered"
-        ? creatorIsDealer && str(b.deliveryDate)
-          ? (str(b.deliveryDate) as string)
-          : new Date().toISOString().split("T")[0]
-        : null;
+    // Task-completion gate: every repair starts at 'received'. A
+    // client-supplied status is ignored — later stages only unlock through
+    // PATCH transitions where the completion gate verifies the saved work,
+    // so creation can never fake a completed workflow.
+    const status = "received";
     const priority = REPAIR_PRIORITIES.includes(b.priority) ? b.priority : "normal";
     if (backdateBlocked(req, res, str(b.receiveDate))) return;
 
@@ -632,7 +627,7 @@ router.post(
           clientRequestId,
           receiveDate: str(b.receiveDate) ?? new Date().toISOString().split("T")[0],
           expectedDate: str(b.expectedDate) ?? new Date().toISOString().split("T")[0],
-          deliveryDate: createDeliveredOn ?? str(b.deliveryDate),
+          deliveryDate: str(b.deliveryDate),
           notes: str(b.notes),
           checklist: checklistOrNull(b.checklist),
           receivingSignaturePath: ownedObjectPath(shopId, b.receivingSignaturePath),
@@ -641,12 +636,6 @@ router.post(
           // for the intake step, not client-supplied.
           receivedById: (req as AuthedRequest).user.id,
           receivedByName: (req as AuthedRequest).user.name,
-          ...(createDeliveredOn
-            ? {
-                deliveredById: (req as AuthedRequest).user.id,
-                deliveredByName: (req as AuthedRequest).user.name,
-              }
-            : {}),
         })
         .returning();
       await logRepairEvent(tx, {
@@ -832,8 +821,13 @@ router.patch(
     // and again inside the update transaction against a FOR UPDATE re-read,
     // so a concurrent testing/status write cannot invalidate them mid-flight.
     const stageViolation = (
-      row: Pick<typeof existing, "status" | "testingChecklist" | "problem" | "diagnosis" | "workPerformed">,
-    ): { code: string; message: string; field?: string } | null => {
+      row: Pick<
+        typeof existing,
+        | "status" | "testingChecklist" | "problem" | "diagnosis" | "workPerformed"
+        | "customerName" | "mobile" | "brand" | "model"
+      >,
+    ): { code: string; message: string; field?: string; missing?: string[] } | null => {
+      const norm = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));
       if (patch.status !== undefined && patch.status !== row.status) {
         const STAGE_RANK: Record<string, number> = {
           received: 0,
@@ -864,18 +858,61 @@ router.patch(
         const hasFailedTest = Object.values(checklistNow).some((v) => v === false);
         const isAuthorizedTestingFailReturn =
           row.status === "testing" && patch.status === "repairing" && hasFailedTest;
+        // Forward moves must be ADJACENT (one stage at a time): sideways
+        // within a stage or exactly one rank up. Skipping stages — even with
+        // a complete payload — breaks the sequential workflow. Voiding
+        // (cancelled/cannot_repair) stays available from any working stage.
+        const isVoidMove = toRank === 5;
         const allowed = isTerminalFrom
           ? isRestoreFromVoid
-          : toRank >= fromRank || isAuthorizedTestingFailReturn;
+          : isVoidMove ||
+            toRank === fromRank ||
+            toRank === fromRank + 1 ||
+            isAuthorizedTestingFailReturn;
         if (!allowed) {
           return {
             code: "INVALID_STATUS_TRANSITION",
             message: "This status change is not allowed by the repair workflow.",
           };
         }
+        // Completion gate: a stage only unlocks after the previous stage's
+        // required work is actually SAVED. Applies to every forward move into
+        // a working stage; voiding (cancelled/cannot_repair) and the
+        // dealer-only restore-from-void path are exempt.
+        const isVoidTarget = patch.status === "cancelled" || patch.status === "cannot_repair";
+        if (!isVoidTarget && !isRestoreFromVoid && toRank > fromRank) {
+          const merged = (f: "customerName" | "mobile" | "brand" | "model" | "problem" | "diagnosis" | "workPerformed") =>
+            norm(patch[f] !== undefined ? patch[f] : row[f]).trim();
+          const missing: string[] = [];
+          if (toRank >= 1) {
+            if (!merged("customerName")) missing.push("customer");
+            if (!merged("mobile")) missing.push("phone");
+            if (!merged("brand") && !merged("model")) missing.push("device");
+            if (!merged("problem")) missing.push("problem");
+          }
+          if (toRank >= 2) {
+            if (!merged("diagnosis")) missing.push("diagnosis");
+            if (!merged("workPerformed")) missing.push("workPerformed");
+          }
+          if (toRank >= 3) {
+            // Ready/Delivered unlock only after a saved testing result with
+            // every recorded item passing. (A failed item routes through the
+            // testing-fail return paths instead.)
+            const cl = (row.testingChecklist as Record<string, boolean> | null) ?? {};
+            const entries = Object.values(cl);
+            if (entries.length === 0) missing.push("testingResult");
+            else if (entries.some((v) => v === false)) missing.push("testingAllPass");
+          }
+          if (missing.length > 0) {
+            return {
+              code: "STAGE_INCOMPLETE",
+              message: "Please complete this step first.",
+              missing,
+            };
+          }
+        }
       }
       const REPAIRING_STAGE = new Set(["diagnosing", "waiting_parts", "repairing"]);
-      const norm = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));
       const stageLocks: Array<{ field: "problem" | "diagnosis" | "workPerformed"; allowed: boolean }> = [
         { field: "problem", allowed: row.status === "received" },
         { field: "diagnosis", allowed: REPAIRING_STAGE.has(row.status) },

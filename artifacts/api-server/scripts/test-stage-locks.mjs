@@ -98,6 +98,14 @@ async function createRepair(A) {
   return json.repair.id;
 }
 
+// Fill a stage's required work so the completion gate lets the job advance.
+async function completeRepairing(A, repId) {
+  await api("PATCH", `/repairs/${repId}`, A.token, { diagnosis: "board fault", workPerformed: "resoldered" });
+}
+async function completeTesting(A, repId) {
+  await api("POST", `/repairs/${repId}/testing`, A.token, { checklist: { power_on: true, display: true } });
+}
+
 async function run(A) {
   // ── Stage 0: received — only problem editable ────────────────────────────
   const rep = await createRepair(A);
@@ -149,14 +157,94 @@ async function run(A) {
   r = await api("PATCH", `/repairs/${rep}`, A.token, { workPerformed: "replaced touch panel" });
   check("back in repairing: work edit -> 200 again", r.status === 200, r);
 
+  // ── Completion gate: next stage locked until required work is SAVED ─────
+  const repG = await createRepair(A);
+  await api("PATCH", `/repairs/${repG}`, A.token, { status: "repairing" });
+  r = await api("PATCH", `/repairs/${repG}`, A.token, { status: "testing" });
+  check(
+    "gate: repairing -> testing without diagnosis/work -> 409 STAGE_INCOMPLETE",
+    r.status === 409 && r.json.code === "STAGE_INCOMPLETE" &&
+      (r.json.missing ?? []).includes("diagnosis") && (r.json.missing ?? []).includes("workPerformed"),
+    r,
+  );
+  // Diagnosis alone is not enough — workPerformed is also required.
+  await api("PATCH", `/repairs/${repG}`, A.token, { diagnosis: "half done" });
+  r = await api("PATCH", `/repairs/${repG}`, A.token, { status: "testing" });
+  check("gate: diagnosis without work -> still 409", r.status === 409 && r.json.code === "STAGE_INCOMPLETE", r);
+  await api("PATCH", `/repairs/${repG}`, A.token, { workPerformed: "swap part" });
+  r = await api("PATCH", `/repairs/${repG}`, A.token, { status: "testing" });
+  check("gate: after diagnosis+work saved -> testing 200", r.status === 200, r);
+  r = await api("PATCH", `/repairs/${repG}`, A.token, { status: "ready" });
+  check(
+    "gate: testing -> ready without testing result -> 409 STAGE_INCOMPLETE",
+    r.status === 409 && r.json.code === "STAGE_INCOMPLETE" && (r.json.missing ?? []).includes("testingResult"),
+    r,
+  );
+  await api("POST", `/repairs/${repG}/testing`, A.token, { checklist: { power_on: true, display: false } });
+  r = await api("PATCH", `/repairs/${repG}`, A.token, { status: "ready" });
+  check(
+    "gate: testing -> ready with a Fail -> 409 (testingAllPass)",
+    r.status === 409 && r.json.code === "STAGE_INCOMPLETE" && (r.json.missing ?? []).includes("testingAllPass"),
+    r,
+  );
+  await api("POST", `/repairs/${repG}/testing`, A.token, { checklist: { display: true } });
+  r = await api("PATCH", `/repairs/${repG}`, A.token, { status: "ready" });
+  check("gate: all items Pass -> ready 200", r.status === 200, r);
+
+  // Skip-ahead attempts are rejected as non-adjacent transitions — even when
+  // the payload supplies the "missing" work in the same request.
+  const repSkip = await createRepair(A);
+  r = await api("PATCH", `/repairs/${repSkip}`, A.token, { status: "testing" });
+  check("skip: received -> testing -> 409 INVALID_STATUS_TRANSITION", r.status === 409 && r.json.code === "INVALID_STATUS_TRANSITION", r);
+  r = await api("PATCH", `/repairs/${repSkip}`, A.token, {
+    status: "testing",
+    diagnosis: "inline diag",
+    workPerformed: "inline work",
+  });
+  check("skip: received -> testing with complete payload -> still 409", r.status === 409 && r.json.code === "INVALID_STATUS_TRANSITION", r);
+  r = await api("PATCH", `/repairs/${repSkip}`, A.token, { status: "ready" });
+  check("skip: received -> ready -> 409", r.status === 409 && r.json.code === "INVALID_STATUS_TRANSITION", r);
+  r = await api("PATCH", `/repairs/${repSkip}`, A.token, { status: "delivered" });
+  check("skip: received -> delivered -> 409", r.status === 409 && r.json.code === "INVALID_STATUS_TRANSITION", r);
+  // Voiding remains possible from any stage (gate does not apply).
+  r = await api("PATCH", `/repairs/${repSkip}`, A.token, { status: "cancelled" });
+  check("voiding bypasses completion gate", r.status === 200, r);
+
+  // Creation cannot fake completion: a client-supplied status is ignored and
+  // every repair starts at 'received'.
+  {
+    const cr = await api("POST", "/repairs", A.token, {
+      customerName: "Gate Cust",
+      mobile: "9888800001",
+      deviceType: "mobile",
+      brand: "GateBrand",
+      model: "G1",
+      problem: "no power",
+      status: "delivered",
+    });
+    check("create with status=delivered is forced to received", cr.status === 200 && cr.json.repair?.status === "received", cr);
+    const cr2 = await api("POST", "/repairs", A.token, {
+      customerName: "Gate Cust",
+      mobile: "9888800001",
+      deviceType: "mobile",
+      brand: "GateBrand",
+      model: "G2",
+      problem: "no power",
+      status: "ready",
+    });
+    check("create with status=ready is forced to received", cr2.status === 200 && cr2.json.repair?.status === "received", cr2);
+  }
+
   // ── Rewind without a failed test must be rejected ────────────────────────
   const rep2 = await createRepair(A);
   await api("PATCH", `/repairs/${rep2}`, A.token, { status: "repairing" });
+  await completeRepairing(A, rep2);
   await api("PATCH", `/repairs/${rep2}`, A.token, { status: "testing" });
   r = await api("PATCH", `/repairs/${rep2}`, A.token, { status: "repairing" });
   check("testing -> repairing without failed item -> 409", r.status === 409 && r.json.code === "INVALID_STATUS_TRANSITION", r);
 
   // ── Later stages cannot rewind into editable stages ──────────────────────
+  await completeTesting(A, rep2);
   r = await api("PATCH", `/repairs/${rep2}`, A.token, { status: "ready" });
   check("testing -> ready allowed", r.status === 200, r);
   r = await api("PATCH", `/repairs/${rep2}`, A.token, { status: "testing" });
@@ -176,6 +264,7 @@ async function run(A) {
   for (let i = 0; i < 5; i++) {
     const rr = await createRepair(A);
     await api("PATCH", `/repairs/${rr}`, A.token, { status: "repairing" });
+    await completeRepairing(A, rr);
     await api("PATCH", `/repairs/${rr}`, A.token, { status: "testing" });
     await api("POST", `/repairs/${rr}/testing`, A.token, { checklist: { touch: false } });
     const [clear, rewind] = await Promise.all([
@@ -255,6 +344,7 @@ async function run(A) {
   // customer_approval is NOT an authorized rewind source, even with a fail.
   const repCA = await createRepair(A);
   await api("PATCH", `/repairs/${repCA}`, A.token, { status: "repairing" });
+  await completeRepairing(A, repCA);
   await api("PATCH", `/repairs/${repCA}`, A.token, { status: "testing" });
   await api("POST", `/repairs/${repCA}/testing`, A.token, { checklist: { speaker: false } });
   await api("PATCH", `/repairs/${repCA}`, A.token, { status: "customer_approval" });
@@ -312,6 +402,9 @@ async function run(A) {
 
   const rep5 = await createRepair(A);
   await api("PATCH", `/repairs/${rep5}`, A.token, { status: "repairing" });
+  await completeRepairing(A, rep5);
+  await api("PATCH", `/repairs/${rep5}`, A.token, { status: "testing" });
+  await completeTesting(A, rep5);
   await api("PATCH", `/repairs/${rep5}`, A.token, { status: "ready" });
   r = await api("POST", `/repairs/${rep5}/estimate-approvals`, A.token, { newAmount: 500, reason: "too late" });
   check("ready: estimate approval request -> 409", r.status === 409, r);

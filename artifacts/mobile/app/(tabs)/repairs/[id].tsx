@@ -250,6 +250,42 @@ export default function RepairDetailScreen() {
     : ['testing', 'customer_approval'].includes(repair.status as string) ? { id: 'ready', label: 'Ready', desc: 'Ready for customer pickup' }
     : null;
 
+  // Task-completion gate (mirrors the server): the next stage stays locked
+  // until the current stage's required work is SAVED on the server.
+  const stageMissing: string[] = (() => {
+    if (!nextStep) return [];
+    if (stageIndex === 0) {
+      const miss: string[] = [];
+      if (!repair.customerName?.trim()) miss.push('Customer name');
+      if (!repair.mobile?.trim()) miss.push('Phone number');
+      if (!(repair.brand?.trim() || repair.model?.trim())) miss.push('Device details');
+      if (!repair.problem?.trim()) miss.push('Complaint / problem');
+      return miss;
+    }
+    if (stageIndex === 1) {
+      const miss: string[] = [];
+      if (!repair.diagnosis?.trim()) miss.push('Diagnosis');
+      if (!repair.workPerformed?.trim()) miss.push('Work performed');
+      return miss;
+    }
+    if (stageIndex === 2) {
+      const vals = Object.values(repair.testingChecklist || {});
+      if (vals.length === 0) return ['Testing result (Pass/Fail)'];
+      if (vals.some(v => v === false)) return ['All tested items must Pass (Fail hone par Return to Repair use karein)'];
+      return [];
+    }
+    return [];
+  })();
+  const nextStepBlocked = stageMissing.length > 0;
+
+  const showIncompleteAlert = (missing?: string[]) => {
+    const list = (missing && missing.length ? missing : stageMissing).map(m => `• ${m}`).join('\n');
+    Alert.alert(
+      'Please complete this step first.',
+      list ? `Yeh required kaam pehle complete karke save karein:\n\n${list}` : 'Pehle current stage ka required kaam complete karke save karein.',
+    );
+  };
+
   // ── Collect Payment: real financials from the repair + payments ledger ──
   const payTotal = repair.totalAmount || (repair.repairCharge + repair.partsCharge);
   const payPaid = repair.paidAmount ?? repair.advance ?? 0;
@@ -427,6 +463,8 @@ export default function RepairDetailScreen() {
     } catch (err: any) {
       if (err?.message?.includes('APPROVAL_REQUIRED') || err?.code === 'APPROVAL_REQUIRED') {
          Alert.alert('Restricted', 'Dealer/Owner approval required to finalize this update.');
+      } else if (err?.code === 'STAGE_INCOMPLETE' || err?.message?.includes('STAGE_INCOMPLETE')) {
+         showIncompleteAlert(Array.isArray(err?.missing) ? err.missing : undefined);
       } else {
          Alert.alert('Update failed', err.message || "Couldn't mark the repair as delivered. Please try again.");
       }
@@ -470,6 +508,12 @@ export default function RepairDetailScreen() {
         setShowStatusPicker(false);
         setTestingChecklist({ ...(repair.testingChecklist || {}) });
         setTimeout(() => setShowTesting(true), 350);
+      } else if (e?.code === 'STAGE_INCOMPLETE' || e?.message?.includes('STAGE_INCOMPLETE')) {
+        setShowStatusPicker(false);
+        setTimeout(() => showIncompleteAlert(Array.isArray(e?.missing) ? e.missing : undefined), 350);
+      } else if (e?.code === 'INVALID_STATUS_TRANSITION' || e?.message?.includes('INVALID_STATUS_TRANSITION')) {
+        setShowStatusPicker(false);
+        setTimeout(() => Alert.alert('Complete the current task first.', 'Yeh stage abhi locked hai — workflow ke hisaab se pehle current stage complete karein.'), 350);
       } else {
         Alert.alert('Update failed', e.message || "Couldn't update the repair status.");
       }
@@ -1047,12 +1091,23 @@ export default function RepairDetailScreen() {
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Update Status</Text>
             {nextStep ? (
               <TouchableOpacity
-                onPress={() => handleStatusUpdate(nextStep.id)}
+                onPress={() => {
+                  if (nextStepBlocked) {
+                    showIncompleteAlert();
+                    return;
+                  }
+                  handleStatusUpdate(nextStep.id);
+                }}
                 disabled={updating}
-                style={{ borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primary + '15', borderRadius: 12, padding: 16, marginBottom: 12 }}
+                style={{ borderWidth: 1, borderColor: nextStepBlocked ? colors.border : colors.primary, backgroundColor: nextStepBlocked ? colors.card : colors.primary + '15', borderRadius: 12, padding: 16, marginBottom: 12, opacity: nextStepBlocked ? 0.6 : 1 }}
               >
-                <Text style={{ fontSize: 16, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{nextStep.label}</Text>
-                <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 2 }}>{nextStep.desc}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {nextStepBlocked && <Feather name="lock" size={14} color={colors.mutedForeground} />}
+                  <Text style={{ fontSize: 16, color: nextStepBlocked ? colors.mutedForeground : colors.primary, fontFamily: 'Inter_700Bold' }}>{nextStep.label}</Text>
+                </View>
+                <Text style={{ fontSize: 12, color: nextStepBlocked ? colors.destructive : colors.mutedForeground, marginTop: 2 }}>
+                  {nextStepBlocked ? `Please complete this step first: ${stageMissing.join(', ')}` : nextStep.desc}
+                </Text>
               </TouchableOpacity>
             ) : (
               <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 12 }}>No further status. Use Mark as Delivered.</Text>
@@ -1848,8 +1903,28 @@ export default function RepairDetailScreen() {
             </ScrollView>
 
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-              <Button title="Cancel" variant="outline" onPress={() => setShowServiceEdit(false)} style={{ flex: 1 }} />
-              <Button title="Save" onPress={handleSaveService} loading={updating} style={{ flex: 1 }} />
+              <Button
+                title="Cancel"
+                variant="outline"
+                onPress={() => {
+                  // Discarding unsaved edits needs a confirmation; saved data
+                  // is never touched by closing this sheet.
+                  const dirty =
+                    (svcStage === 0 && editProblem !== (repair.problem || '')) ||
+                    (svcStage === 1 && (editDiagnosis !== (repair.diagnosis || '') || editWorkPerformed !== (repair.workPerformed || ''))) ||
+                    (testingEditable && JSON.stringify(editTesting) !== JSON.stringify(repair.testingChecklist || {}));
+                  if (dirty) {
+                    Alert.alert('Unsaved changes', 'Aapke changes save nahi hue hain. Bina save kiye band karein?', [
+                      { text: 'Wapas jayen', style: 'cancel' },
+                      { text: 'Haan, discard karein', style: 'destructive', onPress: () => setShowServiceEdit(false) },
+                    ]);
+                  } else {
+                    setShowServiceEdit(false);
+                  }
+                }}
+                style={{ flex: 1 }}
+              />
+              <Button title="Save & Continue" onPress={handleSaveService} loading={updating} style={{ flex: 1 }} />
             </View>
           </View>
         </KeyboardAvoidingCompat>
