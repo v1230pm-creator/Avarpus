@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { RepairChecklist } from './repairChecklist';
+import type { RepairPaymentStatus } from './repairPaymentStatus';
 import type { RepairPhysicalCondition } from './repairPhysicalCondition';
 import type { RepairTestingChecklist } from './repairTestingChecklist';
 
@@ -55,6 +56,8 @@ export interface Repair {
   totalAmount: number;
   paidAmount: number;
   balance: number;
+  estimatedCost?: number;
+  paymentStatus?: RepairPaymentStatus;
   testingChecklist?: RepairTestingChecklist;
   testingConfirmedById?: string;
   testingConfirmedByName?: string;

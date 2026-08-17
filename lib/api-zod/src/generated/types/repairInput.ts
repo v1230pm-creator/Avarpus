@@ -35,6 +35,7 @@ export interface RepairInput {
   workPerformed?: string;
   status?: string;
   priority?: string;
+  estimatedCost?: number;
   repairCharge?: number;
   partsCharge?: number;
   serviceCharge?: number;

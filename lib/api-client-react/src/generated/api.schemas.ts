@@ -272,6 +272,16 @@ export interface CustomerInput {
 
 export type RepairPhysicalCondition = {[key: string]: boolean};
 
+export type RepairPaymentStatus = typeof RepairPaymentStatus[keyof typeof RepairPaymentStatus];
+
+
+export const RepairPaymentStatus = {
+  unpaid: 'unpaid',
+  partial: 'partial',
+  paid: 'paid',
+  overpaid: 'overpaid',
+} as const;
+
 export type RepairTestingChecklist = {[key: string]: boolean};
 
 export type RepairChecklist = {[key: string]: boolean};
@@ -322,6 +332,8 @@ export interface Repair {
   totalAmount: number;
   paidAmount: number;
   balance: number;
+  estimatedCost?: number;
+  paymentStatus?: RepairPaymentStatus;
   testingChecklist?: RepairTestingChecklist;
   testingConfirmedById?: string;
   testingConfirmedByName?: string;
@@ -385,6 +397,7 @@ export interface RepairInput {
   workPerformed?: string;
   status?: string;
   priority?: string;
+  estimatedCost?: number;
   repairCharge?: number;
   partsCharge?: number;
   serviceCharge?: number;
@@ -430,6 +443,7 @@ export const RepairPaymentKind = {
   advance: 'advance',
   partial: 'partial',
   final: 'final',
+  due: 'due',
   refund: 'refund',
 } as const;
 
@@ -445,6 +459,10 @@ export interface RepairPayment {
   recordedByName?: string;
   receivedById?: string;
   receivedByName?: string;
+  voidedAt?: string;
+  voidedById?: string;
+  voidedByName?: string;
+  voidReason?: string;
   createdAt: string;
 }
 
@@ -455,6 +473,7 @@ export const RepairPaymentInputKind = {
   advance: 'advance',
   partial: 'partial',
   final: 'final',
+  due: 'due',
   refund: 'refund',
 } as const;
 
@@ -464,6 +483,10 @@ export interface RepairPaymentInput {
   kind?: RepairPaymentInputKind;
   note?: string;
   referenceNo?: string;
+}
+
+export interface RepairPaymentVoidInput {
+  reason: string;
 }
 
 export interface RepairAssignInput {
@@ -1106,6 +1129,34 @@ export type RepairPaymentsList200 = {
 
 export type RepairPaymentsCreate200 = {
   payment: RepairPayment;
+};
+
+export type RepairPaymentVoid200 = {
+  payment: RepairPayment;
+};
+
+export type PaymentsListParams = {
+from?: string;
+to?: string;
+};
+
+export type PaymentsList200PaymentsItem = RepairPayment & {
+  repairTicket?: string;
+  customerName?: string;
+  dealerId?: string;
+  dealerName?: string;
+};
+
+export type PaymentsList200TotalsByMethod = {[key: string]: number};
+
+export type PaymentsList200Totals = {
+  total: number;
+  byMethod: PaymentsList200TotalsByMethod;
+};
+
+export type PaymentsList200 = {
+  payments: PaymentsList200PaymentsItem[];
+  totals: PaymentsList200Totals;
 };
 
 export type RepairAssignTechnician200 = {

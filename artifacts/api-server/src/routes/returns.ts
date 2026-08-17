@@ -7,6 +7,7 @@ import {
   repairReturnsTable,
   returnPartsTable,
   refundsTable,
+  repairPaymentsTable,
   inventoryItemsTable,
   financeEntriesTable,
   stockMovementsTable,
@@ -668,7 +669,15 @@ router.post(
         .from(repairsTable)
         .where(and(eq(repairsTable.id, ret.repairId), eq(repairsTable.shopId, shopId)))
         .for("update");
-      const originalPaid = repair ? Math.max(repair.repairCharge + repair.partsCharge, 0) : 0;
+      // Refundable cap = what the customer actually paid (non-voided ledger
+      // rows), not the billed charges — a voided/unpaid repair is not refundable.
+      const [{ paidNonVoided }] = await tx
+        .select({
+          paidNonVoided: sql<number>`coalesce(sum(${repairPaymentsTable.amount}) filter (where ${repairPaymentsTable.voidedAt} is null), 0)::float`,
+        })
+        .from(repairPaymentsTable)
+        .where(and(eq(repairPaymentsTable.repairId, ret.repairId), eq(repairPaymentsTable.shopId, shopId)));
+      const originalPaid = repair ? Math.max(paidNonVoided, 0) : 0;
       // Cumulative cap: everything not rejected (pending + approved + paid)
       // across ALL return cases of this repair counts against the balance.
       const [{ committed }] = await tx

@@ -13,5 +13,6 @@ export const RepairPaymentKind = {
   advance: 'advance',
   partial: 'partial',
   final: 'final',
+  due: 'due',
   refund: 'refund',
 } as const;

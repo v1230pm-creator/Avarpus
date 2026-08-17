@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { staffList, useRefundsList, getRefundsListQueryKey, stockMovementsList } from '@workspace/api-client-react';
+import { staffList, useRefundsList, getRefundsListQueryKey, stockMovementsList, paymentsList } from '@workspace/api-client-react';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
@@ -31,6 +31,7 @@ const REPORT_TYPES: ReportType[] = [
   { id: 'staff', title: 'Staff Report', description: 'Staff list, roles & status', icon: 'user-check', color: '#A8B3C7' },
   { id: 'technician', title: 'Technician Report', description: 'Jobs completed per technician', icon: 'award', color: '#F59E0B' },
   { id: 'warranty', title: 'Warranty Report', description: 'Repair warranties & expiry', icon: 'shield', color: '#818CF8' },
+  { id: 'collection', title: 'Collection Report', description: 'Payments received by method (Cash/UPI/Card...)', icon: 'dollar-sign', color: '#34D399' },
   { id: 'pending', title: 'Pending Payments', description: 'Repairs with outstanding balances', icon: 'credit-card', color: '#F87171' },
   { id: 'refunds', title: 'Refunds', description: 'List of all processed refunds', icon: 'corner-up-left', color: '#A855F7' },
   { id: 'parts', title: 'Parts Consumption', description: 'Parts used across repairs', icon: 'settings', color: '#FB923C' },
@@ -62,6 +63,8 @@ export default function ReportsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  // Date filter for the collection report (days back; null = all time)
+  const [collectionDays, setCollectionDays] = useState<number | null>(30);
 
   const canSeeStaff = user?.role === 'dealer' || user?.role === 'super_admin';
 
@@ -127,6 +130,64 @@ export default function ReportsScreen() {
 
     if (report.id === 'staff' && !canSeeStaff) {
       notify('Not available', 'Only the shop owner can generate the staff report.');
+      return;
+    }
+
+    if (report.id === 'collection') {
+      if (!canSeeFinance) {
+        notify('Not available', 'Finance access is required for the collection report.');
+        return;
+      }
+      setGeneratingId(report.id);
+      try {
+        const from = collectionDays !== null
+          ? new Date(Date.now() - collectionDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+          : undefined;
+        const res = await paymentsList(from ? { from } : undefined);
+        const rows = res.payments || [];
+        const active = rows.filter((p: any) => !p.voidedAt);
+        if (active.length === 0) {
+          notify('No data yet', 'Is period mein koi payment record nahi hai.');
+          return;
+        }
+        const byMethod = res.totals?.byMethod || {};
+        const periodLabel = collectionDays === 1 ? 'Today' : collectionDays ? `Last ${collectionDays} days` : 'All time';
+        const html = `
+          <html><body style="font-family: sans-serif; padding: 24px; color: #111;">
+            <h2 style="text-align:center;margin-bottom:2px;">${user?.businessName || 'VMC Electronics'}</h2>
+            <p style="text-align:center;margin-top:0;">Collection Report — ${periodLabel}</p>
+            <hr />
+            <h3>Totals by Payment Method</h3>
+            <table style="width:100%;border-collapse:collapse;" border="1" cellpadding="6">
+              <tr style="background:#f0f0f0;"><th align="left">Method</th><th align="right">Amount (₹)</th></tr>
+              ${Object.entries(byMethod).map(([m, v]) => `<tr><td>${m}</td><td align="right">${v}</td></tr>`).join('')}
+              <tr style="font-weight:bold;background:#f8f8f8;"><td>Total</td><td align="right">${res.totals?.total ?? 0}</td></tr>
+            </table>
+            <h3 style="margin-top:20px;">Payments (${active.length})</h3>
+            <table style="width:100%;border-collapse:collapse;font-size:12px;" border="1" cellpadding="5">
+              <tr style="background:#f0f0f0;"><th align="left">Date</th><th align="left">Ticket</th><th align="left">Customer</th><th align="left">Method</th><th align="left">Type</th><th align="right">Amount (₹)</th></tr>
+              ${active.map((p: any) => `<tr><td>${(p.createdAt || '').split('T')[0]}</td><td>${p.repairTicket || '-'}</td><td>${p.customerName || '-'}</td><td>${p.method}</td><td>${p.kind}</td><td align="right">${p.amount}</td></tr>`).join('')}
+            </table>
+            ${rows.length > active.length ? `<p style="font-size:11px;color:#777;">${rows.length - active.length} voided payment(s) excluded from totals.</p>` : ''}
+          </body></html>`;
+        if (Platform.OS === 'web') {
+          await Print.printAsync({ html });
+        } else {
+          const { uri } = await Print.printToFileAsync({ html });
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Collection Report', UTI: 'com.adobe.pdf' });
+          } else {
+            await Print.printAsync({ uri });
+          }
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : '';
+        if (!/cancel|dismiss/i.test(msg)) {
+          notify('Could not generate report', 'Collection report banate waqt problem aayi. Dobara try karein.');
+        }
+      } finally {
+        setGeneratingId(null);
+      }
       return;
     }
 
@@ -229,6 +290,25 @@ export default function ReportsScreen() {
         </View>
 
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>AVAILABLE REPORTS</Text>
+
+        {canSeeFinance && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>COLLECTION PERIOD:</Text>
+            {([['Today', 1], ['7 Din', 7], ['30 Din', 30], ['Sab', null]] as [string, number | null][]).map(([label, days]) => (
+              <TouchableOpacity
+                key={label}
+                onPress={() => setCollectionDays(days)}
+                style={{
+                  paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1,
+                  borderColor: collectionDays === days ? colors.primary : colors.border,
+                  backgroundColor: collectionDays === days ? colors.primary + '18' : 'transparent',
+                }}
+              >
+                <Text style={{ fontSize: 12, color: collectionDays === days ? colors.primary : colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {REPORT_TYPES.map((report) => {
           const snap = snapshots[report.id];

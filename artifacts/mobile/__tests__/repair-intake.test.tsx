@@ -263,7 +263,7 @@ describe('failed save shows the alert and keeps entered values', () => {
     await fillRequiredFields();
     await press('Accessories Received'); // open the collapsed accessories section
     type('e.g. Broken cover, mixed cables...', 'Charger, Cover');
-    fireEvent.changeText(screen.getByPlaceholderText('0'), '2500'); // estimate
+    fireEvent.changeText(screen.getAllByPlaceholderText('0')[0], '2500'); // estimate (advance input also uses placeholder 0)
     await reviewConfirmAndSubmit();
 
     await waitFor(() =>
@@ -374,7 +374,7 @@ describe('successful save adds the repair to the list', () => {
     });
     const { unmount } = await renderIntake();
     await fillRequiredFields();
-    fireEvent.changeText(screen.getByPlaceholderText('0'), '2500'); // estimate
+    fireEvent.changeText(screen.getAllByPlaceholderText('0')[0], '2500'); // estimate (advance input also uses placeholder 0)
     await reviewConfirmAndSubmit();
 
     await waitFor(() => expect(screen.getByText('Job Card Created')).toBeTruthy());

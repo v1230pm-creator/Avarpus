@@ -134,6 +134,13 @@
       "when": 1786887000000,
       "tag": "0018_dealer_detected_by_phone",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786976731733,
+      "tag": "0019_melted_scalphunter",
+      "breakpoints": true
     }
   ]
 }

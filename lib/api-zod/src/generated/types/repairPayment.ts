@@ -19,5 +19,9 @@ export interface RepairPayment {
   recordedByName?: string;
   receivedById?: string;
   receivedByName?: string;
+  voidedAt?: string;
+  voidedById?: string;
+  voidedByName?: string;
+  voidReason?: string;
   createdAt: string;
 }

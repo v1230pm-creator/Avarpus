@@ -72,6 +72,8 @@ import type {
   Message,
   OtpRequestInput,
   OtpVerifyInput,
+  PaymentsList200,
+  PaymentsListParams,
   PurchaseInput,
   PurchasesCreate200,
   PurchasesList200,
@@ -97,6 +99,8 @@ import type {
   RepairPartsAdd200,
   RepairPartsList200,
   RepairPaymentInput,
+  RepairPaymentVoid200,
+  RepairPaymentVoidInput,
   RepairPaymentsCreate200,
   RepairPaymentsList200,
   RepairPhotoInput,
@@ -3113,6 +3117,164 @@ export const useRepairPaymentsCreate = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getRepairPaymentsCreateMutationOptions(options));
     }
+
+export const getRepairPaymentVoidUrl = (id: string,
+    paymentId: string,) => {
+
+
+
+
+  return `/api/repairs/${id}/payments/${paymentId}/void`
+}
+
+/**
+ * @summary Void/reverse a payment (dealer/owner only, audit-preserving)
+ */
+export const repairPaymentVoid = async (id: string,
+    paymentId: string,
+    repairPaymentVoidInput: RepairPaymentVoidInput, options?: Parameters<typeof customFetch>[1]): Promise<RepairPaymentVoid200> => {
+
+  return customFetch<RepairPaymentVoid200>(getRepairPaymentVoidUrl(id,paymentId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(repairPaymentVoidInput)
+  }
+);}
+
+
+
+
+
+export const getRepairPaymentVoidMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repairPaymentVoid>>, TError,{id: string;paymentId: string;data: BodyType<RepairPaymentVoidInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof repairPaymentVoid>>, TError,{id: string;paymentId: string;data: BodyType<RepairPaymentVoidInput>}, TContext> => {
+
+const mutationKey = ['repairPaymentVoid'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof repairPaymentVoid>>, {id: string;paymentId: string;data: BodyType<RepairPaymentVoidInput>}> = (props) => {
+          const {id,paymentId,data} = props ?? {};
+
+          return  repairPaymentVoid(id,paymentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RepairPaymentVoidMutationResult = NonNullable<Awaited<ReturnType<typeof repairPaymentVoid>>>
+    export type RepairPaymentVoidMutationBody = BodyType<RepairPaymentVoidInput>
+    export type RepairPaymentVoidMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Void/reverse a payment (dealer/owner only, audit-preserving)
+ */
+export const useRepairPaymentVoid = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repairPaymentVoid>>, TError,{id: string;paymentId: string;data: BodyType<RepairPaymentVoidInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof repairPaymentVoid>>,
+        TError,
+        {id: string;paymentId: string;data: BodyType<RepairPaymentVoidInput>},
+        TContext
+      > => {
+      return useMutation(getRepairPaymentVoidMutationOptions(options));
+    }
+
+export const getPaymentsListUrl = (params?: PaymentsListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/payments?${stringifiedParams}` : `/api/payments`
+}
+
+/**
+ * @summary Shop-wide payment ledger with method totals (finance roles only)
+ */
+export const paymentsList = async (params?: PaymentsListParams, options?: Parameters<typeof customFetch>[1]): Promise<PaymentsList200> => {
+
+  return customFetch<PaymentsList200>(getPaymentsListUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getPaymentsListQueryKey = (params?: PaymentsListParams,) => {
+    return [
+    `/api/payments`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getPaymentsListQueryOptions = <TData = Awaited<ReturnType<typeof paymentsList>>, TError = ErrorType<unknown>>(params?: PaymentsListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof paymentsList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPaymentsListQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof paymentsList>>> = ({ signal }) => paymentsList(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof paymentsList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type PaymentsListQueryResult = NonNullable<Awaited<ReturnType<typeof paymentsList>>>
+export type PaymentsListQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Shop-wide payment ledger with method totals (finance roles only)
+ */
+
+export function usePaymentsList<TData = Awaited<ReturnType<typeof paymentsList>>, TError = ErrorType<unknown>>(
+ params?: PaymentsListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof paymentsList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getPaymentsListQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getRepairAssignTechnicianUrl = (id: string,) => {
 

@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import {
   db,
   repairsTable,
@@ -14,7 +14,7 @@ import {
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-export const PAYMENT_KINDS = ["advance", "partial", "final"] as const;
+export const PAYMENT_KINDS = ["advance", "partial", "final", "due"] as const;
 export type PaymentKind = (typeof PAYMENT_KINDS)[number];
 
 export interface RecordPaymentInput {
@@ -78,15 +78,7 @@ export async function recordPayment(
     })
     .returning();
 
-  // Recompute the cached advance sum from the ledger (never increment).
-  const [{ newTotal }] = await tx
-    .select({ newTotal: sql<number>`coalesce(sum(${repairPaymentsTable.amount}), 0)::float` })
-    .from(repairPaymentsTable)
-    .where(and(eq(repairPaymentsTable.repairId, repairId), eq(repairPaymentsTable.shopId, shopId)));
-  await tx
-    .update(repairsTable)
-    .set({ advance: newTotal })
-    .where(and(eq(repairsTable.id, repairId), eq(repairsTable.shopId, shopId)));
+  await recomputeAdvance(tx, shopId, repairId);
 
   // Book the income in finance.
   await tx.insert(financeEntriesTable).values({
@@ -98,6 +90,86 @@ export async function recordPayment(
     paymentMethod: method,
     date: financeDate ?? todayStr(),
     isSample,
+  });
+
+  return row;
+}
+
+/**
+ * Recompute the cached `repairs.advance` from the ledger, excluding voided
+ * payments (never increment — always a full recompute).
+ */
+export async function recomputeAdvance(tx: Tx, shopId: string, repairId: string): Promise<number> {
+  const [{ newTotal }] = await tx
+    .select({ newTotal: sql<number>`coalesce(sum(${repairPaymentsTable.amount}), 0)::float` })
+    .from(repairPaymentsTable)
+    .where(
+      and(
+        eq(repairPaymentsTable.repairId, repairId),
+        eq(repairPaymentsTable.shopId, shopId),
+        isNull(repairPaymentsTable.voidedAt),
+      ),
+    );
+  await tx
+    .update(repairsTable)
+    .set({ advance: newTotal })
+    .where(and(eq(repairsTable.id, repairId), eq(repairsTable.shopId, shopId)));
+  return newTotal;
+}
+
+export interface VoidPaymentInput {
+  shopId: string;
+  repairId: string;
+  paymentId: string;
+  reason: string;
+  voidedById: string;
+  voidedByName: string;
+}
+
+/**
+ * Void (reverse) a payment: the row stays visible forever, is flagged with the
+ * audit fields, drops out of every sum, and a matching finance expense entry
+ * ("Payment Reversal") offsets the original income so the books balance.
+ * Caller must have locked the repair. Returns the updated row, or a string
+ * error code ("NOT_FOUND" | "ALREADY_VOIDED").
+ */
+export async function voidPayment(
+  tx: Tx,
+  input: VoidPaymentInput,
+): Promise<typeof repairPaymentsTable.$inferSelect | "NOT_FOUND" | "ALREADY_VOIDED"> {
+  const { shopId, repairId, paymentId, reason, voidedById, voidedByName } = input;
+  const [existing] = await tx
+    .select()
+    .from(repairPaymentsTable)
+    .where(
+      and(
+        eq(repairPaymentsTable.id, paymentId),
+        eq(repairPaymentsTable.repairId, repairId),
+        eq(repairPaymentsTable.shopId, shopId),
+      ),
+    )
+    .for("update");
+  if (!existing) return "NOT_FOUND";
+  if (existing.voidedAt) return "ALREADY_VOIDED";
+
+  const [row] = await tx
+    .update(repairPaymentsTable)
+    .set({ voidedAt: new Date(), voidedById, voidedByName, voidReason: reason })
+    .where(eq(repairPaymentsTable.id, paymentId))
+    .returning();
+
+  await recomputeAdvance(tx, shopId, repairId);
+
+  // Offset the original income — never delete financial records.
+  await tx.insert(financeEntriesTable).values({
+    shopId,
+    type: "expense",
+    category: "Payment Reversal",
+    amount: existing.amount,
+    description: `Voided ${existing.kind} payment of ₹${existing.amount} (${existing.method}) — ${reason}`,
+    paymentMethod: existing.method,
+    date: todayStr(),
+    isSample: existing.isSample,
   });
 
   return row;

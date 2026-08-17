@@ -1,0 +1,695 @@
+VMC ELECTRONIC BMS — FULL PAYMENT SYSTEM UPDATE
+
+IMPORTANT:
+Do NOT create any test screen, demo screen, diagnostic screen, mock screen, placeholder screen, or separate prototype.
+
+Do NOT only modify one repair screen or staff login.
+
+Implement this as a REAL production feature across the EXISTING application and EXISTING database.
+
+First inspect the complete existing codebase, database schema, authentication/roles, repair workflow, customer profiles, dealer profiles, payment records, invoices/job cards, and all existing payment-related components.
+
+Do not ask me questions.
+Make the required implementation decisions yourself.
+If you find an existing implementation that conflicts with this specification, directly fix/replace it.
+
+==================================================
+1. CORE PAYMENT PRINCIPLE
+==================================================
+
+Separate these two concepts completely:
+
+A. REPAIR ESTIMATE
+B. FINAL BILL
+
+The estimate entered when receiving a phone MUST NOT automatically become the final bill.
+
+Payment flow must be:
+
+RECEIVED
+→ ESTIMATE
+→ OPTIONAL ADVANCE
+→ REPAIR
+→ FINAL BILL
+→ PAYMENT
+→ PARTIAL / PAID / DUE
+→ LATER PAYMENT
+→ POSSIBLE REFUND / ADJUSTMENT
+
+All steps must remain synchronized with the existing repair timeline.
+
+==================================================
+2. RECEIVE PHONE — ESTIMATE ONLY
+==================================================
+
+When receiving a phone:
+
+Show:
+
+Estimated Repair Cost
+Optional Advance Payment
+
+Example:
+
+Estimated Cost: ₹1,200
+Advance Paid: ₹500
+Estimated Balance: ₹700
+
+IMPORTANT:
+
+The estimated amount is NOT the final bill.
+
+Staff/dealer/technician must not be forced to collect the estimated amount.
+
+If no advance is paid:
+
+Estimated Cost: ₹1,200
+Advance: ₹0
+
+Do not create a final payment against the estimate.
+
+==================================================
+3. REPAIR COMPLETION — FINAL BILL
+==================================================
+
+When repair is completed, provide a REAL "Final Bill / Charges" section.
+
+Fields:
+
+Parts Cost
+Labour Cost
+Other Charges
+Discount
+Tax (if applicable)
+Final Bill
+
+Example:
+
+Parts: ₹900
+Labour: ₹400
+Other: ₹100
+Discount: ₹0
+
+FINAL BILL = ₹1,400
+
+Then automatically calculate:
+
+Final Bill ₹1,400
+Advance Paid ₹500
+BALANCE DUE ₹900
+
+Do NOT manually make staff calculate this.
+
+==================================================
+4. PAYMENT COLLECTION
+==================================================
+
+Add a clean premium "Collect Payment" action.
+
+Payment modal/screen:
+
+Amount
+Payment Method
+Payment Type
+Note / Reference
+
+Payment methods:
+
+Cash
+UPI
+Card
+Bank Transfer
+Other
+
+Payment types:
+
+Advance
+Partial
+Final
+Due Payment
+Refund
+
+The interface must remain simple and mobile-friendly.
+
+Do not overload the user with unnecessary fields.
+
+==================================================
+5. PAYMENT STATUS
+==================================================
+
+Automatically calculate payment status.
+
+Only use these primary statuses:
+
+UNPAID
+PARTIAL
+PAID
+OVERPAID / CREDIT
+REFUNDED
+
+Also show:
+
+OUTSTANDING / DUE AMOUNT
+
+Examples:
+
+Final Bill ₹1,500
+Paid ₹0
+Due ₹1,500
+Status: UNPAID
+
+Final Bill ₹1,500
+Paid ₹1,000
+Due ₹500
+Status: PARTIAL
+
+Final Bill ₹1,500
+Paid ₹1,500
+Due ₹0
+Status: PAID
+
+==================================================
+6. LATER PAYMENT / OUTSTANDING
+==================================================
+
+A customer or dealer may pay later.
+
+This MUST be supported.
+
+Example:
+
+Final Bill: ₹1,500
+Paid today: ₹1,000
+Outstanding: ₹500
+
+Later:
+
+Collect Payment
+Amount: ₹500
+Method: UPI
+Type: Due Payment
+
+System automatically changes:
+
+Outstanding: ₹0
+Status: PAID
+
+Every payment must remain in the transaction history.
+
+NEVER delete old payment transactions.
+
+==================================================
+7. CUSTOMER LEDGER
+==================================================
+
+Every customer profile must have a payment/ledger section.
+
+Show:
+
+Total Bills
+Total Paid
+Total Due
+Total Refund
+Current Outstanding
+
+Also show individual repair/payment history.
+
+Example:
+
+VMC-001
+Bill ₹1,500
+Paid ₹1,000
+Due ₹500
+
+VMC-008
+Bill ₹2,000
+Paid ₹2,000
+Due ₹0
+
+Total Outstanding: ₹500
+
+==================================================
+8. DEALER CREDIT LEDGER
+==================================================
+
+This feature MUST also work for DEALERS.
+
+Do NOT restrict it to staff.
+
+Every dealer profile must show:
+
+Total Repair Value
+Total Paid
+Total Outstanding
+Total Refund
+Credit/Advance Balance
+
+Example:
+
+DEALER: DLR-001
+
+Opening Due: ₹2,000
+
+Repair VMC-025: +₹1,500
+Repair VMC-031: +₹800
+Payment: -₹2,000
+
+CURRENT OUTSTANDING: ₹2,300
+
+Dealer should be able to see their own repair/payment information according to their permissions.
+
+VMC admin/staff should be able to see the complete dealer ledger according to role permissions.
+
+==================================================
+9. PAYMENT HISTORY
+==================================================
+
+Every payment transaction must permanently record:
+
+Transaction ID
+Repair ID
+Customer ID
+Dealer ID if applicable
+Amount
+Payment Method
+Payment Type
+Date
+Time
+Created By
+Role
+Note / Reference
+
+Example:
+
+PAY-000125
+VMC-001
+₹500
+UPI
+Due Payment
+17 Aug 2026
+12:45 PM
+Staff-003
+
+==================================================
+10. NEVER DELETE FINANCIAL RECORDS
+==================================================
+
+There must be NO normal delete button for completed financial transactions.
+
+If a payment is entered incorrectly:
+
+Use:
+
+REVERSE / VOID PAYMENT
+
+The original transaction remains visible.
+
+Create a reversal/audit record.
+
+Show:
+
+Original Payment
+Reversed By
+Reason
+Date/Time
+
+This is essential for accounting integrity.
+
+==================================================
+11. REFUND SYSTEM
+==================================================
+
+Because repaired phones can sometimes return after 5–10 days, implement REAL refund support.
+
+From the repair/payment section:
+
+"Process Refund"
+
+Allow:
+
+Full Refund
+Partial Refund
+
+Example:
+
+Final Bill: ₹1,500
+Paid: ₹1,500
+
+Customer returns after repair.
+
+Refund:
+₹1,500
+
+System updates the financial state correctly.
+
+For partial refund:
+
+Paid: ₹1,500
+Refund: ₹500
+Net Paid: ₹1,000
+
+Refund must include:
+
+Refund Amount
+Refund Method
+Reason
+Processed By
+Approved By (according to role)
+Date/Time
+
+==================================================
+12. AFTER-SALE RETURN / REPAIR RETURN
+==================================================
+
+Integrate refunds with the existing:
+
+"After Sale Service / Return" workflow.
+
+When a repaired phone returns:
+
+Do NOT create a completely unrelated repair record unless required.
+
+Link it to the original Repair ID.
+
+Show:
+
+Original Repair
+Original Bill
+Original Payment
+Return Date
+Return Reason
+Warranty/Service condition
+Refund/Adjustment
+New repair action if required
+
+Maintain the complete history.
+
+==================================================
+13. PAYMENT SUMMARY CARD
+==================================================
+
+On the repair detail screen, add a compact premium payment summary.
+
+Example:
+
+PAYMENT SUMMARY
+
+FINAL BILL        ₹1,500
+PAID              ₹1,000
+DUE                 ₹500
+
+[ + Collect Payment ]
+
+If fully paid:
+
+FINAL BILL        ₹1,500
+PAID              ₹1,500
+DUE                   ₹0
+
+[ PAID ✓ ]
+
+Keep this visually clean.
+
+==================================================
+14. ROLE SUPPORT
+==================================================
+
+This payment system must NOT be staff-only.
+
+It must work across the complete application for:
+
+SUPER ADMIN
+ADMIN
+SHOP OWNER
+DEALER
+STAFF
+TECHNICIAN
+
+Respect the existing permission system.
+
+Do NOT give every role unlimited financial permissions.
+
+For example:
+
+Technician:
+- View relevant payment status
+- Cannot modify final financial records unless existing permissions allow it
+
+Staff:
+- Collect payment
+- Record payment
+- View allowed customer/dealer ledger
+
+Dealer:
+- View their own repairs
+- View their own bills
+- View paid/due amounts
+- Make/record permitted payments according to existing system design
+
+Admin/Owner:
+- Full financial visibility
+- Refund approval
+- Reversal/void
+- Ledger management
+
+Use the existing role/permission architecture instead of creating a second permission system.
+
+==================================================
+15. DEALER AUTO-DETECTION
+==================================================
+
+Preserve the existing dealer auto-detection feature.
+
+If a customer's mobile number matches a registered dealer account:
+
+Automatically show:
+
+DEALER ACCOUNT DETECTED
+
+Dealer ID
+Dealer Name
+Dealer Mobile
+
+Automatically link the repair to that dealer.
+
+Then:
+
+The repair appears in the dealer's repair history.
+The final bill appears in the dealer ledger.
+Payments affect the dealer balance.
+Refunds/adjustments affect the dealer balance.
+
+Do NOT require staff to manually select the dealer again if the system has already confidently detected the registered dealer.
+
+Allow "Remove dealer link" if the user has permission.
+
+==================================================
+16. REPAIR TIMELINE INTEGRATION
+==================================================
+
+Keep the existing repair workflow:
+
+1. RECEIVED
+2. REPAIR
+3. DELIVERED
+4. AFTER-SALE SERVICE
+
+Payment must synchronize with these stages.
+
+RECEIVED:
+Estimate + optional advance
+
+REPAIR:
+Parts/labour/charges update
+
+DELIVERED:
+Final bill + payment + due amount + delivery confirmation
+
+AFTER-SALE SERVICE:
+Return/repair/refund/adjustment
+
+Do not create a separate confusing payment workflow outside the repair timeline.
+
+==================================================
+17. DELIVERY
+==================================================
+
+Before marking a repair as Delivered:
+
+Show the final financial summary:
+
+Final Bill
+Advance
+Total Paid
+Outstanding Due
+
+If payment is pending, allow delivery according to existing business permissions.
+
+Do NOT force payment if the business allows credit/due.
+
+If delivered with outstanding balance:
+
+Clearly show:
+
+DELIVERED
+₹500 OUTSTANDING
+
+The customer/dealer ledger must update automatically.
+
+==================================================
+18. UI/UX REQUIREMENTS
+==================================================
+
+IMPORTANT:
+
+Use the EXISTING VMC Electronic BMS premium dark navy/blue visual language.
+
+Do NOT introduce a different design language.
+
+Use the same:
+
+Background
+Cards
+Borders
+Radius
+Typography
+Spacing
+Blue accent
+Status colors
+Icons
+Bottom navigation
+Buttons
+
+Keep the interface premium, clean and simple.
+
+Payment screen should look like a native part of the current VMC application.
+
+Do NOT make it look like an accounting software from a different company.
+
+Mobile-first.
+
+Minimum unnecessary typing.
+
+Large touch targets.
+
+Clear hierarchy.
+
+==================================================
+19. DATABASE / BACKEND
+==================================================
+
+Do NOT only change frontend UI.
+
+Implement the complete backend/database logic.
+
+Create/update the required models/tables for:
+
+Payments
+Payment Transactions
+Refunds
+Ledger entries
+Outstanding balances
+Payment references
+Audit/reversal records
+
+Use proper relationships with:
+
+Customer
+Dealer
+Repair
+User/Staff
+Invoice/Job Card
+
+Do not duplicate financial data unnecessarily.
+
+Outstanding balance should be calculated reliably from transaction history.
+
+Use server-side validation.
+
+Prevent duplicate payment submissions.
+
+Use atomic database transactions where required.
+
+==================================================
+20. EXISTING DATA SAFETY
+==================================================
+
+Do NOT delete existing:
+
+Customers
+Dealers
+Repairs
+Payments
+Repair history
+User accounts
+Inventory
+Invoices
+
+If schema migration is required, create a safe migration.
+
+Existing application data must continue working.
+
+==================================================
+21. REPORTS
+==================================================
+
+Integrate payment data into the existing Reports section.
+
+Add:
+
+Total Collection
+Total Due
+Total Refund
+Cash Collection
+UPI Collection
+Card Collection
+Bank Transfer
+Dealer Outstanding
+Customer Outstanding
+
+Allow date filtering.
+
+Do not create fake numbers.
+
+Use real production database data.
+
+==================================================
+22. FINAL IMPLEMENTATION RULE
+==================================================
+
+Do NOT simply tell me that the feature is implemented.
+
+Actually inspect the current application and implement it.
+
+After implementation:
+
+1. Check all existing payment components.
+2. Check all repair screens.
+3. Check customer profiles.
+4. Check dealer profiles.
+5. Check delivery workflow.
+6. Check after-sale return workflow.
+7. Check database relations.
+8. Check role permissions.
+9. Remove duplicate/conflicting payment logic.
+10. Make the new payment system work with REAL existing data.
+
+Do not create test screens.
+
+Do not create demo screens.
+
+Do not create placeholder buttons.
+
+Do not leave "coming soon".
+
+Every visible payment button must perform a real action.
+
+Most importantly:
+
+DO NOT ONLY PATCH THE STAFF APP.
+
+UPDATE THE FULL VMC ELECTRONIC BMS APPLICATION SO THAT CUSTOMER, DEALER, STAFF, TECHNICIAN, ADMIN AND SHOP OWNER WORKFLOWS REMAIN SYNCHRONIZED.
+
+Preserve the existing VMC UI/UX and improve it rather than creating a completely different application.
+
+After completing the implementation, verify that the existing app screens actually use the new payment logic and that changes are visible in the real production workflow.

@@ -41,7 +41,7 @@ import {
   requestUploadUrl, repairPhotosAdd, 
   useReturnsList, getReturnsListQueryKey,
   useRepairPartsList, getRepairPartsListQueryKey, repairPartsAdd,
-  useRepairPaymentsList, getRepairPaymentsListQueryKey, repairPaymentsCreate,
+  useRepairPaymentsList, getRepairPaymentsListQueryKey, repairPaymentsCreate, repairPaymentVoid,
   useStaffList, getStaffListQueryKey, repairAssignTechnician,
   useRepairTesting, repairTesting, useEstimateApprovalsList, getEstimateApprovalsListQueryKey, estimateApprovalsCreate,
   estimateApprovalsDecide, deliveryOtpSend, deliveryOtpVerify, repairNotifyReady, estimateApprovalsSendOtp,
@@ -137,6 +137,11 @@ export default function RepairDetailScreen() {
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [paymentKind, setPaymentKind] = useState('partial');
   const [paymentKindTouched, setPaymentKindTouched] = useState(false);
+  // One-shot confirmation that the user chose to deliver with an outstanding due.
+  const dueAcceptedRef = useRef(false);
+  const [voidTarget, setVoidTarget] = useState<{ id: string; amount: number; method: string } | null>(null);
+  const [voidReason, setVoidReason] = useState('');
+  const [voidSubmitting, setVoidSubmitting] = useState(false);
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentSuccess, setPaymentSuccess] = useState<{
@@ -241,7 +246,9 @@ export default function RepairDetailScreen() {
     );
   }
 
-  const balance = Math.max(0, repair.repairCharge + repair.partsCharge - repair.advance);
+  const balance = repair.balance !== undefined
+    ? Math.max(0, repair.balance)
+    : Math.max(0, repair.repairCharge + repair.partsCharge - repair.advance);
   const canUpdateStatus = canAccess('repairs_update') || (canAccess('repairs') && user?.role !== 'reception');
   const canSeeFinance = canAccess('finance') || user?.role === 'reception' || user?.role === 'dealer' || user?.role === 'super_admin';
   const isActiveRepair = repair.status !== 'delivered' && repair.status !== 'cancelled' && repair.status !== 'cannot_repair';
@@ -330,10 +337,36 @@ export default function RepairDetailScreen() {
   const paymentFormValid = paymentAmountValid && (!paymentReferenceRequired || paymentReference.trim().length > 0);
 
   const suggestPaymentKind = (amtStr: string) => {
+    if (repair.status === 'delivered') return 'due';
     const cents = parseAmountCents(amtStr);
     const clearsBalance = cents !== null && cents > 0 && payRemainingCents > 0 && cents >= payRemainingCents;
     if (clearsBalance) return 'final';
     return payPaid > 0 ? 'partial' : 'advance';
+  };
+
+  // Void/reverse a payment — dealer/owner only, reason required. The row is
+  // never removed; it stays struck through with the audit trail.
+  const handleVoidPayment = (pmt: { id: string; amount: number; method: string }) => {
+    setVoidReason('');
+    setVoidTarget(pmt);
+  };
+
+  const submitVoidPayment = async () => {
+    if (!voidTarget || voidSubmitting) return;
+    if (!voidReason.trim()) { Alert.alert('Reason Required', 'Void karne ke liye reason zaroori hai.'); return; }
+    setVoidSubmitting(true);
+    try {
+      await repairPaymentVoid(repair.id, voidTarget.id, { reason: voidReason.trim() });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      setVoidTarget(null);
+      await loadAll();
+      await paymentsRefetch();
+      queryClient.invalidateQueries();
+    } catch (e: any) {
+      Alert.alert('Void Failed', e.message || 'Could not void payment.');
+    } finally {
+      setVoidSubmitting(false);
+    }
   };
 
   const openPaymentModal = () => {
@@ -444,13 +477,27 @@ export default function RepairDetailScreen() {
     }
   };
 
-  // Delivery is allowed only after full payment. Central guard so every
-  // path into the handover/signature flow enforces the same rule.
+  // Delivery with an outstanding balance is allowed, but only after the user
+  // explicitly accepts the due (credit) — central guard so every path into the
+  // handover/signature flow enforces the same confirmation.
   const deliveryPaymentBlocked = () => {
-    if (payRemainingCents > 0) {
+    if (payRemainingCents > 0 && !dueAcceptedRef.current) {
       setShowDeliveryHandover(false);
       setShowDeliverySig(false);
-      Alert.alert('Payment Pending', `Delivery se pehle poora payment collect karein. ${formatCurrency(payRemaining)} abhi baaki hai.`);
+      Alert.alert(
+        'Payment Pending',
+        `${formatCurrency(payRemaining)} abhi baaki hai. Poora collect karein ya due par deliver karein (due customer ke ledger mein rahega).`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Due par Deliver',
+            onPress: () => {
+              dueAcceptedRef.current = true;
+              setTimeout(() => setShowDeliveryHandover(true), 350);
+            },
+          },
+        ],
+      );
       return true;
     }
     return false;
@@ -497,6 +544,7 @@ export default function RepairDetailScreen() {
     } finally {
       setUpdating(false);
       setShowDeliverySig(false);
+      dueAcceptedRef.current = false;
     }
   };
 
@@ -1317,8 +1365,26 @@ export default function RepairDetailScreen() {
                 </View>
               )}
               <Text style={{ fontSize: 12, color: colors.mutedForeground, textAlign: 'center', marginTop: 6, fontFamily: 'Inter_400Regular' }}>
-                Delivery tabhi hogi jab poora payment collect ho jaye ({formatCurrency(payRemaining)} baaki hai)
+                {formatCurrency(payRemaining)} baaki hai — poora collect karein ya due par deliver karein
               </Text>
+              {canUpdateStatus && (
+                <View style={{ marginTop: 8 }}>
+                  <Button
+                    title={`Deliver with Due (${formatCurrency(payRemaining)})`}
+                    variant="outline"
+                    onPress={() => {
+                      Alert.alert(
+                        'Deliver with Due',
+                        `${formatCurrency(payRemaining)} due rahega aur customer ke ledger mein dikhega. Device deliver karein?`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Haan, Deliver Karein', onPress: () => { dueAcceptedRef.current = true; setShowDeliveryHandover(true); } },
+                        ],
+                      );
+                    }}
+                  />
+                </View>
+              )}
             </View>
           ) : (
             <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -1532,6 +1598,40 @@ export default function RepairDetailScreen() {
               )}
             </Card>
 
+            {/* Payment Summary (finance only) */}
+            {canSeeFinance && (
+              <Card>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>PAYMENT SUMMARY</Text>
+                  {(() => {
+                    const ps = (repair as any).paymentStatus as string | undefined;
+                    const label = ps === 'paid' ? 'PAID' : ps === 'partial' ? 'PARTIAL' : ps === 'overpaid' ? 'OVERPAID' : 'UNPAID';
+                    const c = ps === 'paid' ? colors.success : ps === 'partial' ? colors.warning : ps === 'overpaid' ? colors.primary : colors.destructive;
+                    return (
+                      <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: c + '1E', borderWidth: 1, borderColor: c + '55' }}>
+                        <Text style={{ fontSize: 11, color: c, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 }}>{label}</Text>
+                      </View>
+                    );
+                  })()}
+                </View>
+                {(repair as any).estimatedCost !== undefined && (repair as any).estimatedCost !== null && (
+                  <InfoRow label="Estimate (Intake)" value={formatCurrency((repair as any).estimatedCost)} />
+                )}
+                <InfoRow label="Final Bill" value={formatCurrency(payTotal)} bold />
+                <InfoRow label="Paid" value={formatCurrency(payPaid)} color={colors.success} />
+                <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+                <View style={styles.infoRow}>
+                  <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Due</Text>
+                  <Text style={{ fontSize: 18, color: payRemaining > 0 ? colors.warning : colors.success, fontFamily: 'Inter_700Bold' }}>{formatCurrency(payRemaining)}</Text>
+                </View>
+                {payRemaining > 0 && (
+                  <View style={{ marginTop: 10 }}>
+                    <Button title="Collect Payment" onPress={openPaymentModal} />
+                  </View>
+                )}
+              </Card>
+            )}
+
             {/* Charge breakdown (finance only) */}
             {canSeeFinance && (
               <Card>
@@ -1551,23 +1651,39 @@ export default function RepairDetailScreen() {
             {canSeeFinance && (payments.length > 0 || visibleRefunds.length > 0) && (
               <Card>
                 <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 16 }]}>PAYMENT HISTORY</Text>
-                {payments.map(pmt => (
-                  <View key={pmt.id} style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
-                    <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                {payments.map(pmt => {
+                  const voided = !!(pmt as any).voidedAt;
+                  return (
+                  <View key={pmt.id} style={{ flexDirection: 'row', gap: 12, marginBottom: 12, opacity: voided ? 0.55 : 1 }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: colors.card, borderWidth: 1, borderColor: voided ? colors.destructive + '55' : colors.border, alignItems: 'center', justifyContent: 'center' }}>
                       <Text style={{ fontSize: 10, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{pmt.method === 'UPI' ? 'UPI' : pmt.method === 'Cash' ? 'Cash' : 'Card'}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 4 }}>
-                        <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(pmt.amount)}</Text>
+                        <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold', textDecorationLine: voided ? 'line-through' : 'none' }}>{formatCurrency(pmt.amount)}</Text>
                         <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{pmt.method}</Text>
                         <Text style={{ fontSize: 10, color: colors.primary, backgroundColor: colors.primary + '22', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>{pmt.kind}</Text>
+                        {voided && (
+                          <Text style={{ fontSize: 10, color: colors.destructive, backgroundColor: colors.destructive + '22', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>VOIDED</Text>
+                        )}
                       </View>
                       <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{formatDate(pmt.createdAt)}</Text>
                       {pmt.referenceNo ? <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Txn ID: {pmt.referenceNo}</Text> : null}
                       <Text style={{ fontSize: 11, color: colors.mutedForeground }}>By: {pmt.receivedByName || pmt.recordedByName || 'Staff'}</Text>
+                      {voided && (
+                        <Text style={{ fontSize: 11, color: colors.destructive }}>
+                          Voided by {(pmt as any).voidedByName || 'Owner'}: {(pmt as any).voidReason || ''}
+                        </Text>
+                      )}
                     </View>
+                    {isDealer && !voided && (
+                      <TouchableOpacity onPress={() => handleVoidPayment({ id: pmt.id, amount: pmt.amount, method: pmt.method })} style={{ alignSelf: 'center', padding: 6 }}>
+                        <Feather name="rotate-ccw" size={16} color={colors.destructive} />
+                      </TouchableOpacity>
+                    )}
                   </View>
-                ))}
+                  );
+                })}
                 {visibleRefunds.map(rf => (
                   <View key={rf.id} style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
                     <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: colors.destructive + '15', borderWidth: 1, borderColor: colors.destructive + '33', alignItems: 'center', justifyContent: 'center' }}>
@@ -1988,7 +2104,7 @@ export default function RepairDetailScreen() {
 
                 <Text style={[styles.label, { color: colors.foreground }]}>Payment Type</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
-                  {['advance', 'partial', 'final'].map(k => (
+                  {(repair.status === 'delivered' ? ['due', 'partial', 'final'] : ['advance', 'partial', 'final']).map(k => (
                     <TouchableOpacity key={k} onPress={() => { setPaymentKind(k); setPaymentKindTouched(true); }} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: paymentKind === k ? colors.primary : colors.card, borderWidth: 1, borderColor: paymentKind === k ? colors.primary : colors.border }}>
                       <Text style={{ color: paymentKind === k ? '#FFF' : colors.foreground, textTransform: 'capitalize' }}>{k}</Text>
                     </TouchableOpacity>
@@ -2010,7 +2126,7 @@ export default function RepairDetailScreen() {
 
                 {/* Real-time totals (real data) */}
                 <View collapsable={false} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, marginTop: 10, backgroundColor: colors.card }}>
-                  <InfoRow label="Total Estimate" value={formatCurrency(payTotal)} />
+                  <InfoRow label="Final Bill" value={formatCurrency(payTotal)} />
                   <InfoRow label="Received Till Now" value={formatCurrency(payPaid)} color={colors.success} />
                   <View style={[styles.divider, { backgroundColor: colors.border }]} />
                   <View style={styles.infoRow}>
@@ -2175,6 +2291,35 @@ export default function RepairDetailScreen() {
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
               <Button title="Cancel" variant="outline" onPress={() => setShowFinancialEdit(false)} style={{ flex: 1 }} />
               <Button title="Save" onPress={handleSaveFinancials} loading={updating} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </KeyboardAvoidingCompat>
+      </Modal>
+
+      {/* Void Payment Modal (dealer/owner) */}
+      <Modal visible={!!voidTarget} animationType="fade" transparent>
+        <KeyboardAvoidingCompat style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Void Payment</Text>
+            {voidTarget && (
+              <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 12, fontFamily: 'Inter_400Regular' }}>
+                {formatCurrency(voidTarget.amount)} ({voidTarget.method}) reverse hoga. Record delete nahi hota — ledger mein VOIDED mark hoke hamesha dikhega, aur finance mein reversal entry banegi.
+              </Text>
+            )}
+            <Text style={[styles.label, { color: colors.foreground }]}>Reason <Text style={{ color: colors.destructive }}>*</Text></Text>
+            <View collapsable={false}>
+              <TextInput
+                value={voidReason}
+                onChangeText={setVoidReason}
+                maxLength={120}
+                placeholder="Galat entry / wrong amount / duplicate..."
+                placeholderTextColor={colors.mutedForeground}
+                style={[styles.input, { color: colors.foreground, borderColor: colors.border }]}
+              />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <Button title="Cancel" variant="outline" onPress={() => setVoidTarget(null)} style={{ flex: 1 }} />
+              <Button title="Void Karein" onPress={submitVoidPayment} loading={voidSubmitting} disabled={!voidReason.trim()} style={{ flex: 1 }} />
             </View>
           </View>
         </KeyboardAvoidingCompat>

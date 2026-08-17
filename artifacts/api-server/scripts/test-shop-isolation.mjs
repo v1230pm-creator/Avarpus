@@ -287,6 +287,14 @@ async function run(A, B) {
   });
   check("shop B POST refund on shop A return -> 404", xrefund.status === 404, xrefund);
 
+  // Refund caps are now based on actual non-voided payments, so pay first.
+  const payForRefund = await api("POST", `/repairs/${repA}/payments`, A.token, {
+    amount: 200,
+    method: "Cash",
+    kind: "partial",
+  });
+  check("shop A records payment before refund", payForRefund.status === 200, payForRefund);
+
   // Shop A (dealer) requests a refund — auto-approved for dealers.
   const ref = await api("POST", `/returns/${retA}/refunds`, A.token, {
     amount: 100,

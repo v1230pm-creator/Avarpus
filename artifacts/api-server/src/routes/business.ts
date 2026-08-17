@@ -24,7 +24,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { sha256, generateOtpCode } from "../lib/authUtils";
 import { sendOtpEmail } from "../lib/mailer";
-import { recordPayment, PAYMENT_KINDS } from "../lib/repairPayments";
+import { recordPayment, voidPayment, PAYMENT_KINDS } from "../lib/repairPayments";
 import { isDealerPortalRole } from "../lib/dealerPortal";
 import type { Request, Response } from "express";
 
@@ -242,7 +242,9 @@ async function syncCustomerStats(
   const [stats] = await tx
     .select({
       total: sql<number>`count(*) filter (where ${repairsTable.status} <> 'cancelled')::int`,
-      due: sql<number>`coalesce(sum(greatest(${repairsTable.repairCharge} + ${repairsTable.partsCharge} - ${repairsTable.advance}, 0)) filter (where ${repairsTable.status} = 'delivered'), 0)::float`,
+      // Full bill (labour + parts + service + other − discount, plus tax) minus
+      // payments — same formula as computeTotals, kept in SQL.
+      due: sql<number>`coalesce(sum(greatest(round((greatest(${repairsTable.repairCharge} + ${repairsTable.partsCharge} + ${repairsTable.serviceCharge} + ${repairsTable.otherCharge} - ${repairsTable.discount}, 0) * (1 + ${repairsTable.taxPercent} / 100) - ${repairsTable.advance})::numeric, 2)::float, 0)) filter (where ${repairsTable.status} = 'delivered'), 0)::float`,
     })
     .from(repairsTable)
     .where(and(eq(repairsTable.shopId, shopId), eq(repairsTable.customerId, customerId)));
@@ -297,6 +299,18 @@ function computeTotals(r: {
   return { subtotal, tax, totalAmount, paidAmount, balance };
 }
 
+// Derived payment status from the bill total and net paid amount (both in ₹).
+// unpaid | partial | paid | overpaid; refund state is carried by the refunds
+// rows themselves, not collapsed into this.
+function paymentStatusOf(totalAmount: number, paidAmount: number): string {
+  const total = Math.round(totalAmount * 100);
+  const paid = Math.round(paidAmount * 100);
+  if (paid <= 0) return "unpaid";
+  if (paid < total) return "partial";
+  if (paid === total) return "paid";
+  return "overpaid";
+}
+
 // An object path may only be attached if it lives in the caller's shop
 // namespace (uploads are issued under /objects/uploads/<shopId>/...).
 function ownedObjectPath(shopId: string, v: unknown): string | null {
@@ -342,6 +356,7 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
     assignedAt: r.assignedAt ? iso(r.assignedAt) : undefined,
     status: r.status,
     priority: r.priority,
+    estimatedCost: r.estimatedCost ?? undefined,
     repairCharge: r.repairCharge,
     partsCharge: r.partsCharge,
     serviceCharge: r.serviceCharge,
@@ -381,7 +396,12 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
     createdAt: iso(r.createdAt),
     ...(() => {
       const t = computeTotals(r);
-      return { totalAmount: t.totalAmount, paidAmount: t.paidAmount, balance: t.balance };
+      return {
+        totalAmount: t.totalAmount,
+        paidAmount: t.paidAmount,
+        balance: t.balance,
+        paymentStatus: paymentStatusOf(t.totalAmount, t.paidAmount),
+      };
     })(),
   };
 }
@@ -557,6 +577,9 @@ router.post(
 
     // Charge fields + validation.
     const repairCharge = Math.max(num(b.repairCharge), 0);
+    // Intake estimate snapshot — separate from the final bill. Defaults to the
+    // quoted labour estimate when the client doesn't send it explicitly.
+    const estimatedCost = b.estimatedCost !== undefined ? Math.max(num(b.estimatedCost), 0) : repairCharge;
     const partsCharge = Math.max(num(b.partsCharge), 0);
     const serviceCharge = Math.max(num(b.serviceCharge), 0);
     const otherCharge = Math.max(num(b.otherCharge), 0);
@@ -697,6 +720,7 @@ router.post(
           // active technician). Any client-supplied technicianId is ignored.
           status,
           priority,
+          estimatedCost,
           repairCharge,
           partsCharge,
           serviceCharge,
@@ -1550,6 +1574,10 @@ function paymentOut(p: typeof repairPaymentsTable.$inferSelect) {
     referenceNo: p.referenceNo ?? undefined,
     receivedById: p.receivedById ?? undefined,
     receivedByName: p.receivedByName ?? undefined,
+    voidedAt: p.voidedAt ? iso(p.voidedAt) : undefined,
+    voidedById: p.voidedById ?? undefined,
+    voidedByName: p.voidedByName ?? undefined,
+    voidReason: p.voidReason ?? undefined,
     createdAt: iso(p.createdAt),
   };
 }
@@ -1605,6 +1633,12 @@ router.post(
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
     const me = (req as AuthedRequest).user;
+    // Payment collection is a finance action — technicians (work-scoped) may
+    // not record money against repairs. Mirrors the client's finance gating.
+    if (!["dealer", "super_admin", "accountant", "reception"].includes(me.role)) {
+      res.status(403).json({ message: "You do not have permission to record payments", code: "FORBIDDEN" });
+      return;
+    }
     const b = req.body ?? {};
     const amount = num(b.amount, NaN);
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -1632,7 +1666,7 @@ router.post(
       if (!repair) return { error: { status: 404, message: "Repair not found" } };
       const { totalAmount } = computeTotals(repair);
       const [{ paidSoFar }] = await tx
-        .select({ paidSoFar: sql<number>`coalesce(sum(${repairPaymentsTable.amount}), 0)::float` })
+        .select({ paidSoFar: sql<number>`coalesce(sum(${repairPaymentsTable.amount}) filter (where ${repairPaymentsTable.voidedAt} is null), 0)::float` })
         .from(repairPaymentsTable)
         .where(and(eq(repairPaymentsTable.repairId, id), eq(repairPaymentsTable.shopId, shopId)));
       // Strict integer-paise comparison — no floating-point tolerance window
@@ -1674,6 +1708,123 @@ router.post(
       return;
     }
     res.json({ payment: paymentOut(result.row) });
+  }),
+);
+
+// Void / reverse a payment (dealer/super_admin only). The row is never
+// deleted: it stays in the ledger flagged with who voided it, when and why,
+// drops out of all sums, and an offsetting finance expense keeps the books
+// balanced.
+router.post(
+  "/repairs/:id/payments/:paymentId/void",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    if (!isPrivileged(req)) {
+      res.status(403).json({ message: "Dealer/Owner access required to void payments." });
+      return;
+    }
+    const me = (req as AuthedRequest).user;
+    const reason = str(req.body?.reason);
+    if (!reason) {
+      res.status(400).json({ message: "A reason is required to void a payment", code: "REASON_REQUIRED" });
+      return;
+    }
+    const id = String(req.params.id ?? "");
+    const paymentId = String(req.params.paymentId ?? "");
+
+    const result = await db.transaction(async (tx) => {
+      const [repair] = await tx
+        .select()
+        .from(repairsTable)
+        .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)))
+        .for("update");
+      if (!repair) return { error: { status: 404, message: "Repair not found" } };
+      const row = await voidPayment(tx, {
+        shopId,
+        repairId: id,
+        paymentId,
+        reason,
+        voidedById: me.id,
+        voidedByName: me.name,
+      });
+      if (row === "NOT_FOUND") return { error: { status: 404, message: "Payment not found" } };
+      if (row === "ALREADY_VOIDED")
+        return { error: { status: 409, message: "This payment is already voided", code: "ALREADY_VOIDED" } };
+      await logRepairEvent(tx, {
+        shopId,
+        repairId: id,
+        user: me,
+        action: "payment_voided",
+        details: { paymentId, amount: row.amount, method: row.method, kind: row.kind, reason },
+      });
+      if (repair.customerId) await syncCustomerStats(tx, shopId, repair.customerId);
+      return { row };
+    });
+    if ("error" in result && result.error) {
+      const err = result.error as { status: number; message: string; code?: string };
+      res.status(err.status).json({ message: err.message, ...(err.code ? { code: err.code } : {}) });
+      return;
+    }
+    res.json({ payment: paymentOut(result.row as typeof repairPaymentsTable.$inferSelect) });
+  }),
+);
+
+// Shop-wide payments listing for reports: finance-visible roles only.
+// Optional from/to (YYYY-MM-DD, on createdAt date) filters; returns rows plus
+// method-wise totals of non-voided payments.
+router.get(
+  "/payments",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    if (!["dealer", "super_admin", "accountant"].includes(me.role)) {
+      res.status(403).json({ message: "Finance access required." });
+      return;
+    }
+    const qstr = (k: string): string | null => {
+      const v = req.query[k];
+      return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v.trim()) ? v.trim() : null;
+    };
+    const from = qstr("from");
+    const to = qstr("to");
+    const conds: SQL[] = [eq(repairPaymentsTable.shopId, shopId)];
+    if (from) conds.push(sql`(${repairPaymentsTable.createdAt} at time zone 'UTC')::date >= ${from}`);
+    if (to) conds.push(sql`(${repairPaymentsTable.createdAt} at time zone 'UTC')::date <= ${to}`);
+
+    const rows = await db
+      .select({
+        payment: repairPaymentsTable,
+        repairTicket: repairsTable.repairId,
+        customerName: repairsTable.customerName,
+        dealerId: repairsTable.dealerId,
+        dealerName: repairsTable.dealerName,
+      })
+      .from(repairPaymentsTable)
+      .leftJoin(repairsTable, eq(repairsTable.id, repairPaymentsTable.repairId))
+      .where(and(...conds))
+      .orderBy(desc(repairPaymentsTable.createdAt));
+
+    const byMethod: Record<string, number> = {};
+    let total = 0;
+    for (const r of rows) {
+      if (r.payment.voidedAt) continue;
+      byMethod[r.payment.method] = Math.round(((byMethod[r.payment.method] ?? 0) + r.payment.amount) * 100) / 100;
+      total = Math.round((total + r.payment.amount) * 100) / 100;
+    }
+    res.json({
+      payments: rows.map((r) => ({
+        ...paymentOut(r.payment),
+        repairTicket: r.repairTicket ?? undefined,
+        customerName: r.customerName ?? undefined,
+        dealerId: r.dealerId ?? undefined,
+        dealerName: r.dealerName ?? undefined,
+      })),
+      totals: { total, byMethod },
+    });
   }),
 );
 
@@ -2307,7 +2458,7 @@ router.get(
       .from(repairReturnsTable)
       .where(and(eq(repairReturnsTable.shopId, shopId), eq(repairReturnsTable.customerId, customerId)));
     const [{ paymentsTotal }] = await db
-      .select({ paymentsTotal: sql<number>`coalesce(sum(${repairPaymentsTable.amount}), 0)::float` })
+      .select({ paymentsTotal: sql<number>`coalesce(sum(${repairPaymentsTable.amount}) filter (where ${repairPaymentsTable.voidedAt} is null), 0)::float` })
       .from(repairPaymentsTable)
       .where(and(eq(repairPaymentsTable.shopId, shopId), eq(repairPaymentsTable.customerId, customerId)));
     const [{ refundsTotal }] = await db

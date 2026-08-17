@@ -831,6 +831,65 @@ paths:
                 properties:
                   payment: { $ref: "#/components/schemas/RepairPayment" }
                 required: [payment]
+  /repairs/{id}/payments/{paymentId}/void:
+    post:
+      operationId: repairPaymentVoid
+      tags: [business]
+      summary: Void/reverse a payment (dealer/owner only, audit-preserving)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: paymentId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RepairPaymentVoidInput" }
+      responses:
+        "200":
+          description: The voided payment row
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payment: { $ref: "#/components/schemas/RepairPayment" }
+                required: [payment]
+  /payments:
+    get:
+      operationId: paymentsList
+      tags: [business]
+      summary: Shop-wide payment ledger with method totals (finance roles only)
+      parameters:
+        - { name: from, in: query, required: false, schema: { type: string } }
+        - { name: to, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: Payments (newest first) plus non-voided totals by method
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payments:
+                    type: array
+                    items:
+                      allOf:
+                        - { $ref: "#/components/schemas/RepairPayment" }
+                        - type: object
+                          properties:
+                            repairTicket: { type: string }
+                            customerName: { type: string }
+                            dealerId: { type: string }
+                            dealerName: { type: string }
+                  totals:
+                    type: object
+                    properties:
+                      total: { type: number }
+                      byMethod:
+                        type: object
+                        additionalProperties: { type: number }
+                    required: [total, byMethod]
+                required: [payments, totals]
   /repairs/{id}/assign:
     post:
       operationId: repairAssignTechnician
@@ -2023,6 +2082,8 @@ components:
         totalAmount: { type: number }
         paidAmount: { type: number }
         balance: { type: number }
+        estimatedCost: { type: number }
+        paymentStatus: { type: string, enum: [unpaid, partial, paid, overpaid] }
         testingChecklist:
           type: object
           additionalProperties: { type: boolean }
@@ -2091,6 +2152,7 @@ components:
         workPerformed: { type: string }
         status: { type: string }
         priority: { type: string }
+        estimatedCost: { type: number }
         repairCharge: { type: number }
         partsCharge: { type: number }
         serviceCharge: { type: number }
@@ -2138,13 +2200,17 @@ components:
         repairId: { type: string }
         amount: { type: number }
         method: { type: string }
-        kind: { type: string, enum: [advance, partial, final, refund] }
+        kind: { type: string, enum: [advance, partial, final, due, refund] }
         note: { type: string }
         referenceNo: { type: string }
         recordedById: { type: string }
         recordedByName: { type: string }
         receivedById: { type: string }
         receivedByName: { type: string }
+        voidedAt: { type: string }
+        voidedById: { type: string }
+        voidedByName: { type: string }
+        voidReason: { type: string }
         createdAt: { type: string }
       required: [id, repairId, amount, method, kind, createdAt]
     RepairPaymentInput:
@@ -2152,10 +2218,15 @@ components:
       properties:
         amount: { type: number }
         method: { type: string }
-        kind: { type: string, enum: [advance, partial, final, refund] }
+        kind: { type: string, enum: [advance, partial, final, due, refund] }
         note: { type: string }
         referenceNo: { type: string }
       required: [amount, method]
+    RepairPaymentVoidInput:
+      type: object
+      properties:
+        reason: { type: string }
+      required: [reason]
     RepairAssignInput:
       type: object
       properties:

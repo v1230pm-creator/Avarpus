@@ -192,7 +192,7 @@ async function executeApproved(
       if (p.advance !== undefined) {
         const requestedAdvance = num(p.advance);
         const [{ paidSoFar }] = await tx
-          .select({ paidSoFar: sql<number>`coalesce(sum(${repairPaymentsTable.amount}), 0)::float` })
+          .select({ paidSoFar: sql<number>`coalesce(sum(${repairPaymentsTable.amount}) filter (where ${repairPaymentsTable.voidedAt} is null), 0)::float` })
           .from(repairPaymentsTable)
           .where(
             and(eq(repairPaymentsTable.repairId, a.recordId), eq(repairPaymentsTable.shopId, a.shopId)),

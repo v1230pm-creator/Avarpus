@@ -41,7 +41,7 @@ import {
   PRIORITIES,
   PRIORITY_LABELS,
 } from '@/utils/helpers';
-import { requestUploadUrl, repairPhotosAdd, approvalsCreate, useDealersList, useDealersDetect } from '@workspace/api-client-react';
+import { requestUploadUrl, repairPhotosAdd, approvalsCreate, repairPaymentsCreate, useDealersList, useDealersDetect } from '@workspace/api-client-react';
 import { fetch as expoFetch } from 'expo/fetch';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { File as ExpoFile } from 'expo-file-system';
@@ -212,6 +212,8 @@ export default function NewRepairScreen() {
   const detectedDealer = autoDetected ? detectMatches.find((d) => d.id === dealerId) : undefined;
   const selectedDealer = dealersData?.dealers?.find((d) => d.id === dealerId) || detectedDealer || detectMatches.find((d) => d.id === dealerId);
   const [repairCharge, setRepairCharge] = useState('');
+  const [advancePaid, setAdvancePaid] = useState('');
+  const [advanceMethod, setAdvanceMethod] = useState('Cash');
   const [notes, setNotes] = useState('');
   const [warrantyDays, setWarrantyDays] = useState('0');
   const [receiveDate, setReceiveDate] = useState(getTodayStr());
@@ -322,6 +324,7 @@ export default function NewRepairScreen() {
         deviceCondition: deviceCondition.trim() || undefined,
         status: 'received', priority: priority as Repair['priority'],
         repairCharge: parseFloat(repairCharge) || 0, partsCharge: 0,
+        estimatedCost: parseFloat(repairCharge) || 0,
         expectedDate: expectedDate.trim(), notes: notes.trim() || undefined,
         checklist, warrantyDays: parseInt(warrantyDays, 10) || 0,
         // null = user explicitly removed a detected dealer (server must not
@@ -375,6 +378,7 @@ export default function NewRepairScreen() {
         problem: newRepair.problem,
         priority: newRepair.priority,
         repairCharge: newRepair.repairCharge,
+        estimatedCost: (newRepair as any).estimatedCost,
         expectedDate: newRepair.expectedDate || new Date().toISOString(),
         dealerId: dealerId ?? (dealerCleared ? null : undefined),
       };
@@ -414,6 +418,23 @@ export default function NewRepairScreen() {
           return;
         }
         throw addError;
+      }
+
+      // Record the optional intake advance in the payment ledger. Non-fatal:
+      // the repair is already saved; a failed advance can be collected from
+      // the repair screen.
+      const advanceAmt = parseFloat(advancePaid) || 0;
+      if (advanceAmt > 0 && repair?.id) {
+        try {
+          await repairPaymentsCreate(repair.id, {
+            amount: advanceAmt,
+            method: advanceMethod as any,
+            kind: 'advance',
+            note: 'Advance at intake',
+          });
+        } catch {
+          Alert.alert('Advance Not Recorded', 'The repair was saved, but the advance payment could not be recorded. Please collect it from the repair screen.');
+        }
       }
 
       let sigPath;
@@ -1161,7 +1182,37 @@ export default function NewRepairScreen() {
               {/* Financials */}
               <View style={styles.section}>
                 <SectionHeader title="Estimate" />
-                <Input label="Estimated Charge (₹)" value={repairCharge} onChangeText={setRepairCharge} placeholder="0" keyboardType="decimal-pad" leftText="₹" />
+                <Input label="Estimated Repair Cost (₹)" value={repairCharge} onChangeText={setRepairCharge} placeholder="0" keyboardType="decimal-pad" leftText="₹" />
+                <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4, marginBottom: 10, fontFamily: 'Inter_400Regular' }}>
+                  This is only an estimate — the final bill is prepared when the repair is completed.
+                </Text>
+                <Input label="Advance Paid (₹) — optional" value={advancePaid} onChangeText={setAdvancePaid} placeholder="0" keyboardType="decimal-pad" leftText="₹" />
+                {(parseFloat(advancePaid) || 0) > 0 && (
+                  <>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                      {['Cash', 'UPI', 'Card', 'Bank Transfer', 'Other'].map((m) => (
+                        <TouchableOpacity
+                          key={m}
+                          activeOpacity={0.7}
+                          onPress={() => setAdvanceMethod(m)}
+                          style={{
+                            paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, borderWidth: 1,
+                            borderColor: advanceMethod === m ? colors.primary : colors.border,
+                            backgroundColor: advanceMethod === m ? colors.primary + '18' : 'transparent',
+                          }}
+                        >
+                          <Text style={{ color: advanceMethod === m ? colors.primary : colors.mutedForeground, fontSize: 13, fontFamily: 'Inter_500Medium' }}>{m}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+                      <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: 'Inter_500Medium' }}>Estimated Balance</Text>
+                      <Text style={{ color: colors.foreground, fontSize: 13, fontFamily: 'Inter_600SemiBold' }}>
+                        ₹{Math.max((parseFloat(repairCharge) || 0) - (parseFloat(advancePaid) || 0), 0)}
+                      </Text>
+                    </View>
+                  </>
+                )}
               </View>
 
               <Button
@@ -1183,6 +1234,12 @@ export default function NewRepairScreen() {
                   <View style={styles.summaryRow}><Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Device:</Text><Text style={[styles.summaryValue, { color: colors.foreground }]}>{deviceType} - {brand} {model}</Text></View>
                   <View style={styles.summaryRow}><Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Problem:</Text><Text style={[styles.summaryValue, { color: colors.foreground }]}>{problem}</Text></View>
                   <View style={styles.summaryRow}><Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Estimate:</Text><Text style={[styles.summaryValue, { color: colors.foreground }]}>₹{repairCharge || '0'}</Text></View>
+                  {(parseFloat(advancePaid) || 0) > 0 && (
+                    <>
+                      <View style={styles.summaryRow}><Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Advance:</Text><Text style={[styles.summaryValue, { color: colors.foreground }]}>₹{advancePaid} ({advanceMethod})</Text></View>
+                      <View style={styles.summaryRow}><Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Est. Balance:</Text><Text style={[styles.summaryValue, { color: colors.foreground }]}>₹{Math.max((parseFloat(repairCharge) || 0) - (parseFloat(advancePaid) || 0), 0)}</Text></View>
+                    </>
+                  )}
                   <View style={styles.summaryRow}><Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Exp. Date:</Text><Text style={[styles.summaryValue, { color: colors.foreground }]}>{expectedDate}</Text></View>
                   <View style={styles.summaryRow}><Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Photos:</Text><Text style={[styles.summaryValue, { color: colors.foreground }]}>{photos.length} captured</Text></View>
                 </View>

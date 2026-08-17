@@ -144,6 +144,42 @@ export default function CustomerDetailScreen() {
           )}
         </GlassCard>
 
+        {/* Payment Ledger — per-repair bill / paid / due */}
+        {customerRepairs.length > 0 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
+              PAYMENT LEDGER
+            </Text>
+            <Card>
+              {customerRepairs.map((r, idx) => {
+                const bill = (r as any).totalAmount ?? (r.repairCharge + r.partsCharge);
+                const paid = (r as any).paidAmount ?? r.advance ?? 0;
+                const due = Math.max(0, ((r as any).balance ?? (bill - paid)));
+                return (
+                  <TouchableOpacity
+                    key={r.id}
+                    activeOpacity={0.7}
+                    onPress={() => router.push(`/(tabs)/repairs/${r.id}`)}
+                    style={{ paddingVertical: 10, borderTopWidth: idx === 0 ? 0 : 1, borderTopColor: colors.border }}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>{r.repairId}</Text>
+                      <Text style={{ fontSize: 11, color: due > 0 ? colors.warning : colors.success, fontFamily: 'Inter_600SemiBold' }}>
+                        {due > 0 ? `Due ${formatCurrency(due)}` : 'Settled'}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Bill {formatCurrency(bill)}</Text>
+                      <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Paid {formatCurrency(paid)}</Text>
+                      <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{r.status === 'delivered' ? 'Delivered' : 'In Process'}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </Card>
+          </>
+        )}
+
         {/* Activity Timeline */}
         <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
           ACTIVITY TIMELINE ({timeline.length})

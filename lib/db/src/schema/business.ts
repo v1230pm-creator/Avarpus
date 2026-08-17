@@ -104,6 +104,9 @@ export const repairsTable = pgTable("repairs", {
   assignedAt: timestamp("assigned_at", { withTimezone: true }),
   status: text("status").notNull().default("received"),
   priority: text("priority").notNull().default("normal"),
+  // Intake estimate snapshot — what the customer was quoted when the device
+  // was received. NOT the final bill: the charge fields below form the bill.
+  estimatedCost: doublePrecision("estimated_cost"),
   // Charges breakdown: repairCharge = labour; final =
   // labour + parts + service + other − discount + tax
   repairCharge: doublePrecision("repair_charge").notNull().default(0),
@@ -431,6 +434,12 @@ export const repairPaymentsTable = pgTable("repair_payments", {
   receivedById: uuid("received_by_id"),
   receivedByName: text("received_by_name"),
   isSample: boolean("is_sample").notNull().default(false),
+  // Void/reverse audit — a voided payment stays visible forever but is
+  // excluded from every sum. Set once by a privileged user; never cleared.
+  voidedAt: timestamp("voided_at", { withTimezone: true }),
+  voidedById: uuid("voided_by_id"),
+  voidedByName: text("voided_by_name"),
+  voidReason: text("void_reason"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

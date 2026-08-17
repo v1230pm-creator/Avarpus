@@ -726,6 +726,8 @@ export const RepairsListResponse = zod.object({
   "totalAmount": zod.number(),
   "paidAmount": zod.number(),
   "balance": zod.number(),
+  "estimatedCost": zod.number().optional(),
+  "paymentStatus": zod.enum(['unpaid', 'partial', 'paid', 'overpaid']).optional(),
   "testingChecklist": zod.record(zod.string(), zod.boolean()).optional(),
   "testingConfirmedById": zod.string().optional(),
   "testingConfirmedByName": zod.string().optional(),
@@ -793,6 +795,7 @@ export const RepairsCreateBody = zod.object({
   "workPerformed": zod.string().optional(),
   "status": zod.string().optional(),
   "priority": zod.string().optional(),
+  "estimatedCost": zod.number().optional(),
   "repairCharge": zod.number().optional(),
   "partsCharge": zod.number().optional(),
   "serviceCharge": zod.number().optional(),
@@ -858,6 +861,8 @@ export const RepairsCreateResponse = zod.object({
   "totalAmount": zod.number(),
   "paidAmount": zod.number(),
   "balance": zod.number(),
+  "estimatedCost": zod.number().optional(),
+  "paymentStatus": zod.enum(['unpaid', 'partial', 'paid', 'overpaid']).optional(),
   "testingChecklist": zod.record(zod.string(), zod.boolean()).optional(),
   "testingConfirmedById": zod.string().optional(),
   "testingConfirmedByName": zod.string().optional(),
@@ -926,6 +931,7 @@ export const RepairsUpdateBody = zod.object({
   "workPerformed": zod.string().optional(),
   "status": zod.string().optional(),
   "priority": zod.string().optional(),
+  "estimatedCost": zod.number().optional(),
   "repairCharge": zod.number().optional(),
   "partsCharge": zod.number().optional(),
   "serviceCharge": zod.number().optional(),
@@ -991,6 +997,8 @@ export const RepairsUpdateResponse = zod.object({
   "totalAmount": zod.number(),
   "paidAmount": zod.number(),
   "balance": zod.number(),
+  "estimatedCost": zod.number().optional(),
+  "paymentStatus": zod.enum(['unpaid', 'partial', 'paid', 'overpaid']).optional(),
   "testingChecklist": zod.record(zod.string(), zod.boolean()).optional(),
   "testingConfirmedById": zod.string().optional(),
   "testingConfirmedByName": zod.string().optional(),
@@ -1168,13 +1176,17 @@ export const RepairPaymentsListResponse = zod.object({
   "repairId": zod.string(),
   "amount": zod.number(),
   "method": zod.string(),
-  "kind": zod.enum(['advance', 'partial', 'final', 'refund']),
+  "kind": zod.enum(['advance', 'partial', 'final', 'due', 'refund']),
   "note": zod.string().optional(),
   "referenceNo": zod.string().optional(),
   "recordedById": zod.string().optional(),
   "recordedByName": zod.string().optional(),
   "receivedById": zod.string().optional(),
   "receivedByName": zod.string().optional(),
+  "voidedAt": zod.string().optional(),
+  "voidedById": zod.string().optional(),
+  "voidedByName": zod.string().optional(),
+  "voidReason": zod.string().optional(),
   "createdAt": zod.string()
 })),
   "refunds": zod.array(zod.object({
@@ -1212,7 +1224,7 @@ export const RepairPaymentsCreateParams = zod.object({
 export const RepairPaymentsCreateBody = zod.object({
   "amount": zod.number(),
   "method": zod.string(),
-  "kind": zod.enum(['advance', 'partial', 'final', 'refund']).optional(),
+  "kind": zod.enum(['advance', 'partial', 'final', 'due', 'refund']).optional(),
   "note": zod.string().optional(),
   "referenceNo": zod.string().optional()
 })
@@ -1223,14 +1235,91 @@ export const RepairPaymentsCreateResponse = zod.object({
   "repairId": zod.string(),
   "amount": zod.number(),
   "method": zod.string(),
-  "kind": zod.enum(['advance', 'partial', 'final', 'refund']),
+  "kind": zod.enum(['advance', 'partial', 'final', 'due', 'refund']),
   "note": zod.string().optional(),
   "referenceNo": zod.string().optional(),
   "recordedById": zod.string().optional(),
   "recordedByName": zod.string().optional(),
   "receivedById": zod.string().optional(),
   "receivedByName": zod.string().optional(),
+  "voidedAt": zod.string().optional(),
+  "voidedById": zod.string().optional(),
+  "voidedByName": zod.string().optional(),
+  "voidReason": zod.string().optional(),
   "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Void/reverse a payment (dealer/owner only, audit-preserving)
+ */
+export const RepairPaymentVoidParams = zod.object({
+  "id": zod.coerce.string(),
+  "paymentId": zod.coerce.string()
+})
+
+export const RepairPaymentVoidBody = zod.object({
+  "reason": zod.string()
+})
+
+export const RepairPaymentVoidResponse = zod.object({
+  "payment": zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "amount": zod.number(),
+  "method": zod.string(),
+  "kind": zod.enum(['advance', 'partial', 'final', 'due', 'refund']),
+  "note": zod.string().optional(),
+  "referenceNo": zod.string().optional(),
+  "recordedById": zod.string().optional(),
+  "recordedByName": zod.string().optional(),
+  "receivedById": zod.string().optional(),
+  "receivedByName": zod.string().optional(),
+  "voidedAt": zod.string().optional(),
+  "voidedById": zod.string().optional(),
+  "voidedByName": zod.string().optional(),
+  "voidReason": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Shop-wide payment ledger with method totals (finance roles only)
+ */
+export const PaymentsListQueryParams = zod.object({
+  "from": zod.coerce.string().optional(),
+  "to": zod.coerce.string().optional()
+})
+
+export const PaymentsListResponse = zod.object({
+  "payments": zod.array(zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "amount": zod.number(),
+  "method": zod.string(),
+  "kind": zod.enum(['advance', 'partial', 'final', 'due', 'refund']),
+  "note": zod.string().optional(),
+  "referenceNo": zod.string().optional(),
+  "recordedById": zod.string().optional(),
+  "recordedByName": zod.string().optional(),
+  "receivedById": zod.string().optional(),
+  "receivedByName": zod.string().optional(),
+  "voidedAt": zod.string().optional(),
+  "voidedById": zod.string().optional(),
+  "voidedByName": zod.string().optional(),
+  "voidReason": zod.string().optional(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "repairTicket": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "dealerId": zod.string().optional(),
+  "dealerName": zod.string().optional()
+}))),
+  "totals": zod.object({
+  "total": zod.number(),
+  "byMethod": zod.record(zod.string(), zod.number())
 })
 })
 
@@ -1293,6 +1382,8 @@ export const RepairAssignTechnicianResponse = zod.object({
   "totalAmount": zod.number(),
   "paidAmount": zod.number(),
   "balance": zod.number(),
+  "estimatedCost": zod.number().optional(),
+  "paymentStatus": zod.enum(['unpaid', 'partial', 'paid', 'overpaid']).optional(),
   "testingChecklist": zod.record(zod.string(), zod.boolean()).optional(),
   "testingConfirmedById": zod.string().optional(),
   "testingConfirmedByName": zod.string().optional(),
@@ -1386,6 +1477,8 @@ export const RepairTestingResponse = zod.object({
   "totalAmount": zod.number(),
   "paidAmount": zod.number(),
   "balance": zod.number(),
+  "estimatedCost": zod.number().optional(),
+  "paymentStatus": zod.enum(['unpaid', 'partial', 'paid', 'overpaid']).optional(),
   "testingChecklist": zod.record(zod.string(), zod.boolean()).optional(),
   "testingConfirmedById": zod.string().optional(),
   "testingConfirmedByName": zod.string().optional(),
@@ -1604,6 +1697,8 @@ export const RepairNotifyReadyResponse = zod.object({
   "totalAmount": zod.number(),
   "paidAmount": zod.number(),
   "balance": zod.number(),
+  "estimatedCost": zod.number().optional(),
+  "paymentStatus": zod.enum(['unpaid', 'partial', 'paid', 'overpaid']).optional(),
   "testingChecklist": zod.record(zod.string(), zod.boolean()).optional(),
   "testingConfirmedById": zod.string().optional(),
   "testingConfirmedByName": zod.string().optional(),
