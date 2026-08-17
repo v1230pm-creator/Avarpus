@@ -2678,7 +2678,10 @@ export const DashboardStatsResponse = zod.object({
   "canSeeFinance": zod.boolean(),
   "todayIncome": zod.number().optional(),
   "todayExpense": zod.number().optional(),
+  "todayRepairIncome": zod.number().optional(),
+  "todayProductIncome": zod.number().optional(),
   "pendingPayments": zod.number().optional(),
+  "readyBalance": zod.number().optional(),
   "refundsTotal": zod.number().optional(),
   "refundsToday": zod.number().optional()
 })

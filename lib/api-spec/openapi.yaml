@@ -1786,7 +1786,10 @@ components:
         canSeeFinance: { type: boolean }
         todayIncome: { type: number }
         todayExpense: { type: number }
+        todayRepairIncome: { type: number }
+        todayProductIncome: { type: number }
         pendingPayments: { type: number }
+        readyBalance: { type: number }
         refundsTotal: { type: number }
         refundsToday: { type: number }
       required:

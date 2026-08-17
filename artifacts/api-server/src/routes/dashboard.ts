@@ -97,23 +97,34 @@ router.get(
 
     if (seeFinance) {
       // Today's income / expense from finance entries (date is a yyyy-mm-dd text col).
+      // Today's sales split: repair collections vs everything else (product /
+      // accessory sales etc.). Repair money flows through finance as category
+      // 'Repair Payment' (income) with voids offset by 'Payment Reversal'
+      // (expense), so repair sales = repair income − today's reversals.
       const [fin] = await db
         .select({
           todayIncome: sql<number>`coalesce(sum(${financeEntriesTable.amount}) filter (where ${financeEntriesTable.type} = 'income'), 0)::float`,
           todayExpense: sql<number>`coalesce(sum(${financeEntriesTable.amount}) filter (where ${financeEntriesTable.type} = 'expense'), 0)::float`,
+          todayRepairIncomeRaw: sql<number>`coalesce(sum(${financeEntriesTable.amount}) filter (where ${financeEntriesTable.type} = 'income' and ${financeEntriesTable.category} = 'Repair Payment'), 0)::float`,
+          todayReversals: sql<number>`coalesce(sum(${financeEntriesTable.amount}) filter (where ${financeEntriesTable.type} = 'expense' and ${financeEntriesTable.category} = 'Payment Reversal'), 0)::float`,
+          todayProductIncome: sql<number>`coalesce(sum(${financeEntriesTable.amount}) filter (where ${financeEntriesTable.type} = 'income' and ${financeEntriesTable.category} <> 'Repair Payment'), 0)::float`,
         })
         .from(financeEntriesTable)
         .where(and(eq(financeEntriesTable.shopId, shopId), eq(financeEntriesTable.date, today)));
 
-      // Outstanding customer dues: total (with tax) − advance, over non-cancelled
-      // repairs, summing only positive balances.
+      // Outstanding customer dues, split by whether the phone already left the
+      // shop: pendingPayments = due on DELIVERED repairs (customer took the
+      // phone without paying in full); readyBalance = due on READY repairs
+      // still waiting for pickup.
       const totalExpr = sql<number>`
         greatest(${repairsTable.repairCharge} + ${repairsTable.partsCharge} + ${repairsTable.serviceCharge}
           + ${repairsTable.otherCharge} - ${repairsTable.discount}, 0)
         * (1 + ${repairsTable.taxPercent} / 100.0)`;
-      const [{ pendingPayments }] = await db
+      const dueExpr = sql<number>`greatest(${totalExpr} - ${repairsTable.advance}, 0)`;
+      const [{ pendingPayments, readyBalance }] = await db
         .select({
-          pendingPayments: sql<number>`coalesce(sum(greatest(${totalExpr} - ${repairsTable.advance}, 0)) filter (where ${repairsTable.status} <> 'cancelled'), 0)::float`,
+          pendingPayments: sql<number>`coalesce(sum(${dueExpr}) filter (where ${repairsTable.status} = 'delivered'), 0)::float`,
+          readyBalance: sql<number>`coalesce(sum(${dueExpr}) filter (where ${repairsTable.status} = 'ready'), 0)::float`,
         })
         .from(repairsTable)
         .where(eq(repairsTable.shopId, shopId));
@@ -129,7 +140,12 @@ router.get(
 
       stats.todayIncome = fin?.todayIncome ?? 0;
       stats.todayExpense = fin?.todayExpense ?? 0;
+      // Signed net: voiding a previous day's payment today legitimately makes
+      // today's repair sales negative — don't clamp, keep the books honest.
+      stats.todayRepairIncome = (fin?.todayRepairIncomeRaw ?? 0) - (fin?.todayReversals ?? 0);
+      stats.todayProductIncome = fin?.todayProductIncome ?? 0;
       stats.pendingPayments = pendingPayments ?? 0;
+      stats.readyBalance = readyBalance ?? 0;
       stats.refundsTotal = ref?.refundsTotal ?? 0;
       stats.refundsToday = ref?.refundsToday ?? 0;
     }

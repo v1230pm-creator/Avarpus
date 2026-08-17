@@ -668,9 +668,11 @@ export default function DashboardScreen() {
             
             {showFinance && dashboardStats?.canSeeFinance && (
               <>
-                <StatBox title="Today's Sales" value={dashboardStats?.todayIncome || 0} icon="trending-up" color={colors.success} animValue={cardAnims[9]} isCurrency />
+                <StatBox title="Today's Repair Sales" value={dashboardStats?.todayRepairIncome || 0} icon="tool" color={colors.success} animValue={cardAnims[9]} isCurrency />
+                <StatBox title="Today's Product Sales" value={dashboardStats?.todayProductIncome || 0} icon="shopping-bag" color={colors.info} animValue={cardAnims[9]} isCurrency />
                 <StatBox title="Today's Expense" value={dashboardStats?.todayExpense || 0} icon="trending-down" color={colors.destructive} animValue={cardAnims[10]} isCurrency />
                 <StatBox title="Pending Payments" value={dashboardStats?.pendingPayments || 0} icon="credit-card" color={colors.warning} animValue={cardAnims[11]} isCurrency />
+                <StatBox title="Ready Balance" value={dashboardStats?.readyBalance || 0} icon="clock" color={colors.statusReady} animValue={cardAnims[11]} isCurrency />
                 {((dashboardStats?.refundsToday || 0) > 0) && (
                   <StatBox title="Refunds Today" value={dashboardStats?.refundsToday || 0} icon="dollar-sign" color={colors.destructive} animValue={cardAnims[8]} isCurrency />
                 )}

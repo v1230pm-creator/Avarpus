@@ -16,7 +16,10 @@ export interface DashboardStats {
   canSeeFinance: boolean;
   todayIncome?: number;
   todayExpense?: number;
+  todayRepairIncome?: number;
+  todayProductIncome?: number;
   pendingPayments?: number;
+  readyBalance?: number;
   refundsTotal?: number;
   refundsToday?: number;
 }
