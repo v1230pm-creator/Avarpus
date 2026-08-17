@@ -6,6 +6,8 @@ description: What to do when the GitHub connection's auth() returns unauthentica
 
 **Why:** Aug 15, 2026 — token retrieval stopped working mid-session; API push succeeded and unblocked APK builds.
 
+**Gotcha (Aug 17 2026): never base64-encode file contents via `shellExec` for pushes** — its output is silently head/tail-truncated around ~80KB even with maxOutputBytes raised, which corrupted pnpm-lock.yaml + other large files on GitHub and broke EAS builds. Instead `readFile({path, maxBytes: 1048576})` in durable scope, pass content into the impure fn, `Buffer.from(content,"utf8").toString("base64")` there. After any push verify: local `git ls-tree -r HEAD` blob shas vs remote recursive tree — shas match iff content identical.
+
 **Gotcha:** CodeExecution `shellExec` output uses CRLF — file lists split on `\n` keep a trailing `\r` that breaks paths/readFile. Always strip `\r` before using shell output as paths.
 
 **How to apply:** After an API push, local and remote SHAs DIVERGE (same content, different commits). Before the next token-based `git push`, either `git fetch && git reset --hard origin/<branch>` (if no new local work) or push with `--force-with-lease` knowing content is identical. As of Aug 15 2026, local `vmc-electronic-bms` (f81bc9a) diverges from remote head 41011ba this way.
