@@ -46,6 +46,17 @@ tables["refunds"] = await q(
 
 await pool.end();
 
+// jsonb columns holding arrays (e.g. accessories_list) must travel as JSON
+// strings: node-postgres on the server would otherwise serialize a JS array
+// as a Postgres array literal, which jsonb rejects.
+for (const rows of Object.values(tables)) {
+  for (const row of rows) {
+    for (const [k, v] of Object.entries(row)) {
+      if (Array.isArray(v)) row[k] = JSON.stringify(v);
+    }
+  }
+}
+
 const counts = Object.fromEntries(Object.entries(tables).map(([k, v]) => [k, v.length]));
 console.log("Exporting:", JSON.stringify(counts));
 
