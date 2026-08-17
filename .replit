@@ -108,4 +108,3 @@ channel = "stable-25_05"
 ALLOWED_ORIGINS = "https://3c2b05f7-3c61-425c-9ed4-67462616b38f-00-f8q4w8aat8g9-ujyonlba.sisko.replit.dev"
 
 [userenv.production]
-IMPORT_BUNDLE_TOKEN = "fac6284aaad51fc27a2dd3956b6a594dfc0ed896755f34498306a0906b8f4107"
