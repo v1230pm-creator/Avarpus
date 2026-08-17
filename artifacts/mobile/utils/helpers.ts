@@ -52,7 +52,7 @@ export const ROLE_LABELS: Record<string, string> = {
 
 export const DEVICE_TYPES = ['Smartphone', 'Tablet', 'Laptop', 'Desktop', 'Smart Watch', 'Feature Phone', 'Other'];
 
-export const BRANDS = ['Samsung', 'Apple / iPhone', 'OnePlus', 'Xiaomi / Redmi', 'Vivo', 'OPPO', 'Realme', 'Nokia', 'Dell', 'HP', 'Lenovo', 'Acer', 'Other'];
+export const BRANDS = ['Samsung', 'Apple / iPhone', 'OnePlus', 'Xiaomi / Redmi', 'Vivo', 'OPPO', 'Realme', 'Tecno', 'Infinix', 'Nokia', 'Dell', 'HP', 'Lenovo', 'Acer', 'Other'];
 
 export const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 export const PRIORITY_LABELS: Record<string, string> = { low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' };
