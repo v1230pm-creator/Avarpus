@@ -11,3 +11,8 @@ description: What to do when the GitHub connection's auth() returns unauthentica
 **Gotcha:** CodeExecution `shellExec` output uses CRLF — file lists split on `\n` keep a trailing `\r` that breaks paths/readFile. Always strip `\r` before using shell output as paths.
 
 **How to apply:** After an API push, local and remote SHAs DIVERGE (same content, different commits). Before the next token-based `git push`, either `git fetch && git reset --hard origin/<branch>` (if no new local work) or push with `--force-with-lease` knowing content is identical. As of Aug 15 2026, local `vmc-electronic-bms` (f81bc9a) diverges from remote head 41011ba this way.
+
+## Broken ref pitfall (learned Aug 2026)
+A previous Git Data API push left `refs/heads/vmc-electronic-bms` pointing at a TREE object, not a commit. Symptom: `/branches`, `/commits`, `/git/ref/heads/...`, `/git/trees/{sha}`, `/git/commits/{sha}` all 404 (reachability checks), while `/contents?ref=branch` and blob POST still work — looks like a flaky proxy but isn't.
+**Fix:** push each file via `PUT /contents/{path}` with `branch` + current file `sha` — contents PUT creates real commits and repairs the ref automatically. Loop all files serially with sha-refetch retry on 409/422.
+**Prevention:** when PATCHing a ref, always pass a COMMIT sha (from `git/commits` POST response), never a tree sha; verify `object.type === "commit"` after.
