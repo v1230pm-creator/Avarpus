@@ -13,6 +13,7 @@ import { Repair, Customer, InventoryItem, Purchase, FinanceEntry, isDealerPortal
 import { useAuth } from '@/context/AuthContext';
 import { toFriendlyError } from '@/utils/friendlyError';
 import { offlineQueue } from '@/utils/offlineQueue';
+import { hasLegacyLocalData, migrateLegacyLocalData } from '@/utils/legacyMigration';
 
 /** How often (ms) each signed-in device silently re-pulls shop data from the
  * server so that changes made on other devices (staff/dealer/reception/
@@ -224,6 +225,36 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       sub.remove();
     };
   }, [isAuthenticated, silentRefresh]);
+
+  // One-time upload of pre-server ("purana") data still stored on this
+  // device by the old app version: push it to the server right after login,
+  // then reload so it appears here and auto-syncs to every other device.
+  // Owner-only: staff would hit backdate-approval 403s for old records, and
+  // running the same migration from several staff devices would duplicate
+  // the non-idempotent categories.
+  const canMigrateLegacy = user?.role === 'dealer' || user?.role === 'super_admin';
+  useEffect(() => {
+    if (!isAuthenticated || isPortal || !canMigrateLegacy) return;
+    let cancelled = false;
+    const epoch = sessionEpoch.current;
+    (async () => {
+      try {
+        if (!(await hasLegacyLocalData())) return;
+        // Block background snapshot commits while old data is uploading,
+        // and stop uploading the moment the session/user changes.
+        mutationSeq.current += 1;
+        const { migrated } = await migrateLegacyLocalData({
+          shouldAbort: () => cancelled || epoch !== sessionEpoch.current,
+        });
+        mutationSeq.current += 1;
+        if (migrated > 0 && !cancelled && epoch === sessionEpoch.current) await loadAll();
+      } catch {
+        // Best-effort: whatever didn't upload stays on the device and is
+        // retried on the next sign-in.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthenticated, isPortal, canMigrateLegacy, loadAll]);
 
   useEffect(() => {
     if (isAuthenticated) {
