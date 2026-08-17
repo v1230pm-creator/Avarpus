@@ -16,6 +16,7 @@
 - [Mobile Jest setup quirks](mobile-jest-setup.md) — pnpm-aware transformIgnorePatterns, global fake timers to avoid hangs, mock at API-client boundary not context.
 - [PIN hashing](pin-hashing.md) — PIN stored as salted iterated-SHA256 record; use hasStoredMpin/verifyMpin, never compare raw values; mock expo-crypto with node crypto in Jest.
 - [API validation steps](api-validation-steps.md) — isolation/balances/registration scripts run as validation steps; whole-command flock + api-server cwd, or concurrent builds clobber dist.
+- [brace-expansion override scoping](brace-expansion-override.md) — blanket CVE overrides of deep deps break RN codegen; scope per major; codegen CLI reproduces EAS failures locally.
 - [Android APK builds](android-apk-builds.md) — APK only via expo.dev GitHub builds (base dir artifacts/mobile); pnpm/Node/image pins in eas.json are load-bearing; user holds the keystore.
 - [Android focus loss fix](android-focus-collapsable.md) — focus-styled input wrappers need collapsable={false} or Android view flattening blurs the TextInput and kills the keyboard.
 - [Dealer phone auto-detection](dealer-phone-detection.md) — intake mobile auto-links single active dealer match; explicit dealerId:null = user removal (no re-link); manual links privileged-only.
