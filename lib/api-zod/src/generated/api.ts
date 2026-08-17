@@ -2689,6 +2689,23 @@ export const DashboardStatsResponse = zod.object({
 
 
 /**
+ * Per-day counts of phones received (by receive date) and phones repaired (by repair-completed date) for the caller's shop. Counts only, no money.
+ * @summary Date-wise received vs repaired phone counts
+ */
+export const DailyRepairsStatsQueryParams = zod.object({
+  "days": zod.coerce.number().optional().describe('How many days back (default 30, max 365)')
+})
+
+export const DailyRepairsStatsResponse = zod.object({
+  "days": zod.array(zod.object({
+  "date": zod.string(),
+  "received": zod.number(),
+  "repaired": zod.number()
+}))
+})
+
+
+/**
  * Merged, paginated audit feed of repair events and login events for the shop.
  * @summary Global activity feed (dealer/super_admin only)
  */

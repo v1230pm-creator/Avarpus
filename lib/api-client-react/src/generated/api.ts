@@ -39,6 +39,8 @@ import type {
   CustomersCreate200,
   CustomersList200,
   CustomersUpdate200,
+  DailyRepairsStats200,
+  DailyRepairsStatsParams,
   DashboardStats200,
   DealerInput,
   DealerProfile,
@@ -6130,6 +6132,91 @@ export function useDashboardStats<TData = Awaited<ReturnType<typeof dashboardSta
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getDashboardStatsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDailyRepairsStatsUrl = (params?: DailyRepairsStatsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/dashboard/daily-repairs?${stringifiedParams}` : `/api/dashboard/daily-repairs`
+}
+
+/**
+ * Per-day counts of phones received (by receive date) and phones repaired (by repair-completed date) for the caller's shop. Counts only, no money.
+ * @summary Date-wise received vs repaired phone counts
+ */
+export const dailyRepairsStats = async (params?: DailyRepairsStatsParams, options?: Parameters<typeof customFetch>[1]): Promise<DailyRepairsStats200> => {
+
+  return customFetch<DailyRepairsStats200>(getDailyRepairsStatsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDailyRepairsStatsQueryKey = (params?: DailyRepairsStatsParams,) => {
+    return [
+    `/api/dashboard/daily-repairs`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getDailyRepairsStatsQueryOptions = <TData = Awaited<ReturnType<typeof dailyRepairsStats>>, TError = ErrorType<unknown>>(params?: DailyRepairsStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dailyRepairsStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDailyRepairsStatsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof dailyRepairsStats>>> = ({ signal }) => dailyRepairsStats(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof dailyRepairsStats>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DailyRepairsStatsQueryResult = NonNullable<Awaited<ReturnType<typeof dailyRepairsStats>>>
+export type DailyRepairsStatsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Date-wise received vs repaired phone counts
+ */
+
+export function useDailyRepairsStats<TData = Awaited<ReturnType<typeof dailyRepairsStats>>, TError = ErrorType<unknown>>(
+ params?: DailyRepairsStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dailyRepairsStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDailyRepairsStatsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

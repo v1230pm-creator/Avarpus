@@ -154,6 +154,70 @@ router.get(
   }),
 );
 
+// ── GET /dashboard/daily-repairs ─────────────────────────────────────────────
+// Date-wise operational counts: phones received per day (receiveDate) vs
+// phones repaired per day (repairCompletedAt — first transition to ready or
+// delivered). Counts only, no money, so any authenticated shop user may view.
+router.get(
+  "/dashboard/daily-repairs",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const rawDays = String(req.query.days ?? "30");
+    const days = /^\d+$/.test(rawDays) ? Math.min(365, Math.max(1, Number.parseInt(rawDays, 10))) : 30;
+    const toDate = todayStr();
+    const fromDate = new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+    // receiveDate is a yyyy-mm-dd (or ISO) text column — take the date part.
+    const receivedRows = await db
+      .select({
+        date: sql<string>`left(${repairsTable.receiveDate}, 10)`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(repairsTable)
+      .where(and(
+        eq(repairsTable.shopId, shopId),
+        sql`left(${repairsTable.receiveDate}, 10) >= ${fromDate}`,
+        sql`left(${repairsTable.receiveDate}, 10) <= ${toDate}`,
+      ))
+      .groupBy(sql`left(${repairsTable.receiveDate}, 10)`);
+
+    const repairedRows = await db
+      .select({
+        date: sql<string>`((${repairsTable.repairCompletedAt} at time zone 'UTC')::date)::text`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(repairsTable)
+      .where(and(
+        eq(repairsTable.shopId, shopId),
+        sql`${repairsTable.repairCompletedAt} is not null`,
+        sql`(${repairsTable.repairCompletedAt} at time zone 'UTC')::date >= ${fromDate}::date`,
+        sql`(${repairsTable.repairCompletedAt} at time zone 'UTC')::date <= ${toDate}::date`,
+      ))
+      .groupBy(sql`(${repairsTable.repairCompletedAt} at time zone 'UTC')::date`);
+
+    // Fill every date in the window (zero counts included) so the report is a
+    // complete daily table, newest first.
+    const byDate = new Map<string, { date: string; received: number; repaired: number }>();
+    for (let i = 0; i < days; i++) {
+      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      byDate.set(d, { date: d, received: 0, repaired: 0 });
+    }
+    for (const r of receivedRows) {
+      const row = byDate.get(r.date);
+      if (row) row.received = r.count;
+    }
+    for (const r of repairedRows) {
+      const row = byDate.get(r.date);
+      if (row) row.repaired = r.count;
+    }
+    const daysOut = [...byDate.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
+
+    res.json({ days: daysOut });
+  }),
+);
+
 // ── GET /activity ────────────────────────────────────────────────────────────
 // Dealer / super_admin only. Merges the repair-events audit log with per-shop
 // login events into a single paginated, filterable feed. Read-only.

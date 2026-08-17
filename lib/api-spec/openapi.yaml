@@ -1731,6 +1731,34 @@ paths:
                   stats:
                     $ref: "#/components/schemas/DashboardStats"
                 required: [stats]
+  /dashboard/daily-repairs:
+    get:
+      operationId: dailyRepairsStats
+      tags: [dashboard]
+      summary: Date-wise received vs repaired phone counts
+      description: >
+        Per-day counts of phones received (by receive date) and phones repaired
+        (by repair-completed date) for the caller's shop. Counts only, no money.
+      parameters:
+        - { name: days, in: query, required: false, schema: { type: number }, description: "How many days back (default 30, max 365)" }
+      responses:
+        "200":
+          description: Date-wise counts, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  days:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date: { type: string }
+                        received: { type: number }
+                        repaired: { type: number }
+                      required: [date, received, repaired]
+                required: [days]
   /activity:
     get:
       operationId: activityFeed

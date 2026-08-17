@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { staffList, useRefundsList, getRefundsListQueryKey, stockMovementsList, paymentsList } from '@workspace/api-client-react';
+import { staffList, useRefundsList, getRefundsListQueryKey, stockMovementsList, paymentsList, dailyRepairsStats } from '@workspace/api-client-react';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
@@ -32,6 +32,7 @@ const REPORT_TYPES: ReportType[] = [
   { id: 'technician', title: 'Technician Report', description: 'Jobs completed per technician', icon: 'award', color: '#F59E0B' },
   { id: 'warranty', title: 'Warranty Report', description: 'Repair warranties & expiry', icon: 'shield', color: '#818CF8' },
   { id: 'collection', title: 'Collection Report', description: 'Payments received by method (Cash/UPI/Card...)', icon: 'dollar-sign', color: '#34D399' },
+  { id: 'daily', title: 'Daily Received vs Repaired', description: 'Date-wise: phones received & repaired per day', icon: 'calendar', color: '#4DA3FF' },
   { id: 'pending', title: 'Pending Payments', description: 'Repairs with outstanding balances', icon: 'credit-card', color: '#F87171' },
   { id: 'refunds', title: 'Refunds', description: 'List of all processed refunds', icon: 'corner-up-left', color: '#A855F7' },
   { id: 'parts', title: 'Parts Consumption', description: 'Parts used across repairs', icon: 'settings', color: '#FB923C' },
@@ -184,6 +185,49 @@ export default function ReportsScreen() {
         const msg = err instanceof Error ? err.message : '';
         if (!/cancel|dismiss/i.test(msg)) {
           notify('Could not generate report', 'Collection report banate waqt problem aayi. Dobara try karein.');
+        }
+      } finally {
+        setGeneratingId(null);
+      }
+      return;
+    }
+
+    if (report.id === 'daily') {
+      setGeneratingId(report.id);
+      try {
+        const res = await dailyRepairsStats({ days: 30 });
+        const rows = res.days || [];
+        if (rows.length === 0) {
+          notify('No data yet', 'Pichhle 30 din mein koi repair data nahi hai.');
+          return;
+        }
+        const totalReceived = rows.reduce((s: number, d: any) => s + d.received, 0);
+        const totalRepaired = rows.reduce((s: number, d: any) => s + d.repaired, 0);
+        const html = `
+          <html><body style="font-family: sans-serif; padding: 24px; color: #111;">
+            <h2 style="text-align:center;margin-bottom:2px;">${user?.businessName || 'VMC Electronics'}</h2>
+            <p style="text-align:center;margin-top:0;">Daily Received vs Repaired — Last 30 days</p>
+            <hr />
+            <table style="width:100%;border-collapse:collapse;" border="1" cellpadding="6">
+              <tr style="background:#f0f0f0;"><th align="left">Date</th><th align="right">Phones Received</th><th align="right">Phones Repaired</th></tr>
+              ${rows.map((d: any) => `<tr><td>${d.date}</td><td align="right">${d.received}</td><td align="right">${d.repaired}</td></tr>`).join('')}
+              <tr style="font-weight:bold;background:#f8f8f8;"><td>Total</td><td align="right">${totalReceived}</td><td align="right">${totalRepaired}</td></tr>
+            </table>
+          </body></html>`;
+        if (Platform.OS === 'web') {
+          await Print.printAsync({ html });
+        } else {
+          const { uri } = await Print.printToFileAsync({ html });
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Daily Received vs Repaired', UTI: 'com.adobe.pdf' });
+          } else {
+            await Print.printAsync({ uri });
+          }
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : '';
+        if (!/cancel|dismiss/i.test(msg)) {
+          notify('Could not generate report', 'Daily report banate waqt problem aayi. Dobara try karein.');
         }
       } finally {
         setGeneratingId(null);

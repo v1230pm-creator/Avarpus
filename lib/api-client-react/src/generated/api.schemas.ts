@@ -1305,6 +1305,23 @@ export type DashboardStats200 = {
   stats: DashboardStats;
 };
 
+export type DailyRepairsStatsParams = {
+/**
+ * How many days back (default 30, max 365)
+ */
+days?: number;
+};
+
+export type DailyRepairsStats200DaysItem = {
+  date: string;
+  received: number;
+  repaired: number;
+};
+
+export type DailyRepairsStats200 = {
+  days: DailyRepairsStats200DaysItem[];
+};
+
 export type ActivityFeedParams = {
 page?: number;
 limit?: number;

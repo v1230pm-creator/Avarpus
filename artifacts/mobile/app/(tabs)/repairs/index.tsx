@@ -62,6 +62,7 @@ function RepairCard({ repair, onPress, variant }: { repair: Repair; onPress: () 
             </Text>
             <View style={{ marginTop: 4 }}>
               <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Est: {formatCurrency(total)}</Text>
+              <Text style={{ fontSize: 12, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Received: {formatDate(repair.receiveDate || repair.createdAt)}</Text>
               <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Expected: {formatDate(repair.expectedDate)}</Text>
               <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Received by: {repair.receivedByName || 'System'}</Text>
             </View>
