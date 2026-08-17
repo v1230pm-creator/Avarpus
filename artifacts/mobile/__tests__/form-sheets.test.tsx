@@ -91,6 +91,7 @@ jest.mock('@/utils/storage', () => ({
   },
 }));
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/context/AuthContext';
 import { DataProvider, useData } from '@/context/DataContext';
 import { CustomerFormSheet } from '@/components/forms/CustomerFormSheet';
@@ -121,12 +122,14 @@ function ListsProbe() {
 
 async function renderWithProviders(ui: React.ReactElement) {
   const utils = render(
-    <AuthProvider>
-      <DataProvider>
-        <ListsProbe />
-        {ui}
-      </DataProvider>
-    </AuthProvider>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <AuthProvider>
+        <DataProvider>
+          <ListsProbe />
+          {ui}
+        </DataProvider>
+      </AuthProvider>
+    </QueryClientProvider>,
   );
   // Let the auth restore (storage + authMe) and initial data load settle.
   await act(async () => {});

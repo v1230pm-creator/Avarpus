@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import { AppState } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   customersList, customersCreate, customersUpdate,
   repairsList, repairsCreate, repairsUpdate, repairsDelete,
@@ -10,6 +12,12 @@ import {
 import { Repair, Customer, InventoryItem, Purchase, FinanceEntry, isDealerPortalRole } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { toFriendlyError } from '@/utils/friendlyError';
+import { offlineQueue } from '@/utils/offlineQueue';
+
+/** How often (ms) each signed-in device silently re-pulls shop data from the
+ * server so that changes made on other devices (staff/dealer/reception/
+ * technician) appear automatically without pull-to-refresh. */
+const AUTO_SYNC_INTERVAL_MS = 30_000;
 
 // Business data now lives server-side, scoped to the signed-in user's shop.
 // This context loads it from the API and keeps mutations in sync — nothing
@@ -121,6 +129,102 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isPortal]);
 
+  // ---- Automatic cross-device sync -------------------------------------
+  // Every signed-in device silently re-pulls shop data on a timer and on app
+  // foreground, so entries made on any staff/dealer/reception/technician
+  // device show up everywhere without manual pull-to-refresh. Silent: no
+  // spinner, and a failed background pull never clobbers existing data.
+  const queryClient = useQueryClient();
+  const syncInFlight = useRef(false);
+  // Session epoch: bumped whenever the signed-in identity changes so a
+  // refresh started under an old session can never write its (old shop's)
+  // data after logout or an account switch on a shared device.
+  const sessionEpoch = useRef(0);
+  useEffect(() => {
+    sessionEpoch.current += 1;
+  }, [isAuthenticated, user?.id]);
+  // Mutation sequence: bumped by every local write so a background refresh
+  // that started before the write cannot overwrite the newer result with a
+  // stale snapshot (the next tick re-pulls fresh data including the write).
+  const mutationSeq = useRef(0);
+
+  const silentRefresh = useCallback(async () => {
+    if (syncInFlight.current) return;
+    syncInFlight.current = true;
+    const epoch = sessionEpoch.current;
+    const startSeq = mutationSeq.current;
+    // Commit fetched snapshots only if nothing changed while we were fetching.
+    const canCommit = () =>
+      epoch === sessionEpoch.current && startSeq === mutationSeq.current;
+    try {
+      if (isPortal) {
+        const r = await repairsList();
+        if (canCommit()) setRepairs(r.repairs as Repair[]);
+      } else {
+        const [r, c, i, p, f] = await Promise.all([
+          repairsList(),
+          customersList(),
+          inventoryList(),
+          purchasesList(),
+          financeList(),
+        ]);
+        if (canCommit()) {
+          setRepairs(r.repairs as Repair[]);
+          setCustomers(c.customers as Customer[]);
+          setInventory(i.items as InventoryItem[]);
+          setPurchases(p.purchases as Purchase[]);
+          setFinance(f.entries as FinanceEntry[]);
+        }
+        // Repairs queued while offline: push them up as soon as a background
+        // sync succeeds (network is clearly back), then re-pull.
+        const queue = await offlineQueue.getQueue();
+        if (epoch === sessionEpoch.current && queue.some((q) => q.status === 'pending')) {
+          const { success } = await offlineQueue.flush();
+          if (success > 0 && epoch === sessionEpoch.current) {
+            const r2 = await repairsList();
+            if (epoch === sessionEpoch.current && startSeq === mutationSeq.current) {
+              setRepairs(r2.repairs as Repair[]);
+            }
+          }
+        }
+      }
+      // Screens using generated react-query hooks (dashboard stats, repairs
+      // tabs/detail, dealer views) refresh too — scoped to shop-data keys so
+      // we don't refetch every query in the app each tick.
+      if (epoch === sessionEpoch.current) {
+        const SYNC_KEY_PREFIXES = [
+          '/repairs', '/customers', '/inventory', '/purchases', '/finance',
+          '/dashboard', '/dealers', '/approvals',
+        ];
+        queryClient.invalidateQueries({
+          predicate: (q) => {
+            const k = q.queryKey[0];
+            return typeof k === 'string' && SYNC_KEY_PREFIXES.some((p) => k.startsWith(p));
+          },
+        });
+      }
+    } catch {
+      // Background sync is best-effort — keep showing the last good data.
+    } finally {
+      syncInFlight.current = false;
+    }
+  }, [isPortal, queryClient, user?.id]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const tick = () => {
+      if (AppState.currentState === 'active') silentRefresh();
+    };
+    const interval = setInterval(tick, AUTO_SYNC_INTERVAL_MS);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') silentRefresh();
+    });
+    return () => {
+      clearInterval(interval);
+      sub.remove();
+    };
+  }, [isAuthenticated, silentRefresh]);
+
   useEffect(() => {
     if (isAuthenticated) {
       loadAll();
@@ -147,10 +251,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // (network vs server vs validation) that screens can show directly in an
   // alert. The original error is preserved on `cause`.
   const guarded = async <T,>(action: string, fn: () => Promise<T>): Promise<T> => {
+    // Bump the mutation sequence at start AND end: any background refresh
+    // that overlaps this write in either direction discards its snapshot
+    // instead of overwriting the fresher local result.
+    mutationSeq.current += 1;
     try {
       return await fn();
     } catch (err) {
       throw toFriendlyError(err, action);
+    } finally {
+      mutationSeq.current += 1;
     }
   };
 

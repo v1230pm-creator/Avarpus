@@ -132,6 +132,7 @@ jest.mock('@/utils/storage', () => ({
   },
 }));
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/context/AuthContext';
 import { DataProvider, useData } from '@/context/DataContext';
 import NewRepairScreen from '@/app/(tabs)/repairs/new';
@@ -150,12 +151,14 @@ function RepairsProbe() {
 
 async function renderIntake() {
   const utils = render(
-    <AuthProvider>
-      <DataProvider>
-        <RepairsProbe />
-        <NewRepairScreen />
-      </DataProvider>
-    </AuthProvider>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <AuthProvider>
+        <DataProvider>
+          <RepairsProbe />
+          <NewRepairScreen />
+        </DataProvider>
+      </AuthProvider>
+    </QueryClientProvider>,
   );
   // Let the auth restore (storage + authMe) and initial data load settle.
   await act(async () => {});
