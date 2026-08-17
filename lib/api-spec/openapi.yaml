@@ -1787,6 +1787,181 @@ paths:
                   limit: { type: number }
                   hasMore: { type: boolean }
                 required: [activity, page, limit, hasMore]
+  /app-updates/latest:
+    get:
+      operationId: latestAppUpdate
+      tags: [appUpdates]
+      summary: Latest published OTA app update (or null)
+      responses:
+        "200":
+          description: Latest published update manifest, if any
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  update:
+                    oneOf:
+                      - $ref: "#/components/schemas/AppUpdate"
+                      - type: "null"
+                required: [update]
+  /app-updates/changelog:
+    get:
+      operationId: appUpdateChangelog
+      tags: [appUpdates]
+      summary: Published release changelog history
+      responses:
+        "200":
+          description: Published releases, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AppUpdate"
+                required: [updates]
+  /app-updates:
+    get:
+      operationId: listAppUpdates
+      tags: [appUpdates]
+      summary: All releases incl. drafts (super_admin)
+      responses:
+        "200":
+          description: All releases with admin fields
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AppUpdateAdmin"
+                required: [updates]
+    post:
+      operationId: createAppUpdate
+      tags: [appUpdates]
+      summary: Create a draft release (super_admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppUpdateInput"
+      responses:
+        "201":
+          description: Created draft release
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppUpdateEnvelope"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /app-updates/upload-url:
+    post:
+      operationId: appUpdateUploadUrl
+      tags: [appUpdates]
+      summary: Presigned APK upload URL (super_admin)
+      responses:
+        "200":
+          description: Presigned PUT URL and object path
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadURL: { type: string }
+                  objectPath: { type: string }
+                required: [uploadURL, objectPath]
+  /app-updates/{id}:
+    patch:
+      operationId: updateAppUpdate
+      tags: [appUpdates]
+      summary: Edit a release (super_admin)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppUpdateInput"
+      responses:
+        "200":
+          description: Updated release
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppUpdateEnvelope"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /app-updates/{id}/apk:
+    get:
+      operationId: downloadAppUpdateApk
+      tags: [appUpdates]
+      summary: Download the APK of a published release (binary, supports Range)
+      description: >
+        Authenticated binary download. Supports HTTP Range requests for
+        pause/resume (206 partial content, 416 for invalid ranges). Only
+        published releases are downloadable. Clients should download this via
+        a native file downloader with the bearer token header, not the
+        generated JSON client.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Full APK stream (application/vnd.android.package-archive)
+        "206":
+          description: Partial APK stream for a Range request
+        "404":
+          description: Unknown, unpublished, or APK-less release
+        "416":
+          description: Invalid Range header
+  /app-updates/{id}/publish:
+    post:
+      operationId: publishAppUpdate
+      tags: [appUpdates]
+      summary: Publish a release (super_admin)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Published release
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppUpdateEnvelope"
+        "400":
+          description: Release incomplete (no APK)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /app-updates/{id}/unpublish:
+    post:
+      operationId: unpublishAppUpdate
+      tags: [appUpdates]
+      summary: Unpublish a release (super_admin)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Unpublished release
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppUpdateEnvelope"
   /healthz:
     get:
       operationId: healthCheck
@@ -1802,6 +1977,56 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    AppUpdate:
+      type: object
+      properties:
+        id: { type: string }
+        version: { type: string }
+        buildNumber: { type: number }
+        releaseDate: { type: [string, "null"] }
+        apkSize: { type: [number, "null"] }
+        checksum: { type: [string, "null"] }
+        updateType: { type: string }
+        minAndroidVersion: { type: [string, "null"] }
+        releaseNotes: {}
+        screenshots: {}
+        demoVideoUrl: { type: [string, "null"] }
+        publishedAt: { type: [string, "null"] }
+        apkUrl: { type: [string, "null"] }
+      required: [id, version, buildNumber, updateType]
+    AppUpdateAdmin:
+      allOf:
+        - $ref: "#/components/schemas/AppUpdate"
+        - type: object
+          properties:
+            status: { type: string }
+            downloadCount: { type: number }
+            publishedByName: { type: [string, "null"] }
+            createdAt: { type: string }
+            apkPath: { type: [string, "null"] }
+          required: [status, downloadCount, createdAt]
+    AppUpdateInput:
+      type: object
+      properties:
+        version: { type: string }
+        buildNumber: { type: number }
+        releaseDate: { type: [string, "null"] }
+        apkPath: { type: [string, "null"] }
+        updateType: { type: string, enum: [optional, recommended, critical] }
+        minAndroidVersion: { type: [string, "null"] }
+        releaseNotes: {}
+        screenshots: {}
+        demoVideoUrl: { type: [string, "null"] }
+    AppUpdateEnvelope:
+      type: object
+      properties:
+        update:
+          allOf:
+            - $ref: "#/components/schemas/AppUpdate"
+            - type: object
+              properties:
+                status: { type: string }
+      required: [update]
     DashboardStats:
       type: object
       properties:

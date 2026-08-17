@@ -5,6 +5,72 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface AppUpdate {
+  id: string;
+  version: string;
+  buildNumber: number;
+  /** @nullable */
+  releaseDate?: string | null;
+  /** @nullable */
+  apkSize?: number | null;
+  /** @nullable */
+  checksum?: string | null;
+  updateType: string;
+  /** @nullable */
+  minAndroidVersion?: string | null;
+  releaseNotes?: unknown;
+  screenshots?: unknown;
+  /** @nullable */
+  demoVideoUrl?: string | null;
+  /** @nullable */
+  publishedAt?: string | null;
+  /** @nullable */
+  apkUrl?: string | null;
+}
+
+export type AppUpdateAdmin = AppUpdate & ({
+  status: string;
+  downloadCount: number;
+  /** @nullable */
+  publishedByName?: string | null;
+  createdAt: string;
+  /** @nullable */
+  apkPath?: string | null;
+});
+
+export type AppUpdateInputUpdateType = typeof AppUpdateInputUpdateType[keyof typeof AppUpdateInputUpdateType];
+
+
+export const AppUpdateInputUpdateType = {
+  optional: 'optional',
+  recommended: 'recommended',
+  critical: 'critical',
+} as const;
+
+export interface AppUpdateInput {
+  version?: string;
+  buildNumber?: number;
+  /** @nullable */
+  releaseDate?: string | null;
+  /** @nullable */
+  apkPath?: string | null;
+  updateType?: AppUpdateInputUpdateType;
+  /** @nullable */
+  minAndroidVersion?: string | null;
+  releaseNotes?: unknown;
+  screenshots?: unknown;
+  /** @nullable */
+  demoVideoUrl?: string | null;
+}
+
+export type AppUpdateEnvelopeUpdate = AppUpdate & {
+  status?: string;
+};
+
+export interface AppUpdateEnvelope {
+  update: AppUpdateEnvelopeUpdate;
+}
+
 export interface DashboardStats {
   todayRepairs: number;
   pendingRepairs: number;
@@ -1343,5 +1409,22 @@ export type ActivityFeed200 = {
   page: number;
   limit: number;
   hasMore: boolean;
+};
+
+export type LatestAppUpdate200 = {
+  update: AppUpdate | null;
+};
+
+export type AppUpdateChangelog200 = {
+  updates: AppUpdate[];
+};
+
+export type ListAppUpdates200 = {
+  updates: AppUpdateAdmin[];
+};
+
+export type AppUpdateUploadUrl200 = {
+  uploadURL: string;
+  objectPath: string;
 };
 

@@ -1,0 +1,367 @@
+## VMC Electronics ERP — Professional OTA App Update System
+
+Build a **professional, secure, Play Store–independent OTA (Over-The-Air) update system** for the **VMC Electronics ERP Android application**.
+
+The update system must be integrated into the application's **Settings** section. Users should have complete control over when they download and install an update. **Never force an update, automatic installation, or automatic app restart.**
+
+### 1. Settings → App Update
+
+Add a dedicated **“App Update”** option inside the application's Settings.
+
+Display:
+
+* Current Version
+* Current Build Number
+* Latest Available Version
+* Latest Build Number
+* Release Date
+* APK Size
+* Update Status
+* Last Checked Date/Time
+* “Check for Updates” button
+
+When the user taps **“Check for Updates”**, the application must securely contact the update server and compare the installed version/build with the latest published version.
+
+### 2. No Update Available
+
+When the application is already up to date, show a professional status card:
+
+**“You’re on the latest version.”**
+
+Also display:
+
+**Current Version: X.X.X**
+**Last Checked: Date & Time**
+
+Do not download anything when no update is available.
+
+### 3. Update Available
+
+When a new version is available, display a prominent update card containing:
+
+**New Update Available**
+
+Show:
+
+* Latest Version
+* Build Number
+* Release Date
+* APK Size
+* Update Type
+* Download button
+
+Use three update types:
+
+* **Optional Update** — user can update whenever they want.
+* **Recommended Update** — strongly recommended, but user can continue using the current version.
+* **Critical/Force Update** — only support this as an administrative configuration for exceptional situations. Do not automatically install or restart the application.
+
+### 4. “What’s New” Section
+
+Every published update must have detailed release notes.
+
+Create a beautiful **“What’s New in This Update”** section.
+
+Support:
+
+* New Features
+* Improvements
+* Bug Fixes
+* Performance Improvements
+* Security Updates
+* UI/UX Changes
+* Important Notices
+
+Release notes should be displayed as clean cards or bullet points.
+
+Example:
+
+* Added advanced dealer ledger
+* Improved invoice search
+* Added payment history filters
+* Improved application performance
+* Fixed invoice printing issue
+* Improved security and stability
+
+Also support optional:
+
+* Update screenshots
+* Feature preview images
+* Short demo video
+
+Add a **“View Full Changelog”** option so users can see previous release information.
+
+### 5. Download Update
+
+When the user taps **“Download Update”**, download the APK securely from the configured update server.
+
+Display a professional download interface containing:
+
+* Download progress bar
+* Percentage
+* Downloaded size / total size
+* Download speed
+* Remaining size
+* Pause
+* Resume
+* Cancel
+
+Do not automatically install the APK when the download finishes.
+
+After download completion, change the interface to:
+
+**“Update Downloaded Successfully”**
+
+Then display:
+
+**“Install Update”**
+
+### 6. Manual Installation
+
+The application must install the downloaded update **only after the user explicitly taps “Install Update.”**
+
+Requirements:
+
+* No automatic installation
+* No automatic restart
+* No forced app closure
+* No background installation
+* User must always initiate installation
+* Preserve existing application data
+* Keep the current login/session where Android permits it
+
+Use Android's official APK installation mechanism and handle required permissions properly.
+
+If the device requires permission for installing apps from this source, show a clear explanation and guide the user to the relevant Android setting.
+
+### 7. Update Server / API
+
+Create a clean update API architecture.
+
+The server should provide a version manifest such as:
+
+* Latest Version
+* Latest Build Number
+* Release Date
+* APK Download URL
+* APK Size
+* Update Type
+* Release Notes
+* Screenshots
+* Demo Video URL
+* Minimum Supported Android Version
+* SHA-256 checksum
+* Published/Unpublished status
+
+Example API concept:
+
+`GET /api/app-updates/latest`
+
+Return structured JSON containing all required update information.
+
+The application must compare versions using the **build number**, not only the visible version string.
+
+### 8. Security
+
+Implement strong security practices.
+
+For every downloaded APK:
+
+* Verify HTTPS
+* Validate the server response
+* Verify APK integrity using SHA-256 checksum
+* Reject corrupted or incomplete downloads
+* Verify that the downloaded package belongs to the VMC Electronics ERP application
+* Prevent installation of an unexpected APK
+* Never trust an APK URL supplied by an untrusted source
+
+Keep sensitive update-management credentials exclusively on the server.
+
+### 9. Admin Panel — Update Manager
+
+Create an **“App Update Manager”** in the ERP Admin Panel.
+
+Admin should be able to:
+
+* Upload APK
+* Enter Version Number
+* Enter Build Number
+* Set Release Date
+* Set APK Size automatically
+* Select Update Type
+* Enter “What’s New” release notes
+* Add screenshots
+* Add demo video URL
+* Set minimum Android version
+* Generate/store SHA-256 checksum
+* Preview the update
+* Save as Draft
+* Publish Update
+* Unpublish Update
+* Replace/update an APK before publishing
+* View previous releases
+* View update history
+
+Add a confirmation dialog before publishing:
+
+**“Are you sure you want to publish this update to users?”**
+
+### 10. Update History
+
+Create an **Update History** section inside the Admin Panel.
+
+Show:
+
+* Version
+* Build
+* Release Date
+* Status
+* Published By
+* Published Date
+* APK Size
+* Number of downloads
+* Number of completed installations, when reliable telemetry is available
+
+Allow Admin to open any previous version and view its complete release notes.
+
+### 11. User Experience
+
+The entire update experience should feel like a **professional native Android application update system**, not a basic web download.
+
+Design requirements:
+
+* Premium modern UI
+* Clean Settings interface
+* Blue-based VMC Electronics branding
+* Subtle glassmorphism where appropriate
+* Smooth animations
+* Modern cards
+* Clear typography
+* Proper spacing
+* Responsive layout
+* Mobile-first design
+* Tablet support
+* Desktop/Admin panel support
+* Dark mode and light mode compatibility
+
+Avoid excessive animations or visual clutter.
+
+### 12. Update Notifications Inside the App
+
+Do not create intrusive popups every time the application opens.
+
+Instead:
+
+* Show a small update indicator/badge beside **Settings → App Update** when a new version exists.
+* Let the user manually open the update screen.
+* Store the user's decision when appropriate.
+* Do not repeatedly interrupt the user unnecessarily.
+
+The update badge should disappear after the new version is installed.
+
+### 13. Offline Handling
+
+If the device has no internet connection:
+
+Show:
+
+**“Unable to check for updates. Please check your internet connection and try again.”**
+
+Do not crash the application.
+
+The rest of the ERP must continue working normally according to its existing offline capability.
+
+### 14. Error Handling
+
+Handle all common cases gracefully:
+
+* No internet
+* Server unavailable
+* Invalid update response
+* APK download failure
+* Download interruption
+* Insufficient storage
+* Checksum mismatch
+* APK corruption
+* Unsupported Android version
+* Installation permission unavailable
+* Installation cancelled by user
+
+Every error should provide a clear, user-friendly message and a retry option where appropriate.
+
+### 15. Important Business Rule
+
+**The user must always remain in control of the update.**
+
+The default flow must be:
+
+**Settings → App Update → Check for Updates → View Update Details → Download Update → Install Update**
+
+Never:
+
+**Open App → Automatic Download → Automatic Install → Forced Restart**
+
+### 16. Database Structure
+
+Create appropriate database tables/models for:
+
+**app_updates**
+
+* id
+* version
+* build_number
+* release_date
+* apk_url
+* apk_size
+* checksum
+* update_type
+* minimum_android_version
+* release_notes
+* screenshots
+* demo_video_url
+* status
+* created_by
+* created_at
+* published_at
+
+Also create appropriate tables/models for update download/installation telemetry if the project architecture supports it.
+
+### 17. Implementation Requirements
+
+Before changing the existing ERP, inspect the current project architecture and reuse existing:
+
+* Authentication
+* Admin permissions
+* API conventions
+* Database structure
+* File storage
+* UI components
+* Theme
+* Logging
+* Error handling
+
+Do **not** break existing ERP functionality.
+
+Implement the feature modularly so that the update system can be maintained independently.
+
+### 18. Final Acceptance Criteria
+
+The feature is considered complete only when:
+
+1. **Settings → App Update** exists.
+2. User can manually check for updates.
+3. Current and latest version information is shown.
+4. “What’s New” release notes are displayed.
+5. Screenshots/video can be displayed when provided.
+6. APK can be downloaded with visible progress.
+7. Pause/resume/cancel works where technically supported.
+8. APK is not automatically installed.
+9. User must explicitly tap **Install Update**.
+10. No forced restart occurs.
+11. Admin can upload and publish new APK releases.
+12. Admin can manage release notes and update metadata.
+13. APK integrity is verified before installation.
+14. No Play Store dependency is required.
+15. Existing ERP functionality remains unaffected.
+
+**Important:** First inspect the existing VMC Electronics ERP codebase, identify the application's Android stack and backend architecture, then implement this OTA update system using the project's existing technology rather than introducing an unnecessary new framework.

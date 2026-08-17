@@ -9,7 +9,8 @@ import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
 import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
-import { useApprovalsList } from '@workspace/api-client-react';
+import { useApprovalsList, useLatestAppUpdate } from '@workspace/api-client-react';
+import { getAppBuildNumber } from '@/utils/appVersion';
 
 interface MenuItem {
   id: string;
@@ -29,6 +30,8 @@ const MENU_ITEMS: MenuItem[] = [
   { id: 'purchases', label: 'Purchases', icon: 'shopping-bag', route: '/(tabs)/more/purchases', color: '#4DA3FF', description: 'Purchase orders, suppliers', roles: ['super_admin', 'dealer', 'store_manager', 'accountant'] },
   { id: 'reports', label: 'Reports', icon: 'file-text', route: '/(tabs)/more/reports', color: '#F59E0B', description: 'Generate and export reports', roles: ['super_admin', 'dealer', 'accountant'] },
   { id: 'settings', label: 'Settings', icon: 'settings', route: '/(tabs)/more/settings', color: '#A8B3C7', description: 'Company, app configuration', roles: ['super_admin', 'dealer'] },
+  { id: 'app-update', label: 'App Update', icon: 'download-cloud', route: '/(tabs)/more/app-update', color: '#3A8FF7', description: 'Check for new app versions', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician'] },
+  { id: 'update-manager', label: 'App Update Manager', icon: 'upload-cloud', route: '/(tabs)/more/update-manager', color: '#8B5CF6', description: 'Publish new app releases', roles: ['super_admin'] },
 ];
 
 export default function MoreScreen() {
@@ -38,6 +41,10 @@ export default function MoreScreen() {
   const { user, logout, canAccess } = useAuth();
   const { data: approvalsData } = useApprovalsList();
   const pendingCount = approvalsData?.pendingCount || 0;
+  // Quiet update indicator: a small badge only, never a popup.
+  const { data: latestUpdateData } = useLatestAppUpdate();
+  const updateAvailable =
+    !!latestUpdateData?.update && latestUpdateData.update.buildNumber > getAppBuildNumber();
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
@@ -92,6 +99,11 @@ export default function MoreScreen() {
                 {item.id === 'approvals' && pendingCount > 0 && (user?.role === 'dealer' || user?.role === 'super_admin') && (
                   <View style={[styles.badgeWrap, { backgroundColor: colors.destructive, borderColor: colors.card }]}>
                     <Text style={styles.badgeText}>{pendingCount > 99 ? '99+' : pendingCount}</Text>
+                  </View>
+                )}
+                {item.id === 'app-update' && updateAvailable && (
+                  <View style={[styles.badgeWrap, { backgroundColor: colors.primary, borderColor: colors.card }]}>
+                    <Text style={styles.badgeText}>1</Text>
                   </View>
                 )}
               </View>

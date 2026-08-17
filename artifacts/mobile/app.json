@@ -18,7 +18,9 @@
       "bundleIdentifier": "com.vmcelectronicerp.app"
     },
     "android": {
-      "package": "com.vmcelectronicerp.app"
+      "package": "com.vmcelectronicerp.app",
+      "versionCode": 1,
+      "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES"]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"

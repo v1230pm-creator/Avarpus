@@ -15,6 +15,8 @@ export default function MoreLayout() {
       <Stack.Screen name="security" />
       <Stack.Screen name="purchases" />
       <Stack.Screen name="approvals" />
+      <Stack.Screen name="app-update" />
+      <Stack.Screen name="update-manager" />
     </Stack>
   );
 }

@@ -9,6 +9,7 @@ import returnsRouter from "./returns";
 import dashboardRouter from "./dashboard";
 import dealersRouter from "./dealers";
 import syncRouter from "./sync";
+import appUpdatesRouter from "./appUpdates";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(approvalsRouter);
 router.use(returnsRouter);
 router.use(dashboardRouter);
 router.use(syncRouter);
+router.use(appUpdatesRouter);
 
 export default router;

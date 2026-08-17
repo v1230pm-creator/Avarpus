@@ -2736,6 +2736,230 @@ export const ActivityFeedResponse = zod.object({
 
 
 /**
+ * @summary Latest published OTA app update (or null)
+ */
+export const LatestAppUpdateResponse = zod.object({
+  "update": zod.union([zod.object({
+  "id": zod.string(),
+  "version": zod.string(),
+  "buildNumber": zod.number(),
+  "releaseDate": zod.string().nullish(),
+  "apkSize": zod.number().nullish(),
+  "checksum": zod.string().nullish(),
+  "updateType": zod.string(),
+  "minAndroidVersion": zod.string().nullish(),
+  "releaseNotes": zod.unknown().optional(),
+  "screenshots": zod.unknown().optional(),
+  "demoVideoUrl": zod.string().nullish(),
+  "publishedAt": zod.string().nullish(),
+  "apkUrl": zod.string().nullish()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Published release changelog history
+ */
+export const AppUpdateChangelogResponse = zod.object({
+  "updates": zod.array(zod.object({
+  "id": zod.string(),
+  "version": zod.string(),
+  "buildNumber": zod.number(),
+  "releaseDate": zod.string().nullish(),
+  "apkSize": zod.number().nullish(),
+  "checksum": zod.string().nullish(),
+  "updateType": zod.string(),
+  "minAndroidVersion": zod.string().nullish(),
+  "releaseNotes": zod.unknown().optional(),
+  "screenshots": zod.unknown().optional(),
+  "demoVideoUrl": zod.string().nullish(),
+  "publishedAt": zod.string().nullish(),
+  "apkUrl": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary All releases incl. drafts (super_admin)
+ */
+export const ListAppUpdatesResponse = zod.object({
+  "updates": zod.array(zod.object({
+  "id": zod.string(),
+  "version": zod.string(),
+  "buildNumber": zod.number(),
+  "releaseDate": zod.string().nullish(),
+  "apkSize": zod.number().nullish(),
+  "checksum": zod.string().nullish(),
+  "updateType": zod.string(),
+  "minAndroidVersion": zod.string().nullish(),
+  "releaseNotes": zod.unknown().optional(),
+  "screenshots": zod.unknown().optional(),
+  "demoVideoUrl": zod.string().nullish(),
+  "publishedAt": zod.string().nullish(),
+  "apkUrl": zod.string().nullish()
+}).and(zod.object({
+  "status": zod.string(),
+  "downloadCount": zod.number(),
+  "publishedByName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "apkPath": zod.string().nullish()
+})))
+})
+
+
+/**
+ * @summary Create a draft release (super_admin)
+ */
+export const CreateAppUpdateBody = zod.object({
+  "version": zod.string().optional(),
+  "buildNumber": zod.number().optional(),
+  "releaseDate": zod.string().nullish(),
+  "apkPath": zod.string().nullish(),
+  "updateType": zod.enum(['optional', 'recommended', 'critical']).optional(),
+  "minAndroidVersion": zod.string().nullish(),
+  "releaseNotes": zod.unknown().optional(),
+  "screenshots": zod.unknown().optional(),
+  "demoVideoUrl": zod.string().nullish()
+})
+
+export const CreateAppUpdateResponse = zod.object({
+  "update": zod.object({
+  "id": zod.string(),
+  "version": zod.string(),
+  "buildNumber": zod.number(),
+  "releaseDate": zod.string().nullish(),
+  "apkSize": zod.number().nullish(),
+  "checksum": zod.string().nullish(),
+  "updateType": zod.string(),
+  "minAndroidVersion": zod.string().nullish(),
+  "releaseNotes": zod.unknown().optional(),
+  "screenshots": zod.unknown().optional(),
+  "demoVideoUrl": zod.string().nullish(),
+  "publishedAt": zod.string().nullish(),
+  "apkUrl": zod.string().nullish()
+}).and(zod.object({
+  "status": zod.string().optional()
+}))
+})
+
+
+/**
+ * @summary Presigned APK upload URL (super_admin)
+ */
+export const AppUpdateUploadUrlResponse = zod.object({
+  "uploadURL": zod.string(),
+  "objectPath": zod.string()
+})
+
+
+/**
+ * @summary Edit a release (super_admin)
+ */
+export const UpdateAppUpdateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateAppUpdateBody = zod.object({
+  "version": zod.string().optional(),
+  "buildNumber": zod.number().optional(),
+  "releaseDate": zod.string().nullish(),
+  "apkPath": zod.string().nullish(),
+  "updateType": zod.enum(['optional', 'recommended', 'critical']).optional(),
+  "minAndroidVersion": zod.string().nullish(),
+  "releaseNotes": zod.unknown().optional(),
+  "screenshots": zod.unknown().optional(),
+  "demoVideoUrl": zod.string().nullish()
+})
+
+export const UpdateAppUpdateResponse = zod.object({
+  "update": zod.object({
+  "id": zod.string(),
+  "version": zod.string(),
+  "buildNumber": zod.number(),
+  "releaseDate": zod.string().nullish(),
+  "apkSize": zod.number().nullish(),
+  "checksum": zod.string().nullish(),
+  "updateType": zod.string(),
+  "minAndroidVersion": zod.string().nullish(),
+  "releaseNotes": zod.unknown().optional(),
+  "screenshots": zod.unknown().optional(),
+  "demoVideoUrl": zod.string().nullish(),
+  "publishedAt": zod.string().nullish(),
+  "apkUrl": zod.string().nullish()
+}).and(zod.object({
+  "status": zod.string().optional()
+}))
+})
+
+
+/**
+ * Authenticated binary download. Supports HTTP Range requests for pause/resume (206 partial content, 416 for invalid ranges). Only published releases are downloadable. Clients should download this via a native file downloader with the bearer token header, not the generated JSON client.
+ * @summary Download the APK of a published release (binary, supports Range)
+ */
+export const DownloadAppUpdateApkParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DownloadAppUpdateApkResponse = zod.unknown()
+
+
+/**
+ * @summary Publish a release (super_admin)
+ */
+export const PublishAppUpdateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const PublishAppUpdateResponse = zod.object({
+  "update": zod.object({
+  "id": zod.string(),
+  "version": zod.string(),
+  "buildNumber": zod.number(),
+  "releaseDate": zod.string().nullish(),
+  "apkSize": zod.number().nullish(),
+  "checksum": zod.string().nullish(),
+  "updateType": zod.string(),
+  "minAndroidVersion": zod.string().nullish(),
+  "releaseNotes": zod.unknown().optional(),
+  "screenshots": zod.unknown().optional(),
+  "demoVideoUrl": zod.string().nullish(),
+  "publishedAt": zod.string().nullish(),
+  "apkUrl": zod.string().nullish()
+}).and(zod.object({
+  "status": zod.string().optional()
+}))
+})
+
+
+/**
+ * @summary Unpublish a release (super_admin)
+ */
+export const UnpublishAppUpdateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UnpublishAppUpdateResponse = zod.object({
+  "update": zod.object({
+  "id": zod.string(),
+  "version": zod.string(),
+  "buildNumber": zod.number(),
+  "releaseDate": zod.string().nullish(),
+  "apkSize": zod.number().nullish(),
+  "checksum": zod.string().nullish(),
+  "updateType": zod.string(),
+  "minAndroidVersion": zod.string().nullish(),
+  "releaseNotes": zod.unknown().optional(),
+  "screenshots": zod.unknown().optional(),
+  "demoVideoUrl": zod.string().nullish(),
+  "publishedAt": zod.string().nullish(),
+  "apkUrl": zod.string().nullish()
+}).and(zod.object({
+  "status": zod.string().optional()
+}))
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */
