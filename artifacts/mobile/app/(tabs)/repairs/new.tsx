@@ -184,6 +184,13 @@ export default function NewRepairScreen() {
     { query: { enabled: /^\d{10}$/.test(cleanMobile) } } as any,
   );
   const detectMatches = /^\d{10}$/.test(cleanMobile) ? (detectData?.dealers ?? []) : [];
+  // Auto-fill customer fields from the dealer's saved profile. Only empty
+  // fields are filled so we never clobber something the user already typed.
+  const fillFromDealer = (d: { name: string; mobile: string; location?: string }) => {
+    setCustomerName((v) => (v.trim() ? v : d.name));
+    setMobile((v) => (v.trim() ? v : d.mobile));
+    if (d.location) setAddress((v) => (v.trim() ? v : d.location!));
+  };
   // Auto-link: exactly ONE active dealer with this exact registered mobile.
   // Multiple matches are ambiguous — the user must choose from the list.
   useEffect(() => {
@@ -191,6 +198,7 @@ export default function NewRepairScreen() {
       if (dealerId !== detectMatches[0].id) {
         setDealerId(detectMatches[0].id);
         setAutoDetected(true);
+        fillFromDealer(detectMatches[0]);
       }
     } else if (autoDetected && (detectMatches.length === 0 || !detectMatches.some((d) => d.id === dealerId))) {
       // Number changed and no longer matches the auto-detected dealer.
@@ -720,7 +728,7 @@ export default function NewRepairScreen() {
                     {detectMatches.map((d) => (
                       <TouchableOpacity
                         key={d.id}
-                        onPress={() => { setDealerId(d.id); setAutoDetected(false); setDealerCleared(false); }}
+                        onPress={() => { setDealerId(d.id); setAutoDetected(false); setDealerCleared(false); fillFromDealer(d); }}
                         style={{ paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}
                       >
                         <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{d.name}</Text>
@@ -764,6 +772,7 @@ export default function NewRepairScreen() {
                             setDealerId(active ? null : d.id);
                             setAutoDetected(false);
                             setDealerCleared(active);
+                            if (!active) fillFromDealer(d);
                             setShowDealerPick(false);
                           }}
                           activeOpacity={0.8}
