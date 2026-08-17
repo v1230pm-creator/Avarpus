@@ -204,6 +204,8 @@ export default function RepairDetailScreen() {
   }, [savedTestingJson]);
 
   const { data: photosData } = useRepairPhotosList(id as string, { query: { enabled: !!id, queryKey: getRepairPhotosListQueryKey(id as string) } });
+  // Fullscreen viewer for receiving photos / signatures — tap a thumbnail to open.
+  const [viewerImage, setViewerImage] = useState<{ uri: string; label: string } | null>(null);
   const { data: eventsData } = useRepairEventsList(id as string, { query: { enabled: !!id, queryKey: getRepairEventsListQueryKey(id as string) } });
   const { data: returnsData } = useReturnsList({ query: { queryKey: getReturnsListQueryKey() } });
   const { data: partsData, refetch: partsRefetch } = useRepairPartsList(id as string, { query: { enabled: !!id, queryKey: getRepairPartsListQueryKey(id as string) } });
@@ -1589,12 +1591,17 @@ export default function RepairDetailScreen() {
                 <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 12 }]}>DOCUMENTS & PHOTOS</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
                   {photosData.photos.map(p => (
-                    <View key={p.id} style={{ width: 80 }}>
+                    <TouchableOpacity
+                      key={p.id}
+                      style={{ width: 80 }}
+                      activeOpacity={0.7}
+                      onPress={() => setViewerImage({ uri: getAbsoluteUrl(p.objectPath), label: p.kind.replace(/_/g, ' ') })}
+                    >
                       <View style={{ width: 80, height: 80, borderRadius: 8, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', marginBottom: 6 }}>
                         <Image source={{ uri: getAbsoluteUrl(p.objectPath), headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} />
                       </View>
                       <Text style={{ fontSize: 10, color: colors.mutedForeground, textAlign: 'center' }} numberOfLines={1}>{p.kind.replace(/_/g, ' ')}</Text>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               </Card>
@@ -1606,16 +1613,24 @@ export default function RepairDetailScreen() {
                 <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>SIGNATURES</Text>
                 <View style={{ flexDirection: 'row', gap: 16 }}>
                   {repair.receivingSignaturePath && (
-                    <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+                    <TouchableOpacity
+                      style={{ flex: 1, alignItems: 'center', gap: 4 }}
+                      activeOpacity={0.7}
+                      onPress={() => setViewerImage({ uri: getAbsoluteUrl(repair.receivingSignaturePath!), label: 'Receiving Signature' })}
+                    >
                       <Image source={{ uri: getAbsoluteUrl(repair.receivingSignaturePath), headers: { Authorization: `Bearer ${token}` } }} style={styles.sigImg} contentFit="contain" />
                       <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>Receiving</Text>
-                    </View>
+                    </TouchableOpacity>
                   )}
                   {repair.deliverySignaturePath && (
-                    <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+                    <TouchableOpacity
+                      style={{ flex: 1, alignItems: 'center', gap: 4 }}
+                      activeOpacity={0.7}
+                      onPress={() => setViewerImage({ uri: getAbsoluteUrl(repair.deliverySignaturePath!), label: 'Delivery Signature' })}
+                    >
                       <Image source={{ uri: getAbsoluteUrl(repair.deliverySignaturePath), headers: { Authorization: `Bearer ${token}` } }} style={styles.sigImg} contentFit="contain" />
                       <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>Delivery</Text>
-                    </View>
+                    </TouchableOpacity>
                   )}
                 </View>
               </Card>
@@ -1701,6 +1716,30 @@ export default function RepairDetailScreen() {
               <Button title="Request Customer Approval" variant="outline" onPress={() => { setShowMore(false); setTimeout(() => setShowApproval(true), 350); }} />
             )}
           </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Fullscreen photo/signature viewer */}
+      <Modal visible={!!viewerImage} animationType="fade" transparent onRequestClose={() => setViewerImage(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)' }}>
+          <TouchableOpacity
+            style={{ position: 'absolute', top: insets.top + 12, right: 16, zIndex: 2, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}
+            onPress={() => setViewerImage(null)}
+          >
+            <Feather name="x" size={22} color="#fff" />
+          </TouchableOpacity>
+          {viewerImage && (
+            <>
+              <Image
+                source={{ uri: viewerImage.uri, headers: { Authorization: `Bearer ${token}` } }}
+                style={{ flex: 1, marginVertical: insets.top + 60 }}
+                contentFit="contain"
+              />
+              <Text style={{ position: 'absolute', bottom: insets.bottom + 24, alignSelf: 'center', color: '#fff', fontSize: 14, fontFamily: 'Inter_500Medium', textTransform: 'capitalize' }}>
+                {viewerImage.label}
+              </Text>
+            </>
+          )}
         </View>
       </Modal>
 
