@@ -130,4 +130,38 @@ router.post(
   }),
 );
 
+// One-time, token-guarded role promotion for an existing user (e.g. grant
+// super_admin to the owner so they can use the Release Console). Same
+// lockdown as import-bundle: 404 unless IMPORT_BUNDLE_TOKEN is set and the
+// caller presents it. Only an allowlisted role can be assigned, and only to
+// a user that already exists.
+const PROMOTABLE_ROLES = new Set(["super_admin"]);
+
+router.post(
+  "/sync/promote-user",
+  json({ limit: "10kb" }),
+  asyncHandler(async (req, res) => {
+    const token = process.env.IMPORT_BUNDLE_TOKEN;
+    if (!token || req.header("x-import-token") !== token) {
+      res.status(404).json({ message: "Not found" });
+      return;
+    }
+    const mobile = String(req.body?.mobile ?? "").trim();
+    const role = String(req.body?.role ?? "").trim();
+    if (!/^\d{10}$/.test(mobile) || !PROMOTABLE_ROLES.has(role)) {
+      res.status(400).json({ message: "valid mobile and allowlisted role required" });
+      return;
+    }
+    const r = await pool.query(
+      `UPDATE users SET role = $1 WHERE mobile = $2 RETURNING id, name, mobile, role`,
+      [role, mobile],
+    );
+    if (r.rowCount === 0) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+    res.json({ ok: true, user: r.rows[0] });
+  }),
+);
+
 export default router;
