@@ -426,8 +426,9 @@ export default function ReleaseEditor() {
                       ) : (
                         <UploadArea 
                           title="Upload APK" 
-                          description="Drag and drop or click to upload the signed .apk file." 
+                          description="Drag and drop or click to upload the signed .apk file (up to 500MB)." 
                           accept=".apk"
+                          maxSizeMB={500}
                           apkMode={true}
                           onUploadSuccess={(path) => form.setValue("apkPath", path)}
                         />
