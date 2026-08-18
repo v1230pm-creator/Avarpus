@@ -10,6 +10,7 @@ import type { AppUpdate } from './appUpdate';
 export type AppUpdateAdmin = AppUpdate & ({
   status: string;
   downloadCount: number;
+  checkCount?: number;
   /** @nullable */
   publishedByName?: string | null;
   createdAt: string;

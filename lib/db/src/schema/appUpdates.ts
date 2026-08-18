@@ -26,8 +26,9 @@ export const appUpdatesTable = pgTable("app_updates", {
   releaseNotes: jsonb("release_notes"), // [{ category, items: [] }] or string[]
   screenshots: jsonb("screenshots"), // string[] of object paths/URLs
   demoVideoUrl: text("demo_video_url"),
-  status: text("status").notNull().default("draft"), // draft | published | unpublished
+  status: text("status").notNull().default("draft"), // draft | published | unpublished | archived
   downloadCount: integer("download_count").notNull().default(0),
+  checkCount: integer("check_count").notNull().default(0), // update checks recorded against this release
   createdBy: uuid("created_by").references(() => usersTable.id, {
     onDelete: "set null",
   }),

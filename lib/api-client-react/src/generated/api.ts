@@ -25,6 +25,8 @@ import type {
   AppUpdateChangelog200,
   AppUpdateEnvelope,
   AppUpdateInput,
+  AppUpdatePublishInput,
+  AppUpdateStats200,
   AppUpdateUploadUrl200,
   ApprovalRejectInput,
   ApprovalRequestInput,
@@ -75,6 +77,7 @@ import type {
   InventoryList200,
   InventoryUpdate200,
   LatestAppUpdate200,
+  LatestAppUpdateParams,
   ListAppUpdates200,
   LoginInput,
   Message,
@@ -6320,20 +6323,27 @@ export function useActivityFeed<TData = Awaited<ReturnType<typeof activityFeed>>
 
 
 
-export const getLatestAppUpdateUrl = () => {
+export const getLatestAppUpdateUrl = (params?: LatestAppUpdateParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/app-updates/latest`
+  return stringifiedParams.length > 0 ? `/api/app-updates/latest?${stringifiedParams}` : `/api/app-updates/latest`
 }
 
 /**
  * @summary Latest published OTA app update (or null)
  */
-export const latestAppUpdate = async ( options?: Parameters<typeof customFetch>[1]): Promise<LatestAppUpdate200> => {
+export const latestAppUpdate = async (params?: LatestAppUpdateParams, options?: Parameters<typeof customFetch>[1]): Promise<LatestAppUpdate200> => {
 
-  return customFetch<LatestAppUpdate200>(getLatestAppUpdateUrl(),
+  return customFetch<LatestAppUpdate200>(getLatestAppUpdateUrl(params),
   {
     ...options,
     method: 'GET'
@@ -6346,23 +6356,23 @@ export const latestAppUpdate = async ( options?: Parameters<typeof customFetch>[
 
 
 
-export const getLatestAppUpdateQueryKey = () => {
+export const getLatestAppUpdateQueryKey = (params?: LatestAppUpdateParams,) => {
     return [
-    `/api/app-updates/latest`
+    `/api/app-updates/latest`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getLatestAppUpdateQueryOptions = <TData = Awaited<ReturnType<typeof latestAppUpdate>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof latestAppUpdate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getLatestAppUpdateQueryOptions = <TData = Awaited<ReturnType<typeof latestAppUpdate>>, TError = ErrorType<unknown>>(params?: LatestAppUpdateParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof latestAppUpdate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getLatestAppUpdateQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getLatestAppUpdateQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof latestAppUpdate>>> = ({ signal }) => latestAppUpdate({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof latestAppUpdate>>> = ({ signal }) => latestAppUpdate(params, { signal, ...requestOptions });
 
 
 
@@ -6380,11 +6390,165 @@ export type LatestAppUpdateQueryError = ErrorType<unknown>
  */
 
 export function useLatestAppUpdate<TData = Awaited<ReturnType<typeof latestAppUpdate>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof latestAppUpdate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: LatestAppUpdateParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof latestAppUpdate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getLatestAppUpdateQueryOptions(options)
+  const queryOptions = getLatestAppUpdateQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAppUpdateStatsUrl = () => {
+
+
+
+
+  return `/api/app-updates/stats`
+}
+
+/**
+ * @summary Aggregate OTA release stats for the admin dashboard (super_admin)
+ */
+export const appUpdateStats = async ( options?: Parameters<typeof customFetch>[1]): Promise<AppUpdateStats200> => {
+
+  return customFetch<AppUpdateStats200>(getAppUpdateStatsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAppUpdateStatsQueryKey = () => {
+    return [
+    `/api/app-updates/stats`
+    ] as const;
+    }
+
+
+export const getAppUpdateStatsQueryOptions = <TData = Awaited<ReturnType<typeof appUpdateStats>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof appUpdateStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAppUpdateStatsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof appUpdateStats>>> = ({ signal }) => appUpdateStats({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof appUpdateStats>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AppUpdateStatsQueryResult = NonNullable<Awaited<ReturnType<typeof appUpdateStats>>>
+export type AppUpdateStatsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Aggregate OTA release stats for the admin dashboard (super_admin)
+ */
+
+export function useAppUpdateStats<TData = Awaited<ReturnType<typeof appUpdateStats>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof appUpdateStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAppUpdateStatsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAppUpdateAssetUrl = (objectId: string,) => {
+
+
+
+
+  return `/api/app-updates/assets/${objectId}`
+}
+
+/**
+ * @summary Serve a screenshot/image object uploaded for a release (binary)
+ */
+export const appUpdateAsset = async (objectId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getAppUpdateAssetUrl(objectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAppUpdateAssetQueryKey = (objectId: string,) => {
+    return [
+    `/api/app-updates/assets/${objectId}`
+    ] as const;
+    }
+
+
+export const getAppUpdateAssetQueryOptions = <TData = Awaited<ReturnType<typeof appUpdateAsset>>, TError = ErrorType<void>>(objectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof appUpdateAsset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAppUpdateAssetQueryKey(objectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof appUpdateAsset>>> = ({ signal }) => appUpdateAsset(objectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: objectId !== null && objectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof appUpdateAsset>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AppUpdateAssetQueryResult = NonNullable<Awaited<ReturnType<typeof appUpdateAsset>>>
+export type AppUpdateAssetQueryError = ErrorType<void>
+
+
+/**
+ * @summary Serve a screenshot/image object uploaded for a release (binary)
+ */
+
+export function useAppUpdateAsset<TData = Awaited<ReturnType<typeof appUpdateAsset>>, TError = ErrorType<void>>(
+ objectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof appUpdateAsset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAppUpdateAssetQueryOptions(objectId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -6852,16 +7016,17 @@ export const getPublishAppUpdateUrl = (id: string,) => {
 }
 
 /**
- * @summary Publish a release (super_admin)
+ * @summary Publish a release (super_admin) — auto-archives the previously published release
  */
-export const publishAppUpdate = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<AppUpdateEnvelope> => {
+export const publishAppUpdate = async (id: string,
+    appUpdatePublishInput?: AppUpdatePublishInput, options?: Parameters<typeof customFetch>[1]): Promise<AppUpdateEnvelope> => {
 
   return customFetch<AppUpdateEnvelope>(getPublishAppUpdateUrl(id),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(appUpdatePublishInput)
   }
 );}
 
@@ -6870,8 +7035,8 @@ export const publishAppUpdate = async (id: string, options?: Parameters<typeof c
 
 
 export const getPublishAppUpdateMutationOptions = <TError = ErrorType<ErrorEnvelope>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishAppUpdate>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof publishAppUpdate>>, TError,{id: string}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishAppUpdate>>, TError,{id: string;data?: BodyType<AppUpdatePublishInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishAppUpdate>>, TError,{id: string;data?: BodyType<AppUpdatePublishInput>}, TContext> => {
 
 const mutationKey = ['publishAppUpdate'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -6883,10 +7048,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishAppUpdate>>, {id: string}> = (props) => {
-          const {id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishAppUpdate>>, {id: string;data?: BodyType<AppUpdatePublishInput>}> = (props) => {
+          const {id,data} = props ?? {};
 
-          return  publishAppUpdate(id,requestOptions)
+          return  publishAppUpdate(id,data,requestOptions)
         }
 
 
@@ -6897,18 +7062,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type PublishAppUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof publishAppUpdate>>>
-
+    export type PublishAppUpdateMutationBody = BodyType<AppUpdatePublishInput> | undefined
     export type PublishAppUpdateMutationError = ErrorType<ErrorEnvelope>
 
     /**
- * @summary Publish a release (super_admin)
+ * @summary Publish a release (super_admin) — auto-archives the previously published release
  */
 export const usePublishAppUpdate = <TError = ErrorType<ErrorEnvelope>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishAppUpdate>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishAppUpdate>>, TError,{id: string;data?: BodyType<AppUpdatePublishInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof publishAppUpdate>>,
         TError,
-        {id: string},
+        {id: string;data?: BodyType<AppUpdatePublishInput>},
         TContext
       > => {
       return useMutation(getPublishAppUpdateMutationOptions(options));

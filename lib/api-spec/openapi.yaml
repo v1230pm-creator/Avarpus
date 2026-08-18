@@ -1792,6 +1792,14 @@ paths:
       operationId: latestAppUpdate
       tags: [appUpdates]
       summary: Latest published OTA app update (or null)
+      parameters:
+        - name: buildNumber
+          in: query
+          required: false
+          schema: { type: number }
+          description: >
+            Caller's installed build number. When present, the server records
+            an update check and returns updateAvailable computed against it.
       responses:
         "200":
           description: Latest published update manifest, if any
@@ -1804,7 +1812,36 @@ paths:
                     oneOf:
                       - $ref: "#/components/schemas/AppUpdate"
                       - type: "null"
+                  updateAvailable: { type: boolean }
                 required: [update]
+  /app-updates/stats:
+    get:
+      operationId: appUpdateStats
+      tags: [appUpdates]
+      summary: Aggregate OTA release stats for the admin dashboard (super_admin)
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    $ref: "#/components/schemas/AppUpdateStats"
+                required: [stats]
+  /app-updates/assets/{objectId}:
+    get:
+      operationId: appUpdateAsset
+      tags: [appUpdates]
+      summary: Serve a screenshot/image object uploaded for a release (binary)
+      parameters:
+        - { name: objectId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Binary object stream
+        "404":
+          description: Object not found
   /app-updates/changelog:
     get:
       operationId: appUpdateChangelog
@@ -1932,9 +1969,15 @@ paths:
     post:
       operationId: publishAppUpdate
       tags: [appUpdates]
-      summary: Publish a release (super_admin)
+      summary: Publish a release (super_admin) — auto-archives the previously published release
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppUpdatePublishInput"
       responses:
         "200":
           description: Published release
@@ -1942,6 +1985,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AppUpdateEnvelope"
+        "409":
+          description: Build number is lower than the currently published release (send allowLowerBuild to override for rollback)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
         "400":
           description: Release incomplete (no APK)
           content:
@@ -2001,6 +2050,7 @@ components:
           properties:
             status: { type: string }
             downloadCount: { type: number }
+            checkCount: { type: number }
             publishedByName: { type: [string, "null"] }
             createdAt: { type: string }
             apkPath: { type: [string, "null"] }
@@ -2017,6 +2067,28 @@ components:
         releaseNotes: {}
         screenshots: {}
         demoVideoUrl: { type: [string, "null"] }
+    AppUpdatePublishInput:
+      type: object
+      properties:
+        allowLowerBuild: { type: boolean }
+    AppUpdateStats:
+      type: object
+      properties:
+        totalReleases: { type: number }
+        publishedCount: { type: number }
+        draftCount: { type: number }
+        totalDownloads: { type: number }
+        totalUpdateChecks: { type: number }
+        currentVersion: { type: [string, "null"] }
+        currentBuildNumber: { type: [number, "null"] }
+        currentPublishedAt: { type: [string, "null"] }
+        currentDownloadCount: { type: [number, "null"] }
+      required:
+        - totalReleases
+        - publishedCount
+        - draftCount
+        - totalDownloads
+        - totalUpdateChecks
     AppUpdateEnvelope:
       type: object
       properties:

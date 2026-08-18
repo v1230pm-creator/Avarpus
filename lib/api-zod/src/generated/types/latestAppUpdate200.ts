@@ -9,4 +9,5 @@ import type { AppUpdate } from './appUpdate';
 
 export type LatestAppUpdate200 = {
   update: AppUpdate | null;
+  updateAvailable?: boolean;
 };

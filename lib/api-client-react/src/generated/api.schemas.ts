@@ -31,6 +31,7 @@ export interface AppUpdate {
 export type AppUpdateAdmin = AppUpdate & ({
   status: string;
   downloadCount: number;
+  checkCount?: number;
   /** @nullable */
   publishedByName?: string | null;
   createdAt: string;
@@ -61,6 +62,26 @@ export interface AppUpdateInput {
   screenshots?: unknown;
   /** @nullable */
   demoVideoUrl?: string | null;
+}
+
+export interface AppUpdatePublishInput {
+  allowLowerBuild?: boolean;
+}
+
+export interface AppUpdateStats {
+  totalReleases: number;
+  publishedCount: number;
+  draftCount: number;
+  totalDownloads: number;
+  totalUpdateChecks: number;
+  /** @nullable */
+  currentVersion?: string | null;
+  /** @nullable */
+  currentBuildNumber?: number | null;
+  /** @nullable */
+  currentPublishedAt?: string | null;
+  /** @nullable */
+  currentDownloadCount?: number | null;
 }
 
 export type AppUpdateEnvelopeUpdate = AppUpdate & {
@@ -1411,8 +1432,20 @@ export type ActivityFeed200 = {
   hasMore: boolean;
 };
 
+export type LatestAppUpdateParams = {
+/**
+ * Caller's installed build number. When present, the server records an update check and returns updateAvailable computed against it.
+ */
+buildNumber?: number;
+};
+
 export type LatestAppUpdate200 = {
   update: AppUpdate | null;
+  updateAvailable?: boolean;
+};
+
+export type AppUpdateStats200 = {
+  stats: AppUpdateStats;
 };
 
 export type AppUpdateChangelog200 = {

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/update-admin/"
+title = "VMC Update Admin"
+description = "A web-based admin panel for managing OTA Android app updates of the VMC Electronic BMS mobile app. Super admins log in, upload APK releases, write release notes and screenshots, preview, publish/unpublish/rollback releases, and view download and update-check statistics. Connected to the same API server and database the mobile app uses, so published releases immediately appear in the phone app's update checker."
+version = "1.0.0"
+id = "artifacts/update-admin"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/update-admin/" ]
+localPort = 22783
+
+[services.development]
+run = "pnpm --filter @workspace/update-admin run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/update-admin", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/update-admin/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22783"
+BASE_PATH = "/update-admin/"

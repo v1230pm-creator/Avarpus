@@ -2738,6 +2738,10 @@ export const ActivityFeedResponse = zod.object({
 /**
  * @summary Latest published OTA app update (or null)
  */
+export const LatestAppUpdateQueryParams = zod.object({
+  "buildNumber": zod.coerce.number().optional().describe('Caller\'s installed build number. When present, the server records an update check and returns updateAvailable computed against it.\n')
+})
+
 export const LatestAppUpdateResponse = zod.object({
   "update": zod.union([zod.object({
   "id": zod.string(),
@@ -2753,8 +2757,37 @@ export const LatestAppUpdateResponse = zod.object({
   "demoVideoUrl": zod.string().nullish(),
   "publishedAt": zod.string().nullish(),
   "apkUrl": zod.string().nullish()
-}),zod.null()])
+}),zod.null()]),
+  "updateAvailable": zod.boolean().optional()
 })
+
+
+/**
+ * @summary Aggregate OTA release stats for the admin dashboard (super_admin)
+ */
+export const AppUpdateStatsResponse = zod.object({
+  "stats": zod.object({
+  "totalReleases": zod.number(),
+  "publishedCount": zod.number(),
+  "draftCount": zod.number(),
+  "totalDownloads": zod.number(),
+  "totalUpdateChecks": zod.number(),
+  "currentVersion": zod.string().nullish(),
+  "currentBuildNumber": zod.number().nullish(),
+  "currentPublishedAt": zod.string().nullish(),
+  "currentDownloadCount": zod.number().nullish()
+})
+})
+
+
+/**
+ * @summary Serve a screenshot/image object uploaded for a release (binary)
+ */
+export const AppUpdateAssetParams = zod.object({
+  "objectId": zod.coerce.string()
+})
+
+export const AppUpdateAssetResponse = zod.unknown()
 
 
 /**
@@ -2800,6 +2833,7 @@ export const ListAppUpdatesResponse = zod.object({
 }).and(zod.object({
   "status": zod.string(),
   "downloadCount": zod.number(),
+  "checkCount": zod.number().optional(),
   "publishedByName": zod.string().nullish(),
   "createdAt": zod.string(),
   "apkPath": zod.string().nullish()
@@ -2904,10 +2938,14 @@ export const DownloadAppUpdateApkResponse = zod.unknown()
 
 
 /**
- * @summary Publish a release (super_admin)
+ * @summary Publish a release (super_admin) — auto-archives the previously published release
  */
 export const PublishAppUpdateParams = zod.object({
   "id": zod.coerce.string()
+})
+
+export const PublishAppUpdateBody = zod.object({
+  "allowLowerBuild": zod.boolean().optional()
 })
 
 export const PublishAppUpdateResponse = zod.object({

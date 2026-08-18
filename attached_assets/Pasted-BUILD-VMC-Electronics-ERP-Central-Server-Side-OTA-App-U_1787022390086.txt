@@ -1,0 +1,699 @@
+BUILD: VMC Electronics ERP – Central Server-Side OTA App Update Management System
+
+IMPORTANT:
+The Android application already has an App Update screen.
+Now build the complete SERVER-SIDE update management system that will control and distribute application updates to all installed VMC Electronics ERP applications.
+
+Do NOT rebuild the existing Android update UI unless an API integration is required.
+
+First inspect the existing VMC Electronics ERP project architecture, backend, database, authentication, admin panel, file storage and API structure.
+
+Reuse the existing technology and coding conventions.
+Do not introduce a new framework unnecessarily.
+
+==================================================
+1. ADMIN PANEL – APP UPDATE MANAGER
+==================================================
+
+Create a new Admin Panel section:
+
+Settings
+   └── App Update Manager
+
+The App Update Manager must allow authorized administrators to manage Android APK releases.
+
+Create a professional dashboard containing:
+
+- Current Published Version
+- Current Build Number
+- APK Size
+- Release Date
+- Update Status
+- Total Downloads
+- Total Update Checks
+- Previous Releases
+- Create New Update button
+
+Use the existing ERP Admin Panel design system.
+
+==================================================
+2. CREATE NEW APP UPDATE
+==================================================
+
+Create a "Create New Update" form.
+
+Fields:
+
+- APK File
+- Version Number
+- Build Number
+- Release Date
+- Update Type
+- Minimum Android Version
+- Release Notes
+- What's New
+- Screenshots
+- Demo Video URL
+- Update Status
+
+Update Type options:
+
+1. Optional
+2. Recommended
+3. Critical
+
+Default status:
+
+DRAFT
+
+Do not publish automatically after APK upload.
+
+==================================================
+3. APK UPLOAD
+==================================================
+
+When an administrator uploads an APK:
+
+1. Validate the uploaded file.
+2. Verify that the file is actually an Android APK.
+3. Verify the Android application package/application ID.
+4. Verify that it belongs to the VMC Electronics ERP application.
+5. Extract APK metadata where technically possible.
+6. Calculate APK file size automatically.
+7. Generate SHA-256 checksum automatically.
+8. Store the APK securely.
+9. Store the APK metadata in the database.
+
+Do NOT trust the file name or extension alone.
+
+Reject invalid APK files.
+
+Display upload progress.
+
+Show:
+
+- File name
+- File size
+- Upload status
+- SHA-256 checksum
+- Validation status
+
+==================================================
+4. APK STORAGE
+==================================================
+
+Create a secure APK storage structure.
+
+Example:
+
+/app-updates/
+    /android/
+        /1.0.0/
+        /1.5.0/
+        /2.0.0/
+        /2.1.0/
+
+Do not expose the physical storage path directly.
+
+Use secure download URLs or controlled API endpoints.
+
+Unpublished APK files must not be publicly downloadable.
+
+If the existing project already has cloud/object storage, reuse it.
+
+Do not store large APK binaries directly inside the database.
+
+Store only the file reference/path/URL and metadata in the database.
+
+==================================================
+5. UPDATE DATABASE MODEL
+==================================================
+
+Create an app_updates table/model.
+
+Suggested fields:
+
+id
+version
+build_number
+platform
+apk_file_reference
+apk_download_url
+apk_size
+sha256_checksum
+package_name
+minimum_android_version
+release_date
+update_type
+release_notes
+whats_new
+screenshots
+demo_video_url
+status
+created_by
+created_at
+updated_at
+published_at
+unpublished_at
+
+Use the existing database naming conventions if they differ.
+
+Platform should support:
+
+ANDROID
+
+Design the model so that future platforms can be added if required.
+
+==================================================
+6. UPDATE STATUS
+==================================================
+
+Supported statuses:
+
+DRAFT
+PUBLISHED
+UNPUBLISHED
+ARCHIVED
+
+Rules:
+
+- Only one Android update can be the active latest PUBLISHED update.
+- Publishing a new version should automatically mark the previous latest version as ARCHIVED or previous release.
+- Never delete old release records automatically.
+- Preserve complete update history.
+
+==================================================
+7. VERSION VALIDATION
+==================================================
+
+Use BUILD NUMBER as the primary version comparison value.
+
+Example:
+
+Installed:
+
+Version: 2.0.0
+Build: 200
+
+Server:
+
+Version: 2.1.0
+Build: 210
+
+Result:
+
+UPDATE AVAILABLE
+
+Do not rely only on the visible version string.
+
+Prevent an administrator from publishing a build number lower than the currently published build unless an explicit administrator override is implemented.
+
+Show a warning when attempting to publish an invalid/older build.
+
+==================================================
+8. RELEASE NOTES
+==================================================
+
+Admin must be able to create professional release notes.
+
+Support sections such as:
+
+NEW FEATURES
+IMPROVEMENTS
+BUG FIXES
+PERFORMANCE
+SECURITY
+UI/UX
+
+Allow release notes to contain multiple bullet points.
+
+Example:
+
+NEW FEATURES
+- Added dealer ledger
+- Added payment history
+- Added advanced invoice search
+
+BUG FIXES
+- Fixed invoice printing issue
+- Fixed payment calculation issue
+
+The Android application must receive these release notes through the update API.
+
+==================================================
+9. SCREENSHOTS
+==================================================
+
+Allow the administrator to upload multiple screenshots for each update.
+
+Support:
+
+- Add screenshot
+- Remove screenshot
+- Preview screenshot
+- Reorder screenshots
+
+Store screenshot references in the database.
+
+The existing Android application should be able to retrieve these images from the update API.
+
+==================================================
+10. DEMO VIDEO
+==================================================
+
+Allow an optional demo video URL.
+
+Store:
+
+demo_video_url
+
+Do not upload large video files to the database.
+
+The API should return the video URL to the application.
+
+==================================================
+11. PUBLISH WORKFLOW
+==================================================
+
+The publishing process must be:
+
+Create Update
+      ↓
+Upload APK
+      ↓
+Validate APK
+      ↓
+Save as Draft
+      ↓
+Admin Preview
+      ↓
+Publish Update
+      ↓
+Latest Update API Updated
+      ↓
+All Applications Can Detect Update
+
+Before publishing, show a confirmation dialog:
+
+"Are you sure you want to publish this update?"
+
+Show:
+
+- Version
+- Build Number
+- APK Size
+- Update Type
+- Release Notes
+
+Only authorized administrators can publish an update.
+
+==================================================
+12. PREVIEW UPDATE
+==================================================
+
+Before publishing, provide:
+
+"Preview Update"
+
+The admin should see exactly what the customer application will receive:
+
+- Version
+- Build
+- Release Date
+- APK Size
+- Update Type
+- What's New
+- Screenshots
+- Demo Video
+- Install information
+
+==================================================
+13. UPDATE API
+==================================================
+
+Create an API endpoint:
+
+GET /api/app-updates/latest
+
+This endpoint must return the latest published Android update.
+
+Example response structure:
+
+{
+  "success": true,
+  "platform": "android",
+  "updateAvailable": true,
+  "version": "2.1.0",
+  "buildNumber": 210,
+  "releaseDate": "2026-08-18",
+  "apkSize": 52428800,
+  "apkUrl": "...",
+  "sha256": "...",
+  "updateType": "recommended",
+  "minimumAndroidVersion": "8.0",
+  "releaseNotes": {
+    "newFeatures": [],
+    "improvements": [],
+    "bugFixes": [],
+    "security": []
+  },
+  "screenshots": [],
+  "demoVideoUrl": null
+}
+
+Use the existing API response conventions if the project already has them.
+
+==================================================
+14. VERSION CHECK LOGIC
+==================================================
+
+The Android application will send its current information.
+
+Example:
+
+GET /api/app-updates/latest?platform=android&buildNumber=200
+
+The server must compare:
+
+Client Build Number
+vs
+Latest Published Build Number
+
+If:
+
+clientBuild >= latestBuild
+
+return:
+
+updateAvailable: false
+
+If:
+
+clientBuild < latestBuild
+
+return:
+
+updateAvailable: true
+
+Never expose unpublished updates to the application.
+
+==================================================
+15. APK DOWNLOAD ENDPOINT
+==================================================
+
+Create a secure APK download mechanism.
+
+Example:
+
+GET /api/app-updates/download/:updateId
+
+Requirements:
+
+- HTTPS only
+- Verify that update is published
+- Verify that APK exists
+- Return/download the correct APK
+- Support large file downloads efficiently
+- Support HTTP range requests/resume where technically possible
+- Do not expose internal storage paths
+- Prevent access to draft/unpublished APKs
+
+==================================================
+16. APK SECURITY
+==================================================
+
+For every APK:
+
+- Generate SHA-256 checksum.
+- Store checksum.
+- Return checksum through API.
+- Verify APK package/application ID.
+- Verify APK exists before publishing.
+- Reject corrupted uploads.
+- Use HTTPS.
+- Prevent unauthorized APK replacement.
+- Protect upload endpoints using admin authentication.
+- Protect publish/unpublish endpoints using admin authorization.
+
+The Android application will verify the SHA-256 checksum before installation.
+
+==================================================
+17. ADMIN PERMISSIONS
+==================================================
+
+Only users with appropriate Admin permissions can:
+
+- Upload APK
+- Create update
+- Edit update
+- Delete draft
+- Publish update
+- Unpublish update
+- Archive update
+
+Use the existing ERP role/permission system.
+
+If a permission system already exists, integrate with it.
+
+Do not create a second unrelated authentication system.
+
+==================================================
+18. UPDATE HISTORY
+==================================================
+
+Create:
+
+Settings
+→ App Update Manager
+→ Update History
+
+Display:
+
+Version
+Build
+Release Date
+APK Size
+Status
+Created By
+Published Date
+Downloads
+Update Checks
+
+Allow admin to open any release and view:
+
+- Release notes
+- Screenshots
+- APK metadata
+- SHA-256
+- Publish history
+
+Do not delete historical versions automatically.
+
+==================================================
+19. DASHBOARD STATISTICS
+==================================================
+
+Add useful statistics:
+
+- Current Version
+- Total Published Releases
+- Total Update Checks
+- Total APK Downloads
+- Latest Release Date
+- Latest APK Size
+
+If reliable installation telemetry is implemented, also show:
+
+- Successful Installations
+- Installation Attempts
+
+Do not claim an installation was successful unless the Android application reports it.
+
+==================================================
+20. UPDATE TELEMETRY
+==================================================
+
+Optionally create API endpoints for:
+
+Update Check
+Download Started
+Download Completed
+Installation Started
+Installation Completed
+Installation Failed
+
+Do not collect unnecessary personal information.
+
+Use an anonymous/device-safe identifier if telemetry is required.
+
+Make telemetry privacy-conscious.
+
+==================================================
+21. UNPUBLISH
+==================================================
+
+Admin must be able to unpublish the current release.
+
+Before unpublishing:
+
+Show confirmation:
+
+"Unpublishing this update will stop new applications from receiving this release."
+
+After unpublishing:
+
+- It must no longer be returned by /latest API.
+- Historical record must remain.
+- APK must not be deleted automatically.
+
+If there is no newer published version, the API should clearly indicate that no update is currently available.
+
+==================================================
+22. ROLLBACK SUPPORT
+==================================================
+
+Implement safe rollback support.
+
+If a newly published update has a serious problem, admin should be able to select a previous valid release and publish it as the active release.
+
+Do not delete the problematic release.
+
+Mark it appropriately in the release history.
+
+==================================================
+23. AUDIT LOG
+==================================================
+
+Record important admin actions:
+
+- APK uploaded
+- Update created
+- Update edited
+- Update published
+- Update unpublished
+- Update archived
+- Update rollback performed
+
+Store:
+
+- Admin user
+- Action
+- Update ID
+- Timestamp
+
+Use the existing ERP audit-log system if available.
+
+==================================================
+24. UI/UX
+==================================================
+
+Create a premium professional UI matching the existing VMC Electronics ERP.
+
+Use:
+
+- Clean dashboard
+- Modern cards
+- Blue VMC branding
+- Responsive layout
+- Mobile-friendly admin interface
+- Desktop-friendly interface
+- Clear status badges
+- Upload progress
+- Confirmation dialogs
+- Success/error notifications
+- Search and filtering
+- Version sorting
+
+Do not unnecessarily redesign the existing ERP.
+
+==================================================
+25. IMPORTANT: EXISTING APP INTEGRATION
+==================================================
+
+The existing Android App Update screen must work with this server.
+
+Do not create a disconnected demo API.
+
+Connect the actual application update flow to the actual server-side update API.
+
+The final system must work like this:
+
+ADMIN:
+
+Admin Panel
+→ App Update Manager
+→ Upload APK
+→ Enter Version
+→ Add What's New
+→ Add Screenshots
+→ Preview
+→ Publish
+
+CUSTOMER:
+
+Android App
+→ Settings
+→ App Update
+→ Check for Updates
+→ Server API
+→ Latest Published Version
+→ Show Update Details
+→ Download APK
+→ User taps Install Update
+
+==================================================
+26. VERY IMPORTANT BUSINESS RULE
+==================================================
+
+There must be NO Play Store dependency.
+
+The server must act as the central source of truth for VMC Electronics ERP Android application updates.
+
+However:
+
+- Do not automatically install updates.
+- Do not automatically restart the app.
+- Do not force-close the app.
+- Do not silently download large APK files without user action.
+- Customer must choose when to download and install.
+
+==================================================
+27. FINAL IMPLEMENTATION REQUIREMENT
+==================================================
+
+Before coding:
+
+1. Inspect the existing project.
+2. Identify backend framework.
+3. Identify database.
+4. Identify authentication system.
+5. Identify admin panel.
+6. Identify existing file storage.
+7. Identify existing API structure.
+8. Identify existing Android App Update API/client implementation.
+
+Then implement the server-side system using the existing architecture.
+
+Do not create mock data as the final implementation.
+
+Do not create a fake upload button that does not actually store the APK.
+
+Do not create a fake API response.
+
+The APK upload, storage, metadata, publishing, version checking, download endpoint and Android app integration must be functional.
+
+After implementation, test the complete flow:
+
+Admin uploads APK
+→ APK validation
+→ Metadata generated
+→ Draft created
+→ Admin publishes
+→ Latest API returns update
+→ Android app detects update
+→ Customer sees What's New
+→ Customer downloads APK
+→ Checksum can be verified
+→ Customer manually installs update
+
+Also ensure that existing VMC Electronics ERP functionality remains completely unaffected.

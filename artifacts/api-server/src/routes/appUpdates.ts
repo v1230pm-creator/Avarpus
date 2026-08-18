@@ -22,7 +22,7 @@ const objectStorage = new ObjectStorageService();
 
 const APK_PREFIX = "/objects/uploads/app-updates/";
 const UPDATE_TYPES = new Set(["optional", "recommended", "critical"]);
-const ADMIN = requireRole(["super_admin"]);
+const ADMIN = requireRole("super_admin");
 
 function userOf(req: Request): DbUser {
   return (req as Request & { user: DbUser }).user;
@@ -47,20 +47,37 @@ function publicUpdate(u: typeof appUpdatesTable.$inferSelect) {
 }
 
 // Compute size + SHA-256 by streaming the uploaded APK from object storage.
+// Also validates that the object is a real APK (ZIP container): the first two
+// bytes must be the "PK" magic and the file must be plausibly sized, so a
+// renamed text/image file can never be published as an update.
+class NotAnApkError extends Error {}
+const MIN_APK_SIZE = 1024 * 1024; // 1 MB — real app APKs are far larger
+
 async function computeApkMeta(
   apkPath: string,
 ): Promise<{ size: number; checksum: string }> {
   const file = await objectStorage.getObjectEntityFile(apkPath);
   const [metadata] = await file.getMetadata();
   const size = Number(metadata.size ?? 0);
+  if (size < MIN_APK_SIZE) {
+    throw new NotAnApkError("File is too small to be a valid APK");
+  }
   const hash = createHash("sha256");
+  let firstBytes: Buffer | null = null;
   await new Promise<void>((resolve, reject) => {
     file
       .createReadStream()
-      .on("data", (chunk: Buffer) => hash.update(chunk))
+      .on("data", (chunk: Buffer) => {
+        if (!firstBytes) firstBytes = chunk;
+        hash.update(chunk);
+      })
       .on("end", () => resolve())
       .on("error", reject);
   });
+  const head = firstBytes as Buffer | null;
+  if (!head || head.length < 2 || head[0] !== 0x50 || head[1] !== 0x4b) {
+    throw new NotAnApkError("File is not a valid APK (bad file signature)");
+  }
   return { size, checksum: hash.digest("hex") };
 }
 
@@ -70,18 +87,129 @@ async function computeApkMeta(
 router.get(
   "/app-updates/latest",
   requireAuth,
-  asyncHandler(async (_req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const [latest] = await db
       .select()
       .from(appUpdatesTable)
       .where(eq(appUpdatesTable.status, "published"))
       .orderBy(desc(appUpdatesTable.buildNumber))
       .limit(1);
+    const rawBuild = req.query["buildNumber"];
+    const clientBuild =
+      typeof rawBuild === "string" && /^\d+$/.test(rawBuild)
+        ? Number.parseInt(rawBuild, 10)
+        : null;
     if (!latest) {
-      res.json({ update: null });
+      res.json({ update: null, updateAvailable: false });
       return;
     }
-    res.json({ update: publicUpdate(latest) });
+    if (clientBuild !== null) {
+      // Fire-and-forget update-check counter; never block the response.
+      db.update(appUpdatesTable)
+        .set({ checkCount: sql`${appUpdatesTable.checkCount} + 1` })
+        .where(eq(appUpdatesTable.id, latest.id))
+        .catch(() => {});
+    }
+    res.json({
+      update: publicUpdate(latest),
+      updateAvailable:
+        clientBuild !== null ? latest.buildNumber > clientBuild : undefined,
+    });
+  }),
+);
+
+// Serve a screenshot/image object referenced by a release. APKs share the
+// same storage namespace, so the object must appear in some release's
+// screenshots array — arbitrary namespace objects (including draft APKs) are
+// never streamable here. Non-super_admin callers can only fetch screenshots
+// of published releases.
+router.get(
+  "/app-updates/assets/:objectId",
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const objectId = String(req.params.objectId);
+    if (!/^[0-9a-fA-F-]{36}$/.test(objectId)) {
+      res.status(404).json({ error: "Object not found" });
+      return;
+    }
+    const objectPath = `${APK_PREFIX}${objectId}`;
+    const isSuperAdmin = userOf(req).role === "super_admin";
+    const [referencing] = await db
+      .select({ id: appUpdatesTable.id })
+      .from(appUpdatesTable)
+      .where(and(
+        sql`${appUpdatesTable.screenshots} @> ${JSON.stringify([objectPath])}::jsonb`,
+        ...(isSuperAdmin ? [] : [eq(appUpdatesTable.status, "published")]),
+      ))
+      .limit(1);
+    if (!referencing) {
+      res.status(404).json({ error: "Object not found" });
+      return;
+    }
+    let file;
+    try {
+      file = await objectStorage.getObjectEntityFile(objectPath);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        res.status(404).json({ error: "Object not found" });
+        return;
+      }
+      throw error;
+    }
+    const [metadata] = await file.getMetadata();
+    res.setHeader(
+      "Content-Type",
+      typeof metadata.contentType === "string"
+        ? metadata.contentType
+        : "application/octet-stream",
+    );
+    res.setHeader("Content-Length", String(metadata.size ?? 0));
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    const stream = file.createReadStream();
+    stream.on("error", () => {
+      if (!res.headersSent) res.status(500);
+      res.end();
+    });
+    stream.pipe(res);
+  }),
+);
+
+// Aggregate stats for the admin dashboard.
+router.get(
+  "/app-updates/stats",
+  requireAuth,
+  ADMIN,
+  asyncHandler(async (_req: Request, res: Response) => {
+    const [totals] = await db
+      .select({
+        totalReleases: sql<number>`count(*)::int`,
+        publishedCount: sql<number>`count(*) filter (where ${appUpdatesTable.status} = 'published')::int`,
+        draftCount: sql<number>`count(*) filter (where ${appUpdatesTable.status} = 'draft')::int`,
+        totalDownloads: sql<number>`coalesce(sum(${appUpdatesTable.downloadCount}), 0)::int`,
+        totalUpdateChecks: sql<number>`coalesce(sum(${appUpdatesTable.checkCount}), 0)::int`,
+      })
+      .from(appUpdatesTable);
+    const [current] = await db
+      .select()
+      .from(appUpdatesTable)
+      .where(eq(appUpdatesTable.status, "published"))
+      .orderBy(desc(appUpdatesTable.buildNumber))
+      .limit(1);
+    res.json({
+      stats: {
+        totalReleases: totals?.totalReleases ?? 0,
+        publishedCount: totals?.publishedCount ?? 0,
+        draftCount: totals?.draftCount ?? 0,
+        totalDownloads: totals?.totalDownloads ?? 0,
+        totalUpdateChecks: totals?.totalUpdateChecks ?? 0,
+        currentVersion: current?.version ?? null,
+        currentBuildNumber: current?.buildNumber ?? null,
+        currentPublishedAt: current?.publishedAt
+          ? current.publishedAt.toISOString()
+          : null,
+        currentDownloadCount: current?.downloadCount ?? null,
+      },
+    });
   }),
 );
 
@@ -209,6 +337,7 @@ router.get(
         ...publicUpdate(r.update),
         status: r.update.status,
         downloadCount: r.update.downloadCount,
+        checkCount: r.update.checkCount,
         publishedByName: r.publishedByName ?? null,
         createdAt: r.update.createdAt.toISOString(),
         apkPath: r.update.apkPath,
@@ -307,8 +436,13 @@ router.post(
     if (typeof body.apkPath === "string") {
       try {
         apkMeta = await computeApkMeta(body.apkPath);
-      } catch {
-        res.status(400).json({ error: "Uploaded APK not found in storage" });
+      } catch (error) {
+        res.status(400).json({
+          error:
+            error instanceof NotAnApkError
+              ? error.message
+              : "Uploaded APK not found in storage",
+        });
         return;
       }
     }
@@ -386,8 +520,13 @@ router.patch(
           patch.apkPath = body.apkPath;
           patch.apkSize = meta.size;
           patch.checksum = meta.checksum;
-        } catch {
-          res.status(400).json({ error: "Uploaded APK not found in storage" });
+        } catch (error) {
+          res.status(400).json({
+            error:
+              error instanceof NotAnApkError
+                ? error.message
+                : "Uploaded APK not found in storage",
+          });
           return;
         }
       }
@@ -410,12 +549,18 @@ router.patch(
   }),
 );
 
-// Publish: requires a complete release (APK + checksum). Idempotent-safe.
+// Publish: requires a complete release (APK + checksum). Only one release is
+// live at a time — publishing atomically archives the previously published
+// release. Publishing a lower build number than the currently live release
+// (a rollback) requires the explicit allowLowerBuild flag.
 router.post(
   "/app-updates/:id/publish",
   requireAuth,
   ADMIN,
   asyncHandler(async (req: Request, res: Response) => {
+    const allowLowerBuild =
+      (req.body as { allowLowerBuild?: unknown } | undefined)
+        ?.allowLowerBuild === true;
     const [row] = await db
       .select()
       .from(appUpdatesTable)
@@ -429,27 +574,72 @@ router.post(
       res.status(400).json({ error: "Upload an APK before publishing" });
       return;
     }
-    // Atomic guard: only publish a row that still has a complete APK at write
-    // time (a concurrent PATCH cannot have cleared it).
-    const [updated] = await db
-      .update(appUpdatesTable)
-      .set({
-        status: "published",
-        publishedBy: userOf(req).id,
-        publishedAt: row.publishedAt ?? new Date(),
-        updatedAt: new Date(),
-      })
-      .where(and(
-        eq(appUpdatesTable.id, row.id),
-        isNotNull(appUpdatesTable.apkPath),
-        isNotNull(appUpdatesTable.checksum),
-      ))
-      .returning();
-    if (!updated) {
-      res.status(409).json({ error: "Release changed concurrently; upload an APK and try again" });
+    const result = await db.transaction(async (tx) => {
+      // Serialize all publishes with a transaction-scoped advisory lock —
+      // row locks alone cannot serialize two publishes when no row is
+      // currently published (both would lock an empty set and go live).
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext('app_updates_publish'))`,
+      );
+      const published = await tx
+        .select()
+        .from(appUpdatesTable)
+        .where(eq(appUpdatesTable.status, "published"))
+        .for("update");
+      const currentLive = published
+        .filter((p) => p.id !== row.id)
+        .sort((a, b) => b.buildNumber - a.buildNumber)[0];
+      if (
+        currentLive &&
+        row.buildNumber <= currentLive.buildNumber &&
+        !allowLowerBuild
+      ) {
+        return {
+          ok: false as const,
+          status: 409,
+          message: `Build number ${row.buildNumber} is not higher than the currently published build ${currentLive.buildNumber}. Confirm the rollback to proceed.`,
+        };
+      }
+      // Archive every other currently published release.
+      for (const p of published) {
+        if (p.id === row.id) continue;
+        await tx
+          .update(appUpdatesTable)
+          .set({ status: "archived", updatedAt: new Date() })
+          .where(eq(appUpdatesTable.id, p.id));
+      }
+      // Atomic guard: only publish a row that still has a complete APK at
+      // write time (a concurrent PATCH cannot have cleared it).
+      const [updated] = await tx
+        .update(appUpdatesTable)
+        .set({
+          status: "published",
+          publishedBy: userOf(req).id,
+          publishedAt: row.publishedAt ?? new Date(),
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(appUpdatesTable.id, row.id),
+          isNotNull(appUpdatesTable.apkPath),
+          isNotNull(appUpdatesTable.checksum),
+        ))
+        .returning();
+      if (!updated) {
+        return {
+          ok: false as const,
+          status: 409,
+          message: "Release changed concurrently; upload an APK and try again",
+        };
+      }
+      return { ok: true as const, updated };
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.message });
       return;
     }
-    res.json({ update: { ...publicUpdate(updated), status: updated.status } });
+    res.json({
+      update: { ...publicUpdate(result.updated), status: result.updated.status },
+    });
   }),
 );
 
