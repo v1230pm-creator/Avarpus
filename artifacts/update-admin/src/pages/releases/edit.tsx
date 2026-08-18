@@ -50,7 +50,7 @@ const categories = ["NEW FEATURES", "IMPROVEMENTS", "BUG FIXES", "SECURITY"] as 
 const releaseNotesSchema = z.array(
   z.object({
     category: z.enum(categories),
-    items: z.array(z.object({ text: z.string().min(1, "Required") })).min(1, "At least one item is required")
+    items: z.array(z.object({ text: z.string() }))
   })
 );
 
@@ -162,6 +162,18 @@ export default function ReleaseEditor() {
   }
 
   const isPublished = existingUpdate?.status === "published";
+
+  const onInvalid = (errors: any) => {
+    const firstKey = Object.keys(errors)[0];
+    const detailTabs: Record<string, "details" | "notes" | "media"> = {
+      version: "details", buildNumber: "details", updateType: "details",
+      minAndroidVersion: "details", demoVideoUrl: "details",
+      releaseNotes: "notes", apkPath: "media", screenshots: "media",
+    };
+    if (firstKey && detailTabs[firstKey]) setActiveTab(detailTabs[firstKey]);
+    const msg = errors[firstKey]?.message || "Please check the highlighted fields";
+    toast({ title: "Cannot save draft", description: `${firstKey}: ${msg}`, variant: "destructive" });
+  };
 
   const onSubmit = (data: ReleaseFormValues) => {
     // Transform notes back to API format
@@ -277,7 +289,7 @@ export default function ReleaseEditor() {
           )}
           
           {!isPublished && existingUpdate?.status !== "archived" && (
-            <Button onClick={form.handleSubmit(onSubmit)} disabled={createUpdate.isPending || updateUpdate.isPending}>
+            <Button onClick={form.handleSubmit(onSubmit, onInvalid)} disabled={createUpdate.isPending || updateUpdate.isPending}>
               {(createUpdate.isPending || updateUpdate.isPending) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Save Draft
             </Button>
