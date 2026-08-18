@@ -11,6 +11,7 @@ import {
   hashPassword,
   listActiveSessions,
   recordLoginEvent,
+  revokeAllSessions,
   revokeOtherSessions,
   revokeSessionById,
   publicUser,
@@ -479,10 +480,13 @@ router.post("/auth/forgot/reset", asyncHandler(async (req, res) => {
     res.status(401).json({ message: "Reset session expired. Start over." });
     return;
   }
-  await db
+  const updated = await db
     .update(usersTable)
     .set({ passwordHash: hashPassword(newPassword) })
-    .where(eq(usersTable.email, normEmail));
+    .where(eq(usersTable.email, normEmail))
+    .returning({ id: usersTable.id });
+  // Revoke every existing session so a stolen session can't outlive the reset.
+  if (updated[0]) await revokeAllSessions(updated[0].id);
   res.json({ message: "Password updated. Sign in with your new password." });
 }));
 

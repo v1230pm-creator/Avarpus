@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { useAuthLogin } from '@workspace/api-client-react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -125,6 +125,11 @@ export default function Login() {
                 </Button>
               </form>
             </Form>
+
+            <div className="flex items-center justify-between mt-6 text-sm">
+              <Link href="/forgot" className="text-primary hover:underline">Forgot password?</Link>
+              <Link href="/register" className="text-primary hover:underline">Create account</Link>
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -133,6 +133,15 @@ export async function revokeOtherSessions(userId: string, currentToken: string):
   return deleted.length;
 }
 
+// Revoke every session of the user (e.g. after a password reset).
+export async function revokeAllSessions(userId: string): Promise<number> {
+  const deleted = await db
+    .delete(sessionsTable)
+    .where(eq(sessionsTable.userId, userId))
+    .returning({ id: sessionsTable.id });
+  return deleted.length;
+}
+
 export async function createOtp(
   identifier: string,
   purpose: string,
