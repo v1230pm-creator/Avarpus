@@ -200,6 +200,77 @@ export const AuthMeResponse = zod.object({
 
 
 /**
+ * @summary Update own profile (name, mobile)
+ */
+export const AuthMeUpdateBody = zod.object({
+  "name": zod.string().optional(),
+  "mobile": zod.string().optional()
+})
+
+export const AuthMeUpdateResponse = zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional()
+})
+})
+
+
+/**
+ * @summary Change own password (requires current password)
+ */
+export const AuthChangePasswordBody = zod.object({
+  "currentPassword": zod.string(),
+  "newPassword": zod.string()
+})
+
+export const AuthChangePasswordResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Latest in-app notifications for the current user
+ */
+export const NotificationsListResponse = zod.object({
+  "unreadCount": zod.number(),
+  "notifications": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "data": zod.unknown().optional(),
+  "read": zod.boolean(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Mark notifications read (all when ids omitted)
+ */
+export const NotificationsMarkReadBody = zod.object({
+  "ids": zod.array(zod.string()).optional()
+})
+
+export const NotificationsMarkReadResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
  * @summary List staff of the current dealer's shop (dealer/super_admin only)
  */
 export const StaffListResponse = zod.object({

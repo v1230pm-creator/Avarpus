@@ -495,6 +495,83 @@ router.get("/auth/me", requireAuth, (req, res) => {
   res.json({ user: publicUser(req.user!) });
 });
 
+// ── Self profile update (name / mobile) ──────────────────────────────────
+router.patch("/auth/me", requireAuth, asyncHandler(async (req, res) => {
+  const me = req.user!;
+  const { name, mobile } = req.body ?? {};
+  const set: Partial<{ name: string; mobile: string }> = {};
+  if (name !== undefined) {
+    if (typeof name !== "string" || !name.trim()) {
+      res.status(400).json({ message: "Name cannot be empty" });
+      return;
+    }
+    set.name = name.trim().slice(0, 120);
+  }
+  if (mobile !== undefined) {
+    if (typeof mobile !== "string" || !/^\d{10}$/.test(mobile)) {
+      res.status(400).json({ message: "Mobile must be a 10-digit number" });
+      return;
+    }
+    if (mobile !== me.mobile) {
+      const clash = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.mobile, mobile))
+        .limit(1);
+      if (clash.length > 0 && clash[0].id !== me.id) {
+        res.status(409).json({ message: "Another account already uses this mobile number" });
+        return;
+      }
+    }
+    set.mobile = mobile;
+  }
+  if (Object.keys(set).length === 0) {
+    res.json({ user: publicUser(me) });
+    return;
+  }
+  const [updated] = await db
+    .update(usersTable)
+    .set(set)
+    .where(eq(usersTable.id, me.id))
+    .returning();
+  res.json({ user: publicUser(updated) });
+}));
+
+// ── Self-service password change (current password required) ─────────────
+router.post("/auth/change-password", requireAuth, asyncHandler(async (req, res) => {
+  const me = req.user!;
+  const { currentPassword, newPassword } = req.body ?? {};
+  if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
+    res.status(400).json({ message: "Current and new password are required" });
+    return;
+  }
+  const lock = checkFailureLockout(`chpw:${me.id}`);
+  if (lock.limited) {
+    res.status(429).json({ message: `Too many attempts. Try again in ${retryAfterText(lock.retryAfterMs)}.` });
+    return;
+  }
+  if (!me.passwordHash || !verifyPassword(currentPassword, me.passwordHash)) {
+    await recordFailure(`chpw:${me.id}`);
+    res.status(401).json({ message: "Current password is incorrect" });
+    return;
+  }
+  if (!validPassword(newPassword)) {
+    res.status(400).json({
+      message: "Password must be 8+ characters with uppercase, lowercase and a number",
+    });
+    return;
+  }
+  await clearFailures(`chpw:${me.id}`);
+  await db
+    .update(usersTable)
+    .set({ passwordHash: hashPassword(newPassword) })
+    .where(eq(usersTable.id, me.id));
+  // Sign out every OTHER device — a stolen session must not survive the
+  // change; the device that changed the password stays signed in.
+  await revokeOtherSessions(me.id, req.sessionToken!);
+  res.json({ message: "Password changed. Other devices have been signed out." });
+}));
+
 router.get("/auth/login-history", requireAuth, asyncHandler(async (req, res) => {
   const events = await getLoginHistory(req.user!.id);
   res.json({

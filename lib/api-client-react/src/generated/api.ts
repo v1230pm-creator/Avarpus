@@ -34,12 +34,15 @@ import type {
   ApprovalsCreate200,
   ApprovalsList200,
   ApprovalsReject200,
+  AuthChangePassword200,
   AuthForgotVerify200,
   AuthLoginHistory200,
   AuthMe200,
+  AuthMeUpdate200,
   AuthOtpRequest200,
   AuthSession,
   AuthSessions200,
+  ChangePasswordInput,
   CustomerInput,
   CustomerSummary200,
   CustomersCreate200,
@@ -81,10 +84,14 @@ import type {
   ListAppUpdates200,
   LoginInput,
   Message,
+  NotificationsList200,
+  NotificationsMarkRead200,
+  NotificationsReadInput,
   OtpRequestInput,
   OtpVerifyInput,
   PaymentsList200,
   PaymentsListParams,
+  ProfileUpdateInput,
   PurchaseInput,
   PurchasesCreate200,
   PurchasesList200,
@@ -818,6 +825,296 @@ export function useAuthMe<TData = Awaited<ReturnType<typeof authMe>>, TError = E
 
 
 
+
+export const getAuthMeUpdateUrl = () => {
+
+
+
+
+  return `/api/auth/me`
+}
+
+/**
+ * @summary Update own profile (name, mobile)
+ */
+export const authMeUpdate = async (profileUpdateInput: ProfileUpdateInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthMeUpdate200> => {
+
+  return customFetch<AuthMeUpdate200>(getAuthMeUpdateUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(profileUpdateInput)
+  }
+);}
+
+
+
+
+
+export const getAuthMeUpdateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authMeUpdate>>, TError,{data: BodyType<ProfileUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authMeUpdate>>, TError,{data: BodyType<ProfileUpdateInput>}, TContext> => {
+
+const mutationKey = ['authMeUpdate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authMeUpdate>>, {data: BodyType<ProfileUpdateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  authMeUpdate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthMeUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof authMeUpdate>>>
+    export type AuthMeUpdateMutationBody = BodyType<ProfileUpdateInput>
+    export type AuthMeUpdateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update own profile (name, mobile)
+ */
+export const useAuthMeUpdate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authMeUpdate>>, TError,{data: BodyType<ProfileUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authMeUpdate>>,
+        TError,
+        {data: BodyType<ProfileUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getAuthMeUpdateMutationOptions(options));
+    }
+
+export const getAuthChangePasswordUrl = () => {
+
+
+
+
+  return `/api/auth/change-password`
+}
+
+/**
+ * @summary Change own password (requires current password)
+ */
+export const authChangePassword = async (changePasswordInput: ChangePasswordInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthChangePassword200> => {
+
+  return customFetch<AuthChangePassword200>(getAuthChangePasswordUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(changePasswordInput)
+  }
+);}
+
+
+
+
+
+export const getAuthChangePasswordMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authChangePassword>>, TError,{data: BodyType<ChangePasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authChangePassword>>, TError,{data: BodyType<ChangePasswordInput>}, TContext> => {
+
+const mutationKey = ['authChangePassword'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authChangePassword>>, {data: BodyType<ChangePasswordInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  authChangePassword(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthChangePasswordMutationResult = NonNullable<Awaited<ReturnType<typeof authChangePassword>>>
+    export type AuthChangePasswordMutationBody = BodyType<ChangePasswordInput>
+    export type AuthChangePasswordMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Change own password (requires current password)
+ */
+export const useAuthChangePassword = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authChangePassword>>, TError,{data: BodyType<ChangePasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authChangePassword>>,
+        TError,
+        {data: BodyType<ChangePasswordInput>},
+        TContext
+      > => {
+      return useMutation(getAuthChangePasswordMutationOptions(options));
+    }
+
+export const getNotificationsListUrl = () => {
+
+
+
+
+  return `/api/notifications`
+}
+
+/**
+ * @summary Latest in-app notifications for the current user
+ */
+export const notificationsList = async ( options?: Parameters<typeof customFetch>[1]): Promise<NotificationsList200> => {
+
+  return customFetch<NotificationsList200>(getNotificationsListUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getNotificationsListQueryKey = () => {
+    return [
+    `/api/notifications`
+    ] as const;
+    }
+
+
+export const getNotificationsListQueryOptions = <TData = Awaited<ReturnType<typeof notificationsList>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof notificationsList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getNotificationsListQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof notificationsList>>> = ({ signal }) => notificationsList({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof notificationsList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type NotificationsListQueryResult = NonNullable<Awaited<ReturnType<typeof notificationsList>>>
+export type NotificationsListQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Latest in-app notifications for the current user
+ */
+
+export function useNotificationsList<TData = Awaited<ReturnType<typeof notificationsList>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof notificationsList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getNotificationsListQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getNotificationsMarkReadUrl = () => {
+
+
+
+
+  return `/api/notifications/read`
+}
+
+/**
+ * @summary Mark notifications read (all when ids omitted)
+ */
+export const notificationsMarkRead = async (notificationsReadInput: NotificationsReadInput, options?: Parameters<typeof customFetch>[1]): Promise<NotificationsMarkRead200> => {
+
+  return customFetch<NotificationsMarkRead200>(getNotificationsMarkReadUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(notificationsReadInput)
+  }
+);}
+
+
+
+
+
+export const getNotificationsMarkReadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof notificationsMarkRead>>, TError,{data: BodyType<NotificationsReadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof notificationsMarkRead>>, TError,{data: BodyType<NotificationsReadInput>}, TContext> => {
+
+const mutationKey = ['notificationsMarkRead'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof notificationsMarkRead>>, {data: BodyType<NotificationsReadInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  notificationsMarkRead(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type NotificationsMarkReadMutationResult = NonNullable<Awaited<ReturnType<typeof notificationsMarkRead>>>
+    export type NotificationsMarkReadMutationBody = BodyType<NotificationsReadInput>
+    export type NotificationsMarkReadMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Mark notifications read (all when ids omitted)
+ */
+export const useNotificationsMarkRead = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof notificationsMarkRead>>, TError,{data: BodyType<NotificationsReadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof notificationsMarkRead>>,
+        TError,
+        {data: BodyType<NotificationsReadInput>},
+        TContext
+      > => {
+      return useMutation(getNotificationsMarkReadMutationOptions(options));
+    }
 
 export const getStaffListUrl = () => {
 

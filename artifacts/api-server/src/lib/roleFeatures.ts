@@ -63,7 +63,7 @@ export const DEFAULT_ROLE_FEATURES: Record<ConfigurableRole, Record<string, bool
     repairs: true,
     repairs_create: false,
     repairs_update: true,
-    customers: false,
+    customers: true,
     inventory: false,
     purchases: false,
     finance: false,

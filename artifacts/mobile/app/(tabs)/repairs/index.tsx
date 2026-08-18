@@ -137,7 +137,9 @@ export default function RepairsScreen() {
   const [portalFilter, setPortalFilter] = useState<(typeof PORTAL_FILTERS)[number]>('All');
   const [dealerSearch, setDealerSearch] = useState('');
   const [showCancelled, setShowCancelled] = useState(false);
-  const [techOnly, setTechOnly] = useState(true);
+  // Technicians now see the full shop list by default; "Assigned to me only"
+  // stays available as an optional filter.
+  const [techOnly, setTechOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [accumulatedRepairs, setAccumulatedRepairs] = useState<Repair[]>([]);
   
@@ -254,7 +256,7 @@ export default function RepairsScreen() {
   const filteredReturns = useMemo(() => {
     if (filter !== 'After-Sales Service') return [];
     let list = returnsData?.returns || [];
-    if (user?.role === 'technician') list = list.filter((r) => r.technicianId === user.id);
+    // Technicians see the full after-sales list (same view as reception).
     
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -271,7 +273,8 @@ export default function RepairsScreen() {
     return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [returnsData, filter, search, user]);
 
-  const canCreateRepair = !isPortal && canAccess('repairs') && user?.role !== 'technician';
+  // Create button follows the owner-configured repairs_create toggle.
+  const canCreateRepair = !isPortal && canAccess('repairs_create');
 
   const headerAnims = useStaggerAnim(3);
 

@@ -13,6 +13,8 @@ export default function MoreLayout() {
       <Stack.Screen name="reports" />
       <Stack.Screen name="settings" />
       <Stack.Screen name="permissions" />
+      <Stack.Screen name="profile" />
+      <Stack.Screen name="notifications" />
       <Stack.Screen name="security" />
       <Stack.Screen name="purchases" />
       <Stack.Screen name="approvals" />

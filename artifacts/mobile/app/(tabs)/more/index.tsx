@@ -9,7 +9,7 @@ import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
 import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
-import { useApprovalsList, useLatestAppUpdate } from '@workspace/api-client-react';
+import { useApprovalsList, useLatestAppUpdate, useNotificationsList } from '@workspace/api-client-react';
 import { getAppBuildNumber } from '@/utils/appVersion';
 
 interface MenuItem {
@@ -25,6 +25,8 @@ interface MenuItem {
 }
 
 const MENU_ITEMS: MenuItem[] = [
+  { id: 'my-profile', label: 'My Profile', icon: 'user', route: '/(tabs)/more/profile', color: '#4DA3FF', description: 'Name, mobile and password', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff'] },
+  { id: 'notifications', label: 'Notifications', icon: 'bell', route: '/(tabs)/more/notifications', color: '#F59E0B', description: 'Repairs, payments and approvals', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician'] },
   { id: 'activity', label: 'Activity Log', icon: 'activity', route: '/(tabs)/more/activity', color: '#34D399', description: 'View system events', roles: ['super_admin', 'dealer'] },
   { id: 'finance', label: 'Finance', icon: 'bar-chart-2', route: '/(tabs)/more/finance', color: '#34D399', description: 'Income, expense, cash book', roles: ['super_admin', 'dealer'], feature: 'finance' },
   { id: 'approvals', label: 'Approvals', icon: 'check-circle', route: '/(tabs)/more/approvals', color: '#FB7185', description: 'Backdated entry requests', roles: ['super_admin', 'dealer'], feature: 'approvals' },
@@ -44,6 +46,12 @@ export default function MoreScreen() {
   const { user, logout, canAccess } = useAuth();
   const { data: approvalsData } = useApprovalsList();
   const pendingCount = approvalsData?.pendingCount || 0;
+  // Unread in-app notifications badge (polled every minute). Portal accounts
+  // don't have a notification inbox.
+  const notifRole = useAuth().user?.role ?? '';
+  const notifEnabled = notifRole !== 'dealer_owner' && notifRole !== 'dealer_staff';
+  const { data: notifData } = useNotificationsList({ query: { enabled: notifEnabled, refetchInterval: 60000 } } as any);
+  const unreadNotifs = notifData?.unreadCount || 0;
   // Quiet update indicator: a small badge only, never a popup.
   const { data: latestUpdateData } = useLatestAppUpdate();
   const updateAvailable =
@@ -108,6 +116,11 @@ export default function MoreScreen() {
                 {item.id === 'approvals' && pendingCount > 0 && (user?.role === 'dealer' || user?.role === 'super_admin') && (
                   <View style={[styles.badgeWrap, { backgroundColor: colors.destructive, borderColor: colors.card }]}>
                     <Text style={styles.badgeText}>{pendingCount > 99 ? '99+' : pendingCount}</Text>
+                  </View>
+                )}
+                {item.id === 'notifications' && unreadNotifs > 0 && (
+                  <View style={[styles.badgeWrap, { backgroundColor: colors.destructive, borderColor: colors.card }]}>
+                    <Text style={styles.badgeText}>{unreadNotifs > 99 ? '99+' : unreadNotifs}</Text>
                   </View>
                 )}
                 {item.id === 'app-update' && updateAvailable && (

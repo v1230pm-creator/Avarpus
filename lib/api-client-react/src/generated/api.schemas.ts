@@ -5,6 +5,30 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface ProfileUpdateInput {
+  name?: string;
+  mobile?: string;
+}
+
+export interface ChangePasswordInput {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface NotificationsReadInput {
+  ids?: string[];
+}
+
+export interface AppNotification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  data?: unknown;
+  read: boolean;
+  createdAt: string;
+}
+
 export type RoleFeaturesInputFeatures = {[key: string]: boolean};
 
 export interface RoleFeaturesInput {
@@ -1079,6 +1103,23 @@ export type AuthForgotVerify200 = {
 
 export type AuthMe200 = {
   user: AuthUser;
+};
+
+export type AuthMeUpdate200 = {
+  user: AuthUser;
+};
+
+export type AuthChangePassword200 = {
+  message: string;
+};
+
+export type NotificationsList200 = {
+  unreadCount: number;
+  notifications: AppNotification[];
+};
+
+export type NotificationsMarkRead200 = {
+  message: string;
 };
 
 export type StaffList200 = {

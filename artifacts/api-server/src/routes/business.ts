@@ -27,6 +27,7 @@ import { sha256, generateOtpCode } from "../lib/authUtils";
 import { sendOtpEmail } from "../lib/mailer";
 import { recordPayment, voidPayment, PAYMENT_KINDS } from "../lib/repairPayments";
 import { isDealerPortalRole } from "../lib/dealerPortal";
+import { notifyShop } from "../lib/notify";
 import type { Request, Response } from "express";
 
 // Shop-scoped business data: repairs, customers, inventory, purchases and
@@ -482,9 +483,8 @@ router.get(
 
     let technicianId = qstr("technicianId");
     if (technicianId === "me") technicianId = me.id;
-    // Technicians only ever see repairs assigned to them — enforced
-    // server-side regardless of what the client asks for.
-    if (me.role === "technician") technicianId = me.id;
+    // Technicians see the full shop repair list (same view as reception);
+    // "Assigned to me" is an optional client-side filter via technicianId=me.
     if (technicianId) conds.push(eq(repairsTable.technicianId, technicianId));
 
     const receivedById = qstr("receivedById");
@@ -650,17 +650,8 @@ router.post(
         return;
       }
       dealerDetectedByPhone = dealer.isActive && dealer.mobile === mobile;
-      // Manual dealer links are privileged. Non-privileged receiving roles may
-      // only supply a dealerId that the server can independently verify by
-      // phone match (this also covers picking one of several exact matches) —
-      // otherwise they could attach any repair to any dealer.
-      if (!dealerDetectedByPhone && !isPrivileged(req)) {
-        res.status(403).json({
-          message: "Only the dealer/owner can manually link a repair to a dealer.",
-          code: "DEALER_LINK_PRIVILEGED",
-        });
-        return;
-      }
+      // Manual dealer links are open to all shop staff (reception,
+      // technician, etc.); the link is audit-logged with the acting user.
       dealerName = dealer.name;
     } else if (b.dealerId !== null) {
       // (an explicit dealerId: null means the user removed a detected dealer
@@ -791,6 +782,15 @@ router.post(
       }
       throw err;
     }
+    // In-app notification (best-effort, never awaited).
+    void notifyShop({
+      shopId,
+      type: "repair_created",
+      title: `New repair ${created.repairId}`,
+      body: `${created.customerName} — ${created.brand ?? ""} ${created.model ?? ""}`.trim(),
+      data: { repairId: created.id },
+      actorId: (req as AuthedRequest).user.id,
+    });
     res.json({ repair: repairOut(created) });
   }),
 );
@@ -897,16 +897,10 @@ router.patch(
       }
       patch.warrantyDays = wd;
     }
-    // Dealer link changes are privileged — the association is permanent for
-    // staff; only the shop owner / super admin may correct it.
+    // Dealer link changes are open to all shop staff (reception, technician,
+    // etc.); dealer-portal accounts can never reach this route. Changes are
+    // audit-logged with the acting user below.
     if (b.dealerId !== undefined) {
-      if (!isPrivileged(req)) {
-        res.status(403).json({
-          message: "Only the dealer/owner can change a repair's dealer link.",
-          code: "DEALER_LINK_PRIVILEGED",
-        });
-        return;
-      }
       const newDealerId = str(b.dealerId);
       if (newDealerId) {
         const [dealer] = await db
@@ -936,29 +930,10 @@ router.patch(
       res.status(404).json({ message: "Repair not found" });
       return;
     }
-    // Technicians may only modify repairs assigned to them, and only the
-    // repair-work fields (never money, intake, customer or delivery facts).
-    {
-      const meUser = (req as AuthedRequest).user;
-      if (meUser.role === "technician") {
-        if (existing.technicianId !== meUser.id) {
-          res.status(403).json({
-            message: "You can only update repairs assigned to you.",
-            code: "NOT_ASSIGNED",
-          });
-          return;
-        }
-        const TECH_FIELDS = new Set(["status", "diagnosis", "workPerformed", "notes", "priority"]);
-        const disallowed = Object.keys(b).filter((k) => b[k] !== undefined && !TECH_FIELDS.has(k));
-        if (disallowed.length > 0) {
-          res.status(403).json({
-            message: `Technicians cannot edit: ${disallowed.join(", ")}`,
-            code: "FIELD_NOT_ALLOWED",
-          });
-          return;
-        }
-      }
-    }
+    // Technicians have the same full repair view/update rights as reception;
+    // money/stage/backdating rules below still apply to all staff equally,
+    // and the owner can switch repairs_update off per role in Staff
+    // Permissions (enforced by requireFeature on this route).
     // Workflow integrity: statuses may only move forward through the stage
     // order (or sideways within a stage). The single authorized rewind is
     // testing → repairing, and only when the recorded testing checklist
@@ -1339,6 +1314,18 @@ router.patch(
       }
       throw err;
     }
+    // Notify on status changes (best-effort, never awaited).
+    if (patch.status !== undefined && updated.status !== existing.status) {
+      void notifyShop({
+        shopId,
+        type: "repair_status",
+        title: `${updated.repairId}: ${String(updated.status).replace(/_/g, " ")}`,
+        body: `${updated.customerName} — status updated by ${(req as AuthedRequest).user.name}`,
+        data: { repairId: updated.id },
+        actorId: (req as AuthedRequest).user.id,
+        extraUserIds: updated.technicianId ? [updated.technicianId] : [],
+      });
+    }
     res.json({ repair: repairOut(updated) });
   }),
 );
@@ -1713,6 +1700,14 @@ router.post(
         .json({ message: result.error.message, ...(result.error.code ? { code: result.error.code } : {}) });
       return;
     }
+    void notifyShop({
+      shopId,
+      type: "payment_recorded",
+      title: `Payment received — ₹${result.row.amount}`,
+      body: `Recorded by ${me.name} (${result.row.method})`,
+      data: { repairId: id },
+      actorId: me.id,
+    });
     res.json({ payment: paymentOut(result.row) });
   }),
 );
@@ -1894,6 +1889,15 @@ router.post(
       });
       return row;
     });
+    void notifyShop({
+      shopId,
+      type: "repair_assigned",
+      title: `${updated.repairId} assigned to you`,
+      body: `${updated.customerName} — assigned by ${me.name}`,
+      data: { repairId: updated.id },
+      actorId: me.id,
+      extraUserIds: [tech.id],
+    });
     res.json({ repair: repairOut(updated) });
   }),
 );
@@ -1903,6 +1907,7 @@ router.post(
 router.post(
   "/repairs/:id/testing",
   requireAuth,
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -1927,15 +1932,8 @@ router.post(
       if (!existingRepair) {
         return { error: { status: 404, body: { message: "Repair not found" } } } as const;
       }
-      // Technicians may only record testing on repairs assigned to them.
-      if (me.role === "technician" && existingRepair.technicianId !== me.id) {
-        return {
-          error: {
-            status: 403,
-            body: { message: "You can only update repairs assigned to you.", code: "NOT_ASSIGNED" },
-          },
-        } as const;
-      }
+      // Technicians have full repair access (same as reception); the owner
+      // controls this per role via Staff Permissions (repairs_update).
       const existingChecklist =
         (existingRepair.testingChecklist as Record<string, boolean> | null) ?? {};
       const set: Partial<typeof repairsTable.$inferInsert> = {};
@@ -2615,6 +2613,7 @@ router.get(
 router.post(
   "/repairs/:id/parts",
   requireAuth,
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -2636,10 +2635,8 @@ router.post(
           .where(and(eq(repairsTable.id, String(req.params.id ?? "")), eq(repairsTable.shopId, shopId)))
           .for("update");
         if (!repair) throw new Error("NOT_FOUND");
-        // Technicians may only add parts to repairs assigned to them.
-        if (me.role === "technician" && repair.technicianId !== me.id) {
-          throw new Error("NOT_ASSIGNED");
-        }
+        // Technicians have full repair access; per-role limits are owner-
+        // controlled via Staff Permissions.
         if (repair.status === "delivered" || repair.status === "cancelled") {
           throw new Error("REPAIR_LOCKED");
         }

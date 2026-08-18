@@ -18,6 +18,7 @@ interface AuthContextType {
   canAccess: (feature: string) => boolean;
   /** Re-fetch this user's per-role feature toggles from the server. */
   refreshFeatures: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   /** Message explaining why the user was signed out (e.g. session revoked). */
   signedOutNotice: string | null;
   clearSignedOutNotice: () => void;
@@ -33,6 +34,7 @@ const AuthContext = createContext<AuthContextType>({
   adoptSession: async () => {},
   canAccess: () => false,
   refreshFeatures: async () => {},
+  refreshUser: async () => {},
   signedOutNotice: null,
   clearSignedOutNotice: () => {},
 });
@@ -40,8 +42,8 @@ const AuthContext = createContext<AuthContextType>({
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   super_admin: ['*'],
   dealer: ['dashboard', 'repairs', 'inventory', 'customers', 'finance', 'staff', 'reports', 'settings', 'purchases', 'attendance', 'backup', 'profit', 'income', 'expense'],
-  reception: ['dashboard', 'repairs', 'customers'],
-  technician: ['dashboard', 'repairs_assigned', 'repairs_update'],
+  reception: ['dashboard', 'repairs', 'repairs_create', 'customers'],
+  technician: ['dashboard', 'repairs', 'repairs_update', 'customers'],
   store_manager: ['dashboard', 'inventory', 'purchases'],
   accountant: ['dashboard', 'finance', 'reports', 'income', 'expense', 'profit'],
   // Dealer-portal accounts: read-only view of their own repairs. The server
@@ -136,6 +138,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
     })();
   }, []);
+
+  // Re-fetch the signed-in user (e.g. after a profile edit).
+  const refreshUser = async () => {
+    try {
+      const res = await authMe();
+      setUser(toUser(res.user));
+    } catch {
+      // keep the cached user on transient failures
+    }
+  };
 
   const refreshFeatures = async () => {
     try {
@@ -233,6 +245,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         adoptSession,
         canAccess,
         refreshFeatures,
+        refreshUser,
         signedOutNotice,
         clearSignedOutNotice: () => setSignedOutNotice(null),
       }}

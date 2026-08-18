@@ -172,10 +172,8 @@ router.get(
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
     const me = (req as AuthedRequest).user;
-    if (me.role === "technician") {
-      res.status(403).json({ message: "Technicians cannot access the dealer list." });
-      return;
-    }
+    // All shop staff (including technicians) may browse the dealer directory
+    // so they can link repairs to dealers.
     const conds: SQL[] = [eq(dealersTable.shopId, shopId)];
     const q = str(req.query.q);
     if (q) {
@@ -294,10 +292,7 @@ router.get(
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
     const me = (req as AuthedRequest).user;
-    if (me.role === "technician") {
-      res.status(403).json({ message: "Technicians cannot access dealer profiles." });
-      return;
-    }
+    // All shop staff (including technicians) may view dealer profiles.
     const [dealer] = await db
       .select()
       .from(dealersTable)
@@ -319,10 +314,7 @@ router.post(
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
     const me = (req as AuthedRequest).user;
-    if (me.role === "technician") {
-      res.status(403).json({ message: "Technicians cannot create dealers." });
-      return;
-    }
+    // All shop staff (including technicians) may add dealers to the directory.
     const b = req.body ?? {};
     const name = str(b.name);
     const mobile = str(b.mobile);

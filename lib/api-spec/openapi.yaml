@@ -187,6 +187,88 @@ paths:
                   user:
                     $ref: "#/components/schemas/AuthUser"
                 required: [user]
+    patch:
+      operationId: authMeUpdate
+      tags: [auth]
+      summary: Update own profile (name, mobile)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdateInput"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/AuthUser"
+                required: [user]
+  /auth/change-password:
+    post:
+      operationId: authChangePassword
+      tags: [auth]
+      summary: Change own password (requires current password)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordInput"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                required: [message]
+  /notifications:
+    get:
+      operationId: notificationsList
+      tags: [business]
+      summary: Latest in-app notifications for the current user
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  unreadCount: { type: number }
+                  notifications:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AppNotification"
+                required: [unreadCount, notifications]
+  /notifications/read:
+    post:
+      operationId: notificationsMarkRead
+      tags: [business]
+      summary: Mark notifications read (all when ids omitted)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationsReadInput"
+      responses:
+        "200":
+          description: Marked read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                required: [message]
   /staff:
     get:
       operationId: staffList
@@ -2078,6 +2160,34 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    ProfileUpdateInput:
+      type: object
+      properties:
+        name: { type: string }
+        mobile: { type: string }
+    ChangePasswordInput:
+      type: object
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string }
+      required: [currentPassword, newPassword]
+    NotificationsReadInput:
+      type: object
+      properties:
+        ids:
+          type: array
+          items: { type: string }
+    AppNotification:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string }
+        title: { type: string }
+        body: { type: string }
+        data: {}
+        read: { type: boolean }
+        createdAt: { type: string }
+      required: [id, type, title, body, read, createdAt]
     RoleFeaturesInput:
       type: object
       properties:

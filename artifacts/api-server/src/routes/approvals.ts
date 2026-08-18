@@ -14,6 +14,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireFeature } from "../lib/roleFeatures";
+import { notifyShop } from "../lib/notify";
 import { asyncHandler } from "../lib/asyncHandler";
 import { recordPayment } from "../lib/repairPayments";
 import type { Request, Response } from "express";
@@ -142,6 +143,14 @@ router.post(
         reason,
       })
       .returning();
+    void notifyShop({
+      shopId,
+      type: "approval_requested",
+      title: "Approval needed",
+      body: `${me.name} requested a backdated ${recordType} (${requestedDate})`,
+      data: { approvalId: created.id },
+      actorId: me.id,
+    });
     res.json({ approval: approvalOut(created) });
   }),
 );
@@ -472,6 +481,15 @@ router.post(
       res.status(result.error.status).json({ message: result.error.message });
       return;
     }
+    void notifyShop({
+      shopId,
+      type: "approval_decided",
+      title: "Request approved",
+      body: `${me.name} approved your backdated ${result.recordType} request`,
+      data: { approvalId: result.id },
+      actorId: me.id,
+      extraUserIds: [result.requesterId],
+    });
     res.json({ approval: approvalOut(result) });
   }),
 );
@@ -500,6 +518,15 @@ router.post(
       res.status(result.error.status).json({ message: result.error.message });
       return;
     }
+    void notifyShop({
+      shopId,
+      type: "approval_decided",
+      title: "Request rejected",
+      body: `${me.name} rejected your backdated ${result.recordType} request: ${reason}`,
+      data: { approvalId: result.id },
+      actorId: me.id,
+      extraUserIds: [result.requesterId],
+    });
     res.json({ approval: approvalOut(result) });
   }),
 );

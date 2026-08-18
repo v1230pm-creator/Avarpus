@@ -19,11 +19,12 @@
 - [brace-expansion override scoping](brace-expansion-override.md) — blanket CVE overrides of deep deps break RN codegen; scope per major; codegen CLI reproduces EAS failures locally.
 - [Android APK builds](android-apk-builds.md) — APK only via expo.dev GitHub builds (base dir artifacts/mobile); pnpm/Node/image pins in eas.json are load-bearing; user holds the keystore.
 - [Android focus loss fix](android-focus-collapsable.md) — focus-styled input wrappers need collapsable={false} or Android view flattening blurs the TextInput and kills the keyboard.
-- [Dealer phone auto-detection](dealer-phone-detection.md) — intake mobile auto-links single active dealer match; explicit dealerId:null = user removal (no re-link); manual links privileged-only.
+- [Dealer phone auto-detection](dealer-phone-detection.md) — intake mobile auto-links single active dealer match; explicit dealerId:null = user removal (no re-link); manual links now open to all staff.
 - [Dealer portal](dealer-portal.md) — B2B dealers vs owner `dealer` role; portal subresources need dealer-level (not just shop) checks; DataContext.addRepair maps fields explicitly.
-- [Technician access scoping](technician-scoping.md) — technicians are server-side limited to assigned repairs + work-field allowlist; new repair sub-endpoints must repeat the assignment check.
+- [Technician access scoping](technician-scoping.md) — assigned-only gating REMOVED; techs get full shop view; repair-mutating subroutes must carry requireFeature('repairs_update').
 - [GitHub push via API fallback](github-push-api-fallback.md) — when auth() gives no token, push via proxyFetch Git Data API; local/remote SHAs then diverge, reconcile before next token push.
 - [Testing pass lock](testing-pass-lock.md) — testingChecklist true=Pass is immutable; validate in tx with FOR UPDATE; omission keeps passes, drops fails; Pass→Fail = 409 TESTING_ITEM_LOCKED.
 - [PIN throttle review bar](pin-throttle-reviews.md) — reviewers require every unlock method to reset attempts, sync pre-submit guards on PIN pads, and serialized counter writes.
 - [Role feature toggles](role-feature-toggles.md) — owner-editable per-role Staff Permissions; new mutation endpoints in toggleable areas must add requireFeature; never gate shared GET collections.
 - [Prod data import path](prod-data-import.md) — prod SQL is read-only; use the token-guarded import endpoint; jsonb columns reject JS arrays via node-postgres, stringify first.
+- [In-app notifications](notifications.md) — notification rows to owners+targeted extras minus actor, fire-and-forget; never JSON.stringify jsonb objects for Drizzle inserts.

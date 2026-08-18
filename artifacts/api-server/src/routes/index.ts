@@ -11,6 +11,7 @@ import dealersRouter from "./dealers";
 import syncRouter from "./sync";
 import appUpdatesRouter from "./appUpdates";
 import roleFeaturesRouter from "./roleFeatures";
+import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(dashboardRouter);
 router.use(syncRouter);
 router.use(appUpdatesRouter);
 router.use(roleFeaturesRouter);
+router.use(notificationsRouter);
 
 export default router;
