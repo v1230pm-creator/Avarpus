@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Agent-uploaded assets (not needed in repo/builds)
+attached_assets/

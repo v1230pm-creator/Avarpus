@@ -1,0 +1,10 @@
+# Keep EAS build archive small
+attached_assets/
+.agents/
+.local/
+.cache/
+node_modules/
+dist/
+.expo/
+*.mp4
+*.mov
