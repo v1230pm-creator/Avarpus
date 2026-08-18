@@ -21,6 +21,7 @@ import {
   type DbUser,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { requireFeature, userHasFeature } from "../lib/roleFeatures";
 import { asyncHandler } from "../lib/asyncHandler";
 import { sha256, generateOtpCode } from "../lib/authUtils";
 import { sendOtpEmail } from "../lib/mailer";
@@ -144,6 +145,7 @@ router.get(
 router.post(
   "/customers",
   requireAuth,
+  requireFeature("customers"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -174,6 +176,7 @@ router.post(
 router.patch(
   "/customers/:id",
   requireAuth,
+  requireFeature("customers"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -553,6 +556,7 @@ router.get(
 router.post(
   "/repairs",
   requireAuth,
+  requireFeature("repairs_create"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -794,6 +798,7 @@ router.post(
 router.patch(
   "/repairs/:id",
   requireAuth,
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -1633,9 +1638,10 @@ router.post(
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
     const me = (req as AuthedRequest).user;
-    // Payment collection is a finance action — technicians (work-scoped) may
-    // not record money against repairs. Mirrors the client's finance gating.
-    if (!["dealer", "super_admin", "accountant", "reception"].includes(me.role)) {
+    // Payment collection is a finance action, gated by the shop's per-role
+    // "payments" toggle (defaults mirror the old hard-coded list: dealer,
+    // super_admin, accountant, reception).
+    if (!(await userHasFeature(me, "payments"))) {
       res.status(403).json({ message: "You do not have permission to record payments", code: "FORBIDDEN" });
       return;
     }
@@ -1781,7 +1787,7 @@ router.get(
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
     const me = (req as AuthedRequest).user;
-    if (!["dealer", "super_admin", "accountant"].includes(me.role)) {
+    if (!(await userHasFeature(me, "reports"))) {
       res.status(403).json({ message: "Finance access required." });
       return;
     }
@@ -2778,6 +2784,7 @@ router.get(
 router.post(
   "/inventory",
   requireAuth,
+  requireFeature("inventory"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -2810,6 +2817,7 @@ router.post(
 router.patch(
   "/inventory/:id",
   requireAuth,
+  requireFeature("inventory"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -2884,6 +2892,7 @@ router.get(
 router.post(
   "/purchases",
   requireAuth,
+  requireFeature("purchases"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -2939,6 +2948,7 @@ router.post(
 router.patch(
   "/purchases/:id",
   requireAuth,
+  requireFeature("purchases"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -3020,6 +3030,7 @@ router.get(
 router.post(
   "/finance",
   requireAuth,
+  requireFeature("finance"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -3060,6 +3071,7 @@ router.post(
 router.patch(
   "/finance/:id",
   requireAuth,
+  requireFeature("finance"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;

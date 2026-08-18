@@ -5,6 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type RoleFeaturesInputFeatures = {[key: string]: boolean};
+
+export interface RoleFeaturesInput {
+  features: RoleFeaturesInputFeatures;
+}
+
 export interface AppUpdate {
   id: string;
   version: string;
@@ -1459,5 +1465,20 @@ export type ListAppUpdates200 = {
 export type AppUpdateUploadUrl200 = {
   uploadURL: string;
   objectPath: string;
+};
+
+export type RoleFeaturesGet200Features = {[key: string]: boolean};
+
+export type RoleFeaturesGet200Matrix = {[key: string]: {[key: string]: boolean}};
+
+export type RoleFeaturesGet200 = {
+  features: RoleFeaturesGet200Features;
+  matrix?: RoleFeaturesGet200Matrix;
+};
+
+export type RoleFeaturesUpdate200Matrix = {[key: string]: {[key: string]: boolean}};
+
+export type RoleFeaturesUpdate200 = {
+  matrix: RoleFeaturesUpdate200Matrix;
 };
 

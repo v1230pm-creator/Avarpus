@@ -13,6 +13,7 @@ import {
   type DbApprovalRequest,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { requireFeature } from "../lib/roleFeatures";
 import { asyncHandler } from "../lib/asyncHandler";
 import { recordPayment } from "../lib/repairPayments";
 import type { Request, Response } from "express";
@@ -98,6 +99,7 @@ router.get(
 router.post(
   "/approvals",
   requireAuth,
+  requireFeature("approvals"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;

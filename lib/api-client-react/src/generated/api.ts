@@ -132,6 +132,9 @@ import type {
   ReturnsGet200,
   ReturnsList200,
   ReturnsUpdate200,
+  RoleFeaturesGet200,
+  RoleFeaturesInput,
+  RoleFeaturesUpdate200,
   StaffActivate200,
   StaffCreate200,
   StaffCreateInput,
@@ -7148,6 +7151,155 @@ export const useUnpublishAppUpdate = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUnpublishAppUpdateMutationOptions(options));
+    }
+
+export const getRoleFeaturesGetUrl = () => {
+
+
+
+
+  return `/api/role-features`
+}
+
+/**
+ * @summary Effective feature toggles for the current user; owners also get the full per-role matrix
+ */
+export const roleFeaturesGet = async ( options?: Parameters<typeof customFetch>[1]): Promise<RoleFeaturesGet200> => {
+
+  return customFetch<RoleFeaturesGet200>(getRoleFeaturesGetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRoleFeaturesGetQueryKey = () => {
+    return [
+    `/api/role-features`
+    ] as const;
+    }
+
+
+export const getRoleFeaturesGetQueryOptions = <TData = Awaited<ReturnType<typeof roleFeaturesGet>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof roleFeaturesGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRoleFeaturesGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof roleFeaturesGet>>> = ({ signal }) => roleFeaturesGet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof roleFeaturesGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RoleFeaturesGetQueryResult = NonNullable<Awaited<ReturnType<typeof roleFeaturesGet>>>
+export type RoleFeaturesGetQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Effective feature toggles for the current user; owners also get the full per-role matrix
+ */
+
+export function useRoleFeaturesGet<TData = Awaited<ReturnType<typeof roleFeaturesGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof roleFeaturesGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRoleFeaturesGetQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRoleFeaturesUpdateUrl = (role: string,) => {
+
+
+
+
+  return `/api/role-features/${role}`
+}
+
+/**
+ * @summary Update feature toggles for one role (shop owner only)
+ */
+export const roleFeaturesUpdate = async (role: string,
+    roleFeaturesInput: RoleFeaturesInput, options?: Parameters<typeof customFetch>[1]): Promise<RoleFeaturesUpdate200> => {
+
+  return customFetch<RoleFeaturesUpdate200>(getRoleFeaturesUpdateUrl(role),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(roleFeaturesInput)
+  }
+);}
+
+
+
+
+
+export const getRoleFeaturesUpdateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof roleFeaturesUpdate>>, TError,{role: string;data: BodyType<RoleFeaturesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof roleFeaturesUpdate>>, TError,{role: string;data: BodyType<RoleFeaturesInput>}, TContext> => {
+
+const mutationKey = ['roleFeaturesUpdate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof roleFeaturesUpdate>>, {role: string;data: BodyType<RoleFeaturesInput>}> = (props) => {
+          const {role,data} = props ?? {};
+
+          return  roleFeaturesUpdate(role,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RoleFeaturesUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof roleFeaturesUpdate>>>
+    export type RoleFeaturesUpdateMutationBody = BodyType<RoleFeaturesInput>
+    export type RoleFeaturesUpdateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update feature toggles for one role (shop owner only)
+ */
+export const useRoleFeaturesUpdate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof roleFeaturesUpdate>>, TError,{role: string;data: BodyType<RoleFeaturesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof roleFeaturesUpdate>>,
+        TError,
+        {role: string;data: BodyType<RoleFeaturesInput>},
+        TContext
+      > => {
+      return useMutation(getRoleFeaturesUpdateMutationOptions(options));
     }
 
 export const getHealthCheckUrl = () => {

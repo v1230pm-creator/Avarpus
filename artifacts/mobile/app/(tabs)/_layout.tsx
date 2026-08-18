@@ -14,8 +14,10 @@ import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
 
 function NativeTabLayout({ portal }: { portal: boolean }) {
+  const { canAccess } = useAuth();
   // Dealer-portal accounts only get Repairs (their read-only "My Repairs"
-  // view) and More (profile/sign-out). All other tabs are hidden.
+  // view) and More (profile/sign-out). Staff tabs additionally honor the
+  // shop's per-role feature toggles (More → Staff Permissions).
   return (
     <NativeTabs>
       {!portal && (
@@ -24,17 +26,19 @@ function NativeTabLayout({ portal }: { portal: boolean }) {
           <Label>Dashboard</Label>
         </NativeTabs.Trigger>
       )}
-      <NativeTabs.Trigger name="repairs">
-        <Icon sf={{ default: 'wrench', selected: 'wrench.fill' }} />
-        <Label>Repairs</Label>
-      </NativeTabs.Trigger>
-      {!portal && (
+      {(portal ? canAccess('repairs_portal') : canAccess('repairs')) && (
+        <NativeTabs.Trigger name="repairs">
+          <Icon sf={{ default: 'wrench', selected: 'wrench.fill' }} />
+          <Label>Repairs</Label>
+        </NativeTabs.Trigger>
+      )}
+      {!portal && canAccess('customers') && (
         <NativeTabs.Trigger name="customers">
           <Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} />
           <Label>Customers</Label>
         </NativeTabs.Trigger>
       )}
-      {!portal && (
+      {!portal && canAccess('inventory') && (
         <NativeTabs.Trigger name="inventory">
           <Icon sf={{ default: 'shippingbox', selected: 'shippingbox.fill' }} />
           <Label>Inventory</Label>
@@ -50,6 +54,7 @@ function NativeTabLayout({ portal }: { portal: boolean }) {
 
 function ClassicTabLayout({ portal }: { portal: boolean }) {
   const colors = useColors();
+  const { canAccess } = useAuth();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const isIOS = Platform.OS === 'ios';
@@ -97,6 +102,7 @@ function ClassicTabLayout({ portal }: { portal: boolean }) {
       <Tabs.Screen
         name="repairs"
         options={{
+          href: (portal ? canAccess('repairs_portal') : canAccess('repairs')) ? undefined : null,
           title: 'Repairs',
           tabBarIcon: ({ color }) =>
             isIOS ? (
@@ -109,7 +115,7 @@ function ClassicTabLayout({ portal }: { portal: boolean }) {
       <Tabs.Screen
         name="customers"
         options={{
-          href: portal ? null : undefined,
+          href: portal || !canAccess('customers') ? null : undefined,
           title: 'Customers',
           tabBarIcon: ({ color }) =>
             isIOS ? (
@@ -122,7 +128,7 @@ function ClassicTabLayout({ portal }: { portal: boolean }) {
       <Tabs.Screen
         name="inventory"
         options={{
-          href: portal ? null : undefined,
+          href: portal || !canAccess('inventory') ? null : undefined,
           title: 'Inventory',
           tabBarIcon: ({ color }) =>
             isIOS ? (

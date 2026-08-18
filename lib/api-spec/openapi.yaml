@@ -2011,6 +2011,58 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AppUpdateEnvelope"
+  /role-features:
+    get:
+      operationId: roleFeaturesGet
+      tags: [business]
+      summary: Effective feature toggles for the current user; owners also get the full per-role matrix
+      responses:
+        "200":
+          description: Feature toggles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  features:
+                    type: object
+                    additionalProperties: { type: boolean }
+                  matrix:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      additionalProperties: { type: boolean }
+                required: [features]
+  /role-features/{role}:
+    put:
+      operationId: roleFeaturesUpdate
+      tags: [business]
+      summary: Update feature toggles for one role (shop owner only)
+      parameters:
+        - name: role
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleFeaturesInput"
+      responses:
+        "200":
+          description: Updated matrix
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  matrix:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      additionalProperties: { type: boolean }
+                required: [matrix]
   /healthz:
     get:
       operationId: healthCheck
@@ -2026,6 +2078,13 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    RoleFeaturesInput:
+      type: object
+      properties:
+        features:
+          type: object
+          additionalProperties: { type: boolean }
+      required: [features]
     AppUpdate:
       type: object
       properties:

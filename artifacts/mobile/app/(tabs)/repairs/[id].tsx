@@ -250,7 +250,9 @@ export default function RepairDetailScreen() {
     ? Math.max(0, repair.balance)
     : Math.max(0, repair.repairCharge + repair.partsCharge - repair.advance);
   const canUpdateStatus = canAccess('repairs_update') || (canAccess('repairs') && user?.role !== 'reception');
-  const canSeeFinance = canAccess('finance') || user?.role === 'reception' || user?.role === 'dealer' || user?.role === 'super_admin';
+  // Money visibility + payment collection follow the shop's per-role feature
+  // toggles (finance OR payment collection). Owner roles pass via canAccess.
+  const canSeeFinance = canAccess('finance') || canAccess('payments');
   const isActiveRepair = repair.status !== 'delivered' && repair.status !== 'cancelled' && repair.status !== 'cannot_repair';
   const isDealer = user?.role === 'dealer' || user?.role === 'super_admin';
   // Dealer/owner may correct or delete a delivered job — staff cannot.

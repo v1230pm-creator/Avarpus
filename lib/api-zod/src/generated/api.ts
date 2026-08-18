@@ -2998,6 +2998,31 @@ export const UnpublishAppUpdateResponse = zod.object({
 
 
 /**
+ * @summary Effective feature toggles for the current user; owners also get the full per-role matrix
+ */
+export const RoleFeaturesGetResponse = zod.object({
+  "features": zod.record(zod.string(), zod.boolean()),
+  "matrix": zod.record(zod.string(), zod.record(zod.string(), zod.boolean())).optional()
+})
+
+
+/**
+ * @summary Update feature toggles for one role (shop owner only)
+ */
+export const RoleFeaturesUpdateParams = zod.object({
+  "role": zod.coerce.string()
+})
+
+export const RoleFeaturesUpdateBody = zod.object({
+  "features": zod.record(zod.string(), zod.boolean())
+})
+
+export const RoleFeaturesUpdateResponse = zod.object({
+  "matrix": zod.record(zod.string(), zod.record(zod.string(), zod.boolean()))
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */

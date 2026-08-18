@@ -14,6 +14,7 @@ import {
   type DbUser,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { requireFeature } from "../lib/roleFeatures";
 import { asyncHandler } from "../lib/asyncHandler";
 import type { Request, Response } from "express";
 
@@ -54,6 +55,7 @@ const todayStr = () => new Date().toISOString().split("T")[0];
 router.get(
   "/dashboard/stats",
   requireAuth,
+  requireFeature("dashboard"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -161,6 +163,7 @@ router.get(
 router.get(
   "/dashboard/daily-repairs",
   requireAuth,
+  requireFeature("dashboard"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;

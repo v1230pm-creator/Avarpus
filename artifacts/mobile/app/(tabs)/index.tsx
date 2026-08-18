@@ -483,6 +483,21 @@ export default function DashboardScreen() {
     return <Redirect href="/(tabs)/repairs" />;
   }
 
+  // Dashboard switched off for this role (More → Staff Permissions).
+  if (!canAccess('dashboard')) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background, padding: 32 }}>
+        <Feather name="eye-off" size={32} color={colors.mutedForeground} />
+        <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 16, marginTop: 12, textAlign: 'center' }}>
+          Dashboard is turned off
+        </Text>
+        <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: 6, textAlign: 'center' }}>
+          The shop owner has turned this feature off for your role.
+        </Text>
+      </View>
+    );
+  }
+
   const onRefresh = async () => {
     setRefreshing(true);
     try {

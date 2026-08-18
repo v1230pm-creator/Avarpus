@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { authLogin, authLogout, authMe, authOtpVerify, setUnauthorizedHandler } from '@workspace/api-client-react';
+import { authLogin, authLogout, authMe, authOtpVerify, roleFeaturesGet, setUnauthorizedHandler } from '@workspace/api-client-react';
 import { User, UserRole } from '@/types';
 import { storage, KEYS } from '@/utils/storage';
 import { seedIfNeeded } from '@/utils/seedData';
@@ -16,6 +16,8 @@ interface AuthContextType {
   /** Adopt a session returned by an auth API call (e.g. registration). */
   adoptSession: (session: { token: string; user: any }) => Promise<void>;
   canAccess: (feature: string) => boolean;
+  /** Re-fetch this user's per-role feature toggles from the server. */
+  refreshFeatures: () => Promise<void>;
   /** Message explaining why the user was signed out (e.g. session revoked). */
   signedOutNotice: string | null;
   clearSignedOutNotice: () => void;
@@ -30,6 +32,7 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
   adoptSession: async () => {},
   canAccess: () => false,
+  refreshFeatures: async () => {},
   signedOutNotice: null,
   clearSignedOutNotice: () => {},
 });
@@ -45,6 +48,29 @@ const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   // enforces this fail-closed; these entries only shape the visible UI.
   dealer_owner: ['repairs_portal'],
   dealer_staff: ['repairs_portal'],
+};
+
+// Maps client permission strings (used across screens via canAccess) to the
+// server-side feature-toggle keys the shop owner can switch per role in
+// More → Staff Permissions. Permissions without a mapping (e.g. staff,
+// settings) stay owner-only and are never toggleable.
+const PERM_TO_FEATURE: Record<string, string> = {
+  dashboard: 'dashboard',
+  repairs: 'repairs',
+  repairs_assigned: 'repairs',
+  repairs_create: 'repairs_create',
+  repairs_update: 'repairs_update',
+  customers: 'customers',
+  inventory: 'inventory',
+  purchases: 'purchases',
+  finance: 'finance',
+  income: 'finance',
+  expense: 'finance',
+  profit: 'finance',
+  payments: 'payments',
+  reports: 'reports',
+  approvals: 'approvals',
+  repairs_portal: 'portal_repairs',
 };
 
 function apiErrorMessage(err: unknown, fallback: string): string {
@@ -70,6 +96,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [signedOutNotice, setSignedOutNotice] = useState<string | null>(null);
+  // Effective per-role feature toggles from the server (null until loaded).
+  const [features, setFeatures] = useState<Record<string, boolean> | null>(null);
 
   // Track whether a user is currently signed in without re-registering the
   // global 401 handler on every render.
@@ -108,6 +136,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
     })();
   }, []);
+
+  const refreshFeatures = async () => {
+    try {
+      const res = await roleFeaturesGet();
+      setFeatures(res.features ?? {});
+    } catch {
+      // Keep whatever we had; canAccess falls back to role defaults when null.
+    }
+  };
+
+  // Load feature toggles whenever a user signs in, and refresh periodically so
+  // owner changes reach staff devices without needing a re-login.
+  useEffect(() => {
+    if (!user) {
+      setFeatures(null);
+      return;
+    }
+    refreshFeatures();
+    const timer = setInterval(refreshFeatures, 60_000);
+    return () => clearInterval(timer);
+  }, [user?.id]);
 
   const applySession = async (session: { token: string; user: any }) => {
     await storage.set(KEYS.AUTH_TOKEN, session.token);
@@ -159,6 +208,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const canAccess = (feature: string): boolean => {
     if (!user) return false;
+    // Owner roles are never restricted by the per-role toggles.
+    if (user.role === 'super_admin' || user.role === 'dealer') {
+      const perms = ROLE_PERMISSIONS[user.role];
+      return !!perms && (perms.includes('*') || perms.includes(feature));
+    }
+    // Staff/portal roles: honor the shop's feature toggles when loaded.
+    const key = PERM_TO_FEATURE[feature];
+    if (key && features) return features[key] === true;
     const perms = ROLE_PERMISSIONS[user.role];
     if (!perms) return false;
     return perms.includes('*') || perms.includes(feature);
@@ -175,6 +232,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         adoptSession,
         canAccess,
+        refreshFeatures,
         signedOutNotice,
         clearSignedOutNotice: () => setSignedOutNotice(null),
       }}

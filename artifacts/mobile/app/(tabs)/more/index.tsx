@@ -20,15 +20,18 @@ interface MenuItem {
   color: string;
   description: string;
   roles: string[];
+  /** When set, staff visibility follows the shop's feature toggles instead of the fixed role list. */
+  feature?: string;
 }
 
 const MENU_ITEMS: MenuItem[] = [
   { id: 'activity', label: 'Activity Log', icon: 'activity', route: '/(tabs)/more/activity', color: '#34D399', description: 'View system events', roles: ['super_admin', 'dealer'] },
-  { id: 'finance', label: 'Finance', icon: 'bar-chart-2', route: '/(tabs)/more/finance', color: '#34D399', description: 'Income, expense, cash book', roles: ['super_admin', 'dealer', 'accountant'] },
-  { id: 'approvals', label: 'Approvals', icon: 'check-circle', route: '/(tabs)/more/approvals', color: '#FB7185', description: 'Backdated entry requests', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician'] },
+  { id: 'finance', label: 'Finance', icon: 'bar-chart-2', route: '/(tabs)/more/finance', color: '#34D399', description: 'Income, expense, cash book', roles: ['super_admin', 'dealer'], feature: 'finance' },
+  { id: 'approvals', label: 'Approvals', icon: 'check-circle', route: '/(tabs)/more/approvals', color: '#FB7185', description: 'Backdated entry requests', roles: ['super_admin', 'dealer'], feature: 'approvals' },
   { id: 'staff', label: 'Staff', icon: 'users', route: '/(tabs)/more/staff', color: '#8B5CF6', description: 'Manage staff and roles', roles: ['super_admin', 'dealer'] },
-  { id: 'purchases', label: 'Purchases', icon: 'shopping-bag', route: '/(tabs)/more/purchases', color: '#4DA3FF', description: 'Purchase orders, suppliers', roles: ['super_admin', 'dealer', 'store_manager', 'accountant'] },
-  { id: 'reports', label: 'Reports', icon: 'file-text', route: '/(tabs)/more/reports', color: '#F59E0B', description: 'Generate and export reports', roles: ['super_admin', 'dealer', 'accountant'] },
+  { id: 'permissions', label: 'Staff Permissions', icon: 'sliders', route: '/(tabs)/more/permissions', color: '#F472B6', description: 'Turn features on/off per role', roles: ['super_admin', 'dealer'] },
+  { id: 'purchases', label: 'Purchases', icon: 'shopping-bag', route: '/(tabs)/more/purchases', color: '#4DA3FF', description: 'Purchase orders, suppliers', roles: ['super_admin', 'dealer'], feature: 'purchases' },
+  { id: 'reports', label: 'Reports', icon: 'file-text', route: '/(tabs)/more/reports', color: '#F59E0B', description: 'Generate and export reports', roles: ['super_admin', 'dealer'], feature: 'reports' },
   { id: 'settings', label: 'Settings', icon: 'settings', route: '/(tabs)/more/settings', color: '#A8B3C7', description: 'Company, app configuration', roles: ['super_admin', 'dealer'] },
   { id: 'app-update', label: 'App Update', icon: 'download-cloud', route: '/(tabs)/more/app-update', color: '#3A8FF7', description: 'Check for new app versions', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician'] },
   { id: 'update-manager', label: 'App Update Manager', icon: 'upload-cloud', route: '/(tabs)/more/update-manager', color: '#8B5CF6', description: 'Publish new app releases', roles: ['super_admin'] },
@@ -48,7 +51,13 @@ export default function MoreScreen() {
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
-  const visibleItems = MENU_ITEMS.filter((item) => item.roles.includes(user?.role ?? ''));
+  // Fixed role lists cover owner roles; staff visibility follows the shop's
+  // per-role feature toggles (More → Staff Permissions) when `feature` is set.
+  const role = user?.role ?? '';
+  const isPortal = role === 'dealer_owner' || role === 'dealer_staff';
+  const visibleItems = MENU_ITEMS.filter(
+    (item) => item.roles.includes(role) || (!isPortal && !!item.feature && canAccess(item.feature)),
+  );
 
   const anims = useStaggerAnim(3);
 
