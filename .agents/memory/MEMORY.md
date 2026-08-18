@@ -25,4 +25,5 @@
 - [GitHub push via API fallback](github-push-api-fallback.md) — when auth() gives no token, push via proxyFetch Git Data API; local/remote SHAs then diverge, reconcile before next token push.
 - [Testing pass lock](testing-pass-lock.md) — testingChecklist true=Pass is immutable; validate in tx with FOR UPDATE; omission keeps passes, drops fails; Pass→Fail = 409 TESTING_ITEM_LOCKED.
 - [PIN throttle review bar](pin-throttle-reviews.md) — reviewers require every unlock method to reset attempts, sync pre-submit guards on PIN pads, and serialized counter writes.
+- [Role feature toggles](role-feature-toggles.md) — owner-editable per-role Staff Permissions; new mutation endpoints in toggleable areas must add requireFeature; never gate shared GET collections.
 - [Prod data import path](prod-data-import.md) — prod SQL is read-only; use the token-guarded import endpoint; jsonb columns reject JS arrays via node-postgres, stringify first.
