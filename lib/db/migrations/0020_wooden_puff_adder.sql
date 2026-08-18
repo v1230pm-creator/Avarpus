@@ -1,4 +1,4 @@
-CREATE TABLE "app_updates" (
+CREATE TABLE IF NOT EXISTS "app_updates" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"version" text NOT NULL,
 	"build_number" integer NOT NULL,
@@ -20,5 +20,13 @@ CREATE TABLE "app_updates" (
 	"updated_at" timestamp with time zone
 );
 --> statement-breakpoint
-ALTER TABLE "app_updates" ADD CONSTRAINT "app_updates_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "app_updates" ADD CONSTRAINT "app_updates_published_by_users_id_fk" FOREIGN KEY ("published_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'app_updates_created_by_users_id_fk') THEN
+    ALTER TABLE "app_updates" ADD CONSTRAINT "app_updates_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+  END IF;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'app_updates_published_by_users_id_fk') THEN
+    ALTER TABLE "app_updates" ADD CONSTRAINT "app_updates_published_by_users_id_fk" FOREIGN KEY ("published_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+  END IF;
+END $$;

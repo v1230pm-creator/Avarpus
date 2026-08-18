@@ -1,1 +1,1 @@
-ALTER TABLE "app_updates" ADD COLUMN "check_count" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "app_updates" ADD COLUMN IF NOT EXISTS "check_count" integer DEFAULT 0 NOT NULL;
