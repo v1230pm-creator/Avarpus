@@ -286,7 +286,9 @@ router.get(
     res.status(isPartial ? 206 : 200);
     res.setHeader("Content-Type", "application/vnd.android.package-archive");
     res.setHeader("Accept-Ranges", "bytes");
-    res.setHeader("Content-Length", String(end - start + 1));
+    // Deliberately no Content-Length: the production proxy caps fixed-length
+    // responses (~32MB), which killed large APK downloads mid-transfer.
+    // Omitting it forces chunked transfer encoding, which streams unlimited.
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="vmc-erp-${row.version}.apk"`,
