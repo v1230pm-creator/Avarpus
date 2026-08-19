@@ -39,6 +39,7 @@ import {
   GripVertical,
   Loader2,
   FileCheck,
+  AlertTriangle,
   X
 } from "lucide-react";
 import { formatBytes } from "@/lib/utils";
@@ -188,6 +189,9 @@ export default function ReleaseEditor() {
       minAndroidVersion: data.minAndroidVersion || null,
       releaseNotes: formattedNotes
     };
+    if (!isNew && data.apkPath === (existingUpdate as any)?.apkPath) {
+      delete payload.apkPath;
+    }
 
     if (isNew) {
       createUpdate.mutate({ data: payload }, {
@@ -332,6 +336,16 @@ export default function ReleaseEditor() {
                     <CardDescription>Core identifiers for this release.</CardDescription>
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2 flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                      <div>
+                        <div className="font-semibold">Use the actual APK build identity</div>
+                        <p className="mt-1 text-muted-foreground">
+                          Version and Build Number must exactly match the expo.dev build details. Upload a fresh APK
+                          for every new release; reusing an old APK or only changing these labels is blocked.
+                        </p>
+                      </div>
+                    </div>
                     <FormField control={form.control} name="version" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Version String (SemVer)</FormLabel>
@@ -415,7 +429,9 @@ export default function ReleaseEditor() {
                   <Card>
                     <CardHeader>
                       <CardTitle>APK Bundle</CardTitle>
-                      <CardDescription>Upload the compiled Android package.</CardDescription>
+                      <CardDescription>
+                        Upload the newly compiled, signed Android package from the latest GitHub branch.
+                      </CardDescription>
                     </CardHeader>
                     <CardContent>
                       {apkPath ? (

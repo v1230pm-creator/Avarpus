@@ -10,7 +10,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
 import { useApprovalsList, useLatestAppUpdate, useNotificationsList } from '@workspace/api-client-react';
-import { getAppBuildNumber } from '@/utils/appVersion';
+import { getAppBuildNumber, getAppVersion } from '@/utils/appVersion';
 
 interface MenuItem {
   id: string;
@@ -44,6 +44,8 @@ export default function MoreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout, canAccess } = useAuth();
+  const currentVersion = getAppVersion();
+  const currentBuild = getAppBuildNumber();
   const { data: approvalsData } = useApprovalsList();
   const pendingCount = approvalsData?.pendingCount || 0;
   // Unread in-app notifications badge (polled every minute). Portal accounts
@@ -53,9 +55,9 @@ export default function MoreScreen() {
   const { data: notifData } = useNotificationsList({ query: { enabled: notifEnabled, refetchInterval: 60000 } } as any);
   const unreadNotifs = notifData?.unreadCount || 0;
   // Quiet update indicator: a small badge only, never a popup.
-  const { data: latestUpdateData } = useLatestAppUpdate();
+  const { data: latestUpdateData } = useLatestAppUpdate({ buildNumber: currentBuild });
   const updateAvailable =
-    !!latestUpdateData?.update && latestUpdateData.update.buildNumber > getAppBuildNumber();
+    !!latestUpdateData?.update && latestUpdateData.update.buildNumber > currentBuild;
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
@@ -140,7 +142,7 @@ export default function MoreScreen() {
 
         {/* Version info */}
         <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-          VMC Electronic BMS v1.0.0
+          VMC Electronic BMS v{currentVersion} (Build {currentBuild})
         </Text>
 
         {/* Logout */}

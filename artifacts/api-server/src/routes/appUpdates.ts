@@ -9,6 +9,10 @@ import {
   ObjectNotFoundError,
   ObjectStorageService,
 } from "../lib/objectStorage";
+import {
+  requiresFreshApkForIdentityChange,
+  reusedApkError,
+} from "../lib/appUpdatePolicy";
 
 // ── OTA app update system ───────────────────────────────────────────────────
 // Strictly additive and isolated from business data: this module only reads
@@ -448,25 +452,58 @@ router.post(
         return;
       }
     }
-    const [created] = await db
-      .insert(appUpdatesTable)
-      .values({
-        version: body.version as string,
-        buildNumber: body.buildNumber as number,
-        releaseDate: (body.releaseDate as string | undefined) ?? null,
-        apkPath: (body.apkPath as string | undefined) ?? null,
-        apkSize: apkMeta?.size ?? null,
-        checksum: apkMeta?.checksum ?? null,
-        updateType: (body.updateType as string | undefined) ?? "optional",
-        minAndroidVersion: (body.minAndroidVersion as string | undefined) ?? null,
-        releaseNotes: body.releaseNotes ?? null,
-        screenshots: body.screenshots ?? null,
-        demoVideoUrl: (body.demoVideoUrl as string | undefined) ?? null,
-        status: "draft",
-        createdBy: userOf(req).id,
-      })
-      .returning();
-    res.status(201).json({ update: { ...publicUpdate(created), status: created.status } });
+    const createResult = await db.transaction(async (tx) => {
+      if (apkMeta) {
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtext(${`app_updates_apk:${apkMeta.checksum}`}))`,
+        );
+        const [existingApk] = await tx
+          .select({
+            version: appUpdatesTable.version,
+            buildNumber: appUpdatesTable.buildNumber,
+          })
+          .from(appUpdatesTable)
+          .where(eq(appUpdatesTable.checksum, apkMeta.checksum))
+          .orderBy(desc(appUpdatesTable.createdAt))
+          .limit(1);
+        if (existingApk) {
+          return {
+            ok: false as const,
+            status: 409,
+            message: reusedApkError(existingApk),
+          };
+        }
+      }
+      const [created] = await tx
+        .insert(appUpdatesTable)
+        .values({
+          version: body.version as string,
+          buildNumber: body.buildNumber as number,
+          releaseDate: (body.releaseDate as string | undefined) ?? null,
+          apkPath: (body.apkPath as string | undefined) ?? null,
+          apkSize: apkMeta?.size ?? null,
+          checksum: apkMeta?.checksum ?? null,
+          updateType: (body.updateType as string | undefined) ?? "optional",
+          minAndroidVersion: (body.minAndroidVersion as string | undefined) ?? null,
+          releaseNotes: body.releaseNotes ?? null,
+          screenshots: body.screenshots ?? null,
+          demoVideoUrl: (body.demoVideoUrl as string | undefined) ?? null,
+          status: "draft",
+          createdBy: userOf(req).id,
+        })
+        .returning();
+      return { ok: true as const, created };
+    });
+    if (!createResult.ok) {
+      res.status(createResult.status).json({ error: createResult.message });
+      return;
+    }
+    res.status(201).json({
+      update: {
+        ...publicUpdate(createResult.created),
+        status: createResult.created.status,
+      },
+    });
   }),
 );
 
@@ -491,63 +528,131 @@ router.patch(
       res.status(400).json({ error: err });
       return;
     }
-    // Release identity (version/build) and the APK itself are immutable while
-    // published — unpublish first. Enforced again atomically in the UPDATE's
-    // WHERE clause below so a concurrent publish cannot slip changes through.
     const touchesImmutable =
       body.apkPath !== undefined ||
       body.version !== undefined ||
       body.buildNumber !== undefined;
-    if (touchesImmutable && row.status === "published") {
-      res.status(409).json({ error: "Unpublish the release before changing its APK, version or build number" });
-      return;
+    let replacementMeta: { size: number; checksum: string } | null = null;
+    if (
+      typeof body.apkPath === "string" &&
+      body.apkPath !== row.apkPath
+    ) {
+      try {
+        replacementMeta = await computeApkMeta(body.apkPath);
+      } catch (error) {
+        res.status(400).json({
+          error:
+            error instanceof NotAnApkError
+              ? error.message
+              : "Uploaded APK not found in storage",
+        });
+        return;
+      }
     }
-    const patch: Record<string, unknown> = { updatedAt: new Date() };
-    if (body.version !== undefined) patch.version = body.version;
-    if (body.buildNumber !== undefined) patch.buildNumber = body.buildNumber;
-    if (body.releaseDate !== undefined) patch.releaseDate = body.releaseDate;
-    if (body.updateType !== undefined) patch.updateType = body.updateType;
-    if (body.minAndroidVersion !== undefined) patch.minAndroidVersion = body.minAndroidVersion;
-    if (body.releaseNotes !== undefined) patch.releaseNotes = body.releaseNotes;
-    if (body.screenshots !== undefined) patch.screenshots = body.screenshots;
-    if (body.demoVideoUrl !== undefined) patch.demoVideoUrl = body.demoVideoUrl;
-    if (body.apkPath !== undefined) {
+    const updateResult = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(appUpdatesTable)
+        .where(eq(appUpdatesTable.id, row.id))
+        .for("update")
+        .limit(1);
+      if (!current) {
+        return {
+          ok: false as const,
+          status: 404,
+          message: "Update not found",
+        };
+      }
+      if (requiresFreshApkForIdentityChange(current, body)) {
+        return {
+          ok: false as const,
+          status: 409,
+          message:
+            "Upload a fresh APK before changing the version or build number. Editing release labels cannot change the installed app.",
+        };
+      }
+      if (touchesImmutable && current.status === "published") {
+        return {
+          ok: false as const,
+          status: 409,
+          message:
+            "Unpublish the release before changing its APK, version or build number",
+        };
+      }
+      if (
+        typeof body.apkPath === "string" &&
+        body.apkPath !== current.apkPath &&
+        !replacementMeta
+      ) {
+        return {
+          ok: false as const,
+          status: 409,
+          message: "Release changed concurrently; reload it and try again",
+        };
+      }
+      if (replacementMeta) {
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtext(${`app_updates_apk:${replacementMeta.checksum}`}))`,
+        );
+        const [existingApk] = await tx
+          .select({
+            version: appUpdatesTable.version,
+            buildNumber: appUpdatesTable.buildNumber,
+          })
+          .from(appUpdatesTable)
+          .where(
+            and(
+              eq(appUpdatesTable.checksum, replacementMeta.checksum),
+              ne(appUpdatesTable.id, current.id),
+            ),
+          )
+          .orderBy(desc(appUpdatesTable.createdAt))
+          .limit(1);
+        if (existingApk) {
+          return {
+            ok: false as const,
+            status: 409,
+            message: reusedApkError(existingApk),
+          };
+        }
+      }
+      const patch: Record<string, unknown> = { updatedAt: new Date() };
+      if (body.version !== undefined) patch.version = body.version;
+      if (body.buildNumber !== undefined) patch.buildNumber = body.buildNumber;
+      if (body.releaseDate !== undefined) patch.releaseDate = body.releaseDate;
+      if (body.updateType !== undefined) patch.updateType = body.updateType;
+      if (body.minAndroidVersion !== undefined) patch.minAndroidVersion = body.minAndroidVersion;
+      if (body.releaseNotes !== undefined) patch.releaseNotes = body.releaseNotes;
+      if (body.screenshots !== undefined) patch.screenshots = body.screenshots;
+      if (body.demoVideoUrl !== undefined) patch.demoVideoUrl = body.demoVideoUrl;
       if (body.apkPath === null) {
         patch.apkPath = null;
         patch.apkSize = null;
         patch.checksum = null;
-      } else {
-        try {
-          const meta = await computeApkMeta(body.apkPath as string);
-          patch.apkPath = body.apkPath;
-          patch.apkSize = meta.size;
-          patch.checksum = meta.checksum;
-        } catch (error) {
-          res.status(400).json({
-            error:
-              error instanceof NotAnApkError
-                ? error.message
-                : "Uploaded APK not found in storage",
-          });
-          return;
-        }
+      } else if (replacementMeta) {
+        patch.apkPath = body.apkPath;
+        patch.apkSize = replacementMeta.size;
+        patch.checksum = replacementMeta.checksum;
       }
-    }
-    const [updated] = await db
-      .update(appUpdatesTable)
-      .set(patch)
-      .where(
-        touchesImmutable
-          ? and(eq(appUpdatesTable.id, row.id), ne(appUpdatesTable.status, "published"))
-          : eq(appUpdatesTable.id, row.id),
-      )
-      .returning();
-    if (!updated) {
-      // Lost the race with a concurrent publish — nothing was changed.
-      res.status(409).json({ error: "Release was published concurrently; unpublish it first" });
+      const [updated] = await tx
+        .update(appUpdatesTable)
+        .set(patch)
+        .where(eq(appUpdatesTable.id, current.id))
+        .returning();
+      return { ok: true as const, updated };
+    });
+    if (!updateResult.ok) {
+      res
+        .status(updateResult.status)
+        .json({ error: updateResult.message });
       return;
     }
-    res.json({ update: { ...publicUpdate(updated), status: updated.status } });
+    res.json({
+      update: {
+        ...publicUpdate(updateResult.updated),
+        status: updateResult.updated.status,
+      },
+    });
   }),
 );
 
@@ -563,19 +668,6 @@ router.post(
     const allowLowerBuild =
       (req.body as { allowLowerBuild?: unknown } | undefined)
         ?.allowLowerBuild === true;
-    const [row] = await db
-      .select()
-      .from(appUpdatesTable)
-      .where(eq(appUpdatesTable.id, String(req.params.id)))
-      .limit(1);
-    if (!row) {
-      res.status(404).json({ error: "Update not found" });
-      return;
-    }
-    if (!row.apkPath || !row.checksum || !row.apkSize) {
-      res.status(400).json({ error: "Upload an APK before publishing" });
-      return;
-    }
     const result = await db.transaction(async (tx) => {
       // Serialize all publishes with a transaction-scoped advisory lock —
       // row locks alone cannot serialize two publishes when no row is
@@ -583,6 +675,48 @@ router.post(
       await tx.execute(
         sql`SELECT pg_advisory_xact_lock(hashtext('app_updates_publish'))`,
       );
+      const [row] = await tx
+        .select()
+        .from(appUpdatesTable)
+        .where(eq(appUpdatesTable.id, String(req.params.id)))
+        .for("update")
+        .limit(1);
+      if (!row) {
+        return {
+          ok: false as const,
+          status: 404,
+          message: "Update not found",
+        };
+      }
+      if (!row.apkPath || !row.checksum || !row.apkSize) {
+        return {
+          ok: false as const,
+          status: 400,
+          message: "Upload an APK before publishing",
+        };
+      }
+      const [existingApk] = await tx
+        .select({
+          version: appUpdatesTable.version,
+          buildNumber: appUpdatesTable.buildNumber,
+        })
+        .from(appUpdatesTable)
+        .where(
+          and(
+            eq(appUpdatesTable.checksum, row.checksum),
+            ne(appUpdatesTable.id, row.id),
+            ne(appUpdatesTable.status, "draft"),
+          ),
+        )
+        .orderBy(desc(appUpdatesTable.createdAt))
+        .limit(1);
+      if (existingApk) {
+        return {
+          ok: false as const,
+          status: 409,
+          message: reusedApkError(existingApk),
+        };
+      }
       const published = await tx
         .select()
         .from(appUpdatesTable)
@@ -650,21 +784,59 @@ router.post(
   requireAuth,
   ADMIN,
   asyncHandler(async (req: Request, res: Response) => {
-    const [row] = await db
-      .select()
-      .from(appUpdatesTable)
-      .where(eq(appUpdatesTable.id, String(req.params.id)))
-      .limit(1);
-    if (!row) {
-      res.status(404).json({ error: "Update not found" });
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext('app_updates_publish'))`,
+      );
+      const [row] = await tx
+        .select()
+        .from(appUpdatesTable)
+        .where(eq(appUpdatesTable.id, String(req.params.id)))
+        .for("update")
+        .limit(1);
+      if (!row) {
+        return {
+          ok: false as const,
+          status: 404,
+          message: "Update not found",
+        };
+      }
+      if (row.status !== "published") {
+        return {
+          ok: false as const,
+          status: 409,
+          message: "Only the currently published release can be unpublished",
+        };
+      }
+      const [updated] = await tx
+        .update(appUpdatesTable)
+        .set({ status: "unpublished", updatedAt: new Date() })
+        .where(
+          and(
+            eq(appUpdatesTable.id, row.id),
+            eq(appUpdatesTable.status, "published"),
+          ),
+        )
+        .returning();
+      if (!updated) {
+        return {
+          ok: false as const,
+          status: 409,
+          message: "Release status changed concurrently; reload and try again",
+        };
+      }
+      return { ok: true as const, updated };
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.message });
       return;
     }
-    const [updated] = await db
-      .update(appUpdatesTable)
-      .set({ status: "unpublished", updatedAt: new Date() })
-      .where(eq(appUpdatesTable.id, row.id))
-      .returning();
-    res.json({ update: { ...publicUpdate(updated), status: updated.status } });
+    res.json({
+      update: {
+        ...publicUpdate(result.updated),
+        status: result.updated.status,
+      },
+    });
   }),
 );
 

@@ -149,7 +149,7 @@ export default function AppUpdateScreen() {
     setChecking(true);
     setCheckError(null);
     try {
-      const res = await latestAppUpdate();
+      const res = await latestAppUpdate({ buildNumber: currentBuild });
       setLatest(res.update ?? null);
       setChecked(true);
       setLastChecked(new Date());
@@ -163,7 +163,7 @@ export default function AppUpdateScreen() {
     } finally {
       setChecking(false);
     }
-  }, []);
+  }, [currentBuild]);
 
   const loadChangelog = useCallback(async () => {
     setChangelogOpen((o) => !o);

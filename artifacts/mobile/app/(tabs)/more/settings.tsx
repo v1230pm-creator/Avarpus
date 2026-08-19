@@ -25,6 +25,7 @@ import {
   inactivityLabel,
   setInactivityTimeoutMinutes,
 } from '@/utils/sessionPrefs';
+import { getAppBuildNumber, getAppVersion } from '@/utils/appVersion';
 
 function formatLoginTime(iso: string): string {
   const d = new Date(iso);
@@ -39,6 +40,8 @@ export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const currentVersion = getAppVersion();
+  const currentBuild = getAppBuildNumber();
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
@@ -198,7 +201,9 @@ export default function SettingsScreen() {
               <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>App Version</Text>
               <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>VMC Electronic BMS</Text>
             </View>
-            <Text style={[styles.versionText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>v1.0.0</Text>
+            <Text style={[styles.versionText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              v{currentVersion} (Build {currentBuild})
+            </Text>
           </View>
         </Card>
         </FadeInView>

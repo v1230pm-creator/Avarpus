@@ -28,3 +28,4 @@
 - [Role feature toggles](role-feature-toggles.md) — owner-editable per-role Staff Permissions; new mutation endpoints in toggleable areas must add requireFeature; never gate shared GET collections.
 - [Prod data import path](prod-data-import.md) — prod SQL is read-only; use the token-guarded import endpoint; jsonb columns reject JS arrays via node-postgres, stringify first.
 - [In-app notifications](notifications.md) — notification rows to owners+targeted extras minus actor, fire-and-forget; never JSON.stringify jsonb objects for Drizzle inserts.
+- [APK release identity](apk-release-identity.md) — release labels never change APK contents; each new release needs a fresh checksum, actual native version/build, and serialized state changes.

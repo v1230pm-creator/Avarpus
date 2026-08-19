@@ -2,7 +2,7 @@
   "expo": {
     "name": "VMC Electronic BMS",
     "slug": "vmcelectronicerp",
-    "version": "1.0.0",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "vmcelectronicerp",
@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.vmcelectronicerp.app",
-      "versionCode": 1,
+      "versionCode": 16,
       "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES"]
     },
     "web": {

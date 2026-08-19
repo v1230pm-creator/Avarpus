@@ -386,6 +386,13 @@ export default function UpdateManagerScreen() {
             <Text style={[styles.hint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
               Size and SHA-256 checksum are calculated automatically on the server after upload.
             </Text>
+            <View style={[styles.releaseWarning, { backgroundColor: '#F59E0B14', borderColor: '#F59E0B55' }]}>
+              <Feather name="alert-triangle" size={16} color="#F59E0B" />
+              <Text style={[styles.releaseWarningText, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}>
+                Build a fresh APK from the latest GitHub branch. Version and Build Number must exactly match the
+                expo.dev build details. Reusing or renaming an old APK will not include new features and is blocked.
+              </Text>
+            </View>
 
             <View style={styles.btnRow}>
               <TouchableOpacity onPress={() => setFormOpen(false)} style={[styles.smallBtn, { borderColor: colors.border }]} activeOpacity={0.8}>
@@ -511,6 +518,8 @@ const styles = StyleSheet.create({
   uploadBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed' },
   uploadText: { fontSize: 13.5 },
   hint: { fontSize: 12, lineHeight: 17 },
+  releaseWarning: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, padding: 11, borderRadius: 12, borderWidth: 1 },
+  releaseWarningText: { flex: 1, fontSize: 12, lineHeight: 17 },
   btnRow: { flexDirection: 'row', gap: 10 },
   smallBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 11, borderRadius: 12, borderWidth: 1 },
   smallBtnText: { fontSize: 13 },
