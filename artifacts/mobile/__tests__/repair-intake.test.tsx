@@ -22,6 +22,14 @@ const mockRepairsCreate = jest.fn();
 const mockRepairsUpdate = jest.fn();
 const mockCustomersCreate = jest.fn();
 const mockApprovalsCreate = jest.fn();
+const mockAuthUser = {
+  id: 'u1',
+  name: 'Owner',
+  email: 'o@x.y',
+  mobile: '9876543210',
+  role: 'dealer' as string,
+  isActive: true,
+};
 
 const mockLists: Record<string, unknown[]> = { repairs: [], customers: [], items: [], purchases: [], entries: [] };
 
@@ -39,7 +47,7 @@ jest.mock('@workspace/api-client-react', () => {
   return {
     ApiError,
     authMe: jest.fn(async () => ({
-      user: { id: 'u1', name: 'Owner', email: 'o@x.y', mobile: '9876543210', role: 'dealer', isActive: true },
+      user: mockAuthUser,
     })),
     authLogin: jest.fn(),
     authLogout: jest.fn(),
@@ -176,6 +184,21 @@ const type = (placeholder: string, value: string) =>
   fireEvent.changeText(screen.getByPlaceholderText(placeholder), value);
 
 const CONFIRM_LABEL = 'I have submitted the device and the above details are correct.';
+
+afterEach(() => {
+  mockAuthUser.role = 'dealer';
+});
+
+it('shows the manual dealer picker to shop staff but not dealer portal accounts', async () => {
+  mockAuthUser.role = 'reception';
+  const staffScreen = await renderIntake();
+  expect(screen.getByText('Dealer (Optional)')).toBeTruthy();
+  staffScreen.unmount();
+
+  mockAuthUser.role = 'dealer_staff';
+  await renderIntake();
+  expect(screen.queryByText('Dealer (Optional)')).toBeNull();
+});
 
 /** Fills every required intake field on step 1 (brand is a chip selector). */
 const fillRequiredFields = async () => {

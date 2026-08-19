@@ -238,6 +238,10 @@ export default function NewRepairScreen() {
 
   const isStaff = user?.role !== 'dealer' && user?.role !== 'super_admin';
   const isBackdated = isStaff && (receiveDate.trim() < getTodayStr() || forceApprovalMode);
+  // Shop staff can manually link a B2B dealer. Portal logins remain limited to
+  // their own dealer's repairs and must not see the shop dealer directory.
+  const isDealerPortalUser =
+    user?.role === 'dealer_owner' || user?.role === 'dealer_staff';
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -763,10 +767,10 @@ export default function NewRepairScreen() {
                 <Input label="Address" value={address} onChangeText={setAddress} placeholder="Optional" leftIcon="map-pin" />
               </View>
 
-              {/* Dealer (optional B2B link) — manual linking is privileged.
-                  Staff/technicians get automatic phone detection only (the
-                  server rejects any other manual dealerId with 403). */}
-              {!isStaff && <View style={styles.section}>
+              {/* Dealer (optional B2B link) — shop staff can select any
+                  dealer in their shop. Dealer portal accounts remain excluded
+                  so they cannot browse the shop's dealer directory. */}
+              {!isDealerPortalUser && <View style={styles.section}>
                 <SectionHeader title="Dealer (Optional)" />
                 <TouchableOpacity
                   activeOpacity={0.7}
