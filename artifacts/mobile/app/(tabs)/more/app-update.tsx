@@ -1,7 +1,8 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Platform,
   ScrollView,
   StyleSheet,
@@ -20,6 +21,19 @@ import { useColors } from '@/hooks/useColors';
 import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
 import { storage, KEYS } from '@/utils/storage';
 import { getAppVersion, getAppBuildNumber, formatBytes } from '@/utils/appVersion';
+import {
+  enqueueBackgroundDownload,
+  cancelBackgroundDownload,
+  getBackgroundDownloadStatus,
+  getStoredBackgroundDownload,
+  isBackgroundDownloaderAvailable,
+  openBackgroundDownloadInstaller,
+} from '@/modules/vmc-background-downloader';
+import {
+  parseStoredBackgroundDownload,
+  restoredStateForSnapshot,
+  type PersistedAppUpdateDownload,
+} from '@/utils/appUpdateDownload';
 import {
   latestAppUpdate,
   appUpdateChangelog,
@@ -96,11 +110,16 @@ function base64ToBytes(b64: string): Uint8Array {
 
 // SHA-256 of a (possibly large) file, read in 2 MB base64 chunks so we never
 // hold the whole APK in memory.
-async function sha256OfFile(uri: string, totalSize: number): Promise<string> {
+async function sha256OfFile(
+  uri: string,
+  totalSize: number,
+  shouldContinue: () => boolean = () => true,
+): Promise<string> {
   const hash = sha256.create();
   const CHUNK = 2 * 1024 * 1024;
   let position = 0;
   while (position < totalSize) {
+    if (!shouldContinue()) throw new Error('verification-cancelled');
     const length = Math.min(CHUNK, totalSize - position);
     const b64 = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.Base64,
@@ -110,6 +129,7 @@ async function sha256OfFile(uri: string, totalSize: number): Promise<string> {
     hash.update(base64ToBytes(b64));
     position += length;
   }
+  if (!shouldContinue()) throw new Error('verification-cancelled');
   return hash.hex();
 }
 
@@ -137,12 +157,42 @@ export default function AppUpdateScreen() {
   const [speed, setSpeed] = useState(0);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [localUri, setLocalUri] = useState<string | null>(null);
+  const [downloadMode, setDownloadMode] = useState<'native' | 'legacy' | null>(null);
+  const [downloadActionInFlight, setDownloadActionInFlight] = useState(false);
 
   const resumableRef = useRef<FileSystem.DownloadResumable | null>(null);
   const speedRef = useRef<{ t: number; bytes: number }>({ t: 0, bytes: 0 });
+  const nativeDownloadIdRef = useRef<string | null>(null);
+  const nativePollingRef = useRef(false);
+  const persistentRecordRef = useRef<PersistedAppUpdateDownload | null>(null);
+  const verificationInFlightRef = useRef(false);
+  const reconcileInFlightRef = useRef(false);
+  const downloadActionInFlightRef = useRef(false);
+  const operationGenerationRef = useRef(0);
+  const cancelledGenerationRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
 
   const isUpdateAvailable = !!latest && latest.buildNumber > currentBuild;
   const typeMeta = UPDATE_TYPE_META[latest?.updateType ?? 'optional'] ?? UPDATE_TYPE_META.optional;
+  const persistentDownloaderAvailable =
+    Platform.OS === 'android' && isBackgroundDownloaderAvailable();
+
+  const isOperationCurrent = useCallback(
+    (generation: number, downloadId?: string) =>
+      mountedRef.current &&
+      operationGenerationRef.current === generation &&
+      (!downloadId || nativeDownloadIdRef.current === downloadId),
+    [],
+  );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      operationGenerationRef.current += 1;
+      nativePollingRef.current = false;
+    };
+  }, []);
 
   const handleCheck = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -196,43 +246,262 @@ export default function AppUpdateScreen() {
   );
 
   const verifyAndFinish = useCallback(
-    async (uri: string) => {
+    async (
+      uri: string,
+      update: AppUpdate | null,
+      generation: number,
+      nativeDownloadId?: string,
+    ) => {
+      if (!isOperationCurrent(generation, nativeDownloadId)) return;
       setPhase('verifying');
       try {
+        if (
+          !update ||
+          typeof update.apkSize !== 'number' ||
+          update.apkSize <= 0 ||
+          typeof update.checksum !== 'string' ||
+          !/^[a-f0-9]{64}$/i.test(update.checksum)
+        ) {
+          throw new Error('missing-security-metadata');
+        }
         const info = await FileSystem.getInfoAsync(uri);
+        if (!isOperationCurrent(generation, nativeDownloadId)) return;
         if (!info.exists) throw new Error('missing');
         const size = (info as any).size as number;
-        if (latest?.apkSize && size !== latest.apkSize) {
+        if (size !== update.apkSize) {
           throw new Error('size-mismatch');
         }
-        if (latest?.checksum) {
-          const digest = await sha256OfFile(uri, size);
-          if (digest.toLowerCase() !== latest.checksum.toLowerCase()) {
-            throw new Error('checksum-mismatch');
-          }
+        const digest = await sha256OfFile(
+          uri,
+          size,
+          () => isOperationCurrent(generation, nativeDownloadId),
+        );
+        if (!isOperationCurrent(generation, nativeDownloadId)) return;
+        if (digest.toLowerCase() !== update.checksum.toLowerCase()) {
+          throw new Error('checksum-mismatch');
         }
         setLocalUri(uri);
         setPhase('ready');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch (e: any) {
+        if (
+          e?.message === 'verification-cancelled' ||
+          !isOperationCurrent(generation, nativeDownloadId)
+        ) {
+          return;
+        }
+        if (nativeDownloadId) {
+          await cancelBackgroundDownload(nativeDownloadId).catch(() => false);
+          if (!isOperationCurrent(generation, nativeDownloadId)) return;
+          await storage.remove(KEYS.APP_UPDATE_DOWNLOAD);
+          nativeDownloadIdRef.current = null;
+          persistentRecordRef.current = null;
+          nativePollingRef.current = false;
+        }
         await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
         setPhase('error');
         setDownloadError(
-          e?.message === 'checksum-mismatch' || e?.message === 'size-mismatch'
+          e?.message === 'missing-security-metadata'
+            ? 'This release is missing required security metadata. Please contact the administrator.'
+            : e?.message === 'checksum-mismatch' || e?.message === 'size-mismatch'
             ? 'The downloaded file failed the security check (corrupted or incomplete). Please download again.'
             : 'Could not verify the downloaded file. Please try again.',
         );
       }
     },
-    [latest],
+    [isOperationCurrent],
   );
 
+  const loadNativePersistentDownload = useCallback(async () => {
+    const stored = await getStoredBackgroundDownload();
+    if (!stored) {
+      await storage.remove(KEYS.APP_UPDATE_DOWNLOAD);
+      return null;
+    }
+    const record = parseStoredBackgroundDownload(stored);
+    if (!record) {
+      await cancelBackgroundDownload(stored.downloadId).catch(() => false);
+      await storage.remove(KEYS.APP_UPDATE_DOWNLOAD);
+      return null;
+    }
+    await storage.set(KEYS.APP_UPDATE_DOWNLOAD, record);
+    return record;
+  }, []);
+
+  const clearPersistentDownload = useCallback(async (cancel = false) => {
+    const downloadId =
+      nativeDownloadIdRef.current ?? persistentRecordRef.current?.downloadId;
+    nativePollingRef.current = false;
+    if (cancel && downloadId) {
+      await cancelBackgroundDownload(downloadId).catch(() => false);
+    }
+    await storage.remove(KEYS.APP_UPDATE_DOWNLOAD);
+    nativeDownloadIdRef.current = null;
+    persistentRecordRef.current = null;
+  }, []);
+
+  const reconcilePersistentDownload = useCallback(
+    async (recordOverride?: PersistedAppUpdateDownload) => {
+      if (!persistentDownloaderAvailable || reconcileInFlightRef.current) return;
+      reconcileInFlightRef.current = true;
+      const generation = operationGenerationRef.current;
+      try {
+        const record =
+          recordOverride ??
+          persistentRecordRef.current ??
+          await loadNativePersistentDownload();
+        if (!isOperationCurrent(generation) || !record?.downloadId || !record.update) {
+          return;
+        }
+
+        if (record.update.buildNumber <= currentBuild) {
+          persistentRecordRef.current = record;
+          nativeDownloadIdRef.current = record.downloadId;
+          await clearPersistentDownload(true);
+          return;
+        }
+
+        persistentRecordRef.current = record;
+        nativeDownloadIdRef.current = record.downloadId;
+        setDownloadMode('native');
+        setLatest(record.update);
+        setChecked(true);
+        setTotal(record.update.apkSize ?? 0);
+
+        const snapshot = await getBackgroundDownloadStatus(record.downloadId);
+        if (!isOperationCurrent(generation, record.downloadId)) return;
+        const restored = restoredStateForSnapshot(snapshot);
+        const now = Date.now();
+        const previous = speedRef.current;
+        if (
+          previous.t &&
+          now > previous.t &&
+          snapshot.bytesDownloaded >= previous.bytes
+        ) {
+          const instant =
+            ((snapshot.bytesDownloaded - previous.bytes) / (now - previous.t)) *
+            1000;
+          setSpeed((value) =>
+            value ? value * 0.7 + instant * 0.3 : instant,
+          );
+        }
+        speedRef.current = {
+          t: now,
+          bytes: snapshot.bytesDownloaded,
+        };
+        setWritten(snapshot.bytesDownloaded);
+        const expectedTotal =
+          snapshot.totalBytes || record.update.apkSize || 0;
+        setTotal(expectedTotal);
+        setProgress(
+          expectedTotal > 0
+            ? Math.min(1, snapshot.bytesDownloaded / expectedTotal)
+            : 0,
+        );
+
+        if (snapshot.status === 'successful') {
+          nativePollingRef.current = false;
+          if (!snapshot.localUri) {
+            throw new Error('missing-download-uri');
+          }
+          if (!verificationInFlightRef.current) {
+            verificationInFlightRef.current = true;
+            try {
+              await verifyAndFinish(
+                snapshot.localUri,
+                record.update,
+                generation,
+                record.downloadId,
+              );
+            } finally {
+              verificationInFlightRef.current = false;
+            }
+          }
+          return;
+        }
+
+        if (snapshot.status === 'failed' || snapshot.status === 'missing') {
+          if (!isOperationCurrent(generation, record.downloadId)) return;
+          setPhase('error');
+          setDownloadError(restored.error);
+          await clearPersistentDownload(true);
+          return;
+        }
+
+        if (!isOperationCurrent(generation, record.downloadId)) return;
+        nativePollingRef.current = true;
+        setPhase(restored.phase);
+        setDownloadError(null);
+      } catch (error) {
+        if (!isOperationCurrent(generation)) return;
+        if (
+          error instanceof Error &&
+          error.message === 'missing-download-uri'
+        ) {
+          await clearPersistentDownload(true);
+        }
+        setPhase('error');
+        setDownloadError(
+          'Could not restore the update download. Please download it again.',
+        );
+      } finally {
+        reconcileInFlightRef.current = false;
+      }
+    },
+    [
+      clearPersistentDownload,
+      currentBuild,
+      isOperationCurrent,
+      loadNativePersistentDownload,
+      persistentDownloaderAvailable,
+      verifyAndFinish,
+    ],
+  );
+
+  useEffect(() => {
+    if (!persistentDownloaderAvailable) return;
+    void reconcilePersistentDownload();
+
+    const interval = setInterval(() => {
+      if (nativePollingRef.current) {
+        void reconcilePersistentDownload();
+      }
+    }, 1500);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void reconcilePersistentDownload();
+      }
+    });
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [persistentDownloaderAvailable, reconcilePersistentDownload]);
+
   const handleDownload = useCallback(async () => {
-    if (!latest?.apkUrl) return;
+    if (downloadActionInFlightRef.current || !latest?.apkUrl) return;
     if (Platform.OS !== 'android') {
       Alert.alert('Android only', 'APK updates can only be installed on Android devices.');
       return;
     }
+    if (
+      typeof latest.apkSize !== 'number' ||
+      latest.apkSize <= 0 ||
+      typeof latest.checksum !== 'string' ||
+      !/^[a-f0-9]{64}$/i.test(latest.checksum)
+    ) {
+      setPhase('error');
+      setDownloadError(
+        'This release is missing required security metadata. Please contact the administrator.',
+      );
+      return;
+    }
+
+    downloadActionInFlightRef.current = true;
+    setDownloadActionInFlight(true);
+    const generation = operationGenerationRef.current + 1;
+    operationGenerationRef.current = generation;
+    cancelledGenerationRef.current = null;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setDownloadError(null);
     setProgress(0);
@@ -243,7 +512,45 @@ export default function AppUpdateScreen() {
     setPhase('downloading');
     try {
       const token = await storage.get<string>(KEYS.AUTH_TOKEN);
+      if (!isOperationCurrent(generation)) return;
       const url = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api${latest.apkUrl}`;
+
+      if (persistentDownloaderAvailable) {
+        const startedAt = new Date().toISOString();
+        const queued = await enqueueBackgroundDownload({
+          url,
+          fileName: `vmc-update-${latest.buildNumber}-${latest.checksum.slice(0, 12)}.apk`,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          title: `VMC Electronic BMS v${latest.version}`,
+          description: `Downloading build ${latest.buildNumber}`,
+          identity: `${latest.buildNumber}:${latest.checksum.toLowerCase()}`,
+          metadataJson: JSON.stringify({ update: latest, startedAt }),
+        });
+        if (!isOperationCurrent(generation)) {
+          if (cancelledGenerationRef.current === generation) {
+            await cancelBackgroundDownload(queued.downloadId).catch(() => false);
+          }
+          return;
+        }
+        const record: PersistedAppUpdateDownload = {
+          downloadId: queued.downloadId,
+          update: latest,
+          startedAt,
+        };
+        persistentRecordRef.current = record;
+        nativeDownloadIdRef.current = queued.downloadId;
+        nativePollingRef.current = true;
+        setDownloadMode('native');
+        await storage.set(KEYS.APP_UPDATE_DOWNLOAD, record);
+        if (!isOperationCurrent(generation, queued.downloadId)) {
+          await storage.remove(KEYS.APP_UPDATE_DOWNLOAD);
+          return;
+        }
+        await reconcilePersistentDownload(record);
+        return;
+      }
+
+      setDownloadMode('legacy');
       const dest = `${FileSystem.cacheDirectory}vmc-update-${latest.buildNumber}.apk`;
       await FileSystem.deleteAsync(dest, { idempotent: true }).catch(() => {});
       const resumable = FileSystem.createDownloadResumable(
@@ -254,22 +561,37 @@ export default function AppUpdateScreen() {
       );
       resumableRef.current = resumable;
       const result = await resumable.downloadAsync();
+      if (!isOperationCurrent(generation)) return;
       if (result?.uri) {
         if (result.status && result.status !== 200 && result.status !== 206) {
           throw new Error(`http-${result.status}`);
         }
-        await verifyAndFinish(result.uri);
+        await verifyAndFinish(result.uri, latest, generation);
       }
       // undefined result = paused/cancelled; state handled elsewhere.
     } catch (e: any) {
+      if (!isOperationCurrent(generation)) return;
       setPhase('error');
       setDownloadError(
         String(e?.message ?? '').includes('ENOSPC') || String(e?.message ?? '').includes('space')
           ? 'Not enough storage space on this device. Free up some space and try again.'
           : 'Download failed. Please check your connection and try again.',
       );
+    } finally {
+      downloadActionInFlightRef.current = false;
+      if (mountedRef.current) setDownloadActionInFlight(false);
+      if (cancelledGenerationRef.current === generation) {
+        cancelledGenerationRef.current = null;
+      }
     }
-  }, [latest, onProgress, verifyAndFinish]);
+  }, [
+    isOperationCurrent,
+    latest,
+    onProgress,
+    persistentDownloaderAvailable,
+    reconcilePersistentDownload,
+    verifyAndFinish,
+  ]);
 
   const handlePause = useCallback(async () => {
     try {
@@ -283,40 +605,73 @@ export default function AppUpdateScreen() {
 
   const handleResume = useCallback(async () => {
     const resumable = resumableRef.current;
-    if (!resumable) return;
+    if (!resumable || downloadActionInFlightRef.current) return;
+    downloadActionInFlightRef.current = true;
+    setDownloadActionInFlight(true);
+    const generation = operationGenerationRef.current + 1;
+    operationGenerationRef.current = generation;
+    cancelledGenerationRef.current = null;
     setPhase('downloading');
     speedRef.current = { t: 0, bytes: 0 };
     try {
       const result = await resumable.resumeAsync();
-      if (result?.uri) await verifyAndFinish(result.uri);
+      if (!isOperationCurrent(generation)) return;
+      if (result?.uri) {
+        await verifyAndFinish(result.uri, latest, generation);
+      }
     } catch {
+      if (!isOperationCurrent(generation)) return;
       setPhase('error');
       setDownloadError('Download interrupted. Please try again.');
+    } finally {
+      downloadActionInFlightRef.current = false;
+      if (mountedRef.current) setDownloadActionInFlight(false);
+      if (cancelledGenerationRef.current === generation) {
+        cancelledGenerationRef.current = null;
+      }
     }
-  }, [verifyAndFinish]);
+  }, [isOperationCurrent, latest, verifyAndFinish]);
 
   const handleCancel = useCallback(async () => {
+    const cancelledGeneration = operationGenerationRef.current;
+    cancelledGenerationRef.current = cancelledGeneration;
+    operationGenerationRef.current = cancelledGeneration + 1;
+    nativePollingRef.current = false;
+    setPhase('idle');
+    setProgress(0);
+    setWritten(0);
+    setSpeed(0);
+    setTotal(0);
+    setLocalUri(null);
+    setDownloadMode(null);
+
+    if (downloadMode === 'native' || nativeDownloadIdRef.current) {
+      await clearPersistentDownload(true);
+    }
     try {
       await resumableRef.current?.cancelAsync();
     } catch {
       // ignore
     }
     resumableRef.current = null;
-    setPhase('idle');
-    setProgress(0);
-    setWritten(0);
-    setSpeed(0);
-  }, []);
+  }, [clearPersistentDownload, downloadMode]);
 
   const handleInstall = useCallback(async () => {
     if (!localUri) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const contentUri = await FileSystem.getContentUriAsync(localUri);
-      await IntentLauncher.startActivityAsync('android.intent.action.INSTALL_PACKAGE', {
-        data: contentUri,
-        flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
-      });
+      if (downloadMode === 'native' && nativeDownloadIdRef.current) {
+        await openBackgroundDownloadInstaller(nativeDownloadIdRef.current);
+      } else {
+        const contentUri = await FileSystem.getContentUriAsync(localUri);
+        await IntentLauncher.startActivityAsync(
+          'android.intent.action.INSTALL_PACKAGE',
+          {
+            data: contentUri,
+            flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+          },
+        );
+      }
       // Android takes over from here. If the user cancels the installer, they
       // simply return to the app — nothing is changed and no data is touched.
     } catch {
@@ -336,7 +691,7 @@ export default function AppUpdateScreen() {
         ],
       );
     }
-  }, [localUri]);
+  }, [downloadMode, localUri]);
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
   const busyDownloading = phase === 'downloading' || phase === 'paused' || phase === 'verifying';
@@ -484,12 +839,27 @@ export default function AppUpdateScreen() {
                 )}
                 <TouchableOpacity
                   onPress={handleDownload}
+                  disabled={downloadActionInFlight}
                   activeOpacity={0.8}
-                  style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
+                  style={[
+                    styles.primaryBtn,
+                    {
+                      backgroundColor: colors.primary,
+                      opacity: downloadActionInFlight ? 0.6 : 1,
+                    },
+                  ]}
                 >
-                  <Feather name="download" size={16} color="#FFF" />
+                  {downloadActionInFlight ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Feather name="download" size={16} color="#FFF" />
+                  )}
                   <Text style={[styles.primaryBtnText, { fontFamily: 'Inter_600SemiBold' }]}>
-                    {phase === 'error' ? 'Retry Download' : 'Download Update'}
+                    {downloadActionInFlight
+                      ? 'Preparing Download...'
+                      : phase === 'error'
+                        ? 'Retry Download'
+                        : 'Download Update'}
                   </Text>
                 </TouchableOpacity>
               </>
@@ -512,24 +882,38 @@ export default function AppUpdateScreen() {
                 </View>
                 <View style={styles.rowBetween}>
                   <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-                    {phase === 'paused' ? 'Paused' : `${formatBytes(speed)}/s`}
+                     {phase === 'paused'
+                       ? downloadMode === 'native'
+                         ? 'Waiting for network'
+                         : 'Paused'
+                       : `${formatBytes(speed)}/s`}
                   </Text>
                   <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
                     {formatBytes(Math.max(0, (total || latest.apkSize || 0) - written))} remaining
                   </Text>
                 </View>
+                 {downloadMode === 'native' && (
+                   <View style={styles.verifyRow}>
+                     <Feather name="smartphone" size={15} color={colors.primary} />
+                     <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular', flex: 1 }]}>
+                       Android is downloading this update in the background. You can safely close the app.
+                     </Text>
+                   </View>
+                 )}
                 <View style={styles.btnRow}>
-                  {phase === 'downloading' ? (
-                    <TouchableOpacity onPress={handlePause} style={[styles.smallBtn, { borderColor: colors.border }]} activeOpacity={0.8}>
-                      <Feather name="pause" size={15} color={colors.foreground} />
-                      <Text style={[styles.smallBtnText, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Pause</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity onPress={handleResume} style={[styles.smallBtn, { borderColor: colors.border }]} activeOpacity={0.8}>
-                      <Feather name="play" size={15} color={colors.foreground} />
-                      <Text style={[styles.smallBtnText, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Resume</Text>
-                    </TouchableOpacity>
-                  )}
+                   {downloadMode !== 'native' && (
+                     phase === 'downloading' ? (
+                       <TouchableOpacity onPress={handlePause} style={[styles.smallBtn, { borderColor: colors.border }]} activeOpacity={0.8}>
+                         <Feather name="pause" size={15} color={colors.foreground} />
+                         <Text style={[styles.smallBtnText, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Pause</Text>
+                       </TouchableOpacity>
+                     ) : (
+                       <TouchableOpacity onPress={handleResume} style={[styles.smallBtn, { borderColor: colors.border }]} activeOpacity={0.8}>
+                         <Feather name="play" size={15} color={colors.foreground} />
+                         <Text style={[styles.smallBtnText, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Resume</Text>
+                       </TouchableOpacity>
+                     )
+                   )}
                   <TouchableOpacity onPress={handleCancel} style={[styles.smallBtn, { borderColor: colors.destructive + '55' }]} activeOpacity={0.8}>
                     <Feather name="x" size={15} color={colors.destructive} />
                     <Text style={[styles.smallBtnText, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>Cancel</Text>

@@ -40,5 +40,6 @@ export const KEYS = {
   FINANCE: 'vmc_finance',
   ATTENDANCE: 'vmc_attendance',
   SETTINGS: 'vmc_settings',
+  APP_UPDATE_DOWNLOAD: 'vmc_app_update_download',
   SEEDED: 'vmc_seeded',
 };
