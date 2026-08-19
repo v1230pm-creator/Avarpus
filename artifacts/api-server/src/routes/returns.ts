@@ -18,6 +18,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
+import { requireFeature } from "../lib/roleFeatures";
 import type { Request, Response } from "express";
 
 // Return / Rework / Refund workflow.
@@ -232,6 +233,7 @@ async function loadReturn(res: Response, shopId: string, id: string): Promise<Re
 router.post(
   "/repairs/:id/returns",
   requireAuth,
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -381,6 +383,7 @@ router.get(
 router.patch(
   "/returns/:id",
   requireAuth,
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -506,6 +509,7 @@ router.patch(
 router.post(
   "/returns/:id/parts",
   requireAuth,
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -636,6 +640,7 @@ router.post(
 router.post(
   "/returns/:id/refunds",
   requireAuth,
+  requireFeature("payments"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;

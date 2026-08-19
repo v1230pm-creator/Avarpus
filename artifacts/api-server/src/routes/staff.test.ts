@@ -287,3 +287,70 @@ describe("shop isolation for staff management", () => {
     expect(sendStaffRejectedEmailMock).not.toHaveBeenCalled();
   });
 });
+
+describe("individual permission settings", () => {
+  const otherAuth = (r: request.Test) => r.set("Authorization", `Bearer ${otherDealerToken}`);
+
+  it("overrides one account, enforces it server-side, and can return to the role default", async () => {
+    const staff = await createPendingStaff("permissions", "96");
+    await db.update(usersTable).set({ isActive: true }).where(eq(usersTable.id, staff.id));
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ emailOrMobile: staff.email, password: PASSWORD });
+    expect(login.status).toBe(200);
+    const staffAuth = (r: request.Test) =>
+      r.set("Authorization", `Bearer ${login.body.token}`);
+
+    const initial = await auth(request(app).get(`/api/staff/${staff.id}/permissions`));
+    expect(initial.status).toBe(200);
+    expect(initial.body.roleFeatures.dashboard).toBe(true);
+    expect(initial.body.overrides).toEqual({});
+    expect(initial.body.features.dashboard).toBe(true);
+
+    const disabled = await auth(request(app)
+      .put(`/api/staff/${staff.id}/permissions`)
+      .send({ features: { dashboard: false } }));
+    expect(disabled.status).toBe(200);
+    expect(disabled.body.overrides.dashboard).toBe(false);
+    expect(disabled.body.features.dashboard).toBe(false);
+
+    const ownFeatures = await staffAuth(request(app).get("/api/role-features"));
+    expect(ownFeatures.status).toBe(200);
+    expect(ownFeatures.body.features.dashboard).toBe(false);
+    const blocked = await staffAuth(request(app).get("/api/dashboard/stats"));
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.code).toBe("FEATURE_DISABLED");
+
+    // Raw API callers do not have to know the null-clears convention: a
+    // boolean matching the role value is canonicalized to inheritance too.
+    const inherited = await auth(request(app)
+      .put(`/api/staff/${staff.id}/permissions`)
+      .send({ features: { dashboard: true } }));
+    expect(inherited.status).toBe(200);
+    expect(inherited.body.overrides.dashboard).toBeUndefined();
+    expect(inherited.body.features.dashboard).toBe(true);
+    const allowed = await staffAuth(request(app).get("/api/dashboard/stats"));
+    expect(allowed.status).toBe(200);
+  });
+
+  it("rejects unknown keys and keeps permission management shop-scoped", async () => {
+    const staff = await createPendingStaff("permissions-isolation", "97");
+    await db.update(usersTable).set({ isActive: true }).where(eq(usersTable.id, staff.id));
+
+    const invalid = await auth(request(app)
+      .put(`/api/staff/${staff.id}/permissions`)
+      .send({ features: { staff_management: false } }));
+    expect(invalid.status).toBe(400);
+
+    const crossRead = await otherAuth(request(app).get(`/api/staff/${staff.id}/permissions`));
+    expect(crossRead.status).toBe(404);
+    const crossWrite = await otherAuth(request(app)
+      .put(`/api/staff/${staff.id}/permissions`)
+      .send({ features: { dashboard: false } }));
+    expect(crossWrite.status).toBe(404);
+
+    const unchanged = await auth(request(app).get(`/api/staff/${staff.id}/permissions`));
+    expect(unchanged.status).toBe(200);
+    expect(unchanged.body.overrides).toEqual({});
+  });
+});

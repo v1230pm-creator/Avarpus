@@ -1,12 +1,26 @@
 import { Router, type IRouter } from "express";
 import { and, eq, ne, or } from "drizzle-orm";
-import { db, usersTable, dealersTable, type DbUser } from "@workspace/db";
+import {
+  db,
+  usersTable,
+  dealersTable,
+  userFeatureSettingsTable,
+  type DbUser,
+} from "@workspace/db";
 import { hashPassword, publicUser } from "../lib/authUtils";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireRole } from "../middlewares/requireRole";
 import { asyncHandler } from "../lib/asyncHandler";
 import { sendStaffApprovedEmail, sendStaffRejectedEmail } from "../lib/mailer";
 import type { Request } from "express";
+import {
+  CONFIGURABLE_ROLES,
+  effectiveFeaturesForUser,
+  featureKeysForRole,
+  getUserFeatureOverrides,
+  invalidateUserFeatureCache,
+  roleFeaturesForUser,
+} from "../lib/roleFeatures";
 
 const router: IRouter = Router();
 
@@ -167,6 +181,113 @@ async function loadManagedStaff(me: DbUser, id: string): Promise<
   }
   return { ok: true, target };
 }
+
+async function permissionResponse(target: DbUser) {
+  const [roleFeatures, overrides, features] = await Promise.all([
+    roleFeaturesForUser(target),
+    getUserFeatureOverrides(target),
+    effectiveFeaturesForUser(target),
+  ]);
+  return {
+    user: publicUser(target),
+    availableFeatures: [...featureKeysForRole(target.role)],
+    roleFeatures,
+    overrides,
+    features,
+  };
+}
+
+// ── Read one person's effective permissions and explicit overrides ─────────
+router.get(
+  "/staff/:id/permissions",
+  requireAuth,
+  requireRole("dealer", "super_admin"),
+  asyncHandler(async (req, res) => {
+    const me = (req as AuthedRequest).user;
+    const check = await loadManagedStaff(me, String(req.params.id));
+    if (!check.ok) {
+      res.status(check.status).json({ message: check.message });
+      return;
+    }
+    if (
+      !check.target.shopId ||
+      !(CONFIGURABLE_ROLES as readonly string[]).includes(check.target.role)
+    ) {
+      res.status(403).json({ message: "Individual permissions are not available for this account." });
+      return;
+    }
+    res.json(await permissionResponse(check.target));
+  }),
+);
+
+// ── Set/clear one person's feature overrides ───────────────────────────────
+router.put(
+  "/staff/:id/permissions",
+  requireAuth,
+  requireRole("dealer", "super_admin"),
+  asyncHandler(async (req, res) => {
+    const me = (req as AuthedRequest).user;
+    const check = await loadManagedStaff(me, String(req.params.id));
+    if (!check.ok) {
+      res.status(check.status).json({ message: check.message });
+      return;
+    }
+    const target = check.target;
+    if (
+      !target.shopId ||
+      !(CONFIGURABLE_ROLES as readonly string[]).includes(target.role)
+    ) {
+      res.status(403).json({ message: "Individual permissions are not available for this account." });
+      return;
+    }
+
+    const body = (req.body ?? {}) as { features?: Record<string, unknown> };
+    if (!body.features || typeof body.features !== "object" || Array.isArray(body.features)) {
+      res.status(400).json({ message: "features object is required." });
+      return;
+    }
+    const allowedKeys = featureKeysForRole(target.role);
+    for (const [key, value] of Object.entries(body.features)) {
+      if (!allowedKeys.includes(key)) {
+        res.status(400).json({ message: `Unknown feature: ${key}` });
+        return;
+      }
+      if (value !== null && typeof value !== "boolean") {
+        res.status(400).json({ message: `Feature ${key} must be true, false, or null.` });
+        return;
+      }
+    }
+
+    const [next, roleFeatures] = await Promise.all([
+      getUserFeatureOverrides(target),
+      roleFeaturesForUser(target),
+    ]);
+    for (const [key, value] of Object.entries(body.features)) {
+      if (value === null || value === roleFeatures[key]) delete next[key];
+      else next[key] = value as boolean;
+    }
+
+    if (Object.keys(next).length === 0) {
+      await db
+        .delete(userFeatureSettingsTable)
+        .where(eq(userFeatureSettingsTable.userId, target.id));
+    } else {
+      await db
+        .insert(userFeatureSettingsTable)
+        .values({ userId: target.id, shopId: target.shopId, features: next })
+        .onConflictDoUpdate({
+          target: userFeatureSettingsTable.userId,
+          set: {
+            shopId: target.shopId,
+            features: next,
+            updatedAt: new Date(),
+          },
+        });
+    }
+    invalidateUserFeatureCache(target.id);
+    res.json(await permissionResponse(target));
+  }),
+);
 
 // ── Approve a pending staff account ───────────────────────────────────────
 router.patch(

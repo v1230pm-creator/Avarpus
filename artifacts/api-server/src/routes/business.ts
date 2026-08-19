@@ -1472,6 +1472,7 @@ router.get(
 router.post(
   "/repairs/:id/photos",
   requireAuth,
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -2055,6 +2056,7 @@ router.get(
 router.post(
   "/repairs/:id/estimate-approvals",
   requireAuth,
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -2139,6 +2141,7 @@ async function loadEstimateApproval(shopId: string, id: string) {
 router.post(
   "/estimate-approvals/:id/send-otp",
   requireAuth,
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -2169,6 +2172,7 @@ router.post(
 router.post(
   "/estimate-approvals/:id/decide",
   requireAuth,
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -2283,6 +2287,7 @@ router.post(
 router.post(
   "/repairs/:id/delivery-otp/send",
   requireAuth,
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -2312,6 +2317,7 @@ router.post(
 router.post(
   "/repairs/:id/delivery-otp/verify",
   requireAuth,
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -2346,6 +2352,7 @@ router.post(
 router.post(
   "/repairs/:id/notify-ready",
   requireAuth,
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;

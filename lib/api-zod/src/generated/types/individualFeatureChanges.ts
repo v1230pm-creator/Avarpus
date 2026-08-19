@@ -6,4 +6,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type RoleFeaturesInputFeatures = {[key: string]: boolean};
+export interface IndividualFeatureChanges {[key: string]: boolean | null}

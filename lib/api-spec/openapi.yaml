@@ -329,6 +329,45 @@ paths:
                   user:
                     $ref: "#/components/schemas/AuthUser"
                 required: [user]
+  /staff/{id}/permissions:
+    get:
+      operationId: staffPermissionsGet
+      tags: [auth]
+      summary: Get role defaults, individual overrides, and effective permissions for one managed account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Individual permission settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndividualPermissions"
+    put:
+      operationId: staffPermissionsUpdate
+      tags: [auth]
+      summary: Set or clear individual permission overrides for one managed account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IndividualFeaturesInput"
+      responses:
+        "200":
+          description: Updated individual permission settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndividualPermissions"
   /staff/{id}:
     patch:
       operationId: staffUpdate
@@ -2192,9 +2231,36 @@ components:
       type: object
       properties:
         features:
-          type: object
-          additionalProperties: { type: boolean }
+          $ref: "#/components/schemas/FeatureMap"
       required: [features]
+    FeatureMap:
+      type: object
+      additionalProperties: { type: boolean }
+    IndividualFeatureChanges:
+      type: object
+      additionalProperties:
+        type: [boolean, "null"]
+    IndividualFeaturesInput:
+      type: object
+      properties:
+        features:
+          $ref: "#/components/schemas/IndividualFeatureChanges"
+      required: [features]
+    IndividualPermissions:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/AuthUser"
+        availableFeatures:
+          type: array
+          items: { type: string }
+        roleFeatures:
+          $ref: "#/components/schemas/FeatureMap"
+        overrides:
+          $ref: "#/components/schemas/FeatureMap"
+        features:
+          $ref: "#/components/schemas/FeatureMap"
+      required: [user, availableFeatures, roleFeatures, overrides, features]
     AppUpdate:
       type: object
       properties:

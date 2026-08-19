@@ -12,6 +12,7 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { isDealerPortalRole } from "../lib/dealerPortal";
+import { requireFeature } from "../lib/roleFeatures";
 import type { Request, Response } from "express";
 
 // ── B2B Dealer repair management ────────────────────────────────────────────
@@ -310,6 +311,7 @@ router.get(
 router.post(
   "/dealers",
   requireAuth,
+  requireFeature("customers"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;

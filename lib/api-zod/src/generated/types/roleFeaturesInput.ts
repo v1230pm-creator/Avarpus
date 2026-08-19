@@ -5,8 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { RoleFeaturesInputFeatures } from './roleFeaturesInputFeatures';
+import type { FeatureMap } from './featureMap';
 
 export interface RoleFeaturesInput {
-  features: RoleFeaturesInputFeatures;
+  features: FeatureMap;
 }

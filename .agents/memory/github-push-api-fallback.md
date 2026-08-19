@@ -16,3 +16,12 @@ description: What to do when the GitHub connection's auth() returns unauthentica
 A previous Git Data API push left `refs/heads/vmc-electronic-bms` pointing at a TREE object, not a commit. Symptom: `/branches`, `/commits`, `/git/ref/heads/...`, `/git/trees/{sha}`, `/git/commits/{sha}` all 404 (reachability checks), while `/contents?ref=branch` and blob POST still work — looks like a flaky proxy but isn't.
 **Fix:** push each file via `PUT /contents/{path}` with `branch` + current file `sha` — contents PUT creates real commits and repairs the ref automatically. Loop all files serially with sha-refetch retry on 409/422.
 **Prevention:** when PATCHing a ref, always pass a COMMIT sha (from `git/commits` POST response), never a tree sha; verify `object.type === "commit"` after.
+
+## Large exact-tree sync
+When the remote branch has drifted by hundreds of files, upload missing blobs serially. Concurrent `proxyFetch` blob uploads can fail during durable replay, and one oversized flat `POST /git/trees` can time out.
+
+Build Git trees bottom-up instead: create each directory tree from its immediate blob/subtree entries, then create the root tree. The root SHA must equal local `HEAD^{tree}` before creating the commit. After patching the ref, tolerate a brief stale read, then re-fetch and verify both `object.type === "commit"` and the commit tree SHA.
+
+**Why:** This avoids truncated content, connector replay failures, GitHub tree payload timeouts, and accidental publication of a partial repository tree.
+
+**How to apply:** Use this path only when normal `git push` is unavailable and a recursive local-vs-remote SHA comparison shows broad drift.

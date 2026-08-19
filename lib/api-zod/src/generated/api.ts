@@ -357,6 +357,74 @@ export const StaffActivateResponse = zod.object({
 
 
 /**
+ * @summary Get role defaults, individual overrides, and effective permissions for one managed account
+ */
+export const StaffPermissionsGetParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const StaffPermissionsGetResponse = zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional()
+}),
+  "availableFeatures": zod.array(zod.string()),
+  "roleFeatures": zod.record(zod.string(), zod.boolean()),
+  "overrides": zod.record(zod.string(), zod.boolean()),
+  "features": zod.record(zod.string(), zod.boolean())
+})
+
+
+/**
+ * @summary Set or clear individual permission overrides for one managed account
+ */
+export const StaffPermissionsUpdateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const StaffPermissionsUpdateBody = zod.object({
+  "features": zod.record(zod.string(), zod.boolean().nullable())
+})
+
+export const StaffPermissionsUpdateResponse = zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional()
+}),
+  "availableFeatures": zod.array(zod.string()),
+  "roleFeatures": zod.record(zod.string(), zod.boolean()),
+  "overrides": zod.record(zod.string(), zod.boolean()),
+  "features": zod.record(zod.string(), zod.boolean())
+})
+
+
+/**
  * @summary Update a staff member's profile (dealer/super_admin only)
  */
 export const StaffUpdateParams = zod.object({

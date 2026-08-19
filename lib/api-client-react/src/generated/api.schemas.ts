@@ -29,10 +29,42 @@ export interface AppNotification {
   createdAt: string;
 }
 
-export type RoleFeaturesInputFeatures = {[key: string]: boolean};
+export interface FeatureMap {[key: string]: boolean}
 
 export interface RoleFeaturesInput {
-  features: RoleFeaturesInputFeatures;
+  features: FeatureMap;
+}
+
+export interface IndividualFeatureChanges {[key: string]: boolean | null}
+
+export interface IndividualFeaturesInput {
+  features: IndividualFeatureChanges;
+}
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  mobile: string;
+  role: string;
+  isActive: boolean;
+  designation?: string;
+  joinDate?: string;
+  businessName?: string;
+  gstNumber?: string;
+  shopAddress?: string;
+  profilePhoto?: string;
+  companyLogo?: string;
+  shopId?: string;
+  dealerId?: string;
+}
+
+export interface IndividualPermissions {
+  user: AuthUser;
+  availableFeatures: string[];
+  roleFeatures: FeatureMap;
+  overrides: FeatureMap;
+  features: FeatureMap;
 }
 
 export interface AppUpdate {
@@ -236,24 +268,6 @@ export interface SessionInfo {
 
 export interface Message {
   message: string;
-}
-
-export interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
-  mobile: string;
-  role: string;
-  isActive: boolean;
-  designation?: string;
-  joinDate?: string;
-  businessName?: string;
-  gstNumber?: string;
-  shopAddress?: string;
-  profilePhoto?: string;
-  companyLogo?: string;
-  shopId?: string;
-  dealerId?: string;
 }
 
 export type StaffCreateInputRole = typeof StaffCreateInputRole[keyof typeof StaffCreateInputRole];

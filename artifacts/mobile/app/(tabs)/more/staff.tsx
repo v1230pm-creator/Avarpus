@@ -19,6 +19,8 @@ const ROLE_COLORS: Record<string, string> = {
   technician: '#34D399',
   store_manager: '#F59E0B',
   accountant: '#A8B3C7',
+  dealer_owner: '#F472B6',
+  dealer_staff: '#FB7185',
 };
 
 type StaffUser = {
@@ -31,7 +33,15 @@ type StaffUser = {
   designation?: string;
 };
 
-function StaffCard({ staff, onEdit }: { staff: StaffUser; onEdit?: () => void }) {
+function StaffCard({
+  staff,
+  onEdit,
+  onPermissions,
+}: {
+  staff: StaffUser;
+  onEdit?: () => void;
+  onPermissions?: () => void;
+}) {
   const colors = useColors();
   const roleColor = ROLE_COLORS[staff.role] ?? colors.primary;
   return (
@@ -55,14 +65,29 @@ function StaffCard({ staff, onEdit }: { staff: StaffUser; onEdit?: () => void })
           )}
         </View>
       </View>
-      {onEdit && (
-        <TouchableOpacity
-          onPress={onEdit}
-          style={[styles.editBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}
-          activeOpacity={0.8}
-        >
-          <Feather name="edit-2" size={16} color={colors.primary} />
-        </TouchableOpacity>
+      {(onEdit || onPermissions) && (
+        <View style={styles.cardActions}>
+          {onPermissions && (
+            <TouchableOpacity
+              onPress={onPermissions}
+              accessibilityLabel={`Permission settings for ${staff.name}`}
+              style={[styles.editBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}
+              activeOpacity={0.8}
+            >
+              <Feather name="shield" size={16} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+          {onEdit && (
+            <TouchableOpacity
+              onPress={onEdit}
+              accessibilityLabel={`Edit ${staff.name}`}
+              style={[styles.editBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}
+              activeOpacity={0.8}
+            >
+              <Feather name="edit-2" size={16} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
       )}
     </GlassCard>
   );
@@ -337,6 +362,15 @@ export default function StaffScreen() {
         renderItem={({ item }) => (
           <StaffCard
             staff={item}
+            onPermissions={
+              canManage && ['reception', 'technician', 'store_manager', 'accountant', 'dealer_owner', 'dealer_staff'].includes(item.role)
+                ? () =>
+                    router.push({
+                      pathname: '/(tabs)/more/staff-permissions',
+                      params: { id: item.id, name: item.name },
+                    })
+                : undefined
+            }
             onEdit={
               canManage && ['reception', 'technician', 'store_manager', 'accountant'].includes(item.role)
                 ? () =>
@@ -387,6 +421,7 @@ const styles = StyleSheet.create({
   desBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
   desText: { fontSize: 11 },
   editBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  cardActions: { gap: 8 },
   pendingSection: { gap: 10, marginBottom: 4 },
   sectionTitle: { fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.6 },
   actionErrorText: { fontSize: 12 },

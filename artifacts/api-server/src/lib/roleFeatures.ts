@@ -1,6 +1,11 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { NextFunction, Request, Response } from "express";
-import { db, roleFeatureSettingsTable, type DbUser } from "@workspace/db";
+import {
+  db,
+  roleFeatureSettingsTable,
+  userFeatureSettingsTable,
+  type DbUser,
+} from "@workspace/db";
 
 // ── Per-shop, per-role feature toggles ──────────────────────────────────────
 // The shop owner (dealer / super_admin) can switch features on/off for each
@@ -107,9 +112,22 @@ export const DEFAULT_ROLE_FEATURES: Record<ConfigurableRole, Record<string, bool
 // instance, because updates invalidate the cache).
 const CACHE_TTL_MS = 15_000;
 const cache = new Map<string, { at: number; matrix: Record<string, Record<string, boolean>> }>();
+const userCache = new Map<
+  string,
+  {
+    at: number;
+    shopId: string;
+    role: string;
+    overrides: Record<string, boolean>;
+  }
+>();
 
 export function invalidateRoleFeatureCache(shopId: string) {
   cache.delete(shopId);
+}
+
+export function invalidateUserFeatureCache(userId: string) {
+  userCache.delete(userId);
 }
 
 /** Full effective matrix for a shop: defaults merged with stored overrides. */
@@ -141,8 +159,8 @@ export async function getShopRoleFeatureMatrix(
   return matrix;
 }
 
-/** Effective feature map for one user (owner roles get everything). */
-export async function effectiveFeaturesForUser(user: DbUser): Promise<Record<string, boolean>> {
+/** Effective role-level features before person-specific overrides. */
+export async function roleFeaturesForUser(user: DbUser): Promise<Record<string, boolean>> {
   if (user.role === "dealer" || user.role === "super_admin") {
     const all: Record<string, boolean> = {};
     for (const k of [...STAFF_FEATURES, ...PORTAL_FEATURES]) all[k] = true;
@@ -150,7 +168,60 @@ export async function effectiveFeaturesForUser(user: DbUser): Promise<Record<str
   }
   if (!user.shopId || !(CONFIGURABLE_ROLES as readonly string[]).includes(user.role)) return {};
   const matrix = await getShopRoleFeatureMatrix(user.shopId);
-  return matrix[user.role] ?? {};
+  return { ...(matrix[user.role] ?? {}) };
+}
+
+/** Explicit person-level overrides only; missing keys inherit the role value. */
+export async function getUserFeatureOverrides(user: DbUser): Promise<Record<string, boolean>> {
+  if (
+    !user.shopId ||
+    !(CONFIGURABLE_ROLES as readonly string[]).includes(user.role)
+  ) {
+    return {};
+  }
+  const hit = userCache.get(user.id);
+  if (
+    hit &&
+    hit.shopId === user.shopId &&
+    hit.role === user.role &&
+    Date.now() - hit.at < CACHE_TTL_MS
+  ) {
+    return { ...hit.overrides };
+  }
+
+  const [row] = await db
+    .select({ features: userFeatureSettingsTable.features })
+    .from(userFeatureSettingsTable)
+    .where(
+      and(
+        eq(userFeatureSettingsTable.userId, user.id),
+        eq(userFeatureSettingsTable.shopId, user.shopId),
+      ),
+    )
+    .limit(1);
+  const stored =
+    row?.features && typeof row.features === "object" && !Array.isArray(row.features)
+      ? (row.features as Record<string, unknown>)
+      : {};
+  const overrides: Record<string, boolean> = {};
+  for (const key of featureKeysForRole(user.role)) {
+    if (typeof stored[key] === "boolean") overrides[key] = stored[key];
+  }
+  userCache.set(user.id, {
+    at: Date.now(),
+    shopId: user.shopId,
+    role: user.role,
+    overrides,
+  });
+  return { ...overrides };
+}
+
+/** Effective feature map for one user (owner roles get everything). */
+export async function effectiveFeaturesForUser(user: DbUser): Promise<Record<string, boolean>> {
+  const roleFeatures = await roleFeaturesForUser(user);
+  if (user.role === "dealer" || user.role === "super_admin") return roleFeatures;
+  const overrides = await getUserFeatureOverrides(user);
+  return { ...roleFeatures, ...overrides };
 }
 
 /** True when `user` may use `feature`. Owner roles always pass. */
@@ -159,8 +230,8 @@ export async function userHasFeature(user: DbUser, feature: FeatureKey): Promise
   if (!user.shopId) return false;
   if (!(CONFIGURABLE_ROLES as readonly string[]).includes(user.role)) return false;
   if (!featureKeysForRole(user.role).includes(feature)) return false;
-  const matrix = await getShopRoleFeatureMatrix(user.shopId);
-  return matrix[user.role]?.[feature] === true;
+  const features = await effectiveFeaturesForUser(user);
+  return features[feature] === true;
 }
 
 /** Express middleware: 403 FEATURE_DISABLED unless the user has the feature. */
@@ -172,7 +243,7 @@ export function requireFeature(feature: FeatureKey) {
         if (ok) return next();
         res.status(403).json({
           code: "FEATURE_DISABLED",
-          message: "This feature has been turned off for your role. Ask the shop owner to enable it in Staff Permissions.",
+          message: "This feature has been turned off for your account. Ask the shop owner to enable it in Permission Settings.",
         });
       })
       .catch(next);

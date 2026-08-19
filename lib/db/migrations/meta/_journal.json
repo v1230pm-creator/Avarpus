@@ -169,6 +169,13 @@
       "when": 1787100000001,
       "tag": "0023_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787127000000,
+      "tag": "0024_user_feature_settings",
+      "breakpoints": true
     }
   ]
 }

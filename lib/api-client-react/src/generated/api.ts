@@ -75,6 +75,8 @@ import type {
   ForgotRequestInput,
   ForgotResetInput,
   HealthStatus,
+  IndividualFeaturesInput,
+  IndividualPermissions,
   InventoryCreate200,
   InventoryItemInput,
   InventoryList200,
@@ -1333,6 +1335,155 @@ export const useStaffActivate = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getStaffActivateMutationOptions(options));
+    }
+
+export const getStaffPermissionsGetUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/${id}/permissions`
+}
+
+/**
+ * @summary Get role defaults, individual overrides, and effective permissions for one managed account
+ */
+export const staffPermissionsGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<IndividualPermissions> => {
+
+  return customFetch<IndividualPermissions>(getStaffPermissionsGetUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getStaffPermissionsGetQueryKey = (id: string,) => {
+    return [
+    `/api/staff/${id}/permissions`
+    ] as const;
+    }
+
+
+export const getStaffPermissionsGetQueryOptions = <TData = Awaited<ReturnType<typeof staffPermissionsGet>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof staffPermissionsGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getStaffPermissionsGetQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof staffPermissionsGet>>> = ({ signal }) => staffPermissionsGet(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof staffPermissionsGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type StaffPermissionsGetQueryResult = NonNullable<Awaited<ReturnType<typeof staffPermissionsGet>>>
+export type StaffPermissionsGetQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get role defaults, individual overrides, and effective permissions for one managed account
+ */
+
+export function useStaffPermissionsGet<TData = Awaited<ReturnType<typeof staffPermissionsGet>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof staffPermissionsGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getStaffPermissionsGetQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStaffPermissionsUpdateUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/${id}/permissions`
+}
+
+/**
+ * @summary Set or clear individual permission overrides for one managed account
+ */
+export const staffPermissionsUpdate = async (id: string,
+    individualFeaturesInput: IndividualFeaturesInput, options?: Parameters<typeof customFetch>[1]): Promise<IndividualPermissions> => {
+
+  return customFetch<IndividualPermissions>(getStaffPermissionsUpdateUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(individualFeaturesInput)
+  }
+);}
+
+
+
+
+
+export const getStaffPermissionsUpdateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof staffPermissionsUpdate>>, TError,{id: string;data: BodyType<IndividualFeaturesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof staffPermissionsUpdate>>, TError,{id: string;data: BodyType<IndividualFeaturesInput>}, TContext> => {
+
+const mutationKey = ['staffPermissionsUpdate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof staffPermissionsUpdate>>, {id: string;data: BodyType<IndividualFeaturesInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  staffPermissionsUpdate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StaffPermissionsUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof staffPermissionsUpdate>>>
+    export type StaffPermissionsUpdateMutationBody = BodyType<IndividualFeaturesInput>
+    export type StaffPermissionsUpdateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Set or clear individual permission overrides for one managed account
+ */
+export const useStaffPermissionsUpdate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof staffPermissionsUpdate>>, TError,{id: string;data: BodyType<IndividualFeaturesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof staffPermissionsUpdate>>,
+        TError,
+        {id: string;data: BodyType<IndividualFeaturesInput>},
+        TContext
+      > => {
+      return useMutation(getStaffPermissionsUpdateMutationOptions(options));
     }
 
 export const getStaffUpdateUrl = (id: string,) => {
