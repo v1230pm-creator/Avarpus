@@ -26,6 +26,7 @@
 - [Testing pass lock](testing-pass-lock.md) — testingChecklist true=Pass is immutable; validate in tx with FOR UPDATE; omission keeps passes, drops fails; Pass→Fail = 409 TESTING_ITEM_LOCKED.
 - [PIN throttle review bar](pin-throttle-reviews.md) — reviewers require every unlock method to reset attempts, sync pre-submit guards on PIN pads, and serialized counter writes.
 - [Role feature toggles](role-feature-toggles.md) — owner-editable per-role Staff Permissions; new mutation endpoints in toggleable areas must add requireFeature; never gate shared GET collections.
+- [Route-level feature gates](route-level-feature-gates.md) — hidden tabs are not protection; sensitive mobile routes must deny access before their data hooks mount.
 - [Prod data import path](prod-data-import.md) — prod SQL is read-only; use the token-guarded import endpoint; jsonb columns reject JS arrays via node-postgres, stringify first.
 - [In-app notifications](notifications.md) — notification rows to owners+targeted extras minus actor, fire-and-forget; never JSON.stringify jsonb objects for Drizzle inserts.
 - [APK release identity](apk-release-identity.md) — release labels never change APK contents; each new release needs a fresh checksum, actual native version/build, and serialized state changes.

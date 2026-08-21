@@ -34,6 +34,7 @@ const MENU_ITEMS: MenuItem[] = [
   { id: 'permissions', label: 'Staff Permissions', icon: 'sliders', route: '/(tabs)/more/permissions', color: '#F472B6', description: 'Turn features on/off per role', roles: ['super_admin', 'dealer'] },
   { id: 'purchases', label: 'Purchases', icon: 'shopping-bag', route: '/(tabs)/more/purchases', color: '#4DA3FF', description: 'Purchase orders, suppliers', roles: ['super_admin', 'dealer'], feature: 'purchases' },
   { id: 'reports', label: 'Reports', icon: 'file-text', route: '/(tabs)/more/reports', color: '#F59E0B', description: 'Generate and export reports', roles: ['super_admin', 'dealer'], feature: 'reports' },
+  { id: 'inventory', label: 'Inventory', icon: 'package', route: '/(tabs)/inventory', color: '#F59E0B', description: 'Manage stock and parts', roles: ['super_admin', 'dealer'], feature: 'inventory' },
   { id: 'settings', label: 'Settings', icon: 'settings', route: '/(tabs)/more/settings', color: '#A8B3C7', description: 'Company, app configuration', roles: ['super_admin', 'dealer'] },
   { id: 'app-update', label: 'App Update', icon: 'download-cloud', route: '/(tabs)/more/app-update', color: '#3A8FF7', description: 'Check for new app versions', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician'] },
   { id: 'update-manager', label: 'App Update Manager', icon: 'upload-cloud', route: '/(tabs)/more/update-manager', color: '#8B5CF6', description: 'Publish new app releases', roles: ['super_admin'] },

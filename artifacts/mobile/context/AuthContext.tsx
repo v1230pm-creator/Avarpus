@@ -41,7 +41,7 @@ const AuthContext = createContext<AuthContextType>({
 
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   super_admin: ['*'],
-  dealer: ['dashboard', 'repairs', 'inventory', 'customers', 'finance', 'staff', 'reports', 'settings', 'purchases', 'attendance', 'backup', 'profit', 'income', 'expense'],
+  dealer: ['dashboard', 'repairs', 'inventory', 'customers', 'finance', 'payments', 'staff', 'reports', 'settings', 'purchases', 'attendance', 'backup', 'profit', 'income', 'expense'],
   reception: ['dashboard', 'repairs', 'repairs_create', 'customers'],
   technician: ['dashboard', 'repairs', 'repairs_update', 'customers'],
   store_manager: ['dashboard', 'inventory', 'purchases'],

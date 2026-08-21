@@ -23,7 +23,7 @@ function NativeTabLayout({ portal }: { portal: boolean }) {
       {!portal && (
         <NativeTabs.Trigger name="index">
           <Icon sf={{ default: 'house', selected: 'house.fill' }} />
-          <Label>Dashboard</Label>
+          <Label>Home</Label>
         </NativeTabs.Trigger>
       )}
       {(portal ? canAccess('repairs_portal') : canAccess('repairs')) && (
@@ -38,10 +38,10 @@ function NativeTabLayout({ portal }: { portal: boolean }) {
           <Label>Customers</Label>
         </NativeTabs.Trigger>
       )}
-      {!portal && canAccess('inventory') && (
-        <NativeTabs.Trigger name="inventory">
-          <Icon sf={{ default: 'shippingbox', selected: 'shippingbox.fill' }} />
-          <Label>Inventory</Label>
+      {!portal && canAccess('payments') && (
+        <NativeTabs.Trigger name="khata">
+          <Icon sf={{ default: 'book.closed', selected: 'book.closed.fill' }} />
+          <Label>Khata</Label>
         </NativeTabs.Trigger>
       )}
       <NativeTabs.Trigger name="more">
@@ -90,7 +90,7 @@ function ClassicTabLayout({ portal }: { portal: boolean }) {
         name="index"
         options={{
           href: portal ? null : undefined,
-          title: 'Dashboard',
+          title: 'Home',
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="house" tintColor={color} size={22} />
@@ -126,16 +126,23 @@ function ClassicTabLayout({ portal }: { portal: boolean }) {
         }}
       />
       <Tabs.Screen
-        name="inventory"
+        name="khata"
         options={{
-          href: portal || !canAccess('inventory') ? null : undefined,
-          title: 'Inventory',
+          href: portal || !canAccess('payments') ? null : undefined,
+          title: 'Khata',
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="shippingbox" tintColor={color} size={22} />
+              <SymbolView name="book.closed" tintColor={color} size={22} />
             ) : (
-              <Feather name="package" size={22} color={color} />
+              <Feather name="book" size={22} color={color} />
             ),
+        }}
+      />
+      <Tabs.Screen
+        name="inventory"
+        options={{
+          href: null,
+          title: 'Inventory',
         }}
       />
       <Tabs.Screen

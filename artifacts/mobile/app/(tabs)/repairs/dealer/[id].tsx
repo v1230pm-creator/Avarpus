@@ -21,6 +21,7 @@ import { RepairStatusBadge, PriorityBadge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState } from '@/components/ui/DataStates';
 import { Repair } from '@/types';
+import { isDealerPortalRole } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import {
   useDealersGet,
@@ -48,7 +49,7 @@ export default function DealerProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, canAccess } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [search, setSearch] = useState('');
@@ -141,6 +142,30 @@ export default function DealerProfileScreen() {
               <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Since {formatDate(dealer.createdAt)}</Text>
             </View>
           </View>
+          {!isDealerPortalRole(user?.role) && (
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 8, width: '100%' }}>
+              {canAccess('customers') && (
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: colors.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                  onPress={() => router.push(`/(tabs)/customers/chat/${dealer.id}?type=dealer&name=${encodeURIComponent(dealer.name)}`)}
+                  activeOpacity={0.8}
+                >
+                  <Feather name="message-square" size={16} color="#FFFFFF" />
+                  <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 14 }}>Message</Text>
+                </TouchableOpacity>
+              )}
+              {canAccess('payments') && (
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                  onPress={() => router.push(`/(tabs)/khata/party/dealer/${dealer.id}?name=${encodeURIComponent(dealer.name)}`)}
+                  activeOpacity={0.8}
+                >
+                  <Feather name="book" size={16} color={colors.foreground} />
+                  <Text style={{ color: colors.foreground, fontWeight: '600', fontSize: 14 }}>Khata</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </GlassCard>
       )}
 
