@@ -30,3 +30,4 @@
 - [In-app notifications](notifications.md) — notification rows to owners+targeted extras minus actor, fire-and-forget; never JSON.stringify jsonb objects for Drizzle inserts.
 - [APK release identity](apk-release-identity.md) — release labels never change APK contents; each new release needs a fresh checksum, actual native version/build, and serialized state changes.
 - [Background APK downloads](background-apk-downloads.md) — app-close survival requires Android DownloadManager plus native durable identity; JS resumables are fallback-only.
+- [Managed Matrix provider](managed-matrix-provider.md) — Element Server Suite Pro is approved; provider-dependent E2EE remains blocked until its real tenant credentials arrive securely.
