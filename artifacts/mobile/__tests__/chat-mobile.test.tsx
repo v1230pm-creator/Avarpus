@@ -22,6 +22,11 @@ jest.mock('expo-router', () => {
   return {
     useRouter: jest.fn(() => ({ push: jest.fn(), back: jest.fn(), replace: jest.fn() })),
     useLocalSearchParams: jest.fn(() => ({})),
+    useNavigation: jest.fn(() => ({
+      getParent: jest.fn(() => ({
+        getParent: jest.fn(() => ({ setOptions: jest.fn() })),
+      })),
+    })),
     Redirect: ({ href }: { href: string }) =>
       React.createElement(Text, null, `Redirect:${href}`),
     Slot: () => React.createElement(Text, null, 'Slot'),

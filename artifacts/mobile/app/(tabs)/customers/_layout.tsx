@@ -7,6 +7,7 @@ export default function CustomersLayout() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="[id]" />
+      <Stack.Screen name="chat" />
     </Stack>
   );
 }

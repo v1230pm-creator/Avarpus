@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -35,6 +36,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
+import { Avatar } from '@/components/ui/Avatar';
 import { storage, KEYS } from '@/utils/storage';
 import {
   useChatCapabilities,
@@ -137,6 +139,79 @@ function formatDuration(ms: number): string {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function formatMessageDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  if (sameDay(date, today)) return 'Today';
+  if (sameDay(date, yesterday)) return 'Yesterday';
+  return date.toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function messageDayKey(dateStr: string): string {
+  const date = new Date(dateStr);
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+const WALLPAPER_MOTIFS: Array<{
+  name: React.ComponentProps<typeof Feather>['name'];
+  top: number;
+  left: number;
+  rotate: string;
+  size: number;
+}> = [
+  { name: 'smartphone', top: 26, left: 22, rotate: '-18deg', size: 21 },
+  { name: 'tool', top: 44, left: 144, rotate: '15deg', size: 19 },
+  { name: 'briefcase', top: 28, left: 286, rotate: '-12deg', size: 20 },
+  { name: 'cpu', top: 126, left: 76, rotate: '12deg', size: 22 },
+  { name: 'message-circle', top: 114, left: 230, rotate: '-20deg', size: 20 },
+  { name: 'battery', top: 202, left: 28, rotate: '10deg', size: 20 },
+  { name: 'settings', top: 220, left: 158, rotate: '-12deg', size: 20 },
+  { name: 'shield', top: 194, left: 304, rotate: '18deg', size: 18 },
+  { name: 'wifi', top: 306, left: 86, rotate: '-15deg', size: 22 },
+  { name: 'headphones', top: 290, left: 252, rotate: '16deg', size: 20 },
+  { name: 'smartphone', top: 400, left: 30, rotate: '14deg', size: 21 },
+  { name: 'tool', top: 382, left: 174, rotate: '-18deg', size: 19 },
+  { name: 'cpu', top: 420, left: 306, rotate: '12deg', size: 20 },
+  { name: 'message-circle', top: 522, left: 74, rotate: '18deg', size: 20 },
+  { name: 'briefcase', top: 500, left: 230, rotate: '-10deg', size: 20 },
+  { name: 'battery', top: 624, left: 26, rotate: '-12deg', size: 20 },
+  { name: 'settings', top: 606, left: 156, rotate: '16deg', size: 20 },
+  { name: 'shield', top: 650, left: 300, rotate: '-18deg', size: 19 },
+];
+
+function ChatWallpaper({ colors }: { colors: any }) {
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+      <View style={[styles.wallpaperBase, { backgroundColor: colors.backgroundSecondary }]} />
+      {WALLPAPER_MOTIFS.map((motif, index) => (
+        <Feather
+          key={`${motif.name}-${index}`}
+          name={motif.name}
+          size={motif.size}
+          color={colors.mutedForeground}
+          style={[
+            styles.wallpaperMotif,
+            {
+              top: motif.top,
+              left: motif.left,
+              opacity: 0.09,
+              transform: [{ rotate: motif.rotate }],
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────
@@ -318,17 +393,11 @@ function MessageBubble({
         style={[
           styles.bubble,
           isMine
-            ? [styles.bubbleMine, { backgroundColor: colors.primary }]
+            ? [styles.bubbleMine, { backgroundColor: colors.successLight }]
             : [styles.bubbleTheirs, { backgroundColor: colors.card, borderColor: colors.border }],
           (isImage || isFile || isAudio) && styles.bubbleMedia,
         ]}
       >
-        {!isMine && (
-          <Text style={[styles.senderName, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
-            {msg.senderName}
-          </Text>
-        )}
-
         {isImage ? (
           <ImageAttachment roomId={msg.roomId} messageId={msg.id} token={token} />
         ) : isFile ? (
@@ -353,22 +422,39 @@ function MessageBubble({
           <Text
             style={[
               styles.bubbleText,
-              { color: isMine ? '#FFFFFF' : colors.foreground, fontFamily: 'Inter_400Regular' },
+              { color: colors.foreground, fontFamily: 'Inter_400Regular' },
             ]}
           >
             {msg.body}
           </Text>
         )}
 
-        <Text
-          style={[
-            styles.bubbleTime,
-            { color: isMine ? 'rgba(255,255,255,0.65)' : colors.mutedForeground },
-          ]}
-        >
-          {formatMsgTime(msg.createdAt)}
-        </Text>
+        <View style={styles.bubbleFooter}>
+          <Text
+            style={[
+              styles.bubbleTime,
+              { color: colors.mutedForeground },
+            ]}
+          >
+            {formatMsgTime(msg.createdAt)}
+          </Text>
+          {isMine && (
+            <Text style={[styles.deliveryTicks, { color: colors.success }]}>
+              ✓✓
+            </Text>
+          )}
+        </View>
       </View>
+    </View>
+  );
+}
+
+function DateSeparator({ date, colors }: { date: string; colors: any }) {
+  return (
+    <View style={[styles.dateSeparator, { backgroundColor: colors.card }]}>
+      <Text style={[styles.dateSeparatorText, { color: colors.mutedForeground }]}>
+        {formatMessageDate(date)}
+      </Text>
     </View>
   );
 }
@@ -422,6 +508,20 @@ export default function ChatScreen() {
   const targetType = (params.type ?? 'customer') as 'customer' | 'dealer';
 
   const topPadding = Platform.OS === 'web' ? insets.top + 67 : insets.top;
+
+  const handleBack = useCallback(() => {
+    // Conversations opened from a profile should always return there, rather
+    // than relying on browser/native stack history that may start at a tab.
+    if (targetId) {
+      router.replace(
+        targetType === 'dealer'
+          ? `/(tabs)/repairs/dealer/${targetId}`
+          : `/(tabs)/customers/${targetId}`,
+      );
+      return;
+    }
+    router.back();
+  }, [router, targetId, targetType]);
 
   // ── Auth token for private media ────────────────────────────────────────
   const [token, setToken] = useState<string | null>(null);
@@ -991,12 +1091,13 @@ export default function ChatScreen() {
         ]}
       >
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={handleBack}
           style={styles.iconButton}
           accessibilityLabel="Back"
         >
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
+        <Avatar name={roomName} size={38} />
         <View style={styles.headerTitleContainer}>
           <Text
             style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}
@@ -1004,16 +1105,12 @@ export default function ChatScreen() {
           >
             {roomName}
           </Text>
-          {room && (
-            <Text
-              style={[
-                styles.headerSubtitle,
-                { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-              ]}
-            >
-              {room.kind === 'dealer' ? 'Dealer' : 'Customer'} · Active
+          <View style={styles.presenceRow}>
+            <View style={[styles.presenceDot, { backgroundColor: colors.success }]} />
+            <Text style={[styles.headerSubtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              {room?.kind === 'dealer' || targetType === 'dealer' ? 'Dealer' : 'Customer'} · Active
             </Text>
-          )}
+          </View>
         </View>
         <TouchableOpacity
           style={[styles.disabledHeaderAction, { opacity: callEnabled ? 1 : 0.4 }]}
@@ -1047,168 +1144,195 @@ export default function ChatScreen() {
             color={callEnabled ? colors.primary : colors.mutedForeground}
           />
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.disabledHeaderAction}
+          accessibilityLabel="Open chat menu"
+          onPress={() =>
+            Alert.alert('Chat options', 'VMC chat is for communication only.')
+          }
+        >
+          <Feather name="more-vertical" size={21} color={colors.foreground} />
+        </TouchableOpacity>
       </View>
 
-      {/* E2EE notice — always visible, explicitly false */}
+      {/* Safety notice — chat never handles payments or ledger activity. */}
       <View
         style={[
-          styles.e2eeBar,
+          styles.chatSafetyArea,
           { backgroundColor: colors.backgroundSecondary, borderBottomColor: colors.border },
         ]}
       >
-        <Feather name="shield" size={12} color={colors.mutedForeground} />
-        <Text
-          style={[
-            styles.e2eeText,
-            { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-          ]}
-        >
-          End-to-end encryption is not enabled
-        </Text>
+        <View style={[styles.chatSafetyCard, { backgroundColor: colors.warningLight }]}>
+          <Feather name="lock" size={13} color={colors.warning} />
+          <View style={styles.chatSafetyCopy}>
+            <Text style={[styles.chatSafetyTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+              VMC private conversation
+            </Text>
+            <Text style={[styles.chatSafetyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              Communication only.
+            </Text>
+            <Text style={[styles.chatSafetyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              End-to-end encryption is not enabled
+            </Text>
+          </View>
+        </View>
       </View>
 
       {/* Body */}
-      {capLoading ? (
-        <View style={styles.centeredState}>
-          <ActivityIndicator color={colors.primary} />
-        </View>
-      ) : !providerAvailable ? (
-        <View style={styles.centeredState}>
-          <View
-            style={[styles.noticeCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-          >
-            <View style={[styles.noticeIcon, { backgroundColor: colors.primary + '18' }]}>
-              <Feather name="message-circle" size={24} color={colors.primary} />
+      <View style={styles.chatBody}>
+        <ChatWallpaper colors={colors} />
+        {capLoading ? (
+          <View style={styles.centeredState}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : !providerAvailable ? (
+          <View style={styles.centeredState}>
+            <View
+              style={[styles.noticeCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <View style={[styles.noticeIcon, { backgroundColor: colors.primary + '18' }]}>
+                <Feather name="message-circle" size={24} color={colors.primary} />
+              </View>
+              <Text
+                style={[
+                  styles.noticeTitle,
+                  { color: colors.foreground, fontFamily: 'Inter_700Bold' },
+                ]}
+              >
+                Chat setup pending
+              </Text>
+              <Text
+                style={[
+                  styles.noticeText,
+                  { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+                ]}
+              >
+                Messaging, attachments, voice notes and calls will be available after the
+                communication service is connected.
+              </Text>
+              <View style={[styles.safetyNote, { backgroundColor: colors.backgroundSecondary }]}>
+                <Feather name="shield" size={15} color={colors.mutedForeground} />
+                <Text
+                  style={[
+                    styles.safetyText,
+                    { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' },
+                  ]}
+                >
+                  Nothing is sent or stored from this screen.
+                </Text>
+              </View>
             </View>
+          </View>
+        ) : roomCreateError ? (
+          <View style={styles.centeredState}>
+            <Feather name="alert-circle" size={32} color={colors.destructive} />
             <Text
               style={[
                 styles.noticeTitle,
-                { color: colors.foreground, fontFamily: 'Inter_700Bold' },
+                { color: colors.foreground, fontFamily: 'Inter_700Bold', marginTop: 12 },
               ]}
             >
-              Chat setup pending
+              Could not open chat
             </Text>
             <Text
               style={[
                 styles.noticeText,
+                {
+                  color: colors.mutedForeground,
+                  fontFamily: 'Inter_400Regular',
+                  textAlign: 'center',
+                  marginTop: 6,
+                },
+              ]}
+            >
+              {roomCreateError}
+            </Text>
+            <TouchableOpacity
+              style={[styles.retryBtn, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                setRoomCreateError(null);
+                clientRequestIdRef.current = makeClientRequestId('room');
+                setRoomCreateAttempt((a) => a + 1);
+              }}
+            >
+              <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>
+                Retry
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : !resolvedRoomId || msgsLoading ? (
+          <View style={styles.centeredState}>
+            <ActivityIndicator color={colors.primary} />
+            <Text
+              style={[
+                styles.stateText,
                 { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
               ]}
             >
-              Messaging, attachments, voice notes and calls will be available after the
-              communication service is connected.
+              {!resolvedRoomId ? 'Opening chat room…' : 'Loading messages…'}
             </Text>
-            <View style={[styles.safetyNote, { backgroundColor: colors.backgroundSecondary }]}>
-              <Feather name="shield" size={15} color={colors.mutedForeground} />
-              <Text
-                style={[
-                  styles.safetyText,
-                  { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' },
-                ]}
-              >
-                Nothing is sent or stored from this screen.
-              </Text>
-            </View>
           </View>
-        </View>
-      ) : roomCreateError ? (
-        <View style={styles.centeredState}>
-          <Feather name="alert-circle" size={32} color={colors.destructive} />
-          <Text
-            style={[
-              styles.noticeTitle,
-              { color: colors.foreground, fontFamily: 'Inter_700Bold', marginTop: 12 },
-            ]}
-          >
-            Could not open chat
-          </Text>
-          <Text
-            style={[
-              styles.noticeText,
-              {
-                color: colors.mutedForeground,
-                fontFamily: 'Inter_400Regular',
-                textAlign: 'center',
-                marginTop: 6,
-              },
-            ]}
-          >
-            {roomCreateError}
-          </Text>
-          <TouchableOpacity
-            style={[styles.retryBtn, { backgroundColor: colors.primary }]}
-            onPress={() => {
-              setRoomCreateError(null);
-              clientRequestIdRef.current = makeClientRequestId('room');
-              setRoomCreateAttempt((a) => a + 1);
-            }}
-          >
-            <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>
-              Retry
+        ) : msgsError ? (
+          <View style={styles.centeredState}>
+            <Feather name="alert-circle" size={28} color={colors.destructive} />
+            <Text
+              style={[
+                styles.noticeTitle,
+                { color: colors.foreground, fontFamily: 'Inter_700Bold', marginTop: 10 },
+              ]}
+            >
+              Could not load messages
             </Text>
-          </TouchableOpacity>
-        </View>
-      ) : !resolvedRoomId || msgsLoading ? (
-        <View style={styles.centeredState}>
-          <ActivityIndicator color={colors.primary} />
-          <Text
-            style={[
-              styles.stateText,
-              { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-            ]}
-          >
-            {!resolvedRoomId ? 'Opening chat room…' : 'Loading messages…'}
-          </Text>
-        </View>
-      ) : msgsError ? (
-        <View style={styles.centeredState}>
-          <Feather name="alert-circle" size={28} color={colors.destructive} />
-          <Text
-            style={[
-              styles.noticeTitle,
-              { color: colors.foreground, fontFamily: 'Inter_700Bold', marginTop: 10 },
-            ]}
-          >
-            Could not load messages
-          </Text>
-          <TouchableOpacity
-            style={[styles.retryBtn, { backgroundColor: colors.primary }]}
-            onPress={() => msgsRefetch()}
-          >
-            <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>
-              Retry
-            </Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <FlatList
-          data={allMessages}
-          keyExtractor={(item) => item.id}
-          inverted
-          contentContainerStyle={styles.messageList}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <MessageBubble
-              msg={item}
-              isMine={item.senderId === user?.id}
-              colors={colors}
-              token={token}
-              onDownload={handleDownloadAttachment}
-            />
-          )}
-          ListEmptyComponent={
-            <View style={styles.centeredState}>
-              <Text
-                style={[
-                  styles.stateText,
-                  { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-                ]}
-              >
-                No messages yet. Send the first one!
+            <TouchableOpacity
+              style={[styles.retryBtn, { backgroundColor: colors.primary }]}
+              onPress={() => msgsRefetch()}
+            >
+              <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>
+                Retry
               </Text>
-            </View>
-          }
-        />
-      )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={allMessages}
+            keyExtractor={(item) => item.id}
+            inverted
+            contentContainerStyle={styles.messageList}
+            showsVerticalScrollIndicator={false}
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item, index }) => {
+              const nextMessage = allMessages[index + 1];
+              const showDateSeparator =
+                !nextMessage || messageDayKey(nextMessage.createdAt) !== messageDayKey(item.createdAt);
+              return (
+                <View>
+                  <MessageBubble
+                    msg={item}
+                    isMine={item.senderId === user?.id}
+                    colors={colors}
+                    token={token}
+                    onDownload={handleDownloadAttachment}
+                  />
+                  {showDateSeparator && <DateSeparator date={item.createdAt} colors={colors} />}
+                </View>
+              );
+            }}
+            ListEmptyComponent={
+              <View style={styles.centeredState}>
+                <Text
+                  style={[
+                    styles.stateText,
+                    { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+                  ]}
+                >
+                  No messages yet. Send the first one!
+                </Text>
+              </View>
+            }
+          />
+        )}
+      </View>
 
       {/* Recording overlay (replaces composer while recording) */}
       {isRecording && (
@@ -1334,26 +1458,19 @@ export default function ChatScreen() {
             },
           ]}
         >
-          {/* Attachment button */}
-          <TouchableOpacity
-            onPress={handlePickAttachment}
-            disabled={!attachEnabled}
-            style={[styles.composerAction, { opacity: attachEnabled ? 1 : 0.4 }]}
-            accessibilityLabel={attachEnabled ? 'Add attachment' : 'Attachments not available'}
-          >
-            <Feather
-              name="plus"
-              size={20}
-              color={attachEnabled ? colors.foreground : colors.mutedForeground}
-            />
-          </TouchableOpacity>
-
           <View
             style={[
               styles.inputContainer,
-              { backgroundColor: colors.backgroundSecondary, borderColor: colors.border },
+              { backgroundColor: colors.card, borderColor: colors.border },
             ]}
           >
+            <TouchableOpacity
+              style={styles.inlineComposerAction}
+              accessibilityLabel="Open emoji and stickers"
+              onPress={() => Alert.alert('Emoji and stickers', 'Sticker support will appear here when enabled.')}
+            >
+              <Feather name="smile" size={21} color={colors.mutedForeground} />
+            </TouchableOpacity>
             <TextInput
               style={[styles.input, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
               placeholder={providerAvailable ? 'Message…' : 'Messaging is not available yet'}
@@ -1366,40 +1483,59 @@ export default function ChatScreen() {
               onSubmitEditing={handleSend}
               blurOnSubmit={false}
             />
+            <TouchableOpacity
+              onPress={handlePickAttachment}
+              disabled={!attachEnabled}
+              style={[styles.inlineComposerAction, { opacity: attachEnabled ? 1 : 0.4 }]}
+              accessibilityLabel={attachEnabled ? 'Add attachment' : 'Attachments not available'}
+            >
+              <Feather
+                name="paperclip"
+                size={20}
+                color={attachEnabled ? colors.mutedForeground : colors.textDisabled ?? colors.mutedForeground}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handlePickAttachment}
+              disabled={!attachEnabled}
+              style={[styles.inlineComposerAction, { opacity: attachEnabled ? 1 : 0.4 }]}
+              accessibilityLabel={attachEnabled ? 'Attach photo' : 'Camera unavailable'}
+            >
+              <Feather
+                name="camera"
+                size={20}
+                color={attachEnabled ? colors.mutedForeground : colors.textDisabled ?? colors.mutedForeground}
+              />
+            </TouchableOpacity>
           </View>
 
-          {/* Mic button — active when provider available & room resolved & no upload in progress */}
           <TouchableOpacity
-            onPress={handleMicPress}
-            disabled={!micEnabled}
-            style={[styles.composerAction, { opacity: micEnabled ? 1 : 0.4 }]}
-            accessibilityLabel={
-              micEnabled ? 'Record voice note' : 'Voice notes unavailable'
-            }
-          >
-            <Feather
-              name="mic"
-              size={20}
-              color={micEnabled ? colors.primary : colors.mutedForeground}
-            />
-          </TouchableOpacity>
-
-          {/* Send text button */}
-          <TouchableOpacity
-            onPress={handleSend}
-            disabled={!text.trim() || !resolvedRoomId || !providerAvailable}
+            onPress={text.trim() ? handleSend : handleMicPress}
+            disabled={text.trim() ? !resolvedRoomId || !providerAvailable : !micEnabled}
             style={[
               styles.sendBtn,
               {
                 backgroundColor:
                   text.trim() && resolvedRoomId && providerAvailable
                     ? colors.primary
+                    : micEnabled
+                    ? colors.success
                     : colors.border,
               },
             ]}
-            accessibilityLabel="Send message"
+            accessibilityLabel={
+              text.trim()
+                ? 'Send message'
+                : micEnabled
+                ? 'Record voice note'
+                : 'Voice notes unavailable'
+            }
           >
-            <Feather name="send" size={18} color="#FFFFFF" />
+            <Feather
+              name={text.trim() ? 'send' : 'mic'}
+              size={19}
+              color={text.trim() || micEnabled ? colors.primaryForeground : colors.mutedForeground}
+            />
           </TouchableOpacity>
         </View>
       )}
@@ -1536,28 +1672,42 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
-    paddingBottom: 10,
+    paddingBottom: 8,
     borderBottomWidth: 1,
   },
-  iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  headerTitleContainer: { flex: 1, paddingHorizontal: 8 },
+  iconButton: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
+  headerTitleContainer: { flex: 1, paddingHorizontal: 8, justifyContent: 'center' },
   headerTitle: { fontSize: 16 },
-  headerSubtitle: { fontSize: 12, marginTop: 2 },
+  presenceRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  presenceDot: { width: 6, height: 6, borderRadius: 3 },
+  headerSubtitle: { fontSize: 11 },
   disabledHeaderAction: {
-    width: 42,
+    width: 32,
     height: 42,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  e2eeBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+  chatSafetyArea: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  e2eeText: { fontSize: 11 },
+  chatSafetyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'center',
+    maxWidth: 340,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  chatSafetyCopy: { flexShrink: 1 },
+  chatSafetyTitle: { fontSize: 11 },
+  chatSafetyText: { fontSize: 10, marginTop: 1 },
+  chatBody: { flex: 1, overflow: 'hidden' },
+  wallpaperBase: { ...StyleSheet.absoluteFillObject, opacity: 0.72 },
+  wallpaperMotif: { position: 'absolute' },
   centeredState: {
     flex: 1,
     alignItems: 'center',
@@ -1600,22 +1750,34 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
   },
-  messageList: { paddingHorizontal: 16, paddingVertical: 12, flexGrow: 1 },
-  bubbleRow: { marginVertical: 3 },
+  messageList: { paddingHorizontal: 11, paddingVertical: 10, flexGrow: 1 },
+  bubbleRow: { marginVertical: 2 },
   bubbleRowMine: { alignItems: 'flex-end' },
   bubbleRowTheirs: { alignItems: 'flex-start' },
   bubble: {
-    maxWidth: '78%',
-    borderRadius: 16,
-    padding: 10,
+    maxWidth: '80%',
+    borderRadius: 9,
+    paddingHorizontal: 9,
+    paddingTop: 7,
+    paddingBottom: 5,
     gap: 2,
   },
-  bubbleMine: { borderBottomRightRadius: 4 },
-  bubbleTheirs: { borderBottomLeftRadius: 4, borderWidth: 1 },
+  bubbleMine: { borderTopRightRadius: 3 },
+  bubbleTheirs: { borderTopLeftRadius: 3, borderWidth: StyleSheet.hairlineWidth },
   bubbleMedia: { padding: 6 },
-  senderName: { fontSize: 11, marginBottom: 2 },
-  bubbleText: { fontSize: 14, lineHeight: 20 },
-  bubbleTime: { fontSize: 10, alignSelf: 'flex-end' },
+  bubbleText: { fontSize: 14, lineHeight: 19 },
+  bubbleFooter: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: 3, marginTop: 1 },
+  bubbleTime: { fontSize: 10 },
+  deliveryTicks: { fontSize: 10, letterSpacing: -2 },
+  dateSeparator: {
+    alignSelf: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  dateSeparatorText: { fontSize: 10, fontFamily: 'Inter_500Medium' },
   deletedMsg: { fontSize: 12, fontStyle: 'italic', paddingVertical: 4 },
   imageAttachment: {
     width: 200,
@@ -1710,38 +1872,35 @@ const styles = StyleSheet.create({
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    gap: 6,
-  },
-  composerAction: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    gap: 8,
   },
   inputContainer: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    borderRadius: 20,
-    paddingLeft: 14,
-    paddingRight: 4,
-    paddingVertical: 4,
-    minHeight: 42,
+    alignItems: 'center',
+    borderRadius: 22,
+    paddingHorizontal: 4,
+    minHeight: 44,
     borderWidth: 1,
+  },
+  inlineComposerAction: {
+    width: 32,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   input: {
     flex: 1,
     fontSize: 14,
     maxHeight: 120,
-    paddingVertical: 6,
+    paddingVertical: 8,
   },
   sendBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
