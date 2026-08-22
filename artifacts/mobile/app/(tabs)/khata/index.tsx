@@ -16,38 +16,23 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatCurrency } from '@/utils/helpers';
 import { FlatCard } from '@/components/ui/FlatCard';
 import { Avatar } from '@/components/ui/Avatar';
-import { useKhataRepairs } from '@/hooks/useKhataRepairs';
-import {
-  groupKhataParties,
-  summarizeKhataRepairs,
-  type KhataPartySummary,
-  type KhataPartyType,
-} from '@/utils/khata';
+import { useAuth } from '@/context/AuthContext';
+import { useColors } from '@/hooks/useColors';
+import { useKhataLedger } from '@/hooks/useKhataLedger';
+import type { LedgerEntry, KhataPartyType } from '@/utils/khata-ledger';
 
-type PartyFilter = 'all' | KhataPartyType;
+type FilterState = 'all' | KhataPartyType;
 
 export default function KhataOverviewScreen() {
+  const { user } = useAuth();
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { repairs, isLoading, error, reload } = useKhataRepairs();
+  const { ledger, totals, isLoading, error, reload } = useKhataLedger();
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<PartyFilter>('all');
+  const [filter, setFilter] = useState<FilterState>('all');
   const [refreshing, setRefreshing] = useState(false);
   const topPadding = Platform.OS === 'web' ? insets.top + 67 : insets.top;
-
-  const summary = useMemo(() => summarizeKhataRepairs(repairs), [repairs]);
-  const grouped = useMemo(() => groupKhataParties(repairs), [repairs]);
-  const visible = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const matches = (party: KhataPartySummary) =>
-      !query || party.name.toLowerCase().includes(query);
-    return {
-      dealers:
-        filter === 'customer' ? [] : grouped.dealers.filter(matches),
-      customers:
-        filter === 'dealer' ? [] : grouped.customers.filter(matches),
-    };
-  }, [filter, grouped, search]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -58,59 +43,162 @@ export default function KhataOverviewScreen() {
     }
   };
 
-  const openParty = (party: KhataPartySummary) => {
+  const visibleLedger = useMemo(() => {
+    let result = ledger;
+    if (filter !== 'all') {
+      result = result.filter((entry) => entry.partyType === filter);
+    }
+    const query = search.trim().toLowerCase();
+    if (query) {
+      result = result.filter(
+        (entry) =>
+          entry.partyName.toLowerCase().includes(query) ||
+          entry.repairId.toLowerCase().includes(query)
+      );
+    }
+    return result;
+  }, [ledger, filter, search]);
+
+  const openParty = (entry: LedgerEntry) => {
     router.push(
-      `/(tabs)/khata/party/${party.type}/${party.id}?name=${encodeURIComponent(party.name)}`,
+      `/(tabs)/khata/party/${entry.partyType}/${entry.partyId}?name=${encodeURIComponent(
+        entry.partyName
+      )}`
     );
   };
 
-  const renderParty = (party: KhataPartySummary) => (
-    <TouchableOpacity
-      key={`${party.type}-${party.id}`}
-      activeOpacity={0.75}
-      onPress={() => openParty(party)}
-      style={styles.partyPressable}
-    >
-      <FlatCard style={styles.partyCard}>
-        <Avatar name={party.name} size={42} />
-        <View style={styles.partyContent}>
-          <View style={styles.partyTitleRow}>
-            <Text style={styles.partyName} numberOfLines={1}>{party.name}</Text>
-            <View style={styles.typeBadge}>
-              <Text style={styles.typeText}>
-                {party.type === 'dealer' ? 'Dealer' : 'Customer'}
+  const formatDateLabel = (isoDate: string) => {
+    const d = new Date(isoDate);
+    return d.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
+  const renderEntry = (entry: LedgerEntry) => {
+    const isDebit = entry.debit > 0;
+    const isCredit = entry.credit > 0;
+    const amount = isDebit ? entry.debit : entry.credit;
+
+    return (
+      <TouchableOpacity
+        key={entry.id}
+        activeOpacity={0.75}
+        onPress={() => openParty(entry)}
+        style={styles.entryPressable}
+      >
+        <FlatCard style={styles.entryCard}>
+          <View style={styles.entryHeader}>
+            <Text style={styles.entryDate}>{formatDateLabel(entry.date)}</Text>
+            <View style={styles.repairIdBadge}>
+              <Text style={styles.repairIdText}>{entry.repairId}</Text>
+            </View>
+          </View>
+
+          <View style={styles.entryBody}>
+            <Avatar name={entry.partyName} size={38} />
+            <View style={styles.partyInfo}>
+              <View style={styles.partyNameRow}>
+                <Text style={styles.partyName} numberOfLines={1}>
+                  {entry.partyName}
+                </Text>
+                <View style={styles.typeBadge}>
+                  <Text style={styles.typeText}>
+                    {entry.partyType === 'dealer' ? 'Dealer' : 'Customer'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.entryLabel}>
+                {entry.label}
+                {entry.method ? ` • ${entry.method.toUpperCase()}` : ''}
+              </Text>
+            </View>
+
+            <View style={styles.amountInfo}>
+              {isDebit ? (
+                <Text style={styles.debitText}>
+                  {formatCurrency(amount)} DEBIT
+                </Text>
+              ) : isCredit ? (
+                <Text style={styles.creditText}>
+                  {formatCurrency(amount)} CREDIT
+                </Text>
+              ) : null}
+              <Text
+                style={[
+                  styles.balanceText,
+                  entry.partyBalance <= 0 && styles.settledBalance,
+                ]}
+              >
+                Bal: {formatCurrency(entry.partyBalance)}
               </Text>
             </View>
           </View>
-          <Text style={styles.partyMeta}>
-            {party.repairCount} {party.repairCount === 1 ? 'repair' : 'repairs'} · Paid {formatCurrency(party.paid)}
-          </Text>
-        </View>
-        <View style={styles.partyDue}>
-          <Text style={styles.dueLabel}>Outstanding</Text>
-          <Text style={[styles.dueValue, party.due <= 0 && styles.settledValue]}>
-            {formatCurrency(party.due)}
-          </Text>
-          <Feather name="chevron-right" size={16} color="#94A3B8" />
-        </View>
-      </FlatCard>
-    </TouchableOpacity>
-  );
+        </FlatCard>
+      </TouchableOpacity>
+    );
+  };
 
-  if (isLoading && repairs.length === 0) {
+  if (isLoading && ledger.length === 0) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color="#0B63F6" size="large" />
-        <Text style={styles.loadingText}>Loading Khata…</Text>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator color={colors.primary} size="large" />
+        <Text style={styles.loadingText}>Loading Ledger…</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: topPadding + 16 }]}>
-        <Text style={styles.headerTitle}>Khata</Text>
-        <Text style={styles.headerSubtitle}>Real repair bills and recorded payments</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: topPadding + 16,
+            backgroundColor: colors.card,
+            borderBottomColor: colors.border,
+          },
+        ]}
+      >
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View>
+            <Text style={[styles.headerTitle, { color: colors.foreground }]}>Khata</Text>
+            <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
+              Chronological account ledger
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/more')}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: colors.backgroundSecondary,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Avatar name={user?.name ?? 'User'} size={40} />
+            <View
+              style={{
+                position: 'absolute',
+                bottom: -2,
+                right: -2,
+                backgroundColor: colors.card,
+                borderRadius: 10,
+                padding: 2,
+              }}
+            >
+              <Feather name="menu" size={12} color={colors.primary} />
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -133,18 +221,23 @@ export default function KhataOverviewScreen() {
         <FlatCard style={styles.summaryCard}>
           <View style={styles.summaryCell}>
             <Text style={styles.summaryLabel}>Total Business</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(summary.billed)}</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(totals.billed)}</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryCell}>
             <Text style={styles.summaryLabel}>Total Paid</Text>
-            <Text style={[styles.summaryValue, styles.paidValue]}>{formatCurrency(summary.paid)}</Text>
+            <Text style={[styles.summaryValue, styles.paidValue]}>{formatCurrency(totals.paid)}</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryCell}>
             <Text style={styles.summaryLabel}>Outstanding</Text>
-            <Text style={[styles.summaryValue, summary.due > 0 ? styles.dueSummary : styles.paidValue]}>
-              {formatCurrency(summary.due)}
+            <Text
+              style={[
+                styles.summaryValue,
+                totals.due > 0 ? styles.dueSummary : styles.paidValue,
+              ]}
+            >
+              {formatCurrency(totals.due)}
             </Text>
           </View>
         </FlatCard>
@@ -154,7 +247,7 @@ export default function KhataOverviewScreen() {
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Search customer or dealer…"
+            placeholder="Search customer, dealer or ticket..."
             placeholderTextColor="#94A3B8"
             style={styles.searchInput}
           />
@@ -166,15 +259,20 @@ export default function KhataOverviewScreen() {
         </View>
 
         <View style={styles.filters}>
-          {([
-            ['all', 'All'],
-            ['customer', 'Customers'],
-            ['dealer', 'Dealers'],
-          ] as const).map(([value, label]) => (
+          {(
+            [
+              ['all', 'All'],
+              ['customer', 'Customers'],
+              ['dealer', 'Dealers'],
+            ] as const
+          ).map(([value, label]) => (
             <TouchableOpacity
               key={value}
-              onPress={() => setFilter(value)}
-              style={[styles.filterButton, filter === value && styles.filterButtonActive]}
+              onPress={() => setFilter(value as FilterState)}
+              style={[
+                styles.filterButton,
+                filter === value && styles.filterButtonActive,
+              ]}
             >
               <Text style={[styles.filterText, filter === value && styles.filterTextActive]}>
                 {label}
@@ -183,33 +281,23 @@ export default function KhataOverviewScreen() {
           ))}
         </View>
 
-        {visible.dealers.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>DEALERS ({visible.dealers.length})</Text>
-            {visible.dealers.map(renderParty)}
-          </View>
-        )}
-
-        {visible.customers.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>CUSTOMERS ({visible.customers.length})</Text>
-            {visible.customers.map(renderParty)}
-          </View>
-        )}
-
-        {visible.dealers.length === 0 && visible.customers.length === 0 && (
-          <View style={styles.empty}>
-            <View style={styles.emptyIcon}>
-              <Feather name="book" size={28} color="#94A3B8" />
+        <View style={styles.section}>
+          {visibleLedger.length > 0 ? (
+            visibleLedger.map(renderEntry)
+          ) : (
+            <View style={styles.empty}>
+              <View style={styles.emptyIcon}>
+                <Feather name="list" size={28} color="#94A3B8" />
+              </View>
+              <Text style={styles.emptyTitle}>No ledger entries</Text>
+              <Text style={styles.emptyText}>
+                {search || filter !== 'all'
+                  ? 'Try changing your search or filter.'
+                  : 'Ledger will automatically populate with repair bills and payments.'}
+              </Text>
             </View>
-            <Text style={styles.emptyTitle}>No Khata accounts found</Text>
-            <Text style={styles.emptyText}>
-              {search
-                ? 'Try a different customer or dealer name.'
-                : 'Linked repair accounts will appear here automatically.'}
-            </Text>
-          </View>
-        )}
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -230,7 +318,6 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   headerTitle: { fontSize: 26, color: '#111827', fontFamily: 'Inter_700Bold' },
   headerSubtitle: {
@@ -297,26 +384,24 @@ const styles = StyleSheet.create({
   filterText: { color: '#64748B', fontSize: 12, fontFamily: 'Inter_500Medium' },
   filterTextActive: { color: '#FFFFFF', fontFamily: 'Inter_600SemiBold' },
   section: { marginBottom: 20 },
-  sectionTitle: {
-    fontSize: 11,
-    color: '#64748B',
-    letterSpacing: 0.8,
-    marginBottom: 10,
-    marginLeft: 4,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  partyPressable: { marginBottom: 10 },
-  partyCard: { flexDirection: 'row', alignItems: 'center', padding: 13 },
-  partyContent: { flex: 1, marginLeft: 12, minWidth: 0 },
-  partyTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  partyName: { flexShrink: 1, color: '#111827', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  typeBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: '#EAF2FF' },
-  typeText: { color: '#0B63F6', fontSize: 9, fontFamily: 'Inter_600SemiBold' },
-  partyMeta: { marginTop: 4, color: '#64748B', fontSize: 11, fontFamily: 'Inter_400Regular' },
-  partyDue: { flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 8 },
-  dueLabel: { display: 'none' },
-  dueValue: { color: '#EF4444', fontSize: 14, fontFamily: 'Inter_700Bold' },
-  settledValue: { color: '#16A34A' },
+  entryPressable: { marginBottom: 10 },
+  entryCard: { padding: 12, gap: 10 },
+  entryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  entryDate: { color: '#64748B', fontSize: 11, fontFamily: 'Inter_500Medium' },
+  repairIdBadge: { backgroundColor: '#EAF2FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  repairIdText: { color: '#0B63F6', fontSize: 10, fontFamily: 'Inter_700Bold' },
+  entryBody: { flexDirection: 'row', alignItems: 'center' },
+  partyInfo: { flex: 1, marginLeft: 10 },
+  partyNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  partyName: { flexShrink: 1, color: '#111827', fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  typeBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: '#F1F5F9' },
+  typeText: { color: '#64748B', fontSize: 9, fontFamily: 'Inter_600SemiBold' },
+  entryLabel: { color: '#64748B', fontSize: 12, marginTop: 4, fontFamily: 'Inter_400Regular' },
+  amountInfo: { alignItems: 'flex-end', minWidth: 90 },
+  debitText: { color: '#EF4444', fontSize: 13, fontFamily: 'Inter_700Bold' },
+  creditText: { color: '#16A34A', fontSize: 13, fontFamily: 'Inter_700Bold' },
+  balanceText: { color: '#64748B', fontSize: 11, marginTop: 4, fontFamily: 'Inter_500Medium' },
+  settledBalance: { color: '#16A34A' },
   empty: { alignItems: 'center', paddingHorizontal: 28, paddingVertical: 54 },
   emptyIcon: {
     width: 58,

@@ -62,10 +62,10 @@ const inheritedSettings = {
     role: 'technician',
     isActive: true,
   },
-  availableFeatures: ['dashboard'],
-  roleFeatures: { dashboard: true },
+  availableFeatures: ['repairs'],
+  roleFeatures: { repairs: true },
   overrides: {},
-  features: { dashboard: true },
+  features: { repairs: true },
 };
 
 describe('individual permission settings screen', () => {
@@ -74,14 +74,14 @@ describe('individual permission settings screen', () => {
     mockGet.mockResolvedValue(inheritedSettings);
     mockUpdate.mockResolvedValue({
       ...inheritedSettings,
-      overrides: { dashboard: false },
-      features: { dashboard: false },
+      overrides: { repairs: false },
+      features: { repairs: false },
     });
   });
 
   it('shows inherited state and saves a person-specific override', async () => {
     render(<StaffPermissionsScreen />);
-    await waitFor(() => expect(screen.getByText('Dashboard')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Repairs — view')).toBeTruthy());
     expect(screen.getByText('Role default')).toBeTruthy();
 
     const toggle = screen.UNSAFE_getAllByType(Switch)[0];
@@ -91,7 +91,7 @@ describe('individual permission settings screen', () => {
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith('staff-1', {
-        features: { dashboard: false },
+        features: { repairs: false },
       }),
     );
     expect(screen.getByText('Custom')).toBeTruthy();
@@ -100,8 +100,8 @@ describe('individual permission settings screen', () => {
   it('clears the override when the switch returns to the role default', async () => {
     mockGet.mockResolvedValue({
       ...inheritedSettings,
-      overrides: { dashboard: false },
-      features: { dashboard: false },
+      overrides: { repairs: false },
+      features: { repairs: false },
     });
     mockUpdate.mockResolvedValue(inheritedSettings);
 
@@ -114,7 +114,7 @@ describe('individual permission settings screen', () => {
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith('staff-1', {
-        features: { dashboard: null },
+        features: { repairs: null },
       }),
     );
     expect(screen.getByText('Role default')).toBeTruthy();

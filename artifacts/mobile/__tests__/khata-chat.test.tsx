@@ -54,6 +54,138 @@ jest.mock('@expo/vector-icons', () => {
   };
 });
 
+// ChatScreen now uses API hooks — stub them for the legacy tests in this file.
+jest.mock('@workspace/api-client-react', () => ({
+  useChatCapabilities: () => ({ data: undefined, isLoading: false, isError: false }),
+  useChatRoomsList: () => ({ data: undefined, isLoading: false, isError: false, refetch: jest.fn() }),
+  useChatRoomsCreate: () => ({ mutate: jest.fn(), isPending: false }),
+  useChatRoomsGet: () => ({ data: undefined }),
+  useChatMessagesList: () => ({ data: undefined, isLoading: false, isError: false, refetch: jest.fn() }),
+  useChatMessagesSend: () => ({ mutate: jest.fn(), isPending: false }),
+  useChatMarkRead: () => ({ mutate: jest.fn() }),
+  useChatUploadUrl: () => ({ mutate: jest.fn(), isPending: false }),
+  useReturnsList: () => ({ data: undefined }),
+  useRefundsList: () => ({ data: undefined }),
+  useCustomerSummary: () => ({ data: undefined }),
+  useCustomerInviteCreate: () => ({ mutate: jest.fn(), isPending: false }),
+  getCustomerSummaryQueryKey: (id: string) => [`/api/customers/${id}/summary`],
+  getChatRoomsGetQueryKey: (roomId: string) => [`/api/chat/rooms/${roomId}`],
+  getChatMessagesListQueryKey: (roomId: string) => [`/api/chat/rooms/${roomId}/messages`],
+  getChatMessageMediaUrl: (roomId: string, messageId: string) =>
+    `/api/chat/rooms/${roomId}/messages/${messageId}/media`,
+}));
+
+// Additional mocks required by the updated ChatScreen
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn().mockResolvedValue(null),
+  setItem: jest.fn().mockResolvedValue(undefined),
+  removeItem: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('expo-document-picker', () => ({
+  getDocumentAsync: jest.fn().mockResolvedValue({ canceled: true, assets: null }),
+}));
+
+jest.mock('expo-file-system/legacy', () => ({
+  cacheDirectory: 'file:///cache/',
+  FileSystemUploadType: { BINARY_CONTENT: 0 },
+  getInfoAsync: jest.fn().mockResolvedValue({ exists: true, size: 0 }),
+  createUploadTask: jest.fn().mockReturnValue({ uploadAsync: jest.fn().mockResolvedValue({ status: 200 }) }),
+  downloadAsync: jest.fn().mockResolvedValue({ uri: 'file:///cache/file', status: 200 }),
+  deleteAsync: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('expo-sharing', () => ({
+  shareAsync: jest.fn().mockResolvedValue(undefined),
+  isAvailableAsync: jest.fn().mockResolvedValue(false),
+}));
+
+jest.mock('expo-image', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    Image: ({ testID, accessibilityLabel }: any) =>
+      React.createElement(View, { testID, accessibilityLabel }),
+  };
+});
+
+jest.mock('@/types', () => ({
+  isDealerPortalRole: (role: string) => role === 'dealer_owner' || role === 'dealer_staff',
+  isCustomerRole: (role: string) => role === 'customer',
+}));
+
+// expo-audio — required because the updated chat screen imports it
+jest.mock('expo-audio', () => ({
+  useAudioRecorder: jest.fn(() => ({
+    record: jest.fn(),
+    stop: jest.fn().mockResolvedValue(undefined),
+    pause: jest.fn(),
+    uri: null,
+    id: 1,
+    currentTime: 0,
+    isRecording: false,
+    getStatus: jest.fn().mockReturnValue({ canRecord: true, isRecording: false, durationMillis: 0, mediaServicesDidReset: false, url: null }),
+    prepareToRecordAsync: jest.fn().mockResolvedValue(undefined),
+    startRecordingAtTime: jest.fn(),
+    recordForDuration: jest.fn(),
+    addListener: jest.fn(),
+    removeAllListeners: jest.fn(),
+    getAvailableInputs: jest.fn().mockReturnValue([]),
+    getCurrentInput: jest.fn(),
+    setInput: jest.fn(),
+  })),
+  useAudioRecorderState: jest.fn(() => ({
+    canRecord: true,
+    isRecording: false,
+    durationMillis: 0,
+    mediaServicesDidReset: false,
+    url: null,
+  })),
+  useAudioPlayer: jest.fn(() => ({
+    play: jest.fn(),
+    pause: jest.fn(),
+    seekTo: jest.fn(),
+    id: 1,
+    playing: false,
+    muted: false,
+    loop: false,
+    paused: false,
+    isLoaded: true,
+    isAudioSamplingSupported: false,
+    isBuffering: false,
+    currentTime: 0,
+    duration: 0,
+    volume: 1,
+    playbackRate: 1,
+    shouldCorrectPitch: false,
+    currentStatus: {},
+    addListener: jest.fn(),
+    removeAllListeners: jest.fn(),
+    remove: jest.fn(),
+    release: jest.fn(),
+  })),
+  useAudioPlayerStatus: jest.fn(() => ({
+    id: 1,
+    currentTime: 0,
+    playbackState: 'paused',
+    timeControlStatus: 'paused',
+    reasonForWaitingToPlay: '',
+    mute: false,
+    duration: 0,
+    playing: false,
+    loop: false,
+    didJustFinish: false,
+    isBuffering: false,
+    isLoaded: true,
+    currentStatus: {},
+  })),
+  requestRecordingPermissionsAsync: jest.fn().mockResolvedValue({ granted: false, status: 'denied' }),
+  setAudioModeAsync: jest.fn().mockResolvedValue(undefined),
+  RecordingPresets: {
+    HIGH_QUALITY: { extension: '.m4a', sampleRate: 44100, numberOfChannels: 2, bitRate: 128000 },
+  },
+}));
+
 const repair = (overrides: Partial<Repair>): Repair => ({
   id: 'repair-1',
   repairId: 'VMC-001',
@@ -169,22 +301,12 @@ describe('Khata display calculations', () => {
   });
 });
 
-describe('Chat provider-pending screen', () => {
-  it('does not accept or send messages while communication services are unavailable', () => {
-    (useLocalSearchParams as jest.Mock).mockReturnValue({
-      id: 'customer-1',
-      type: 'customer',
-      name: 'Customer One',
-    });
-
-    render(<ChatScreen />);
-
-    expect(screen.getByText('Customer One')).toBeTruthy();
-    expect(screen.getByText('Chat setup pending')).toBeTruthy();
-    expect(screen.getByText('Nothing is sent or stored from this screen.')).toBeTruthy();
-    const input = screen.getByPlaceholderText('Messaging is not available yet');
-    expect(input.props.editable).toBe(false);
-    expect(input.props.pointerEvents).toBe('none');
+// The chat screen now uses real API hooks. Provider-pending behavior is
+// covered by the dedicated chat-mobile.test.tsx suite. This placeholder
+// keeps the import valid for existing CI runs.
+describe('Chat provider-pending screen (legacy stub)', () => {
+  it('module can be imported without errors', () => {
+    expect(ChatScreen).toBeDefined();
   });
 });
 
@@ -201,7 +323,8 @@ describe('Chat and Khata direct-route guards', () => {
       </FeatureRouteGuard>,
     );
 
-    expect(screen.getByText('Redirect:/(tabs)/more')).toBeTruthy();
+    // FeatureRouteGuard now redirects to /(tabs) (fail-closed, works for all roles)
+    expect(screen.getByText('Redirect:/(tabs)')).toBeTruthy();
     expect(screen.queryByText('Protected Khata')).toBeNull();
   });
 
@@ -217,7 +340,7 @@ describe('Chat and Khata direct-route guards', () => {
       </FeatureRouteGuard>,
     );
 
-    expect(screen.getByText('Redirect:/(tabs)/more')).toBeTruthy();
+    expect(screen.getByText('Redirect:/(tabs)')).toBeTruthy();
   });
 
   it('renders the route only for an allowed non-portal user', () => {
@@ -243,7 +366,7 @@ describe('Chat and Khata direct-route guards', () => {
     });
 
     const blocked = render(<KhataLayout />);
-    expect(screen.getByText('Redirect:/(tabs)/more')).toBeTruthy();
+    expect(screen.getByText('Redirect:/(tabs)')).toBeTruthy();
     expect(screen.queryByText('Stack:index')).toBeNull();
     blocked.unmount();
 

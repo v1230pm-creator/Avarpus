@@ -13,13 +13,15 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { Avatar } from '@/components/ui/Avatar';
 import { SampleBadge } from '@/components/ui/Badge';
-import { GlassCard, ScreenGlow, FadeInView, useIsDark } from '@/components/ui/Glass';
+import { FlatCard } from '@/components/ui/FlatCard';
+import { FadeInView, useIsDark } from '@/components/ui/Glass';
 import { CustomerFormSheet } from '@/components/forms/CustomerFormSheet';
 import { Customer } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/helpers';
@@ -28,7 +30,7 @@ function CustomerCard({ customer, onPress }: { customer: Customer; onPress: () =
   const colors = useColors();
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
-      <GlassCard style={styles.card}>
+      <FlatCard style={styles.card}>
         <Avatar name={customer.name} size={48} />
         <View style={styles.cardContent}>
           <Text style={[styles.customerName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{customer.name}</Text>
@@ -52,13 +54,14 @@ function CustomerCard({ customer, onPress }: { customer: Customer; onPress: () =
           </View>
         </View>
         <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-      </GlassCard>
+      </FlatCard>
     </TouchableOpacity>
   );
 }
 
 export default function CustomersScreen() {
   const colors = useColors();
+  const { user } = useAuth();
   const isDark = useIsDark();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -102,9 +105,7 @@ export default function CustomersScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
-
-      <FadeInView animValue={headerAnim} style={[styles.header, { paddingTop: topPad + 16 }]}>
+      <FadeInView animValue={headerAnim} style={[styles.header, { paddingTop: topPad + 16, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
         <View style={styles.headerRow}>
           <View>
             <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Customers</Text>
@@ -112,18 +113,35 @@ export default function CustomersScreen() {
               {filtered.length} records
             </Text>
           </View>
-          <TouchableOpacity
-            onPress={() => setShowAdd(true)}
-            activeOpacity={0.85}
-            style={[styles.addBtn, { backgroundColor: colors.primary }]}
-          >
-            <Feather name="plus" size={18} color="#FFFFFF" />
-            <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Add</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/more')}
+              style={{
+                width: 44, height: 44, borderRadius: 22,
+                backgroundColor: colors.backgroundSecondary,
+                alignItems: 'center', justifyContent: 'center',
+                borderWidth: 1, borderColor: colors.border
+              }}
+            >
+              <Avatar name={user?.name ?? 'User'} size={40} />
+              <View style={{ position: 'absolute', bottom: -2, right: -2, backgroundColor: colors.card, borderRadius: 10, padding: 2 }}>
+                <Feather name="menu" size={12} color={colors.primary} />
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setShowAdd(true)}
+              activeOpacity={0.85}
+              style={[styles.addBtn, { backgroundColor: colors.primary }]}
+            >
+              <Feather name="plus" size={18} color="#FFFFFF" />
+              <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Add</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={[styles.searchBar, {
-          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+          backgroundColor: colors.input,
+          borderColor: colors.border,
         }]}>
           <Feather name="search" size={16} color={colors.mutedForeground} />
           <TextInput

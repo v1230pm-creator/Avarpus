@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
-import { GlassCard, ScreenGlow } from '@/components/ui/Glass';
+import { FlatCard } from '@/components/ui/Glass';
 import { useNotificationsList, notificationsMarkRead, getNotificationsListQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -66,7 +66,7 @@ export default function NotificationsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
       <View style={[styles.header, { paddingTop: topPad + 16 }]}>
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }} activeOpacity={0.7}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
@@ -94,7 +94,7 @@ export default function NotificationsScreen() {
             </Text>
           </View>
         ) : (
-          <GlassCard style={{ paddingVertical: 4 }}>
+          <FlatCard style={{ paddingVertical: 4 }}>
             {notifications.map((n, idx) => {
               const meta = TYPE_ICON[n.type] ?? { icon: 'bell', color: colors.primary };
               return (
@@ -124,7 +124,7 @@ export default function NotificationsScreen() {
                 </TouchableOpacity>
               );
             })}
-          </GlassCard>
+          </FlatCard>
         )}
       </ScrollView>
     </View>

@@ -6,12 +6,16 @@ export type UserRole =
   | 'store_manager'
   | 'accountant'
   | 'dealer_owner'
-  | 'dealer_staff';
+  | 'dealer_staff'
+  | 'customer';
 
 /** Dealer-portal login roles — external B2B dealer accounts (read-only). */
 export const DEALER_PORTAL_ROLES: UserRole[] = ['dealer_owner', 'dealer_staff'];
 export const isDealerPortalRole = (role?: string | null): boolean =>
   role === 'dealer_owner' || role === 'dealer_staff';
+
+/** Customer self-service role — can only see Home (chat) and their own profile. */
+export const isCustomerRole = (role?: string | null): boolean => role === 'customer';
 
 export interface User {
   id: string;

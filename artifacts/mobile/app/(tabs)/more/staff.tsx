@@ -9,7 +9,7 @@ import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
-import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { FlatCard, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
 
 const ROLE_COLORS: Record<string, string> = {
@@ -45,7 +45,7 @@ function StaffCard({
   const colors = useColors();
   const roleColor = ROLE_COLORS[staff.role] ?? colors.primary;
   return (
-    <GlassCard style={styles.card}>
+    <FlatCard style={styles.card}>
       <Avatar name={staff.name} size={52} />
       <View style={styles.cardContent}>
         <View style={styles.nameRow}>
@@ -89,7 +89,7 @@ function StaffCard({
           )}
         </View>
       )}
-    </GlassCard>
+    </FlatCard>
   );
 }
 
@@ -109,7 +109,7 @@ function PendingCard({
   const [confirmReject, setConfirmReject] = useState(false);
   const roleColor = ROLE_COLORS[staff.role] ?? colors.primary;
   return (
-    <GlassCard style={styles.pendingCard}>
+    <FlatCard style={styles.pendingCard}>
       <TouchableOpacity
         style={styles.pendingRow}
         activeOpacity={0.8}
@@ -183,7 +183,7 @@ function PendingCard({
           )}
         </View>
       )}
-    </GlassCard>
+    </FlatCard>
   );
 }
 
@@ -273,7 +273,7 @@ export default function StaffScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <FadeInView animValue={anims[0]}>
         <View style={[styles.header, { paddingTop: topPad + 14 }]}>

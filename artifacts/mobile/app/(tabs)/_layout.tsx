@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
-import { isDealerPortalRole } from '@/types';
+import { isDealerPortalRole, isCustomerRole } from '@/types';
 import { useColors } from '@/hooks/useColors';
 import { isLockEnabled, isUnlocked, subscribeLockState } from '@/utils/appLock';
 import { InactivityGuard } from '@/components/InactivityGuard';
@@ -13,46 +13,43 @@ import { Tabs } from 'expo-router';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
 
-function NativeTabLayout({ portal }: { portal: boolean }) {
+function NativeTabLayout({ portal, customer }: { portal: boolean; customer: boolean }) {
   const { canAccess } = useAuth();
+  // Customer role: only Home (chat inbox) is visible.
   // Dealer-portal accounts only get Repairs (their read-only "My Repairs"
-  // view) and More (profile/sign-out). Staff tabs additionally honor the
+  // view). Staff tabs additionally honor the
   // shop's per-role feature toggles (More → Staff Permissions).
   return (
     <NativeTabs>
       {!portal && (
         <NativeTabs.Trigger name="index">
-          <Icon sf={{ default: 'house', selected: 'house.fill' }} />
+          <Icon sf={{ default: 'message', selected: 'message.fill' }} />
           <Label>Home</Label>
         </NativeTabs.Trigger>
       )}
-      {(portal ? canAccess('repairs_portal') : canAccess('repairs')) && (
+      {!customer && (portal ? canAccess('repairs_portal') : canAccess('repairs')) && (
         <NativeTabs.Trigger name="repairs">
           <Icon sf={{ default: 'wrench', selected: 'wrench.fill' }} />
           <Label>Repairs</Label>
         </NativeTabs.Trigger>
       )}
-      {!portal && canAccess('customers') && (
+      {!customer && !portal && canAccess('customers') && (
         <NativeTabs.Trigger name="customers">
           <Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} />
           <Label>Customers</Label>
         </NativeTabs.Trigger>
       )}
-      {!portal && canAccess('payments') && (
+      {!customer && !portal && canAccess('payments') && (
         <NativeTabs.Trigger name="khata">
           <Icon sf={{ default: 'book.closed', selected: 'book.closed.fill' }} />
           <Label>Khata</Label>
         </NativeTabs.Trigger>
       )}
-      <NativeTabs.Trigger name="more">
-        <Icon sf={{ default: 'ellipsis.circle', selected: 'ellipsis.circle.fill' }} />
-        <Label>More</Label>
-      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
 
-function ClassicTabLayout({ portal }: { portal: boolean }) {
+function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boolean }) {
   const colors = useColors();
   const { canAccess } = useAuth();
   const colorScheme = useColorScheme();
@@ -67,23 +64,12 @@ function ClassicTabLayout({ portal }: { portal: boolean }) {
         tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
         tabBarStyle: {
-          position: 'absolute',
-          backgroundColor: isIOS ? 'transparent' : colors.glassNav,
+          backgroundColor: colors.card,
           borderTopWidth: 1,
-          borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : colors.border,
+          borderTopColor: colors.border,
           elevation: 0,
           ...(isWeb ? { height: 84, paddingBottom: 34 } : {}),
         },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? 'dark' : 'light'}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.glassNav, ...(Platform.OS === 'web' ? ({ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' } as any) : {}) }]} />
-          ) : null,
       }}
     >
       <Tabs.Screen
@@ -93,16 +79,16 @@ function ClassicTabLayout({ portal }: { portal: boolean }) {
           title: 'Home',
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="house" tintColor={color} size={22} />
+              <SymbolView name="message" tintColor={color} size={22} />
             ) : (
-              <Feather name="home" size={22} color={color} />
+              <Feather name="message-square" size={22} color={color} />
             ),
         }}
       />
       <Tabs.Screen
         name="repairs"
         options={{
-          href: (portal ? canAccess('repairs_portal') : canAccess('repairs')) ? undefined : null,
+          href: customer || !(portal ? canAccess('repairs_portal') : canAccess('repairs')) ? null : undefined,
           title: 'Repairs',
           tabBarIcon: ({ color }) =>
             isIOS ? (
@@ -115,7 +101,7 @@ function ClassicTabLayout({ portal }: { portal: boolean }) {
       <Tabs.Screen
         name="customers"
         options={{
-          href: portal || !canAccess('customers') ? null : undefined,
+          href: customer || portal || !canAccess('customers') ? null : undefined,
           title: 'Customers',
           tabBarIcon: ({ color }) =>
             isIOS ? (
@@ -128,7 +114,7 @@ function ClassicTabLayout({ portal }: { portal: boolean }) {
       <Tabs.Screen
         name="khata"
         options={{
-          href: portal || !canAccess('payments') ? null : undefined,
+          href: customer || portal || !canAccess('payments') ? null : undefined,
           title: 'Khata',
           tabBarIcon: ({ color }) =>
             isIOS ? (
@@ -148,13 +134,8 @@ function ClassicTabLayout({ portal }: { portal: boolean }) {
       <Tabs.Screen
         name="more"
         options={{
+          href: null,
           title: 'More',
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="ellipsis.circle" tintColor={color} size={22} />
-            ) : (
-              <Feather name="menu" size={22} color={color} />
-            ),
         }}
       />
     </Tabs>
@@ -165,6 +146,7 @@ export default function TabLayout() {
   const colors = useColors();
   const { isAuthenticated, isLoading, user } = useAuth();
   const portal = isDealerPortalRole(user?.role);
+  const customer = isCustomerRole(user?.role);
   const [lockCheck, setLockCheck] = useState<'pending' | 'locked' | 'open'>(
     isUnlocked() ? 'open' : 'pending',
   );
@@ -221,7 +203,7 @@ export default function TabLayout() {
 
   return (
     <InactivityGuard>
-      {isLiquidGlassAvailable() ? <NativeTabLayout portal={portal} /> : <ClassicTabLayout portal={portal} />}
+      {isLiquidGlassAvailable() ? <NativeTabLayout portal={portal} customer={customer} /> : <ClassicTabLayout portal={portal} customer={customer} />}
     </InactivityGuard>
   );
 }

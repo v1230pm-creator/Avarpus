@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
-import { ScreenGlow, FadeInView, GlassCard } from '@/components/ui/Glass';
+import { FadeInView, FlatCard } from '@/components/ui/Glass';
 import { formatDate } from '@/utils/helpers';
 import { useActivityFeed, ActivityFeedType } from '@workspace/api-client-react';
 
@@ -12,7 +12,7 @@ export default function ActivityFeedScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  
+
   const [filterType, setFilterType] = useState<ActivityFeedType | undefined>(undefined);
   const [page, setPage] = useState(1);
   const limit = 50;
@@ -24,18 +24,18 @@ export default function ActivityFeedScreen() {
   });
 
   const activities = data?.activity || [];
-  
+
   const renderItem = ({ item }: { item: any }) => {
     const isLogin = item.type === 'login';
     const icon = isLogin ? 'log-in' : 'tool';
     const color = isLogin ? colors.info : colors.primary;
 
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         disabled={!item.repairId}
         onPress={() => item.repairId && router.push(`/(tabs)/repairs/${item.repairId}`)}
       >
-        <GlassCard style={{ marginBottom: 12, padding: 16 }}>
+        <FlatCard style={{ marginBottom: 12, padding: 16 }}>
           <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
             <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: color + '15', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
               <Feather name={icon as any} size={16} color={color} />
@@ -59,14 +59,14 @@ export default function ActivityFeedScreen() {
               )}
             </View>
           </View>
-        </GlassCard>
+        </FlatCard>
       </TouchableOpacity>
     );
   };
 
   return (
     <View style={[{ flex: 1, backgroundColor: colors.background, paddingTop: Platform.OS === 'web' ? insets.top + 67 : insets.top + 16 }]}>
-      <ScreenGlow />
+
       <View style={{ paddingHorizontal: 20, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <TouchableOpacity onPress={() => router.back()} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border }}>

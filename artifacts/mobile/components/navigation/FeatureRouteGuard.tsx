@@ -17,6 +17,8 @@ export function FeatureRouteGuard({
     (excludeDealerPortal && isDealerPortalRole(user?.role)) ||
     !canAccess(feature);
 
-  if (blocked) return <Redirect href="/(tabs)/more" />;
+  // Fail closed: redirect to the safe root tab rather than a potentially
+  // invisible "More" tab (which is hidden for customer and dealer-portal roles).
+  if (blocked) return <Redirect href="/(tabs)" />;
   return <>{children}</>;
 }

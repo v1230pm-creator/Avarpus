@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Clipboard, Platform, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -9,11 +9,12 @@ import { useColors } from '@/hooks/useColors';
 import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { RepairStatusBadge, SampleBadge } from '@/components/ui/Badge';
-import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
+import { FlatCard, useStaggerAnim } from '@/components/ui/Glass';
 import { CustomerFormSheet } from '@/components/forms/CustomerFormSheet';
 import { formatCurrency, formatDate, getReturnStatusColor } from '@/utils/helpers';
 
-import { useReturnsList, useRefundsList, useCustomerSummary, getCustomerSummaryQueryKey } from '@workspace/api-client-react';
+import { useReturnsList, useRefundsList, useCustomerSummary, getCustomerSummaryQueryKey, useCustomerInviteCreate } from '@workspace/api-client-react';
+import type { CustomerInviteResult } from '@workspace/api-client-react';
 
 export default function CustomerDetailScreen() {
   const colors = useColors();
@@ -36,6 +37,48 @@ export default function CustomerDetailScreen() {
   const { data: refundsData } = useRefundsList();
   const { data: summaryData } = useCustomerSummary(id as string, { query: { enabled: !!id, queryKey: getCustomerSummaryQueryKey(id as string) } });
   const summary = summaryData?.summary;
+
+  // Customer invite
+  const inviteMutation = useCustomerInviteCreate();
+  const [inviteResult, setInviteResult] = useState<CustomerInviteResult | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [showInvite, setShowInvite] = useState(false);
+
+  const handleInvite = () => {
+    setInviteError(null);
+    inviteMutation.mutate(
+      { id: id as string },
+      {
+        onSuccess: (res) => {
+          setInviteResult(res);
+          setShowInvite(true);
+        },
+        onError: (err: any) => {
+          setInviteError(err?.data?.message ?? err?.message ?? 'Could not generate invite.');
+        },
+      },
+    );
+  };
+
+  const handleCopyToken = () => {
+    if (!inviteResult) return;
+    Clipboard.setString(inviteResult.token);
+    Alert.alert('Copied', 'Activation token copied to clipboard.');
+  };
+
+  const handleShareToken = async () => {
+    if (!inviteResult) return;
+    try {
+      await Share.share({
+        message:
+          `Open VMC Electronic BMS, choose “Activate Account” on the sign-in screen, and enter this single-use token:\n\n` +
+          `${inviteResult.token}\n\nExpires: ${new Date(inviteResult.expiresAt).toLocaleString()}`,
+        title: 'Customer Activation Token',
+      });
+    } catch {
+      // User cancelled share — ignore
+    }
+  };
   const customerReturns = useMemo(() => {
     return (returnsData?.returns || []).filter(r => r.customerId === id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [returnsData, id]);
@@ -63,7 +106,7 @@ export default function CustomerDetailScreen() {
   if (!customer) {
     return (
       <View style={[{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }]}>
-        <ScreenGlow />
+
         <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>Customer not found</Text>
       </View>
     );
@@ -71,7 +114,7 @@ export default function CustomerDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <View style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -85,7 +128,7 @@ export default function CustomerDetailScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
         {/* Profile Card */}
-        <GlassCard animValue={anims[0]} style={styles.profileCard}>
+        <FlatCard animValue={anims[0]} style={styles.profileCard}>
           <Avatar name={customer.name} size={64} />
           {customer.isSample && <SampleBadge style={{ alignSelf: 'center', marginTop: 6 }} />}
           <Text style={[styles.name, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{customer.name}</Text>
@@ -105,7 +148,11 @@ export default function CustomerDetailScreen() {
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, width: '100%' }}>
             <TouchableOpacity
               style={{ flex: 1, backgroundColor: colors.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
-              onPress={() => router.push(`/(tabs)/customers/chat/${customer.id}?type=customer&name=${encodeURIComponent(customer.name)}`)}
+              onPress={() =>
+                router.push(
+                  `/(tabs)/customers/chat/${customer.id}?targetId=${customer.id}&type=customer&name=${encodeURIComponent(customer.name)}`,
+                )
+              }
               activeOpacity={0.8}
             >
               <Feather name="message-square" size={16} color="#FFFFFF" />
@@ -122,6 +169,76 @@ export default function CustomerDetailScreen() {
               </TouchableOpacity>
             )}
           </View>
+
+          {/* Customer invite — dealer/owner only */}
+          {(canAccess('customers')) && (
+            <View style={{ width: '100%', marginTop: 10 }}>
+              {showInvite && inviteResult ? (
+                <View style={{ backgroundColor: colors.backgroundSecondary, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, gap: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Feather name="check-circle" size={16} color={colors.success} />
+                    <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>
+                      Invite created — token shown once only
+                    </Text>
+                  </View>
+                  <Text
+                    selectable
+                    style={{
+                      fontSize: 12, color: colors.primary, fontFamily: 'Inter_500Medium',
+                      backgroundColor: colors.card, borderRadius: 8, padding: 10,
+                      borderWidth: 1, borderColor: colors.border,
+                    }}
+                  >
+                    {inviteResult.token}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+                    Expires: {new Date(inviteResult.expiresAt).toLocaleString()}
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                    <TouchableOpacity
+                      onPress={handleCopyToken}
+                      style={{ flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, paddingVertical: 10, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                    >
+                      <Feather name="copy" size={14} color={colors.foreground} />
+                      <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>Copy</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleShareToken}
+                      style={{ flex: 1, backgroundColor: colors.primary, paddingVertical: 10, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                    >
+                      <Feather name="share-2" size={14} color="#FFFFFF" />
+                      <Text style={{ fontSize: 13, color: '#FFFFFF', fontFamily: 'Inter_500Medium' }}>Share</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity onPress={() => { setShowInvite(false); setInviteResult(null); }}>
+                    <Text style={{ fontSize: 11, color: colors.mutedForeground, textAlign: 'center', marginTop: 2 }}>Dismiss</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={handleInvite}
+                  disabled={inviteMutation.isPending}
+                  style={{
+                    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
+                    paddingVertical: 12, borderRadius: 12,
+                    alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8,
+                    opacity: inviteMutation.isPending ? 0.6 : 1,
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Feather name="user-plus" size={16} color={colors.primary} />
+                  <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 14 }}>
+                    {inviteMutation.isPending ? 'Generating…' : 'Invite Customer'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {inviteError && (
+                <Text style={{ fontSize: 12, color: colors.destructive, fontFamily: 'Inter_400Regular', marginTop: 6, textAlign: 'center' }}>
+                  {inviteError}
+                </Text>
+              )}
+            </View>
+          )}
 
           {summary && (
             <View style={{ width: '100%', marginTop: 16 }}>
@@ -165,7 +282,7 @@ export default function CustomerDetailScreen() {
               </View>
             </View>
           )}
-        </GlassCard>
+        </FlatCard>
 
         {/* Payment Ledger — per-repair bill / paid / due */}
         {customerRepairs.length > 0 && (

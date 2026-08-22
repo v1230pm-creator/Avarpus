@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import type { DbUser } from "@workspace/db";
 import { getSessionUser } from "../lib/authUtils";
 import { isDealerPortalRole, dealerPortalAllowed } from "../lib/dealerPortal";
+import { customerPortalAllowed } from "../lib/customerPortal";
 import { userHasFeature } from "../lib/roleFeatures";
 
 declare global {
@@ -33,10 +34,28 @@ export function requireAuth(
         res.status(401).json({ message: "Session expired. Please sign in again." });
         return;
       }
-      // Dealer-portal accounts (external B2B dealer logins) are read-only
-      // and restricted to their own dealer's repair data. Enforced here at
-      // the auth boundary so every endpoint — present and future — is
-      // blocked by default unless explicitly allowlisted.
+      // ── Customer accounts ───────────────────────────────────────────────
+      // Customer users (role = "customer") are end-users tied to a single
+      // customer record. They may ONLY access the explicit allowlist in
+      // customerPortal.ts — everything else is 403 CUSTOMER_PORTAL_FORBIDDEN.
+      // Fail-closed: new business endpoints are blocked by default.
+      if (user.role === "customer") {
+        if (!customerPortalAllowed(req)) {
+          res.status(403).json({
+            message: "Customer account: access limited to your own profile and chat rooms.",
+            code: "CUSTOMER_PORTAL_FORBIDDEN",
+          });
+          return;
+        }
+        req.user = user;
+        req.sessionToken = token;
+        next();
+        return;
+      }
+      // ── Dealer-portal accounts ──────────────────────────────────────────
+      // External B2B dealer logins are read-only and restricted to their
+      // own dealer's repair data. Enforced here so every endpoint — present
+      // and future — is blocked by default unless explicitly allowlisted.
       if (isDealerPortalRole(user.role)) {
         if (!dealerPortalAllowed(req)) {
           res.status(403).json({

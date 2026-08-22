@@ -29,16 +29,16 @@ import { useColors } from '@/hooks/useColors';
 import { RepairStatusBadge, PriorityBadge, SampleBadge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { RepairStatus } from '@/types';
 import { formatDate, formatCurrency, REPAIR_STATUS_LABELS, REPAIR_STATUSES, getReturnStatusColor } from '@/utils/helpers';
 import { storage, KEYS } from '@/utils/storage';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { KeyboardAvoidingCompat } from '@/components/KeyboardAvoidingCompat';
-import { 
-  useRepairPhotosList, getRepairPhotosListQueryKey, 
-  useRepairEventsList, getRepairEventsListQueryKey, 
-  requestUploadUrl, repairPhotosAdd, 
+import {
+  useRepairPhotosList, getRepairPhotosListQueryKey,
+  useRepairEventsList, getRepairEventsListQueryKey,
+  requestUploadUrl, repairPhotosAdd,
   useReturnsList, getReturnsListQueryKey,
   useRepairPartsList, getRepairPartsListQueryKey, repairPartsAdd,
   useRepairPaymentsList, getRepairPaymentsListQueryKey, repairPaymentsCreate, repairPaymentVoid,
@@ -107,12 +107,12 @@ export default function RepairDetailScreen() {
   const { repairs, updateRepair, deleteRepair, inventory, loadAll } = useData();
   const { user, canAccess } = useAuth();
   const queryClient = useQueryClient();
-  
+
   const [updating, setUpdating] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [showDeliverySig, setShowDeliverySig] = useState(false);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
-  
+
   const [showDeliveryHandover, setShowDeliveryHandover] = useState(false);
   const [handoverPaymentMethod, setHandoverPaymentMethod] = useState('Cash');
 
@@ -149,27 +149,27 @@ export default function RepairDetailScreen() {
     totalPaidAfter: number; remainingAfter: number;
   } | null>(null);
   const paymentSubmitRef = useRef(false);
-  
+
   // Technician Assignment
   const [showAssign, setShowAssign] = useState(false);
-  
+
   // Testing Checklist
   const [showTesting, setShowTesting] = useState(false);
   const [testingChecklist, setTestingChecklist] = useState<Record<string, boolean>>({});
   // Testing results being edited inside the Service Edit modal (true = Pass, false = Fail, absent = not tested)
   const [editTesting, setEditTesting] = useState<Record<string, boolean>>({});
-  
+
   // Estimate Approval
   const [showApproval, setShowApproval] = useState(false);
   const [newEstimate, setNewEstimate] = useState('');
   const [approvalReason, setApprovalReason] = useState('');
   const [showOtp, setShowOtp] = useState(false);
   const [otpCode, setOtpCode] = useState('');
-  
+
   // Delivery OTP
   const [showDeliveryOtp, setShowDeliveryOtp] = useState(false);
   const [deliveryOtpCode, setDeliveryOtpCode] = useState('');
-  
+
   // Warranty
   const [deliveryWarranty, setDeliveryWarranty] = useState('0');
   const [customWarrantyDays, setCustomWarrantyDays] = useState('');
@@ -214,7 +214,7 @@ export default function RepairDetailScreen() {
   const { data: eventsData } = useRepairEventsList(id as string, { query: { enabled: !!id, queryKey: getRepairEventsListQueryKey(id as string) } });
   const { data: returnsData } = useReturnsList({ query: { queryKey: getReturnsListQueryKey() } });
   const { data: partsData, refetch: partsRefetch } = useRepairPartsList(id as string, { query: { enabled: !!id, queryKey: getRepairPartsListQueryKey(id as string) } });
-  
+
   const { data: paymentsData, refetch: paymentsRefetch } = useRepairPaymentsList(id as string, { query: { enabled: !!id, queryKey: getRepairPaymentsListQueryKey(id as string) } });
   const { data: staffData } = useStaffList({ query: { queryKey: getStaffListQueryKey() } });
   const { data: approvalsData, refetch: approvalsRefetch } = useEstimateApprovalsList(id as string, { query: { enabled: !!id, queryKey: getEstimateApprovalsListQueryKey(id as string) } });
@@ -233,7 +233,7 @@ export default function RepairDetailScreen() {
   if (!repair) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
-        <ScreenGlow />
+
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
@@ -511,11 +511,11 @@ export default function RepairDetailScreen() {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const sigPath = await uploadToGcs(signatureUri, 'image/png');
-      
+
       if (!sigPath) {
         throw new Error('Failed to upload delivery signature.');
       }
-      
+
       const deliveryDate = new Date().toISOString().split('T')[0];
       let warrantyExpiry = undefined;
       const wd = deliveryWarranty === 'Custom' ? parseInt(customWarrantyDays || '0') : parseInt(deliveryWarranty);
@@ -937,7 +937,7 @@ export default function RepairDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       {/* HEADER: back | JobID + status | more */}
       <View style={[styles.header, { paddingTop: topPad + 14 }]}>
@@ -1866,14 +1866,14 @@ export default function RepairDetailScreen() {
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground, marginBottom: 4 }]}>Delivery Handover</Text>
-            
+
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.primary + '11', padding: 12, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: colors.primary + '22' }}>
               <Feather name="check-circle" size={16} color={colors.primary} />
               <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_600SemiBold', flex: 1 }}>Verify device fully working before handover</Text>
             </View>
 
             <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 16 }}>Review final amounts and collect payment before signature.</Text>
-            
+
             {canSeeFinance && (
               <View style={{ backgroundColor: colors.card, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 16 }}>
                 <InfoRow label="Labour / Repair Charge" value={formatCurrency(repair.repairCharge)} />
@@ -1885,7 +1885,7 @@ export default function RepairDetailScreen() {
                 <InfoRow label="Balance Payable" value={formatCurrency(balance)} color={balance > 0 ? colors.warning : colors.success} bold />
               </View>
             )}
-            
+
             <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_500Medium', marginBottom: 8 }}>Payment Method</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
               {['Cash', 'UPI', 'Bank Transfer', 'Card', 'Other'].map(m => (
@@ -1902,7 +1902,7 @@ export default function RepairDetailScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-            
+
 
             <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_500Medium', marginBottom: 8 }}>Warranty (Days)</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
@@ -1922,15 +1922,15 @@ export default function RepairDetailScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-            
+
             {deliveryWarranty === 'Custom' && (
               <View style={{ marginBottom: 20 }}>
                 <Text style={[styles.label, { color: colors.foreground }]}>Custom Days (1-3650)</Text>
-                <TextInput 
-                  value={customWarrantyDays} 
-                  onChangeText={setCustomWarrantyDays} 
-                  keyboardType="numeric" 
-                  style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} 
+                <TextInput
+                  value={customWarrantyDays}
+                  onChangeText={setCustomWarrantyDays}
+                  keyboardType="numeric"
+                  style={[styles.input, { color: colors.foreground, borderColor: colors.border }]}
                   placeholder="e.g. 365"
                 />
               </View>
@@ -1990,10 +1990,10 @@ export default function RepairDetailScreen() {
                 <TextInput value={partCost} onChangeText={setPartCost} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
               </>
             )}
-            
+
             <Text style={[styles.label, { color: colors.foreground }]}>Quantity</Text>
             <TextInput value={partQty} onChangeText={setPartQty} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
-            
+
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
               <Button title="Cancel" variant="outline" onPress={() => setShowAddPart(false)} style={{ flex: 1 }} />
               <Button title="Add" onPress={handleAddPart} loading={updating} style={{ flex: 1 }} />
@@ -2002,7 +2002,7 @@ export default function RepairDetailScreen() {
         </KeyboardAvoidingCompat>
       </Modal>
 
-      
+
       {/* Collect Payment Modal */}
       <Modal visible={showPayment} animationType="fade" transparent onRequestClose={() => setShowPayment(false)}>
         <View style={styles.modalOverlay}>
@@ -2200,7 +2200,7 @@ export default function RepairDetailScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Final Testing Checklist</Text>
-            
+
             <ScrollView style={{ maxHeight: 400, marginVertical: 10 }}>
               {renderTestingRows(testingChecklist, setTestingChecklist)}
             </ScrollView>
@@ -2231,10 +2231,10 @@ export default function RepairDetailScreen() {
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Request Customer Approval</Text>
-            
+
             <Text style={[styles.label, { color: colors.foreground }]}>New Estimate Amount (₹)</Text>
             <TextInput value={newEstimate} onChangeText={setNewEstimate} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
-            
+
             <Text style={[styles.label, { color: colors.foreground }]}>Reason for Change</Text>
             <TextInput value={approvalReason} onChangeText={setApprovalReason} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
 
@@ -2276,20 +2276,20 @@ export default function RepairDetailScreen() {
             <KeyboardAwareScrollViewCompat style={{ maxHeight: 300 }} bottomOffset={24}>
               <Text style={[styles.label, { color: colors.foreground }]}>Labour / Repair Charge</Text>
               <TextInput value={editRepairCharge} onChangeText={setEditRepairCharge} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
-              
+
               <Text style={[styles.label, { color: colors.foreground }]}>Service Charge</Text>
               <TextInput value={editServiceCharge} onChangeText={setEditServiceCharge} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
-              
+
               <Text style={[styles.label, { color: colors.foreground }]}>Other Charge</Text>
               <TextInput value={editOtherCharge} onChangeText={setEditOtherCharge} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
-              
+
               <Text style={[styles.label, { color: colors.foreground }]}>Discount</Text>
               <TextInput value={editDiscount} onChangeText={setEditDiscount} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
-              
+
               <Text style={[styles.label, { color: colors.foreground }]}>Tax %</Text>
               <TextInput value={editTaxPercent} onChangeText={setEditTaxPercent} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
             </KeyboardAwareScrollViewCompat>
-            
+
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
               <Button title="Cancel" variant="outline" onPress={() => setShowFinancialEdit(false)} style={{ flex: 1 }} />
               <Button title="Save" onPress={handleSaveFinancials} loading={updating} style={{ flex: 1 }} />
@@ -2432,14 +2432,14 @@ export default function RepairDetailScreen() {
         </View>
       </Modal>
 
-    
+
       {/* Delivery OTP Modal */}
       <Modal visible={showDeliveryOtp} animationType="slide" transparent>
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Verify Delivery OTP</Text>
             <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 16 }}>Sent to customer email.</Text>
-            
+
             <TextInput value={deliveryOtpCode} onChangeText={setDeliveryOtpCode} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} placeholder="OTP Code" />
 
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
@@ -2449,7 +2449,7 @@ export default function RepairDetailScreen() {
                 setUpdating(true);
                 try {
                   await deliveryOtpVerify(repair.id, { code: deliveryOtpCode });
-                  
+
                   // Setup warranty
                   const deliveryDate = new Date().toISOString().split('T')[0];
                   let warrantyExpiry = undefined;
@@ -2469,7 +2469,7 @@ export default function RepairDetailScreen() {
                     paymentMethod: handoverPaymentMethod,
                     otpVerified: true
                   });
-                  
+
                   setShowDeliveryOtp(false);
                   await loadAll();
                   queryClient.invalidateQueries();
@@ -2489,7 +2489,7 @@ export default function RepairDetailScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Assign Technician</Text>
-            
+
             <ScrollView style={{ maxHeight: 300 }}>
               {technicians.map(tech => (
                 <TouchableOpacity key={tech.id} onPress={async () => {

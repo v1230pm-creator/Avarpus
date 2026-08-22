@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
-import { GlassCard, ScreenGlow } from '@/components/ui/Glass';
+import { FlatCard } from '@/components/ui/Glass';
 import { RepairStatusBadge, PriorityBadge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState } from '@/components/ui/DataStates';
@@ -35,13 +35,13 @@ type StatusFilter = (typeof STATUS_FILTERS)[number];
 function StatCard({ label, value, color, icon }: { label: string; value: string; color: string; icon: keyof typeof Feather.glyphMap }) {
   const colors = useColors();
   return (
-    <GlassCard style={styles.statCard}>
+    <FlatCard style={styles.statCard}>
       <View style={[styles.statIcon, { backgroundColor: color + '18' }]}>
         <Feather name={icon} size={14} color={color} />
       </View>
       <Text style={[styles.statValue, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>{value}</Text>
       <Text style={[styles.statLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>{label}</Text>
-    </GlassCard>
+    </FlatCard>
   );
 }
 
@@ -111,7 +111,7 @@ export default function DealerProfileScreen() {
   const header = useMemo(() => (
     <View style={{ gap: 14 }}>
       {dealer && (
-        <GlassCard style={{ padding: 16, gap: 8 }}>
+        <FlatCard style={{ padding: 16, gap: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <View style={[styles.avatar, { backgroundColor: colors.primary + '18' }]}>
               <Feather name="briefcase" size={20} color={colors.primary} />
@@ -146,7 +146,11 @@ export default function DealerProfileScreen() {
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 8, width: '100%' }}>
               <TouchableOpacity
                 style={{ flex: 1, backgroundColor: colors.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
-                onPress={() => router.push(`/(tabs)/customers/chat/${dealer.id}?type=dealer&name=${encodeURIComponent(dealer.name)}`)}
+                onPress={() =>
+                  router.push(
+                    `/(tabs)/customers/chat/${dealer.id}?targetId=${dealer.id}&type=dealer&name=${encodeURIComponent(dealer.name)}`,
+                  )
+                }
                 activeOpacity={0.8}
               >
                 <Feather name="message-square" size={16} color="#FFFFFF" />
@@ -164,7 +168,7 @@ export default function DealerProfileScreen() {
               )}
             </View>
           )}
-        </GlassCard>
+        </FlatCard>
       )}
 
       {stats && (
@@ -180,7 +184,7 @@ export default function DealerProfileScreen() {
         </View>
       )}
 
-      <GlassCard style={styles.searchBar}>
+      <FlatCard style={styles.searchBar}>
         <Feather name="search" size={16} color={colors.mutedForeground} />
         <TextInput
           value={search}
@@ -194,7 +198,7 @@ export default function DealerProfileScreen() {
             <Feather name="x" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
         )}
-      </GlassCard>
+      </FlatCard>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
         {STATUS_FILTERS.map((f) => {
@@ -220,7 +224,7 @@ export default function DealerProfileScreen() {
   if (profileLoading && !profile) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ScreenGlow />
+
         <DataLoadingState />
       </View>
     );
@@ -228,7 +232,7 @@ export default function DealerProfileScreen() {
   if (profileError && !profile) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ScreenGlow />
+
         <DataErrorState onRetry={onRefresh} />
       </View>
     );
@@ -236,7 +240,7 @@ export default function DealerProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <View style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}>
@@ -283,7 +287,7 @@ export default function DealerProfileScreen() {
           const balance = Math.max(0, total - item.advance);
           return (
             <TouchableOpacity onPress={() => router.push(`/(tabs)/repairs/${item.id}`)} activeOpacity={0.8}>
-              <GlassCard style={{ padding: 16, gap: 7 }}>
+              <FlatCard style={{ padding: 16, gap: 7 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <View style={[styles.codeBadge, { backgroundColor: colors.primary + '15' }]}>
                     <Text style={{ fontSize: 11, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{item.repairId}</Text>
@@ -304,7 +308,7 @@ export default function DealerProfileScreen() {
                 {balance > 0 && (
                   <Text style={{ fontSize: 12, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>Pending: {formatCurrency(balance)}</Text>
                 )}
-              </GlassCard>
+              </FlatCard>
             </TouchableOpacity>
           );
         }}

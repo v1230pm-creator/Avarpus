@@ -12,7 +12,7 @@ interface CardProps {
 }
 
 /**
- * Glass-style card matching the dashboard's premium look.
+ * Glass-style card matching the app's premium look.
  * Backwards compatible: `variant` tweaks shadow/border strength.
  */
 export function Card({ children, style, variant = 'default', padding = 16 }: CardProps) {

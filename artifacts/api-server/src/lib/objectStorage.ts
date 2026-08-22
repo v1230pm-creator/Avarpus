@@ -137,6 +137,56 @@ export class ObjectStorageService {
     });
   }
 
+  /**
+   * Sign a PUT URL for an object directly under a caller-supplied prefix.
+   * The prefix MUST be a clean relative path segment with no leading slash,
+   * no `..` components, and no query/fragment characters.  Throws if it fails
+   * validation so callers never accidentally sign outside their namespace.
+   *
+   * Returns both the signed URL (for the client to PUT to) and the normalised
+   * `/objects/…` path that refers to the exact same storage key — there is no
+   * post-signing path rewrite.
+   *
+   * Existing callers of `getObjectEntityUploadURL` are unaffected.
+   */
+  async getObjectEntityUploadURLWithPrefix(
+    prefix: string,
+  ): Promise<{ uploadURL: string; objectPath: string }> {
+    // Guard against path traversal and other injection.
+    if (typeof prefix !== 'string' || !prefix) {
+      throw new Error('prefix must be a non-empty string');
+    }
+    // Reject absolute paths, `..` segments, and any URL-special characters.
+    if (
+      prefix.startsWith('/') ||
+      prefix.includes('..') ||
+      /[?#]/.test(prefix) ||
+      // Each segment must be non-empty after splitting on /
+      prefix.split('/').some((seg) => seg === '')
+    ) {
+      throw new Error(`Invalid prefix: ${prefix}`);
+    }
+
+    const privateObjectDir = this.getPrivateObjectDir();
+    const objectId = randomUUID();
+    const fullPath = `${privateObjectDir}/uploads/${prefix}/${objectId}`;
+
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+
+    const signedURL = await signObjectURL({
+      bucketName,
+      objectName,
+      method: 'PUT',
+      ttlSec: 900,
+    });
+
+    // Derive the canonical /objects/… path from the signed URL so the two
+    // values always refer to the same key — no string surgery after signing.
+    const objectPath = this.normalizeObjectEntityPath(signedURL);
+
+    return { uploadURL: signedURL, objectPath };
+  }
+
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith('/objects/')) {
       throw new ObjectNotFoundError();

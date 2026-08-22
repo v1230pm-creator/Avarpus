@@ -12,7 +12,7 @@ export default function ScannerScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { repairs } = useData();
-  
+
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
 
@@ -28,15 +28,15 @@ export default function ScannerScreen() {
 
   const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
     setScanned(true);
-    
+
     // First try direct ID
     let repair = repairs.find(r => r.id === data);
-    
+
     // If not found, try matching ticket number
     if (!repair) {
       repair = repairs.find(r => r.repairId === data);
     }
-    
+
     if (repair) {
       router.replace(`/(tabs)/repairs/${repair.id}`);
     } else {
@@ -86,14 +86,14 @@ export default function ScannerScreen() {
         facing="back"
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned as any}
       />
-      
+
       <View style={[styles.overlay, { paddingTop: insets.top + 16, paddingHorizontal: 20 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <TouchableOpacity onPress={() => router.back()} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' }}>
             <Feather name="x" size={24} color="#FFF" />
           </TouchableOpacity>
         </View>
-        
+
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <View style={{ width: 250, height: 250, borderWidth: 2, borderColor: colors.primary, backgroundColor: 'transparent', borderRadius: 16 }}>
             <View style={{ position: 'absolute', top: -2, left: -2, width: 20, height: 20, borderTopWidth: 4, borderLeftWidth: 4, borderColor: colors.primary, borderTopLeftRadius: 16 }} />

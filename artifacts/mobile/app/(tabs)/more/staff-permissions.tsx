@@ -19,13 +19,12 @@ import {
   staffPermissionsUpdate,
   type IndividualPermissions,
 } from '@workspace/api-client-react';
-import { GlassCard, ScreenGlow } from '@/components/ui/Glass';
+import { FlatCard } from '@/components/ui/FlatCard';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { ROLE_LABELS } from '@/utils/helpers';
 
 const FEATURE_LABELS: Record<string, { label: string; description: string }> = {
-  dashboard: { label: 'Dashboard', description: 'Home screen counts and activity' },
   repairs: { label: 'Repairs — view', description: 'Open repair lists and job details' },
   repairs_create: { label: 'Repairs — create', description: 'Register new repair jobs' },
   repairs_update: { label: 'Repairs — actions', description: 'Update jobs, parts, testing and delivery actions' },
@@ -153,7 +152,6 @@ export default function StaffPermissionsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
       <View style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity
           onPress={() => router.back()}
@@ -192,7 +190,7 @@ export default function StaffPermissionsScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]}
         >
-          <GlassCard style={styles.profileCard}>
+          <FlatCard style={styles.profileCard}>
             <View style={[styles.profileIcon, { backgroundColor: colors.primary + '18' }]}>
               <Feather name="user" size={20} color={colors.primary} />
             </View>
@@ -216,7 +214,7 @@ export default function StaffPermissionsScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-          </GlassCard>
+          </FlatCard>
 
           <View style={[styles.infoBox, { backgroundColor: colors.primary + '0D', borderColor: colors.primary + '20' }]}>
             <Feather name="info" size={15} color={colors.primary} />
@@ -228,7 +226,7 @@ export default function StaffPermissionsScreen() {
           <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
             FEATURES & ACTIONS
           </Text>
-          <GlassCard style={styles.permissionCard}>
+          <FlatCard style={styles.permissionCard}>
             {visibleKeys.map((key, index) => {
               const meta = FEATURE_LABELS[key];
               const inherited = !Object.prototype.hasOwnProperty.call(settings.overrides, key);
@@ -282,7 +280,7 @@ export default function StaffPermissionsScreen() {
                 </View>
               );
             })}
-          </GlassCard>
+          </FlatCard>
 
           <Text style={[styles.footerNote, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
             Changes are enforced by the server and refresh automatically on this person&apos;s signed-in devices.

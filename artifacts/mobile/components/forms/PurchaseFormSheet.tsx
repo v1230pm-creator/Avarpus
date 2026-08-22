@@ -80,7 +80,7 @@ export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
     if (!Number.isFinite(price) || price < 0) e.purchasePrice = 'Enter a valid unit price';
     if (!isValidDateStr(date.trim())) e.date = 'Enter a valid date as YYYY-MM-DD';
     else if (date.trim() > getTodayStr()) e.date = 'Date cannot be in the future';
-    
+
     if (isBackdated && !reason.trim()) {
       e.reason = 'A reason is required for backdated entries';
     }
@@ -163,7 +163,7 @@ export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
       <Input label="Supplier *" value={supplier} onChangeText={setSupplier} placeholder="Supplier name" error={errors.supplier} />
       <Input label="Supplier Mobile" value={supplierMobile} onChangeText={setSupplierMobile} placeholder="Optional" keyboardType="phone-pad" maxLength={10} error={errors.supplierMobile} />
       <Input label="Date *" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} error={errors.date} />
-      
+
       {isBackdated && (
         <Input label="Reason for backdating *" value={reason} onChangeText={setReason} placeholder="Explain why this is backdated..." error={errors.reason} />
       )}

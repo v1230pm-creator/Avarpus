@@ -7,7 +7,8 @@ import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
-import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
+import { FlatCard } from '@/components/ui/FlatCard';
+import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
 import { useApprovalsList, useLatestAppUpdate, useNotificationsList } from '@workspace/api-client-react';
 import { getAppBuildNumber, getAppVersion } from '@/utils/appVersion';
@@ -25,7 +26,7 @@ interface MenuItem {
 }
 
 const MENU_ITEMS: MenuItem[] = [
-  { id: 'my-profile', label: 'My Profile', icon: 'user', route: '/(tabs)/more/profile', color: '#4DA3FF', description: 'Name, mobile and password', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff'] },
+  { id: 'my-profile', label: 'My Profile', icon: 'user', route: '/(tabs)/more/profile', color: '#4DA3FF', description: 'Name, mobile and password', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'] },
   { id: 'notifications', label: 'Notifications', icon: 'bell', route: '/(tabs)/more/notifications', color: '#F59E0B', description: 'Repairs, payments and approvals', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician'] },
   { id: 'activity', label: 'Activity Log', icon: 'activity', route: '/(tabs)/more/activity', color: '#34D399', description: 'View system events', roles: ['super_admin', 'dealer'] },
   { id: 'finance', label: 'Finance', icon: 'bar-chart-2', route: '/(tabs)/more/finance', color: '#34D399', description: 'Income, expense, cash book', roles: ['super_admin', 'dealer'], feature: 'finance' },
@@ -45,18 +46,26 @@ export default function MoreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout, canAccess } = useAuth();
+  const role = user?.role ?? '';
+  const isPortal = role === 'dealer_owner' || role === 'dealer_staff';
+  const isCustomer = role === 'customer';
+  const isOwner = role === 'dealer' || role === 'super_admin';
   const currentVersion = getAppVersion();
   const currentBuild = getAppBuildNumber();
-  const { data: approvalsData } = useApprovalsList();
+  const { data: approvalsData } = useApprovalsList({
+    query: { enabled: isOwner },
+  } as any);
   const pendingCount = approvalsData?.pendingCount || 0;
   // Unread in-app notifications badge (polled every minute). Portal accounts
   // don't have a notification inbox.
-  const notifRole = useAuth().user?.role ?? '';
-  const notifEnabled = notifRole !== 'dealer_owner' && notifRole !== 'dealer_staff';
+  const notifEnabled = !isPortal && !isCustomer;
   const { data: notifData } = useNotificationsList({ query: { enabled: notifEnabled, refetchInterval: 60000 } } as any);
   const unreadNotifs = notifData?.unreadCount || 0;
   // Quiet update indicator: a small badge only, never a popup.
-  const { data: latestUpdateData } = useLatestAppUpdate({ buildNumber: currentBuild });
+  const { data: latestUpdateData } = useLatestAppUpdate(
+    { buildNumber: currentBuild },
+    { query: { enabled: !isCustomer } } as any,
+  );
   const updateAvailable =
     !!latestUpdateData?.update && latestUpdateData.update.buildNumber > currentBuild;
 
@@ -64,10 +73,10 @@ export default function MoreScreen() {
 
   // Fixed role lists cover owner roles; staff visibility follows the shop's
   // per-role feature toggles (More → Staff Permissions) when `feature` is set.
-  const role = user?.role ?? '';
-  const isPortal = role === 'dealer_owner' || role === 'dealer_staff';
   const visibleItems = MENU_ITEMS.filter(
-    (item) => item.roles.includes(role) || (!isPortal && !!item.feature && canAccess(item.feature)),
+    (item) =>
+      item.roles.includes(role) ||
+      (!isPortal && !isCustomer && !!item.feature && canAccess(item.feature)),
   );
 
   const anims = useStaggerAnim(3);
@@ -80,15 +89,16 @@ export default function MoreScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
-
-      <View style={[styles.header, { paddingTop: topPad + 16 }]}>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>More</Text>
+      <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
+          <Feather name="arrow-left" size={24} color={colors.foreground} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Menu</Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
         {/* User Card */}
-        <GlassCard animValue={anims[0]} style={styles.userCard}>
+        <FlatCard animValue={anims[0]} style={styles.userCard}>
           <Avatar name={user?.name ?? 'User'} size={56} />
           <View style={styles.userInfo}>
             <Text style={[styles.userName, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{user?.name}</Text>
@@ -99,11 +109,11 @@ export default function MoreScreen() {
               </Text>
             </View>
           </View>
-        </GlassCard>
+        </FlatCard>
 
         {/* Menu Items */}
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>MODULES</Text>
-        <GlassCard animValue={anims[1]} style={styles.menuGroup}>
+        <FlatCard animValue={anims[1]} style={styles.menuGroup}>
           {visibleItems.map((item, idx) => (
             <TouchableOpacity
               key={item.id}
@@ -139,7 +149,7 @@ export default function MoreScreen() {
               <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
             </TouchableOpacity>
           ))}
-        </GlassCard>
+        </FlatCard>
 
         {/* Version info */}
         <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>

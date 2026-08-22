@@ -1107,6 +1107,150 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface CustomerInviteResult {
+  /** Raw invite token — returned once only, never stored */
+  token: string;
+  expiresAt: string;
+  customerId: string;
+}
+
+export interface ActivateInviteInput {
+  token: string;
+  name: string;
+  password: string;
+}
+
+export interface ChatCapabilities {
+  e2eeEnabled: boolean;
+  matrixAvailable: boolean;
+  livekitAvailable: boolean;
+}
+
+export type ChatRoomKind = typeof ChatRoomKind[keyof typeof ChatRoomKind];
+
+
+export const ChatRoomKind = {
+  customer: 'customer',
+  dealer: 'dealer',
+} as const;
+
+export type ChatMessageKind = typeof ChatMessageKind[keyof typeof ChatMessageKind];
+
+
+export const ChatMessageKind = {
+  text: 'text',
+  image: 'image',
+  file: 'file',
+  audio: 'audio',
+  system: 'system',
+} as const;
+
+export interface ChatMessage {
+  id: string;
+  roomId: string;
+  shopId: string;
+  senderId: string;
+  senderName: string;
+  kind: ChatMessageKind;
+  body: string;
+  objectPath?: string;
+  /** Integer duration in milliseconds. Only set for kind=audio (voice notes). */
+  durationMs?: number;
+  clientRequestId?: string;
+  deletedAt?: string;
+  createdAt: string;
+}
+
+export interface ChatRoom {
+  id: string;
+  shopId: string;
+  kind: ChatRoomKind;
+  name: string;
+  customerId?: string;
+  dealerId?: string;
+  providerRoomId?: string;
+  /** Deterministic sorted pair of participant user IDs for one-to-one rooms. */
+  peerKey?: string;
+  isArchived: boolean;
+  createdById?: string;
+  createdByName?: string;
+  createdAt: string;
+  unreadCount?: number;
+  lastMessage?: ChatMessage;
+}
+
+export type ChatRoomCreateInputKind = typeof ChatRoomCreateInputKind[keyof typeof ChatRoomCreateInputKind];
+
+
+export const ChatRoomCreateInputKind = {
+  customer: 'customer',
+  dealer: 'dealer',
+} as const;
+
+/**
+ * Create (or return existing) a one-to-one chat room. kind=customer requires customerId (must have exactly one active customer user link). kind=dealer requires dealerId (same shop) and resolves exactly one active dealer-portal target. support/group kinds are out of scope (400).
+ */
+export interface ChatRoomCreateInput {
+  name: string;
+  kind: ChatRoomCreateInputKind;
+  customerId?: string;
+  dealerId?: string;
+  clientRequestId?: string;
+}
+
+export type ChatMessageSendInputKind = typeof ChatMessageSendInputKind[keyof typeof ChatMessageSendInputKind];
+
+
+export const ChatMessageSendInputKind = {
+  text: 'text',
+  image: 'image',
+  file: 'file',
+  audio: 'audio',
+} as const;
+
+/**
+ * Send a message. clientRequestId is REQUIRED and must be stable across retries; the server dedupes on (roomId, senderId, clientRequestId) and derives the Matrix transaction id deterministically so retries never create a second row nor a second provider event. For kind=audio a room-scoped objectPath and an integer durationMs (1..600000) are REQUIRED; durationMs must be omitted for non-audio kinds.
+ */
+export interface ChatMessageSendInput {
+  kind: ChatMessageSendInputKind;
+  body: string;
+  objectPath?: string;
+  /**
+     * Integer voice-note duration in milliseconds. REQUIRED for kind=audio; must be omitted for other kinds.
+     * @minimum 1
+     * @maximum 600000
+     */
+  durationMs?: number;
+  clientRequestId: string;
+}
+
+export interface ChatMarkReadInput {
+  messageId: string;
+}
+
+export interface ChatUploadUrlInput {
+  name: string;
+  size: number;
+  contentType: string;
+}
+
+export interface ChatUploadUrlResult {
+  uploadURL: string;
+  objectPath: string;
+}
+
+export interface ChatCallTokenResult {
+  token: string;
+  url: string;
+  roomName: string;
+  expiresIn: number;
+}
+
+export interface ServiceUnavailable {
+  message: string;
+  code?: string;
+}
+
 export type AuthOtpRequest200 = {
   message: string;
 };
@@ -1535,5 +1679,35 @@ export type RoleFeaturesUpdate200Matrix = {[key: string]: {[key: string]: boolea
 
 export type RoleFeaturesUpdate200 = {
   matrix: RoleFeaturesUpdate200Matrix;
+};
+
+export type ChatRoomsList200 = {
+  rooms: ChatRoom[];
+};
+
+export type ChatRoomsCreate200 = {
+  room: ChatRoom;
+  created: boolean;
+};
+
+export type ChatRoomsGet200 = {
+  room: ChatRoom;
+};
+
+export type ChatMessagesListParams = {
+/**
+ * Cursor: createdAt of the oldest loaded message
+ */
+before?: string;
+limit?: number;
+};
+
+export type ChatMessagesList200 = {
+  messages: ChatMessage[];
+  hasMore: boolean;
+};
+
+export type ChatMessagesSend200 = {
+  message: ChatMessage;
 };
 

@@ -18,6 +18,8 @@ tags:
     description: Object storage upload and serving endpoints.
   - name: dashboard
     description: Read-only dashboard stats and activity feed.
+  - name: chat
+    description: Real-time chat rooms, messages, read receipts and call tokens.
 paths:
   /auth/login:
     post:
@@ -2197,6 +2199,316 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Customer activation invites ─────────────────────────────────────────────
+  /customers/{id}/invite:
+    post:
+      operationId: customerInviteCreate
+      tags: [business]
+      summary: Issue a single-use activation invite for a customer (dealer/staff only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Invite token (returned once, never stored in plaintext)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerInviteResult"
+
+  /auth/activate-invite:
+    post:
+      operationId: authActivateInvite
+      tags: [auth]
+      summary: Activate a customer account using a single-use invite token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivateInviteInput"
+      responses:
+        "200":
+          description: Account activated and signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+
+  # ── Chat capabilities ────────────────────────────────────────────────────────
+  /chat/capabilities:
+    get:
+      operationId: chatCapabilities
+      tags: [chat]
+      summary: Describe available chat capabilities and provider status
+      responses:
+        "200":
+          description: Capabilities
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatCapabilities"
+
+  # ── Chat rooms ───────────────────────────────────────────────────────────────
+  /chat/rooms:
+    get:
+      operationId: chatRoomsList
+      tags: [chat]
+      summary: List chat rooms the caller belongs to (shop-scoped)
+      responses:
+        "200":
+          description: Rooms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rooms:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChatRoom"
+                required: [rooms]
+    post:
+      operationId: chatRoomsCreate
+      tags: [chat]
+      summary: Create or retrieve an idempotent one-to-one chat room
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRoomCreateInput"
+      responses:
+        "200":
+          description: Room (created or existing)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    $ref: "#/components/schemas/ChatRoom"
+                  created: { type: boolean }
+                required: [room, created]
+        "400":
+          description: Invalid kind (support/group out of scope) or missing fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "409":
+          description: >
+            Target account required or ambiguous. code is one of
+            CUSTOMER_ACCOUNT_REQUIRED, DEALER_ACCOUNT_REQUIRED,
+            DEALER_ACCOUNT_AMBIGUOUS.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceUnavailable"
+        "503":
+          description: Chat provider (Matrix/ESS) unavailable — no room created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceUnavailable"
+
+  /chat/rooms/{roomId}:
+    get:
+      operationId: chatRoomsGet
+      tags: [chat]
+      summary: Get a single chat room (members only; unauthorized returns 404)
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Room
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    $ref: "#/components/schemas/ChatRoom"
+                required: [room]
+
+  # ── Chat messages ────────────────────────────────────────────────────────────
+  /chat/rooms/{roomId}/messages:
+    get:
+      operationId: chatMessagesList
+      tags: [chat]
+      summary: List messages in a room (newest-first, paginated)
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema: { type: string }
+        - { name: before, in: query, required: false, schema: { type: string }, description: "Cursor: createdAt of the oldest loaded message" }
+        - { name: limit, in: query, required: false, schema: { type: number } }
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChatMessage"
+                  hasMore: { type: boolean }
+                required: [messages, hasMore]
+    post:
+      operationId: chatMessagesSend
+      tags: [chat]
+      summary: Send a message to a room (idempotent on clientRequestId)
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatMessageSendInput"
+      responses:
+        "200":
+          description: Created or existing (idempotent) message
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    $ref: "#/components/schemas/ChatMessage"
+                required: [message]
+        "400":
+          description: Missing/invalid fields (including clientRequestId)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "503":
+          description: Chat provider unavailable — message not delivered or stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceUnavailable"
+
+  # ── Read markers ─────────────────────────────────────────────────────────────
+  /chat/rooms/{roomId}/read:
+    post:
+      operationId: chatMarkRead
+      tags: [chat]
+      summary: Update the caller's read marker for a room
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatMarkReadInput"
+      responses:
+        "200":
+          description: Read marker updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  # ── Private chat upload URL ──────────────────────────────────────────────────
+  /chat/rooms/{roomId}/upload-url:
+    post:
+      operationId: chatUploadUrl
+      tags: [chat]
+      summary: Request a presigned upload URL for a chat media attachment
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatUploadUrlInput"
+      responses:
+        "200":
+          description: Upload URL and object path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatUploadUrlResult"
+
+  # ── Call tokens ──────────────────────────────────────────────────────────────
+  /chat/rooms/{roomId}/call-token:
+    post:
+      operationId: chatCallToken
+      tags: [chat]
+      summary: Mint a short-lived LiveKit call token for the caller in this room
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: LiveKit token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatCallTokenResult"
+        "503":
+          description: LiveKit credentials not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceUnavailable"
+
+  # ── Chat media download ───────────────────────────────────────────────────────
+  /chat/rooms/{roomId}/messages/{messageId}/media:
+    get:
+      operationId: chatMessageMedia
+      tags: [chat]
+      summary: >
+        Download a chat media attachment. Requires room membership; verifies the
+        message belongs to this room and has a non-null objectPath under the
+        expected uploads/<shopId>/chat/<roomId>/ prefix. Streams the object
+        directly from object storage. Returns 404 for any auth or path failure
+        (no information leak).
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Media file bytes
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Room or message not found, or caller not authorised
+
 components:
   schemas:
     ProfileUpdateInput:
@@ -3159,3 +3471,136 @@ components:
           type: string
       required:
         - status
+
+    # ── Customer invite schemas ────────────────────────────────────────────────
+    CustomerInviteResult:
+      type: object
+      properties:
+        token: { type: string, description: "Raw invite token — returned once only, never stored" }
+        expiresAt: { type: string }
+        customerId: { type: string }
+      required: [token, expiresAt, customerId]
+    ActivateInviteInput:
+      type: object
+      properties:
+        token: { type: string }
+        name: { type: string }
+        password: { type: string }
+      required: [token, name, password]
+
+    # ── Chat schemas ──────────────────────────────────────────────────────────
+    ChatCapabilities:
+      type: object
+      properties:
+        e2eeEnabled: { type: boolean }
+        matrixAvailable: { type: boolean }
+        livekitAvailable: { type: boolean }
+      required: [e2eeEnabled, matrixAvailable, livekitAvailable]
+    ChatRoom:
+      type: object
+      properties:
+        id: { type: string }
+        shopId: { type: string }
+        kind: { type: string, enum: [customer, dealer] }
+        name: { type: string }
+        customerId: { type: string }
+        dealerId: { type: string }
+        providerRoomId: { type: string }
+        peerKey:
+          type: string
+          description: Deterministic sorted pair of participant user IDs for one-to-one rooms.
+        isArchived: { type: boolean }
+        createdById: { type: string }
+        createdByName: { type: string }
+        createdAt: { type: string }
+        unreadCount: { type: number }
+        lastMessage:
+          $ref: "#/components/schemas/ChatMessage"
+      required: [id, shopId, kind, name, isArchived, createdAt]
+    ChatRoomCreateInput:
+      type: object
+      description: >
+        Create (or return existing) a one-to-one chat room. kind=customer
+        requires customerId (must have exactly one active customer user link).
+        kind=dealer requires dealerId (same shop) and resolves exactly one active
+        dealer-portal target. support/group kinds are out of scope (400).
+      properties:
+        name: { type: string }
+        kind: { type: string, enum: [customer, dealer] }
+        customerId: { type: string }
+        dealerId: { type: string }
+        clientRequestId: { type: string }
+      required: [name, kind]
+    ChatMessage:
+      type: object
+      properties:
+        id: { type: string }
+        roomId: { type: string }
+        shopId: { type: string }
+        senderId: { type: string }
+        senderName: { type: string }
+        kind: { type: string, enum: [text, image, file, audio, system] }
+        body: { type: string }
+        objectPath: { type: string }
+        durationMs:
+          type: number
+          description: >
+            Integer duration in milliseconds. Only set for kind=audio (voice notes).
+        clientRequestId: { type: string }
+        deletedAt: { type: string }
+        createdAt: { type: string }
+      required: [id, roomId, shopId, senderId, senderName, kind, body, createdAt]
+    ChatMessageSendInput:
+      type: object
+      description: >
+        Send a message. clientRequestId is REQUIRED and must be stable across
+        retries; the server dedupes on (roomId, senderId, clientRequestId) and
+        derives the Matrix transaction id deterministically so retries never
+        create a second row nor a second provider event.
+        For kind=audio a room-scoped objectPath and an integer durationMs
+        (1..600000) are REQUIRED; durationMs must be omitted for non-audio kinds.
+      properties:
+        kind: { type: string, enum: [text, image, file, audio] }
+        body: { type: string }
+        objectPath: { type: string }
+        durationMs:
+          type: number
+          minimum: 1
+          maximum: 600000
+          description: >
+            Integer voice-note duration in milliseconds. REQUIRED for kind=audio;
+            must be omitted for other kinds.
+        clientRequestId: { type: string }
+      required: [kind, body, clientRequestId]
+    ChatMarkReadInput:
+      type: object
+      properties:
+        messageId: { type: string }
+      required: [messageId]
+    ChatUploadUrlInput:
+      type: object
+      properties:
+        name: { type: string }
+        size: { type: number }
+        contentType: { type: string }
+      required: [name, size, contentType]
+    ChatUploadUrlResult:
+      type: object
+      properties:
+        uploadURL: { type: string }
+        objectPath: { type: string }
+      required: [uploadURL, objectPath]
+    ChatCallTokenResult:
+      type: object
+      properties:
+        token: { type: string }
+        url: { type: string }
+        roomName: { type: string }
+        expiresIn: { type: number }
+      required: [token, url, roomName, expiresIn]
+    ServiceUnavailable:
+      type: object
+      properties:
+        message: { type: string }
+        code: { type: string }
+      required: [message]

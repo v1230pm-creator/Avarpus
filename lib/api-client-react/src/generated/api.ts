@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ActivateInviteInput,
   ActivityFeed200,
   ActivityFeedParams,
   AppUpdateChangelog200,
@@ -43,7 +44,21 @@ import type {
   AuthSession,
   AuthSessions200,
   ChangePasswordInput,
+  ChatCallTokenResult,
+  ChatCapabilities,
+  ChatMarkReadInput,
+  ChatMessageSendInput,
+  ChatMessagesList200,
+  ChatMessagesListParams,
+  ChatMessagesSend200,
+  ChatRoomCreateInput,
+  ChatRoomsCreate200,
+  ChatRoomsGet200,
+  ChatRoomsList200,
+  ChatUploadUrlInput,
+  ChatUploadUrlResult,
   CustomerInput,
+  CustomerInviteResult,
   CustomerSummary200,
   CustomersCreate200,
   CustomersList200,
@@ -144,6 +159,7 @@ import type {
   RoleFeaturesGet200,
   RoleFeaturesInput,
   RoleFeaturesUpdate200,
+  ServiceUnavailable,
   StaffActivate200,
   StaffCreate200,
   StaffCreateInput,
@@ -7816,6 +7832,910 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getHealthCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCustomerInviteCreateUrl = (id: string,) => {
+
+
+
+
+  return `/api/customers/${id}/invite`
+}
+
+/**
+ * @summary Issue a single-use activation invite for a customer (dealer/staff only)
+ */
+export const customerInviteCreate = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<CustomerInviteResult> => {
+
+  return customFetch<CustomerInviteResult>(getCustomerInviteCreateUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCustomerInviteCreateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof customerInviteCreate>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof customerInviteCreate>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['customerInviteCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof customerInviteCreate>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  customerInviteCreate(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CustomerInviteCreateMutationResult = NonNullable<Awaited<ReturnType<typeof customerInviteCreate>>>
+
+    export type CustomerInviteCreateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Issue a single-use activation invite for a customer (dealer/staff only)
+ */
+export const useCustomerInviteCreate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof customerInviteCreate>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof customerInviteCreate>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getCustomerInviteCreateMutationOptions(options));
+    }
+
+export const getAuthActivateInviteUrl = () => {
+
+
+
+
+  return `/api/auth/activate-invite`
+}
+
+/**
+ * @summary Activate a customer account using a single-use invite token
+ */
+export const authActivateInvite = async (activateInviteInput: ActivateInviteInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthSession> => {
+
+  return customFetch<AuthSession>(getAuthActivateInviteUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(activateInviteInput)
+  }
+);}
+
+
+
+
+
+export const getAuthActivateInviteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authActivateInvite>>, TError,{data: BodyType<ActivateInviteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authActivateInvite>>, TError,{data: BodyType<ActivateInviteInput>}, TContext> => {
+
+const mutationKey = ['authActivateInvite'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authActivateInvite>>, {data: BodyType<ActivateInviteInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  authActivateInvite(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthActivateInviteMutationResult = NonNullable<Awaited<ReturnType<typeof authActivateInvite>>>
+    export type AuthActivateInviteMutationBody = BodyType<ActivateInviteInput>
+    export type AuthActivateInviteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Activate a customer account using a single-use invite token
+ */
+export const useAuthActivateInvite = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authActivateInvite>>, TError,{data: BodyType<ActivateInviteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authActivateInvite>>,
+        TError,
+        {data: BodyType<ActivateInviteInput>},
+        TContext
+      > => {
+      return useMutation(getAuthActivateInviteMutationOptions(options));
+    }
+
+export const getChatCapabilitiesUrl = () => {
+
+
+
+
+  return `/api/chat/capabilities`
+}
+
+/**
+ * @summary Describe available chat capabilities and provider status
+ */
+export const chatCapabilities = async ( options?: Parameters<typeof customFetch>[1]): Promise<ChatCapabilities> => {
+
+  return customFetch<ChatCapabilities>(getChatCapabilitiesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatCapabilitiesQueryKey = () => {
+    return [
+    `/api/chat/capabilities`
+    ] as const;
+    }
+
+
+export const getChatCapabilitiesQueryOptions = <TData = Awaited<ReturnType<typeof chatCapabilities>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatCapabilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getChatCapabilitiesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof chatCapabilities>>> = ({ signal }) => chatCapabilities({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof chatCapabilities>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ChatCapabilitiesQueryResult = NonNullable<Awaited<ReturnType<typeof chatCapabilities>>>
+export type ChatCapabilitiesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Describe available chat capabilities and provider status
+ */
+
+export function useChatCapabilities<TData = Awaited<ReturnType<typeof chatCapabilities>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatCapabilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getChatCapabilitiesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getChatRoomsListUrl = () => {
+
+
+
+
+  return `/api/chat/rooms`
+}
+
+/**
+ * @summary List chat rooms the caller belongs to (shop-scoped)
+ */
+export const chatRoomsList = async ( options?: Parameters<typeof customFetch>[1]): Promise<ChatRoomsList200> => {
+
+  return customFetch<ChatRoomsList200>(getChatRoomsListUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatRoomsListQueryKey = () => {
+    return [
+    `/api/chat/rooms`
+    ] as const;
+    }
+
+
+export const getChatRoomsListQueryOptions = <TData = Awaited<ReturnType<typeof chatRoomsList>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatRoomsList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getChatRoomsListQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof chatRoomsList>>> = ({ signal }) => chatRoomsList({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof chatRoomsList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ChatRoomsListQueryResult = NonNullable<Awaited<ReturnType<typeof chatRoomsList>>>
+export type ChatRoomsListQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List chat rooms the caller belongs to (shop-scoped)
+ */
+
+export function useChatRoomsList<TData = Awaited<ReturnType<typeof chatRoomsList>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatRoomsList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getChatRoomsListQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getChatRoomsCreateUrl = () => {
+
+
+
+
+  return `/api/chat/rooms`
+}
+
+/**
+ * @summary Create or retrieve an idempotent one-to-one chat room
+ */
+export const chatRoomsCreate = async (chatRoomCreateInput: ChatRoomCreateInput, options?: Parameters<typeof customFetch>[1]): Promise<ChatRoomsCreate200> => {
+
+  return customFetch<ChatRoomsCreate200>(getChatRoomsCreateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chatRoomCreateInput)
+  }
+);}
+
+
+
+
+
+export const getChatRoomsCreateMutationOptions = <TError = ErrorType<Message | ServiceUnavailable>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatRoomsCreate>>, TError,{data: BodyType<ChatRoomCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatRoomsCreate>>, TError,{data: BodyType<ChatRoomCreateInput>}, TContext> => {
+
+const mutationKey = ['chatRoomsCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatRoomsCreate>>, {data: BodyType<ChatRoomCreateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  chatRoomsCreate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatRoomsCreateMutationResult = NonNullable<Awaited<ReturnType<typeof chatRoomsCreate>>>
+    export type ChatRoomsCreateMutationBody = BodyType<ChatRoomCreateInput>
+    export type ChatRoomsCreateMutationError = ErrorType<Message | ServiceUnavailable>
+
+    /**
+ * @summary Create or retrieve an idempotent one-to-one chat room
+ */
+export const useChatRoomsCreate = <TError = ErrorType<Message | ServiceUnavailable>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatRoomsCreate>>, TError,{data: BodyType<ChatRoomCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatRoomsCreate>>,
+        TError,
+        {data: BodyType<ChatRoomCreateInput>},
+        TContext
+      > => {
+      return useMutation(getChatRoomsCreateMutationOptions(options));
+    }
+
+export const getChatRoomsGetUrl = (roomId: string,) => {
+
+
+
+
+  return `/api/chat/rooms/${roomId}`
+}
+
+/**
+ * @summary Get a single chat room (members only; unauthorized returns 404)
+ */
+export const chatRoomsGet = async (roomId: string, options?: Parameters<typeof customFetch>[1]): Promise<ChatRoomsGet200> => {
+
+  return customFetch<ChatRoomsGet200>(getChatRoomsGetUrl(roomId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatRoomsGetQueryKey = (roomId: string,) => {
+    return [
+    `/api/chat/rooms/${roomId}`
+    ] as const;
+    }
+
+
+export const getChatRoomsGetQueryOptions = <TData = Awaited<ReturnType<typeof chatRoomsGet>>, TError = ErrorType<unknown>>(roomId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatRoomsGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getChatRoomsGetQueryKey(roomId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof chatRoomsGet>>> = ({ signal }) => chatRoomsGet(roomId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: roomId !== null && roomId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof chatRoomsGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ChatRoomsGetQueryResult = NonNullable<Awaited<ReturnType<typeof chatRoomsGet>>>
+export type ChatRoomsGetQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get a single chat room (members only; unauthorized returns 404)
+ */
+
+export function useChatRoomsGet<TData = Awaited<ReturnType<typeof chatRoomsGet>>, TError = ErrorType<unknown>>(
+ roomId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatRoomsGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getChatRoomsGetQueryOptions(roomId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getChatMessagesListUrl = (roomId: string,
+    params?: ChatMessagesListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/chat/rooms/${roomId}/messages?${stringifiedParams}` : `/api/chat/rooms/${roomId}/messages`
+}
+
+/**
+ * @summary List messages in a room (newest-first, paginated)
+ */
+export const chatMessagesList = async (roomId: string,
+    params?: ChatMessagesListParams, options?: Parameters<typeof customFetch>[1]): Promise<ChatMessagesList200> => {
+
+  return customFetch<ChatMessagesList200>(getChatMessagesListUrl(roomId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatMessagesListQueryKey = (roomId: string,
+    params?: ChatMessagesListParams,) => {
+    return [
+    `/api/chat/rooms/${roomId}/messages`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getChatMessagesListQueryOptions = <TData = Awaited<ReturnType<typeof chatMessagesList>>, TError = ErrorType<unknown>>(roomId: string,
+    params?: ChatMessagesListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatMessagesList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getChatMessagesListQueryKey(roomId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof chatMessagesList>>> = ({ signal }) => chatMessagesList(roomId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: roomId !== null && roomId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof chatMessagesList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ChatMessagesListQueryResult = NonNullable<Awaited<ReturnType<typeof chatMessagesList>>>
+export type ChatMessagesListQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List messages in a room (newest-first, paginated)
+ */
+
+export function useChatMessagesList<TData = Awaited<ReturnType<typeof chatMessagesList>>, TError = ErrorType<unknown>>(
+ roomId: string,
+    params?: ChatMessagesListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatMessagesList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getChatMessagesListQueryOptions(roomId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getChatMessagesSendUrl = (roomId: string,) => {
+
+
+
+
+  return `/api/chat/rooms/${roomId}/messages`
+}
+
+/**
+ * @summary Send a message to a room (idempotent on clientRequestId)
+ */
+export const chatMessagesSend = async (roomId: string,
+    chatMessageSendInput: ChatMessageSendInput, options?: Parameters<typeof customFetch>[1]): Promise<ChatMessagesSend200> => {
+
+  return customFetch<ChatMessagesSend200>(getChatMessagesSendUrl(roomId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chatMessageSendInput)
+  }
+);}
+
+
+
+
+
+export const getChatMessagesSendMutationOptions = <TError = ErrorType<Message | ServiceUnavailable>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatMessagesSend>>, TError,{roomId: string;data: BodyType<ChatMessageSendInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatMessagesSend>>, TError,{roomId: string;data: BodyType<ChatMessageSendInput>}, TContext> => {
+
+const mutationKey = ['chatMessagesSend'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatMessagesSend>>, {roomId: string;data: BodyType<ChatMessageSendInput>}> = (props) => {
+          const {roomId,data} = props ?? {};
+
+          return  chatMessagesSend(roomId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatMessagesSendMutationResult = NonNullable<Awaited<ReturnType<typeof chatMessagesSend>>>
+    export type ChatMessagesSendMutationBody = BodyType<ChatMessageSendInput>
+    export type ChatMessagesSendMutationError = ErrorType<Message | ServiceUnavailable>
+
+    /**
+ * @summary Send a message to a room (idempotent on clientRequestId)
+ */
+export const useChatMessagesSend = <TError = ErrorType<Message | ServiceUnavailable>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatMessagesSend>>, TError,{roomId: string;data: BodyType<ChatMessageSendInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatMessagesSend>>,
+        TError,
+        {roomId: string;data: BodyType<ChatMessageSendInput>},
+        TContext
+      > => {
+      return useMutation(getChatMessagesSendMutationOptions(options));
+    }
+
+export const getChatMarkReadUrl = (roomId: string,) => {
+
+
+
+
+  return `/api/chat/rooms/${roomId}/read`
+}
+
+/**
+ * @summary Update the caller's read marker for a room
+ */
+export const chatMarkRead = async (roomId: string,
+    chatMarkReadInput: ChatMarkReadInput, options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
+
+  return customFetch<Message>(getChatMarkReadUrl(roomId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chatMarkReadInput)
+  }
+);}
+
+
+
+
+
+export const getChatMarkReadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatMarkRead>>, TError,{roomId: string;data: BodyType<ChatMarkReadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatMarkRead>>, TError,{roomId: string;data: BodyType<ChatMarkReadInput>}, TContext> => {
+
+const mutationKey = ['chatMarkRead'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatMarkRead>>, {roomId: string;data: BodyType<ChatMarkReadInput>}> = (props) => {
+          const {roomId,data} = props ?? {};
+
+          return  chatMarkRead(roomId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatMarkReadMutationResult = NonNullable<Awaited<ReturnType<typeof chatMarkRead>>>
+    export type ChatMarkReadMutationBody = BodyType<ChatMarkReadInput>
+    export type ChatMarkReadMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update the caller's read marker for a room
+ */
+export const useChatMarkRead = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatMarkRead>>, TError,{roomId: string;data: BodyType<ChatMarkReadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatMarkRead>>,
+        TError,
+        {roomId: string;data: BodyType<ChatMarkReadInput>},
+        TContext
+      > => {
+      return useMutation(getChatMarkReadMutationOptions(options));
+    }
+
+export const getChatUploadUrlUrl = (roomId: string,) => {
+
+
+
+
+  return `/api/chat/rooms/${roomId}/upload-url`
+}
+
+/**
+ * @summary Request a presigned upload URL for a chat media attachment
+ */
+export const chatUploadUrl = async (roomId: string,
+    chatUploadUrlInput: ChatUploadUrlInput, options?: Parameters<typeof customFetch>[1]): Promise<ChatUploadUrlResult> => {
+
+  return customFetch<ChatUploadUrlResult>(getChatUploadUrlUrl(roomId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chatUploadUrlInput)
+  }
+);}
+
+
+
+
+
+export const getChatUploadUrlMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatUploadUrl>>, TError,{roomId: string;data: BodyType<ChatUploadUrlInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatUploadUrl>>, TError,{roomId: string;data: BodyType<ChatUploadUrlInput>}, TContext> => {
+
+const mutationKey = ['chatUploadUrl'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatUploadUrl>>, {roomId: string;data: BodyType<ChatUploadUrlInput>}> = (props) => {
+          const {roomId,data} = props ?? {};
+
+          return  chatUploadUrl(roomId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatUploadUrlMutationResult = NonNullable<Awaited<ReturnType<typeof chatUploadUrl>>>
+    export type ChatUploadUrlMutationBody = BodyType<ChatUploadUrlInput>
+    export type ChatUploadUrlMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Request a presigned upload URL for a chat media attachment
+ */
+export const useChatUploadUrl = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatUploadUrl>>, TError,{roomId: string;data: BodyType<ChatUploadUrlInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatUploadUrl>>,
+        TError,
+        {roomId: string;data: BodyType<ChatUploadUrlInput>},
+        TContext
+      > => {
+      return useMutation(getChatUploadUrlMutationOptions(options));
+    }
+
+export const getChatCallTokenUrl = (roomId: string,) => {
+
+
+
+
+  return `/api/chat/rooms/${roomId}/call-token`
+}
+
+/**
+ * @summary Mint a short-lived LiveKit call token for the caller in this room
+ */
+export const chatCallToken = async (roomId: string, options?: Parameters<typeof customFetch>[1]): Promise<ChatCallTokenResult> => {
+
+  return customFetch<ChatCallTokenResult>(getChatCallTokenUrl(roomId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatCallTokenMutationOptions = <TError = ErrorType<ServiceUnavailable>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatCallToken>>, TError,{roomId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatCallToken>>, TError,{roomId: string}, TContext> => {
+
+const mutationKey = ['chatCallToken'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatCallToken>>, {roomId: string}> = (props) => {
+          const {roomId} = props ?? {};
+
+          return  chatCallToken(roomId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatCallTokenMutationResult = NonNullable<Awaited<ReturnType<typeof chatCallToken>>>
+
+    export type ChatCallTokenMutationError = ErrorType<ServiceUnavailable>
+
+    /**
+ * @summary Mint a short-lived LiveKit call token for the caller in this room
+ */
+export const useChatCallToken = <TError = ErrorType<ServiceUnavailable>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatCallToken>>, TError,{roomId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatCallToken>>,
+        TError,
+        {roomId: string},
+        TContext
+      > => {
+      return useMutation(getChatCallTokenMutationOptions(options));
+    }
+
+export const getChatMessageMediaUrl = (roomId: string,
+    messageId: string,) => {
+
+
+
+
+  return `/api/chat/rooms/${roomId}/messages/${messageId}/media`
+}
+
+/**
+ * @summary Download a chat media attachment. Requires room membership; verifies the message belongs to this room and has a non-null objectPath under the expected uploads/<shopId>/chat/<roomId>/ prefix. Streams the object directly from object storage. Returns 404 for any auth or path failure (no information leak).
+
+ */
+export const chatMessageMedia = async (roomId: string,
+    messageId: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getChatMessageMediaUrl(roomId,messageId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatMessageMediaQueryKey = (roomId: string,
+    messageId: string,) => {
+    return [
+    `/api/chat/rooms/${roomId}/messages/${messageId}/media`
+    ] as const;
+    }
+
+
+export const getChatMessageMediaQueryOptions = <TData = Awaited<ReturnType<typeof chatMessageMedia>>, TError = ErrorType<void>>(roomId: string,
+    messageId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatMessageMedia>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getChatMessageMediaQueryKey(roomId,messageId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof chatMessageMedia>>> = ({ signal }) => chatMessageMedia(roomId,messageId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: roomId !== null && roomId !== undefined && messageId !== null && messageId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof chatMessageMedia>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ChatMessageMediaQueryResult = NonNullable<Awaited<ReturnType<typeof chatMessageMedia>>>
+export type ChatMessageMediaQueryError = ErrorType<void>
+
+
+/**
+ * @summary Download a chat media attachment. Requires room membership; verifies the message belongs to this room and has a non-null objectPath under the expected uploads/<shopId>/chat/<roomId>/ prefix. Streams the object directly from object storage. Returns 404 for any auth or path failure (no information leak).
+
+ */
+
+export function useChatMessageMedia<TData = Awaited<ReturnType<typeof chatMessageMedia>>, TError = ErrorType<void>>(
+ roomId: string,
+    messageId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatMessageMedia>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getChatMessageMediaQueryOptions(roomId,messageId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

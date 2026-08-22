@@ -18,7 +18,7 @@ import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { formatCurrency, getTodayStr } from '@/utils/helpers';
 import { returnsCreate } from '@workspace/api-client-react';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
@@ -55,7 +55,7 @@ export default function NewReturnScreen() {
   if (!repair) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
-        <ScreenGlow />
+
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
@@ -89,7 +89,7 @@ export default function NewReturnScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <FadeInView animValue={anims[0]} style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -102,7 +102,7 @@ export default function NewReturnScreen() {
       </FadeInView>
 
       <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]} bottomOffset={24}>
-        
+
         <FadeInView animValue={anims[1]}>
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>

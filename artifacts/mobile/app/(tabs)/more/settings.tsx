@@ -16,7 +16,7 @@ import { useColors } from '@/hooks/useColors';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { useData } from '@/context/DataContext';
 import {
   DEFAULT_INACTIVITY_MINUTES,
@@ -149,7 +149,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <View style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}>
@@ -381,7 +381,7 @@ export default function SettingsScreen() {
           <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
             {hasSampleData
               ? 'Demo repairs, customers, stock and finance entries are mixed into your shop. Clearing removes only the sample records — your real data is untouched.'
-              : 'Load labelled demo repairs, customers, stock and finance entries into your shop to try the dashboard and reports. You can remove them anytime with one tap.'}
+              : 'Load labelled demo repairs, customers, stock and finance entries into your shop to try the app and reports. You can remove them anytime with one tap.'}
           </Text>
           <View style={styles.dangerActions}>
             {hasSampleData ? (

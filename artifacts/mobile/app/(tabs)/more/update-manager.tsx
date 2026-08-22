@@ -18,7 +18,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
-import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
+import { FlatCard, useStaggerAnim } from '@/components/ui/Glass';
 import { formatBytes } from '@/utils/appVersion';
 import {
   listAppUpdates,
@@ -272,7 +272,7 @@ export default function UpdateManagerScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
       <View style={[styles.header, { paddingTop: topPad + 16 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
@@ -287,7 +287,7 @@ export default function UpdateManagerScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {formOpen && (
-          <GlassCard animValue={anims[0]} style={styles.card}>
+          <FlatCard animValue={anims[0]} style={styles.card}>
             <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
               {form.id ? 'Edit Release' : 'New Release'}
             </Text>
@@ -411,7 +411,7 @@ export default function UpdateManagerScreen() {
                 )}
               </TouchableOpacity>
             </View>
-          </GlassCard>
+          </FlatCard>
         )}
 
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
@@ -421,18 +421,18 @@ export default function UpdateManagerScreen() {
         {releases === null ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
         ) : releases.length === 0 ? (
-          <GlassCard animValue={anims[1]} style={[styles.card, { alignItems: 'center' }]}>
+          <FlatCard animValue={anims[1]} style={[styles.card, { alignItems: 'center' }]}>
             <Feather name="package" size={28} color={colors.mutedForeground} />
             <Text style={[styles.hint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular', textAlign: 'center' }]}>
               No releases yet. Tap + to create your first update release.
             </Text>
-          </GlassCard>
+          </FlatCard>
         ) : (
           releases.map((rel) => {
             const statusColor =
               rel.status === 'published' ? '#34D399' : rel.status === 'draft' ? '#F59E0B' : colors.mutedForeground;
             return (
-              <GlassCard key={rel.id} style={styles.card}>
+              <FlatCard key={rel.id} style={styles.card}>
                 <View style={styles.rowBetween}>
                   <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
                     v{rel.version} (Build {rel.buildNumber})
@@ -487,7 +487,7 @@ export default function UpdateManagerScreen() {
                     </TouchableOpacity>
                   )}
                 </View>
-              </GlassCard>
+              </FlatCard>
             );
           })
         )}

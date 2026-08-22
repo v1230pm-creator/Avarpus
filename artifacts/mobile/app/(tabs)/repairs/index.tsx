@@ -19,7 +19,9 @@ import { useColors } from '@/hooks/useColors';
 import { RepairStatusBadge, PriorityBadge, SampleBadge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
-import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { FlatCard } from '@/components/ui/FlatCard';
+import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { Avatar } from '@/components/ui/Avatar';
 import { Repair, isDealerPortalRole } from '@/types';
 import { formatDate, formatCurrency, getReturnStatusColor } from '@/utils/helpers';
 import * as Network from 'expo-network';
@@ -37,10 +39,10 @@ function RepairCard({ repair, onPress, variant }: { repair: Repair; onPress: () 
   const colors = useColors();
   const balance = Math.max(0, repair.repairCharge + repair.partsCharge - repair.advance);
   const total = repair.repairCharge + repair.partsCharge;
-  
+
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
-      <GlassCard style={styles.card}>
+      <FlatCard style={styles.card}>
         <View style={styles.cardTop}>
           <View style={[styles.repairIdBadge, { backgroundColor: colors.primary + '15' }]}>
             <Text style={[styles.repairId, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{repair.repairId}</Text>
@@ -119,7 +121,7 @@ function RepairCard({ repair, onPress, variant }: { repair: Repair; onPress: () 
             </Text>
           </View>
         </View>
-      </GlassCard>
+      </FlatCard>
     </TouchableOpacity>
   );
 }
@@ -142,7 +144,7 @@ export default function RepairsScreen() {
   const [techOnly, setTechOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [accumulatedRepairs, setAccumulatedRepairs] = useState<Repair[]>([]);
-  
+
   const queryClient = useQueryClient();
   const [offlineItems, setOfflineItems] = useState<QueuedRepair[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -157,7 +159,7 @@ export default function RepairsScreen() {
     if (isSyncing || offlineItems.length === 0) return;
     const net = await Network.getNetworkStateAsync();
     if (!net.isConnected) return;
-    
+
     setIsSyncing(true);
     const { success, failed } = await offlineQueue.flush();
     setIsSyncing(false);
@@ -216,22 +218,22 @@ export default function RepairsScreen() {
     page,
     limit: 20,
   };
-  
+
   if (user?.role === 'technician' && techOnly) {
     repairsParams.technicianId = 'me';
   }
 
-  const { 
-    data: repairsData, 
-    isLoading: repairsLoading, 
-    error: repairsError, 
+  const {
+    data: repairsData,
+    isLoading: repairsLoading,
+    error: repairsError,
     refetch: repairsRefetch,
     isFetching: repairsFetching
-  } = useRepairsList(repairsParams, { 
-    query: { 
+  } = useRepairsList(repairsParams, {
+    query: {
       enabled: isPortal || (filter !== 'After-Sales Service' && filter !== 'Dealers'),
       queryKey: getRepairsListQueryKey(repairsParams)
-    } 
+    }
   });
 
   React.useEffect(() => {
@@ -257,7 +259,7 @@ export default function RepairsScreen() {
     if (filter !== 'After-Sales Service') return [];
     let list = returnsData?.returns || [];
     // Technicians see the full after-sales list (same view as reception).
-    
+
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((r) =>
@@ -302,8 +304,6 @@ export default function RepairsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
-
       {/* Header */}
       <FadeInView animValue={headerAnims[0]} style={[styles.header, { paddingTop: topPad + 16 }]}>
         <View style={styles.headerRow}>
@@ -317,7 +317,23 @@ export default function RepairsScreen() {
                 : filter === 'Dealers' ? `${totalCount} dealers` : `${totalCount} jobs`}
             </Text>
           </View>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/more')}
+              style={{
+                width: 40, height: 40, borderRadius: 20,
+                backgroundColor: colors.backgroundSecondary,
+                alignItems: 'center', justifyContent: 'center',
+                borderWidth: 1, borderColor: colors.border,
+                marginRight: 4,
+              }}
+            >
+              <Avatar name={user?.name ?? 'User'} size={36} />
+              <View style={{ position: 'absolute', bottom: -2, right: -2, backgroundColor: colors.card, borderRadius: 10, padding: 2 }}>
+                <Feather name="menu" size={10} color={colors.primary} />
+              </View>
+            </TouchableOpacity>
+
             {!isPortal && filter === 'Dealers' && canCreateRepair && (
               <TouchableOpacity
                 onPress={() => router.push('/(tabs)/repairs/dealer-new')}
@@ -351,7 +367,7 @@ export default function RepairsScreen() {
         </View>
 
         {/* Search */}
-        <GlassCard style={styles.searchBar}>
+        <FlatCard style={styles.searchBar}>
           <Feather name="search" size={16} color={colors.mutedForeground} />
           <TextInput
             value={search}
@@ -365,7 +381,7 @@ export default function RepairsScreen() {
               <Feather name="x" size={16} color={colors.mutedForeground} />
             </TouchableOpacity>
           )}
-        </GlassCard>
+        </FlatCard>
 
 
         {/* Offline Sync Banner */}
@@ -384,8 +400,8 @@ export default function RepairsScreen() {
                 </Text>
               )}
             </View>
-            <TouchableOpacity 
-              onPress={handleSync} 
+            <TouchableOpacity
+              onPress={handleSync}
               disabled={isSyncing || !isConnected}
               style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: (isSyncing || !isConnected) ? colors.muted : colors.warning, borderRadius: 6 }}
             >
@@ -399,7 +415,7 @@ export default function RepairsScreen() {
             </TouchableOpacity>
           </View>
         )}
-        
+
         {/* Dealer-portal stats header */}
         {isPortal && myDealer?.stats && (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -409,10 +425,10 @@ export default function RepairsScreen() {
               { label: 'Ready', value: String(myDealer.stats.ready), color: colors.info },
               { label: 'Delivered', value: String(myDealer.stats.delivered), color: colors.success },
             ].map((s) => (
-              <GlassCard key={s.label} style={{ flex: 1, minWidth: '22%', padding: 10, alignItems: 'center', gap: 2 }}>
+              <FlatCard key={s.label} style={{ flex: 1, minWidth: '22%', padding: 10, alignItems: 'center', gap: 2 }}>
                 <Text style={{ fontSize: 16, color: s.color, fontFamily: 'Inter_700Bold' }}>{s.value}</Text>
                 <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{s.label}</Text>
-              </GlassCard>
+              </FlatCard>
             ))}
           </View>
         )}
@@ -439,7 +455,7 @@ export default function RepairsScreen() {
             );
           })}
         </ScrollView>
-        
+
         {user?.role === 'technician' && (
           <TouchableOpacity onPress={() => setTechOnly(!techOnly)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
             <View style={{ width: 16, height: 16, borderRadius: 4, borderWidth: 1, borderColor: colors.primary, backgroundColor: techOnly ? colors.primary : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
@@ -465,7 +481,7 @@ export default function RepairsScreen() {
       ) : (
       <>
       {!!isGlobalError && <DataErrorBanner onRetry={onRefresh} />}
-      
+
       {!isPortal && filter === 'Dealers' ? (
         <FlatList
           data={filteredDealers}
@@ -475,7 +491,7 @@ export default function RepairsScreen() {
           refreshControl={<RefreshControl refreshing={dealersLoading} onRefresh={onRefresh} tintColor={colors.primary} />}
           ListHeaderComponent={
             isOwner && overviewData?.stats ? (
-              <GlassCard style={{ padding: 14, gap: 10, marginBottom: 2 }}>
+              <FlatCard style={{ padding: 14, gap: 10, marginBottom: 2 }}>
                 <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold', letterSpacing: 1 }}>DEALER REPAIRS OVERVIEW</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
                   {[
@@ -492,7 +508,7 @@ export default function RepairsScreen() {
                     </View>
                   ))}
                 </View>
-              </GlassCard>
+              </FlatCard>
             ) : null
           }
           ListEmptyComponent={
@@ -506,7 +522,7 @@ export default function RepairsScreen() {
           }
           renderItem={({ item }) => (
             <TouchableOpacity onPress={() => router.push(`/(tabs)/repairs/dealer/${item.id}`)} activeOpacity={0.8}>
-              <GlassCard style={styles.card}>
+              <FlatCard style={styles.card}>
                 <View style={styles.cardTop}>
                   <View style={[styles.repairIdBadge, { backgroundColor: colors.primary + '15' }]}>
                     <Text style={[styles.repairId, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{item.dealerCode}</Text>
@@ -527,7 +543,7 @@ export default function RepairsScreen() {
                   <Text style={{ fontSize: 12, color: colors.info }}>Ready: {item.ready}</Text>
                   <Text style={{ fontSize: 12, color: colors.success }}>Delivered: {item.delivered}</Text>
                 </View>
-              </GlassCard>
+              </FlatCard>
             </TouchableOpacity>
           )}
         />
@@ -547,7 +563,7 @@ export default function RepairsScreen() {
           }
           renderItem={({ item }) => (
             <TouchableOpacity onPress={() => router.push(`/(tabs)/repairs/return/${item.id}`)} activeOpacity={0.8}>
-              <GlassCard style={styles.card}>
+              <FlatCard style={styles.card}>
                 <View style={styles.cardTop}>
                   <View style={[styles.repairIdBadge, { backgroundColor: colors.warning + '15' }]}>
                     <Text style={[styles.repairId, { color: colors.warning, fontFamily: 'Inter_700Bold' }]}>{item.returnId}</Text>
@@ -580,7 +596,7 @@ export default function RepairsScreen() {
                     </Text>
                   </View>
                 </View>
-              </GlassCard>
+              </FlatCard>
             </TouchableOpacity>
           )}
         />

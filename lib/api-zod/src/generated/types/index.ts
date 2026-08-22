@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './activateInviteInput';
 export * from './activity';
 export * from './activityDetails';
 export * from './activityFeed200';
@@ -48,8 +49,31 @@ export * from './authSession';
 export * from './authSessions200';
 export * from './authUser';
 export * from './changePasswordInput';
+export * from './chatCallTokenResult';
+export * from './chatCapabilities';
+export * from './chatMarkReadInput';
+export * from './chatMessage';
+export * from './chatMessageKind';
+export * from './chatMessageSendInput';
+export * from './chatMessageSendInputKind';
+export * from './chatMessagesList200';
+// NOTE: chatMessagesListParams is intentionally NOT re-exported here — orval also
+// emits a zod const of the same name in api-zod/generated/api, causing a
+// duplicate-export collision. Re-apply this comment after every codegen run.
+// export * from './chatMessagesListParams';
+export * from './chatMessagesSend200';
+export * from './chatRoom';
+export * from './chatRoomCreateInput';
+export * from './chatRoomCreateInputKind';
+export * from './chatRoomKind';
+export * from './chatRoomsCreate200';
+export * from './chatRoomsGet200';
+export * from './chatRoomsList200';
+export * from './chatUploadUrlInput';
+export * from './chatUploadUrlResult';
 export * from './customer';
 export * from './customerInput';
+export * from './customerInviteResult';
 export * from './customersCreate200';
 export * from './customersList200';
 export * from './customerSummary';
@@ -199,6 +223,7 @@ export * from './roleFeaturesGet200Matrix';
 export * from './roleFeaturesInput';
 export * from './roleFeaturesUpdate200';
 export * from './roleFeaturesUpdate200Matrix';
+export * from './serviceUnavailable';
 export * from './sessionInfo';
 export * from './staffActivate200';
 export * from './staffCreate200';

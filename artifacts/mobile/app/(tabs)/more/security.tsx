@@ -24,7 +24,7 @@ import Reanimated, {
 } from 'react-native-reanimated';
 import { useColors } from '@/hooks/useColors';
 import { Card } from '@/components/ui/Card';
-import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import {
   BIOMETRIC_ENABLED_KEY,
   disableAppLock,
@@ -393,7 +393,7 @@ export default function SecurityScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <View style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity

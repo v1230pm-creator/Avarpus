@@ -20,7 +20,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { formatCurrency, formatDate, getReturnStatusColor } from '@/utils/helpers';
 import { KeyboardAvoidingCompat } from '@/components/KeyboardAvoidingCompat';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
@@ -104,7 +104,7 @@ export default function ReturnDetailScreen() {
   if (!ret && !isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
-        <ScreenGlow />
+
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
@@ -130,7 +130,7 @@ export default function ReturnDetailScreen() {
       case 'closed': allowed = ['inspection']; break;
       default: allowed = []; break;
     }
-    
+
     if (st !== 'closed') {
       allowed.push('closed');
     }
@@ -236,7 +236,7 @@ export default function ReturnDetailScreen() {
       queryClient.invalidateQueries();
     } catch (e: any) { Alert.alert('Error', e.message); }
   };
-  
+
   const markRefundPaid = async (refundId: string) => {
     try {
       await refundsMarkPaid(refundId, {});
@@ -245,11 +245,11 @@ export default function ReturnDetailScreen() {
     } catch (e: any) { Alert.alert('Error', e.message); }
   };
 
-  if (!ret) return <View style={{ flex: 1, backgroundColor: colors.background }}><ScreenGlow /></View>;
+  if (!ret) return <View style={{ flex: 1, backgroundColor: colors.background }}></View>;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <FadeInView animValue={anims[0]} style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -267,7 +267,7 @@ export default function ReturnDetailScreen() {
       </FadeInView>
 
       <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]} bottomOffset={24}>
-        
+
         {/* Status Stepper / Actions */}
         <FadeInView animValue={anims[1]}>
           <Card>
@@ -397,7 +397,7 @@ export default function ReturnDetailScreen() {
                     </View>
                   </View>
                   <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Reason: {rf.reason}</Text>
-                  
+
                   {rf.status === 'pending_approval' && isDealer && (
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
                       <Button title="Reject" onPress={() => refundsReject(rf.id, { reason: 'Declined' }).then(() => { refetch(); queryClient.invalidateQueries(); })} variant="outline" style={{ flex: 1 }} />
@@ -431,7 +431,7 @@ export default function ReturnDetailScreen() {
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Inspection</Text>
-            
+
             <Text style={[styles.label, { color: colors.foreground }]}>Resolution</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
               {RESOLUTIONS.map(r => (
@@ -453,10 +453,10 @@ export default function ReturnDetailScreen() {
 
             <Text style={[styles.label, { color: colors.foreground }]}>Diagnosis</Text>
             <TextInput value={editDiagnosis} onChangeText={setEditDiagnosis} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
-            
+
             <Text style={[styles.label, { color: colors.foreground }]}>Work Performed</Text>
             <TextInput value={editWork} onChangeText={setEditWork} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
-            
+
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.label, { color: colors.foreground }]}>Labour Charge</Text>
@@ -467,7 +467,7 @@ export default function ReturnDetailScreen() {
                 <TextInput value={editPayable} onChangeText={setEditPayable} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
               </View>
             </View>
-            
+
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
               <Button title="Cancel" variant="outline" onPress={() => setShowInspectionEdit(false)} style={{ flex: 1 }} />
               <Button title="Save" onPress={handleSaveInspection} loading={updating} style={{ flex: 1 }} />
@@ -514,10 +514,10 @@ export default function ReturnDetailScreen() {
                 <TextInput value={partCost} onChangeText={setPartCost} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
               </>
             )}
-            
+
             <Text style={[styles.label, { color: colors.foreground }]}>Quantity</Text>
             <TextInput value={partQty} onChangeText={setPartQty} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
-            
+
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
               <Button title="Cancel" variant="outline" onPress={() => setShowAddPart(false)} style={{ flex: 1 }} />
               <Button title="Add" onPress={handleAddPart} loading={updating} style={{ flex: 1 }} />
@@ -531,13 +531,13 @@ export default function ReturnDetailScreen() {
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>{isDealer ? 'Create Refund' : 'Request Refund'}</Text>
-            
+
             <Text style={[styles.label, { color: colors.foreground }]}>Amount</Text>
             <TextInput value={refundAmount} onChangeText={setRefundAmount} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
-            
+
             <Text style={[styles.label, { color: colors.foreground }]}>Reason</Text>
             <TextInput value={refundReason} onChangeText={setRefundReason} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} />
-            
+
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
               <Button title="Cancel" variant="outline" onPress={() => setShowRefundModal(false)} style={{ flex: 1 }} />
               <Button title="Submit" onPress={handleCreateRefund} loading={updating} style={{ flex: 1 }} />
@@ -587,7 +587,7 @@ const styles = StyleSheet.create({
   infoLabel: { fontSize: 13 },
   infoValue: { fontSize: 14, textAlign: 'right', flex: 1, marginLeft: 16 },
   divider: { height: 1, marginVertical: 8, backgroundColor: '#333' },
-  
+
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
   modalContent: { borderWidth: 1, borderRadius: 16, padding: 20 },
   modalTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', marginBottom: 12 },

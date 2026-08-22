@@ -9,7 +9,7 @@ import { staffList, useRefundsList, getRefundsListQueryKey, stockMovementsList, 
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
-import { GlassCard, ScreenGlow } from '@/components/ui/Glass';
+import { FlatCard } from '@/components/ui/Glass';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { formatCurrency, getTodayStr } from '@/utils/helpers';
 import { buildReportHtml, type ReportData, type StaffMember } from '@/utils/reportHtml';
@@ -54,7 +54,7 @@ export default function ReportsScreen() {
   const { user, canAccess } = useAuth();
   const { repairs, customers, inventory, finance, purchases, isLoading, loadError, loadAll } = useData();
   const canSeeFinance = canAccess('finance');
-  
+
   const { data: refundsData } = useRefundsList({
     query: {
       enabled: canSeeFinance,
@@ -236,7 +236,7 @@ export default function ReportsScreen() {
     }
 
     setGeneratingId(report.id);
-    
+
     let stockMovements: any[] = [];
     try {
       if (report.id === 'parts') {
@@ -304,7 +304,7 @@ export default function ReportsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <View style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -364,7 +364,7 @@ export default function ReportsScreen() {
               onPress={() => handleGenerate(report)}
               disabled={!!generatingId}
             >
-              <GlassCard style={styles.reportCard}>
+              <FlatCard style={styles.reportCard}>
                 <View style={[styles.reportIcon, { backgroundColor: report.color + '1A' }]}>
                   <Feather name={report.icon} size={22} color={report.color} />
                 </View>
@@ -380,7 +380,7 @@ export default function ReportsScreen() {
                 <View style={styles.reportRight}>
                   <Feather name={busy ? 'loader' : 'download'} size={16} color={busy ? report.color : colors.mutedForeground} />
                 </View>
-              </GlassCard>
+              </FlatCard>
             </TouchableOpacity>
           );
         })}

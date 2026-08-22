@@ -16,7 +16,7 @@ import { staffCreate, useDealersList } from '@workspace/api-client-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
-import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
 
 // Roles a dealer can assign — dealer/admin accounts can never be created here.
@@ -37,7 +37,7 @@ const ROLE_ICONS: Record<StaffRole, keyof typeof Feather.glyphMap> = {
 };
 
 const ROLE_PERMISSION_HINTS: Record<StaffRole, string> = {
-  reception: 'Dashboard, repairs & customers',
+  reception: 'Inbox, repairs & customers',
   technician: 'Assigned repairs & status updates',
   store_manager: 'Inventory & purchases',
   accountant: 'Finance, reports, income & expenses',
@@ -104,7 +104,7 @@ export default function AddStaffScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <View style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}>

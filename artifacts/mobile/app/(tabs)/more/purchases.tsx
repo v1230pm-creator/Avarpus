@@ -18,7 +18,7 @@ import { useColors } from '@/hooks/useColors';
 import { Badge, SampleBadge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
-import { GlassCard, ScreenGlow, FadeInView, useIsDark } from '@/components/ui/Glass';
+import { FlatCard, FadeInView, useIsDark } from '@/components/ui/Glass';
 import { PurchaseFormSheet } from '@/components/forms/PurchaseFormSheet';
 import { Purchase } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/helpers';
@@ -33,7 +33,7 @@ function PurchaseCard({ purchase, onPress }: { purchase: Purchase; onPress: () =
   const colors = useColors();
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
-    <GlassCard style={styles.card}>
+    <FlatCard style={styles.card}>
       <View style={styles.cardTop}>
         <View style={[styles.invoiceBadge, { backgroundColor: colors.primary + '15' }]}>
           <Text style={[styles.invoiceId, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{purchase.invoiceNo}</Text>
@@ -72,7 +72,7 @@ function PurchaseCard({ purchase, onPress }: { purchase: Purchase; onPress: () =
           {formatDate(purchase.date)}
         </Text>
       </View>
-    </GlassCard>
+    </FlatCard>
     </TouchableOpacity>
   );
 }
@@ -131,7 +131,7 @@ export default function PurchasesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <FadeInView animValue={headerAnim}>
         <View style={[styles.header, { paddingTop: topPad + 14 }]}>

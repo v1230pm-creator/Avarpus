@@ -3170,3 +3170,309 @@ export const HealthCheckResponse = zod.object({
 })
 
 
+/**
+ * @summary Issue a single-use activation invite for a customer (dealer/staff only)
+ */
+export const CustomerInviteCreateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const CustomerInviteCreateResponse = zod.object({
+  "token": zod.string().describe('Raw invite token — returned once only, never stored'),
+  "expiresAt": zod.string(),
+  "customerId": zod.string()
+})
+
+
+/**
+ * @summary Activate a customer account using a single-use invite token
+ */
+export const AuthActivateInviteBody = zod.object({
+  "token": zod.string(),
+  "name": zod.string(),
+  "password": zod.string()
+})
+
+export const AuthActivateInviteResponse = zod.object({
+  "token": zod.string(),
+  "user": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional()
+})
+})
+
+
+/**
+ * @summary Describe available chat capabilities and provider status
+ */
+export const ChatCapabilitiesResponse = zod.object({
+  "e2eeEnabled": zod.boolean(),
+  "matrixAvailable": zod.boolean(),
+  "livekitAvailable": zod.boolean()
+})
+
+
+/**
+ * @summary List chat rooms the caller belongs to (shop-scoped)
+ */
+export const ChatRoomsListResponse = zod.object({
+  "rooms": zod.array(zod.object({
+  "id": zod.string(),
+  "shopId": zod.string(),
+  "kind": zod.enum(['customer', 'dealer']),
+  "name": zod.string(),
+  "customerId": zod.string().optional(),
+  "dealerId": zod.string().optional(),
+  "providerRoomId": zod.string().optional(),
+  "peerKey": zod.string().optional().describe('Deterministic sorted pair of participant user IDs for one-to-one rooms.'),
+  "isArchived": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "createdAt": zod.string(),
+  "unreadCount": zod.number().optional(),
+  "lastMessage": zod.object({
+  "id": zod.string(),
+  "roomId": zod.string(),
+  "shopId": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "objectPath": zod.string().optional(),
+  "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
+  "clientRequestId": zod.string().optional(),
+  "deletedAt": zod.string().optional(),
+  "createdAt": zod.string()
+}).optional()
+}))
+})
+
+
+/**
+ * @summary Create or retrieve an idempotent one-to-one chat room
+ */
+export const ChatRoomsCreateBody = zod.object({
+  "name": zod.string(),
+  "kind": zod.enum(['customer', 'dealer']),
+  "customerId": zod.string().optional(),
+  "dealerId": zod.string().optional(),
+  "clientRequestId": zod.string().optional()
+}).describe('Create (or return existing) a one-to-one chat room. kind=customer requires customerId (must have exactly one active customer user link). kind=dealer requires dealerId (same shop) and resolves exactly one active dealer-portal target. support\/group kinds are out of scope (400).\n')
+
+export const ChatRoomsCreateResponse = zod.object({
+  "room": zod.object({
+  "id": zod.string(),
+  "shopId": zod.string(),
+  "kind": zod.enum(['customer', 'dealer']),
+  "name": zod.string(),
+  "customerId": zod.string().optional(),
+  "dealerId": zod.string().optional(),
+  "providerRoomId": zod.string().optional(),
+  "peerKey": zod.string().optional().describe('Deterministic sorted pair of participant user IDs for one-to-one rooms.'),
+  "isArchived": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "createdAt": zod.string(),
+  "unreadCount": zod.number().optional(),
+  "lastMessage": zod.object({
+  "id": zod.string(),
+  "roomId": zod.string(),
+  "shopId": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "objectPath": zod.string().optional(),
+  "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
+  "clientRequestId": zod.string().optional(),
+  "deletedAt": zod.string().optional(),
+  "createdAt": zod.string()
+}).optional()
+}),
+  "created": zod.boolean()
+})
+
+
+/**
+ * @summary Get a single chat room (members only; unauthorized returns 404)
+ */
+export const ChatRoomsGetParams = zod.object({
+  "roomId": zod.coerce.string()
+})
+
+export const ChatRoomsGetResponse = zod.object({
+  "room": zod.object({
+  "id": zod.string(),
+  "shopId": zod.string(),
+  "kind": zod.enum(['customer', 'dealer']),
+  "name": zod.string(),
+  "customerId": zod.string().optional(),
+  "dealerId": zod.string().optional(),
+  "providerRoomId": zod.string().optional(),
+  "peerKey": zod.string().optional().describe('Deterministic sorted pair of participant user IDs for one-to-one rooms.'),
+  "isArchived": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "createdAt": zod.string(),
+  "unreadCount": zod.number().optional(),
+  "lastMessage": zod.object({
+  "id": zod.string(),
+  "roomId": zod.string(),
+  "shopId": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "objectPath": zod.string().optional(),
+  "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
+  "clientRequestId": zod.string().optional(),
+  "deletedAt": zod.string().optional(),
+  "createdAt": zod.string()
+}).optional()
+})
+})
+
+
+/**
+ * @summary List messages in a room (newest-first, paginated)
+ */
+export const ChatMessagesListParams = zod.object({
+  "roomId": zod.coerce.string()
+})
+
+export const ChatMessagesListQueryParams = zod.object({
+  "before": zod.coerce.string().optional().describe('Cursor: createdAt of the oldest loaded message'),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ChatMessagesListResponse = zod.object({
+  "messages": zod.array(zod.object({
+  "id": zod.string(),
+  "roomId": zod.string(),
+  "shopId": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "objectPath": zod.string().optional(),
+  "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
+  "clientRequestId": zod.string().optional(),
+  "deletedAt": zod.string().optional(),
+  "createdAt": zod.string()
+})),
+  "hasMore": zod.boolean()
+})
+
+
+/**
+ * @summary Send a message to a room (idempotent on clientRequestId)
+ */
+export const ChatMessagesSendParams = zod.object({
+  "roomId": zod.coerce.string()
+})
+
+export const chatMessagesSendBodyDurationMsMax = 600000;
+
+
+
+export const ChatMessagesSendBody = zod.object({
+  "kind": zod.enum(['text', 'image', 'file', 'audio']),
+  "body": zod.string(),
+  "objectPath": zod.string().optional(),
+  "durationMs": zod.number().min(1).max(chatMessagesSendBodyDurationMsMax).optional().describe('Integer voice-note duration in milliseconds. REQUIRED for kind=audio; must be omitted for other kinds.\n'),
+  "clientRequestId": zod.string()
+}).describe('Send a message. clientRequestId is REQUIRED and must be stable across retries; the server dedupes on (roomId, senderId, clientRequestId) and derives the Matrix transaction id deterministically so retries never create a second row nor a second provider event. For kind=audio a room-scoped objectPath and an integer durationMs (1..600000) are REQUIRED; durationMs must be omitted for non-audio kinds.\n')
+
+export const ChatMessagesSendResponse = zod.object({
+  "message": zod.object({
+  "id": zod.string(),
+  "roomId": zod.string(),
+  "shopId": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "objectPath": zod.string().optional(),
+  "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
+  "clientRequestId": zod.string().optional(),
+  "deletedAt": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Update the caller's read marker for a room
+ */
+export const ChatMarkReadParams = zod.object({
+  "roomId": zod.coerce.string()
+})
+
+export const ChatMarkReadBody = zod.object({
+  "messageId": zod.string()
+})
+
+export const ChatMarkReadResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Request a presigned upload URL for a chat media attachment
+ */
+export const ChatUploadUrlParams = zod.object({
+  "roomId": zod.coerce.string()
+})
+
+export const ChatUploadUrlBody = zod.object({
+  "name": zod.string(),
+  "size": zod.number(),
+  "contentType": zod.string()
+})
+
+export const ChatUploadUrlResponse = zod.object({
+  "uploadURL": zod.string(),
+  "objectPath": zod.string()
+})
+
+
+/**
+ * @summary Mint a short-lived LiveKit call token for the caller in this room
+ */
+export const ChatCallTokenParams = zod.object({
+  "roomId": zod.coerce.string()
+})
+
+export const ChatCallTokenResponse = zod.object({
+  "token": zod.string(),
+  "url": zod.string(),
+  "roomName": zod.string(),
+  "expiresIn": zod.number()
+})
+
+
+/**
+ * @summary Download a chat media attachment. Requires room membership; verifies the message belongs to this room and has a non-null objectPath under the expected uploads/<shopId>/chat/<roomId>/ prefix. Streams the object directly from object storage. Returns 404 for any auth or path failure (no information leak).
+
+ */
+export const ChatMessageMediaParams = zod.object({
+  "roomId": zod.coerce.string(),
+  "messageId": zod.coerce.string()
+})
+
+export const ChatMessageMediaResponse = zod.unknown()
+
+

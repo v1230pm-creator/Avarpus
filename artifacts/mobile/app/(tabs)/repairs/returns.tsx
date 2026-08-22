@@ -16,7 +16,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
-import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { FlatCard, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { formatDate } from '@/utils/helpers';
 import { useReturnsList } from '@workspace/api-client-react';
 
@@ -29,7 +29,7 @@ export default function ReturnsListScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { data, isLoading, error, refetch, isRefetching } = useReturnsList();
-  
+
   const returns = data?.returns || [];
 
   const [search, setSearch] = useState('');
@@ -44,7 +44,7 @@ export default function ReturnsListScreen() {
     }
     if (filter === 'Active') list = list.filter((r) => r.status !== 'closed');
     else if (filter === 'Closed') list = list.filter((r) => r.status === 'closed');
-    
+
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((r) =>
@@ -63,7 +63,7 @@ export default function ReturnsListScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <FadeInView animValue={headerAnims[0]} style={[styles.header, { paddingTop: topPad + 16 }]}>
         <View style={styles.headerRow}>
@@ -78,7 +78,7 @@ export default function ReturnsListScreen() {
           </View>
         </View>
 
-        <GlassCard style={styles.searchBar}>
+        <FlatCard style={styles.searchBar}>
           <Feather name="search" size={16} color={colors.mutedForeground} />
           <TextInput
             value={search}
@@ -92,7 +92,7 @@ export default function ReturnsListScreen() {
               <Feather name="x" size={16} color={colors.mutedForeground} />
             </TouchableOpacity>
           )}
-        </GlassCard>
+        </FlatCard>
 
         <FlatList
           horizontal
@@ -144,7 +144,7 @@ export default function ReturnsListScreen() {
           }
           renderItem={({ item }) => (
             <TouchableOpacity onPress={() => router.push(`/(tabs)/repairs/return/${item.id}`)} activeOpacity={0.8}>
-              <GlassCard style={styles.card}>
+              <FlatCard style={styles.card}>
                 <View style={styles.cardTop}>
                   <View style={[styles.returnIdBadge, { backgroundColor: colors.warning + '15' }]}>
                     <Text style={[styles.returnId, { color: colors.warning, fontFamily: 'Inter_700Bold' }]}>{item.returnId}</Text>
@@ -177,7 +177,7 @@ export default function ReturnsListScreen() {
                     </Text>
                   </View>
                 </View>
-              </GlassCard>
+              </FlatCard>
             </TouchableOpacity>
           )}
         />

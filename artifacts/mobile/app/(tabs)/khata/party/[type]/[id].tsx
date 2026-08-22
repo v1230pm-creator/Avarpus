@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -12,13 +12,15 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { formatCurrency, formatDate } from '@/utils/helpers';
+import { useColors } from '@/hooks/useColors';
+import { formatCurrency } from '@/utils/helpers';
 import { FlatCard } from '@/components/ui/FlatCard';
-import { useKhataRepairs } from '@/hooks/useKhataRepairs';
-import { getRepairKhataAmounts, summarizeKhataRepairs, type KhataPartyType } from '@/utils/khata';
+import { useKhataLedger } from '@/hooks/useKhataLedger';
+import type { KhataPartyType, LedgerEntry } from '@/utils/khata-ledger';
 
 export default function KhataDetailScreen() {
   const insets = useSafeAreaInsets();
+  const colors = useColors();
   const router = useRouter();
   const { type, id, name } = useLocalSearchParams<{
     type: KhataPartyType;
@@ -26,15 +28,10 @@ export default function KhataDetailScreen() {
     name?: string;
   }>();
   const validType = type === 'customer' || type === 'dealer' ? type : undefined;
-  const { repairs, isLoading, error, reload } = useKhataRepairs(validType, id);
+
+  const { ledger, totals, isLoading, error, reload } = useKhataLedger(validType, id);
   const [refreshing, setRefreshing] = useState(false);
   const topPadding = Platform.OS === 'web' ? insets.top + 67 : insets.top;
-
-  const sortedRepairs = useMemo(
-    () => [...repairs].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [repairs],
-  );
-  const summary = useMemo(() => summarizeKhataRepairs(sortedRepairs), [sortedRepairs]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -45,25 +42,89 @@ export default function KhataDetailScreen() {
     }
   };
 
-  if (isLoading && repairs.length === 0) {
+  const formatDateLabel = (isoDate: string) => {
+    const d = new Date(isoDate);
+    return d.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
+  const renderEntry = (entry: LedgerEntry) => {
+    const isDebit = entry.debit > 0;
+    const isCredit = entry.credit > 0;
+    const amount = isDebit ? entry.debit : entry.credit;
+
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color="#0B63F6" size="large" />
+      <TouchableOpacity
+        key={entry.id}
+        activeOpacity={0.7}
+        onPress={() => router.push(`/(tabs)/repairs/${entry.repairDbId}`)}
+        style={styles.entryPressable}
+      >
+        <FlatCard style={styles.entryCard}>
+          <View style={styles.entryHeader}>
+            <Text style={styles.entryDate}>{formatDateLabel(entry.date)}</Text>
+            <View style={styles.repairIdBadge}>
+              <Text style={styles.repairIdText}>{entry.repairId}</Text>
+            </View>
+          </View>
+
+          <View style={styles.entryBody}>
+            <View style={styles.entryInfo}>
+              <Text style={styles.entryLabel}>
+                {entry.label}
+                {entry.method ? ` • ${entry.method.toUpperCase()}` : ''}
+              </Text>
+            </View>
+
+            <View style={styles.amountInfo}>
+              {isDebit ? (
+                <Text style={styles.debitText}>
+                  {formatCurrency(amount)} DEBIT
+                </Text>
+              ) : isCredit ? (
+                <Text style={styles.creditText}>
+                  {formatCurrency(amount)} CREDIT
+                </Text>
+              ) : null}
+              <Text
+                style={[
+                  styles.balanceText,
+                  entry.partyBalance <= 0 && styles.settledBalance,
+                ]}
+              >
+                Bal: {formatCurrency(entry.partyBalance)}
+              </Text>
+            </View>
+          </View>
+        </FlatCard>
+      </TouchableOpacity>
+    );
+  };
+
+  if (isLoading && ledger.length === 0) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator color={colors.primary} size="large" />
         <Text style={styles.loadingText}>Loading account…</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: topPadding + 12 }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { paddingTop: topPadding + 12, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityLabel="Back">
-          <Feather name="arrow-left" size={22} color="#111827" />
+          <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.headerCopy}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{name || 'Khata Details'}</Text>
-          <Text style={styles.headerSubtitle}>
-            {validType === 'dealer' ? 'Dealer account' : 'Customer account'}
+          <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>{name || 'Khata Details'}</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
+            {validType === 'dealer' ? 'Dealer account ledger' : 'Customer account ledger'}
           </Text>
         </View>
       </View>
@@ -89,83 +150,37 @@ export default function KhataDetailScreen() {
           <View style={styles.summaryTop}>
             <View style={styles.summaryBox}>
               <Text style={styles.summaryLabel}>Total Business</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(summary.billed)}</Text>
+              <Text style={styles.summaryValue}>{formatCurrency(totals.billed)}</Text>
             </View>
             <View style={styles.summaryBox}>
               <Text style={styles.summaryLabel}>Total Paid</Text>
-              <Text style={[styles.summaryValue, styles.paidValue]}>{formatCurrency(summary.paid)}</Text>
+              <Text style={[styles.summaryValue, styles.paidValue]}>{formatCurrency(totals.paid)}</Text>
             </View>
           </View>
           <View style={styles.outstandingBox}>
-            <Text style={styles.outstandingLabel}>Outstanding</Text>
-            <Text style={[styles.outstandingValue, summary.due <= 0 && styles.paidValue]}>
-              {formatCurrency(summary.due)}
+            <Text style={styles.outstandingLabel}>Outstanding Balance</Text>
+            <Text style={[styles.outstandingValue, totals.due <= 0 && styles.paidValue]}>
+              {formatCurrency(totals.due)}
             </Text>
           </View>
         </FlatCard>
 
-        <Text style={styles.sectionTitle}>LINKED REPAIRS ({sortedRepairs.length})</Text>
-
-        {sortedRepairs.length === 0 ? (
-          <View style={styles.empty}>
-            <View style={styles.emptyIcon}>
-              <Feather name="file-text" size={25} color="#94A3B8" />
+        <View style={{ marginBottom: 20 }}>
+          <Text style={styles.sectionTitle}>LEDGER ENTRIES ({ledger.length})</Text>
+          {ledger.length > 0 ? (
+            ledger.map(renderEntry)
+          ) : (
+            <View style={styles.empty}>
+              <View style={styles.emptyIcon}>
+                <Feather name="list" size={28} color="#94A3B8" />
+              </View>
+              <Text style={styles.emptyTitle}>No entries yet</Text>
+              <Text style={styles.emptyText}>
+                No billing or payment activity found for this account.
+              </Text>
             </View>
-            <Text style={styles.emptyTitle}>No linked repairs</Text>
-            <Text style={styles.emptyText}>Real repair bills will appear here automatically.</Text>
-          </View>
-        ) : (
-          sortedRepairs.map((repair) => {
-            const amounts = getRepairKhataAmounts(repair);
-            return (
-              <TouchableOpacity
-                key={repair.id}
-                activeOpacity={0.75}
-                onPress={() => router.push(`/(tabs)/repairs/${repair.id}`)}
-                style={styles.repairPressable}
-              >
-                <FlatCard style={styles.repairCard}>
-                  <View style={styles.repairHeader}>
-                    <View style={styles.repairIdBadge}>
-                      <Text style={styles.repairId}>{repair.repairId}</Text>
-                    </View>
-                    <Text style={styles.repairDate}>{formatDate(repair.createdAt)}</Text>
-                  </View>
-                  <Text style={styles.deviceName}>{repair.brand} {repair.model}</Text>
-                  <Text style={styles.customerName} numberOfLines={1}>{repair.customerName}</Text>
-
-                  <View style={styles.amountRow}>
-                    <View>
-                      <Text style={styles.amountLabel}>Bill</Text>
-                      <Text style={styles.amountValue}>{formatCurrency(amounts.billed)}</Text>
-                    </View>
-                    <View>
-                      <Text style={styles.amountLabel}>Paid</Text>
-                      <Text style={[styles.amountValue, styles.paidValue]}>{formatCurrency(amounts.paid)}</Text>
-                    </View>
-                    <View style={styles.amountEnd}>
-                      <Text style={styles.amountLabel}>Due</Text>
-                      <Text style={[styles.amountValue, amounts.due > 0 ? styles.dueValue : styles.paidValue]}>
-                        {formatCurrency(amounts.due)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={[styles.statusBadge, amounts.due > 0 ? styles.pendingBadge : styles.settledBadge]}>
-                    <Feather
-                      name={amounts.due > 0 ? 'clock' : 'check-circle'}
-                      size={12}
-                      color={amounts.due > 0 ? '#B45309' : '#15803D'}
-                    />
-                    <Text style={[styles.statusText, amounts.due > 0 ? styles.pendingText : styles.settledText]}>
-                      {amounts.due > 0 ? 'Payment pending' : 'Settled'}
-                    </Text>
-                  </View>
-                </FlatCard>
-              </TouchableOpacity>
-            );
-          })
-        )}
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -230,34 +245,20 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontFamily: 'Inter_600SemiBold',
   },
-  repairPressable: { marginBottom: 10 },
-  repairCard: { padding: 14 },
-  repairHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  repairIdBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#EAF2FF' },
-  repairId: { color: '#0B63F6', fontSize: 11, fontFamily: 'Inter_700Bold' },
-  repairDate: { color: '#94A3B8', fontSize: 10, fontFamily: 'Inter_400Regular' },
-  deviceName: { color: '#111827', fontSize: 15, marginTop: 10, fontFamily: 'Inter_600SemiBold' },
-  customerName: { color: '#64748B', fontSize: 12, marginTop: 2, fontFamily: 'Inter_400Regular' },
-  amountRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 15 },
-  amountEnd: { alignItems: 'flex-end' },
-  amountLabel: { color: '#94A3B8', fontSize: 10, fontFamily: 'Inter_500Medium' },
-  amountValue: { color: '#111827', fontSize: 14, marginTop: 3, fontFamily: 'Inter_600SemiBold' },
-  dueValue: { color: '#EF4444' },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    alignSelf: 'flex-start',
-    marginTop: 13,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 9,
-  },
-  pendingBadge: { backgroundColor: '#FFF7E6' },
-  settledBadge: { backgroundColor: '#EAF8EF' },
-  statusText: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
-  pendingText: { color: '#B45309' },
-  settledText: { color: '#15803D' },
+  entryPressable: { marginBottom: 10 },
+  entryCard: { padding: 12, gap: 8 },
+  entryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  entryDate: { color: '#64748B', fontSize: 11, fontFamily: 'Inter_500Medium' },
+  repairIdBadge: { backgroundColor: '#EAF2FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  repairIdText: { color: '#0B63F6', fontSize: 10, fontFamily: 'Inter_700Bold' },
+  entryBody: { flexDirection: 'row', alignItems: 'center' },
+  entryInfo: { flex: 1 },
+  entryLabel: { color: '#111827', fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  amountInfo: { alignItems: 'flex-end', minWidth: 90 },
+  debitText: { color: '#EF4444', fontSize: 13, fontFamily: 'Inter_700Bold' },
+  creditText: { color: '#16A34A', fontSize: 13, fontFamily: 'Inter_700Bold' },
+  balanceText: { color: '#64748B', fontSize: 11, marginTop: 4, fontFamily: 'Inter_500Medium' },
+  settledBalance: { color: '#16A34A' },
   empty: { alignItems: 'center', paddingVertical: 50, paddingHorizontal: 24 },
   emptyIcon: {
     width: 54,

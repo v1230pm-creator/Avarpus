@@ -16,7 +16,7 @@ import { useColors } from '@/hooks/useColors';
 import { Badge, SampleBadge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
-import { GlassCard, ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { FlatCard, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { InventoryFormSheet } from '@/components/forms/InventoryFormSheet';
 import { InventoryItem } from '@/types';
 import { formatCurrency } from '@/utils/helpers';
@@ -39,7 +39,7 @@ function InventoryCard({ item, onPress }: { item: InventoryItem; onPress: () => 
   const isOut = item.quantity === 0;
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
-    <GlassCard
+    <FlatCard
       style={StyleSheet.flatten([
         styles.card,
         isOut
@@ -100,7 +100,7 @@ function InventoryCard({ item, onPress }: { item: InventoryItem; onPress: () => 
           </Text>
         </View>
       )}
-    </GlassCard>
+    </FlatCard>
     </TouchableOpacity>
   );
 }
@@ -146,7 +146,7 @@ export default function InventoryScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <FadeInView animValue={headerAnims[0]} style={[styles.header, { paddingTop: topPad + 16 }]}>
         <View style={styles.headerRow}>
@@ -174,7 +174,7 @@ export default function InventoryScreen() {
           </View>
         </View>
 
-        <GlassCard style={styles.searchBar}>
+        <FlatCard style={styles.searchBar}>
           <Feather name="search" size={16} color={colors.mutedForeground} />
           <TextInput
             value={search}
@@ -184,7 +184,7 @@ export default function InventoryScreen() {
             style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
           />
           {!!search && <TouchableOpacity onPress={() => setSearch('')}><Feather name="x" size={16} color={colors.mutedForeground} /></TouchableOpacity>}
-        </GlassCard>
+        </FlatCard>
 
         <FlatList
           horizontal

@@ -17,7 +17,7 @@ import { Card } from '@/components/ui/Card';
 import { SampleBadge } from '@/components/ui/Badge';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { StatCard } from '@/components/ui/StatCard';
-import { GlassCard, ScreenGlow, useStaggerAnim, useIsDark } from '@/components/ui/Glass';
+import { FlatCard, useStaggerAnim, useIsDark } from '@/components/ui/Glass';
 import { FinanceFormSheet } from '@/components/forms/FinanceFormSheet';
 import { FinanceEntry } from '@/types';
 import { formatCurrency, formatDate, getTodayStr } from '@/utils/helpers';
@@ -110,7 +110,7 @@ export default function FinanceScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <View style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -165,7 +165,7 @@ export default function FinanceScreen() {
           <StatCard title="Expense" value={formatCurrency(stats.expense)} icon="trending-down" iconColor="error" style={styles.statCard} />
         </View>
 
-        <GlassCard animValue={anims[0]} style={{ padding: 20 }}>
+        <FlatCard animValue={anims[0]} style={{ padding: 20 }}>
           <View style={styles.profitRow}>
             <View>
               <Text style={[styles.profitLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Net Profit</Text>
@@ -177,7 +177,7 @@ export default function FinanceScreen() {
               <Feather name={stats.profit >= 0 ? 'trending-up' : 'trending-down'} size={24} color={stats.profit >= 0 ? colors.success : colors.destructive} />
             </View>
           </View>
-        </GlassCard>
+        </FlatCard>
 
         {/* Transactions */}
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
@@ -191,11 +191,11 @@ export default function FinanceScreen() {
             </Text>
           </Card>
         ) : (
-          <GlassCard animValue={anims[1]} style={styles.txList}>
+          <FlatCard animValue={anims[1]} style={styles.txList}>
             {filteredEntries.map((entry, i) => (
               <TransactionItem key={entry.id} entry={entry} isLast={i === filteredEntries.length - 1} onPress={() => openEdit(entry)} />
             ))}
-          </GlassCard>
+          </FlatCard>
         )}
       </ScrollView>
       </>

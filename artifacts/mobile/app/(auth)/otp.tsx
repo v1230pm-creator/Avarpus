@@ -1,15 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -26,7 +18,7 @@ export default function OTPScreen() {
   const params = useLocalSearchParams<{ mobile?: string; sentTo?: string; rememberMe?: string }>();
   const mobile = typeof params.mobile === 'string' ? params.mobile : '';
   const rememberMe = params.rememberMe === '1';
-  const sentTo = '';
+  const sentTo = params.sentTo ?? '';
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(60);
   const [loading, setLoading] = useState(false);
@@ -72,7 +64,6 @@ export default function OTPScreen() {
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // Route through the lock screen so an existing PIN/biometric lock is enforced
     router.replace('/(auth)/biometric');
   };
 
@@ -91,26 +82,23 @@ export default function OTPScreen() {
   const filled = otp.join('').length === 6;
 
   return (
-    <LinearGradient colors={['#0B0F1A', '#0E1422']} style={{ flex: 1 }}>
-      <KeyboardAwareScrollViewCompat
-        style={{ flex: 1 }}
-        contentContainerStyle={{ flexGrow: 1 }}
-      >
-        <View style={[styles.container, { flex: 1, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }]}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <KeyboardAwareScrollViewCompat style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
+        <View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Feather name="arrow-left" size={22} color="#F5F7FA" />
+            <Feather name="arrow-left" size={22} color={colors.foreground} />
           </TouchableOpacity>
 
-          <View style={{ flex: 1, justifyContent: 'center', gap: 36 }}>
+          <View style={styles.content}>
             <View style={styles.header}>
-              <View style={styles.iconCircle}>
-                <Feather name="smartphone" size={32} color="#4DA3FF" />
+              <View style={[styles.iconCircle, { backgroundColor: colors.primary + '15' }]}>
+                <Feather name="smartphone" size={32} color={colors.primary} />
               </View>
-              <Text style={[styles.title, { fontFamily: 'Inter_700Bold' }]}>Verify Your Mobile</Text>
-              <Text style={[styles.subtitle, { fontFamily: 'Inter_400Regular' }]}>
+              <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Verify Your Mobile</Text>
+              <Text style={[styles.subtitle, { color: colors.textMuted, fontFamily: 'Inter_400Regular' }]}>
                 {sentTo
                   ? `Enter the 6-digit code sent to ${sentTo}`
-                  : 'Enter the 6-digit code sent to the email registered with this mobile number'}
+                  : 'Enter the 6-digit code sent to the mobile number'}
               </Text>
             </View>
 
@@ -128,10 +116,10 @@ export default function OTPScreen() {
                   style={[
                     styles.otpCell,
                     {
-                      borderColor: digit ? '#3A8FF7' : 'rgba(255,255,255,0.10)',
-                      color: '#F5F7FA',
+                      borderColor: digit ? colors.primary : colors.border,
+                      color: colors.foreground,
                       fontFamily: 'Inter_700Bold',
-                      backgroundColor: 'rgba(17, 27, 45, 0.68)',
+                      backgroundColor: colors.input,
                       borderRadius: colors.radius - 2,
                     },
                   ]}
@@ -141,57 +129,38 @@ export default function OTPScreen() {
             </View>
 
             {!!error && (
-              <View style={styles.errorBox}>
-                <Feather name="alert-circle" size={14} color="#EF4444" />
-                <Text style={[styles.errorText, { fontFamily: 'Inter_400Regular' }]}>{error}</Text>
+              <View style={[styles.errorBox, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
+                <Feather name="alert-circle" size={14} color={colors.destructive} />
+                <Text style={[styles.errorText, { color: colors.destructive, fontFamily: 'Inter_400Regular' }]}>{error}</Text>
               </View>
             )}
 
-            <TouchableOpacity
-              onPress={handleResend}
-              disabled={timer > 0}
-              style={{ alignItems: 'center' }}
-            >
-              <Text style={[styles.resendText, {
-                color: timer > 0 ? '#7F8BA3' : '#4DA3FF',
-                fontFamily: 'Inter_500Medium',
-              }]}>
+            <TouchableOpacity onPress={handleResend} disabled={timer > 0} style={{ alignItems: 'center' }}>
+              <Text style={[styles.resendText, { color: timer > 0 ? colors.textMuted : colors.primary, fontFamily: 'Inter_500Medium' }]}>
                 {timer > 0 ? `Resend OTP in ${timer}s` : 'Resend OTP'}
               </Text>
             </TouchableOpacity>
 
-            <Button
-              title="Verify & Continue"
-              onPress={handleVerify}
-              loading={loading}
-              disabled={!filled}
-              fullWidth
-              size="lg"
-            />
+            <Button title="Verify & Continue" onPress={handleVerify} loading={loading} disabled={!filled} fullWidth size="lg" />
           </View>
         </View>
       </KeyboardAwareScrollViewCompat>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   container: { flex: 1, paddingHorizontal: 24 },
-  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  header: { alignItems: 'center', gap: 14 },
-  iconCircle: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: 'rgba(47, 128, 237, 0.10)', alignItems: 'center', justifyContent: 'center',
-  },
-  title: { fontSize: 26, color: '#F5F7FA' },
-  subtitle: { fontSize: 14, color: '#A8B3C7', textAlign: 'center', lineHeight: 22 },
+  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -12 },
+  content: { flex: 1, justifyContent: 'center', gap: 32 },
+  header: { alignItems: 'center', gap: 12 },
+  iconCircle: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 26 },
+  subtitle: { fontSize: 15, textAlign: 'center', lineHeight: 22 },
   otpRow: { flexDirection: 'row', justifyContent: 'center', gap: 10 },
   otpCell: { width: 48, height: 60, fontSize: 24, borderWidth: 1.5 },
-  resendText: { fontSize: 14 },
-  errorBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(239, 68, 68, 0.10)', borderRadius: 10, padding: 12,
-    borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.16)',
-  },
-  errorText: { fontSize: 12, color: '#EF4444', flex: 1 },
+  resendText: { fontSize: 15 },
+  errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 14, borderWidth: 1 },
+  errorText: { fontSize: 14, flex: 1 },
 });

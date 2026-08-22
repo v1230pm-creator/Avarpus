@@ -12,6 +12,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useColorScheme } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 
+export { FlatCard } from './FlatCard';
+
 /** Whether the app is currently rendering the dark palette. */
 export function useIsDark() {
   return useColorScheme() === 'dark';
@@ -26,7 +28,7 @@ interface GlassCardProps {
 
 /**
  * Premium glassmorphism card — frosted blur on iOS, translucent surface
- * elsewhere. Matches the dashboard's visual language.
+ * elsewhere. Matches the app's visual language.
  */
 export function GlassCard({ children, style, animValue }: GlassCardProps) {
   const colors = useColors();
@@ -86,7 +88,7 @@ export function GlassCard({ children, style, animValue }: GlassCardProps) {
 
 /**
  * Full-screen ambient background: subtle top gradient wash + a soft
- * primary-colored orb, matching the dashboard. Place as the first child
+ * primary-colored orb, matching the app. Place as the first child
  * of a screen container (renders absolutely, pointerEvents none).
  */
 export function ScreenGlow() {

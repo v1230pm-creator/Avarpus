@@ -36,9 +36,17 @@
       "expo-web-browser",
       "expo-secure-store",
       [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow VMC Electronic BMS to record voice notes and use audio calls."
+        }
+      ],
+      "@livekit/react-native-expo-plugin",
+      "@config-plugins/react-native-webrtc",
+      [
         "expo-camera",
         {
-          "cameraPermission": "Scan repair job QR codes."
+          "cameraPermission": "Allow VMC Electronic BMS to scan repair QR codes and use video calls."
         }
       ]
     ],

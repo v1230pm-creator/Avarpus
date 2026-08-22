@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { authLogin, authLogout, authMe, authOtpVerify, roleFeaturesGet, setUnauthorizedHandler } from '@workspace/api-client-react';
-import { User, UserRole } from '@/types';
+import { User, UserRole, isCustomerRole } from '@/types';
 import { storage, KEYS } from '@/utils/storage';
 import { seedIfNeeded } from '@/utils/seedData';
 
@@ -41,15 +41,18 @@ const AuthContext = createContext<AuthContextType>({
 
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   super_admin: ['*'],
-  dealer: ['dashboard', 'repairs', 'inventory', 'customers', 'finance', 'payments', 'staff', 'reports', 'settings', 'purchases', 'attendance', 'backup', 'profit', 'income', 'expense'],
-  reception: ['dashboard', 'repairs', 'repairs_create', 'customers'],
-  technician: ['dashboard', 'repairs', 'repairs_update', 'customers'],
-  store_manager: ['dashboard', 'inventory', 'purchases'],
-  accountant: ['dashboard', 'finance', 'reports', 'income', 'expense', 'profit'],
+  dealer: ['repairs', 'inventory', 'customers', 'finance', 'payments', 'staff', 'reports', 'settings', 'purchases', 'attendance', 'backup', 'profit', 'income', 'expense'],
+  reception: ['repairs', 'repairs_create', 'customers'],
+  technician: ['repairs', 'repairs_update', 'customers'],
+  store_manager: ['inventory', 'purchases'],
+  accountant: ['finance', 'reports', 'income', 'expense', 'profit'],
   // Dealer-portal accounts: read-only view of their own repairs. The server
   // enforces this fail-closed; these entries only shape the visible UI.
   dealer_owner: ['repairs_portal'],
   dealer_staff: ['repairs_portal'],
+  // Customer self-service: can see inbox (chat) and their own profile only.
+  // Never granted staff/inventory/finance/repair mutations.
+  customer: ['chat'],
 };
 
 // Maps client permission strings (used across screens via canAccess) to the
@@ -57,7 +60,6 @@ const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
 // More → Staff Permissions. Permissions without a mapping (e.g. staff,
 // settings) stay owner-only and are never toggleable.
 const PERM_TO_FEATURE: Record<string, string> = {
-  dashboard: 'dashboard',
   repairs: 'repairs',
   repairs_assigned: 'repairs',
   repairs_create: 'repairs_create',
@@ -165,6 +167,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setFeatures(null);
       return;
     }
+    if (isCustomerRole(user.role)) {
+      // Customer access is a fixed, fail-closed portal policy. Do not call the
+      // staff role-feature endpoint, which customer sessions cannot access.
+      setFeatures({});
+      return;
+    }
     refreshFeatures();
     const timer = setInterval(refreshFeatures, 60_000);
     return () => clearInterval(timer);
@@ -224,6 +232,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user.role === 'super_admin' || user.role === 'dealer') {
       const perms = ROLE_PERMISSIONS[user.role];
       return !!perms && (perms.includes('*') || perms.includes(feature));
+    }
+    // Customer role: fixed permissions only — never evaluated through staff feature toggles.
+    if (isCustomerRole(user.role)) {
+      const perms = ROLE_PERMISSIONS['customer'];
+      return perms.includes(feature);
     }
     // Staff/portal roles: honor the shop's feature toggles when loaded.
     const key = PERM_TO_FEATURE[feature];

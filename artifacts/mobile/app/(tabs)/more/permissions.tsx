@@ -6,7 +6,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
-import { GlassCard, ScreenGlow } from '@/components/ui/Glass';
+import { FlatCard } from '@/components/ui/FlatCard';
 import { roleFeaturesGet, roleFeaturesUpdate } from '@workspace/api-client-react';
 
 // ── Staff Permissions ───────────────────────────────────────────────────────
@@ -25,7 +25,6 @@ const ROLES: { key: string; label: string; description: string }[] = [
 ];
 
 const FEATURE_LABELS: Record<string, { label: string; description: string }> = {
-  dashboard: { label: 'Dashboard', description: 'Home screen with counts and stats' },
   repairs: { label: 'Repairs — view', description: 'See the repairs list and details' },
   repairs_create: { label: 'Repairs — create', description: 'Register new repair jobs' },
   repairs_update: { label: 'Repairs — update', description: 'Change repair status and work details' },
@@ -108,7 +107,7 @@ export default function PermissionsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <View style={[styles.header, { paddingTop: topPad + 16 }]}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.card }]}>
@@ -174,7 +173,7 @@ export default function PermissionsScreen() {
             {ROLES.find((r) => r.key === selectedRole)?.description}
           </Text>
 
-          <GlassCard style={styles.group}>
+          <FlatCard style={styles.group}>
             {visibleKeys.map((key, idx) => (
               <View
                 key={key}
@@ -199,7 +198,7 @@ export default function PermissionsScreen() {
                 />
               </View>
             ))}
-          </GlassCard>
+          </FlatCard>
 
           <Text style={[styles.note, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
             Owner accounts (Dealer / Super Admin) always have full access and are not affected by these switches.

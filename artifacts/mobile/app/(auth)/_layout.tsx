@@ -8,6 +8,7 @@ export default function AuthLayout() {
       <Stack.Screen name="register" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="biometric" options={{ animation: 'fade' }} />
       <Stack.Screen name="forgot" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="activate" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }

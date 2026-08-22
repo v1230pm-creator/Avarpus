@@ -18,7 +18,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { sha256 } from 'js-sha256';
 import { useColors } from '@/hooks/useColors';
-import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
+import { FlatCard, useStaggerAnim } from '@/components/ui/Glass';
 import { storage, KEYS } from '@/utils/storage';
 import { getAppVersion, getAppBuildNumber, formatBytes } from '@/utils/appVersion';
 import {
@@ -700,7 +700,7 @@ export default function AppUpdateScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
       <View style={[styles.header, { paddingTop: topPad + 16 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
@@ -712,7 +712,7 @@ export default function AppUpdateScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {/* Current version */}
-        <GlassCard animValue={anims[0]} style={styles.card}>
+        <FlatCard animValue={anims[0]} style={styles.card}>
           <View style={styles.rowBetween}>
             <View style={[styles.iconWrap, { backgroundColor: colors.primary + '1A' }]}>
               <Feather name="smartphone" size={20} color={colors.primary} />
@@ -746,23 +746,23 @@ export default function AppUpdateScreen() {
               {checking ? 'Checking…' : 'Check for Updates'}
             </Text>
           </TouchableOpacity>
-        </GlassCard>
+        </FlatCard>
 
         {/* Check error */}
         {checkError && (
-          <GlassCard animValue={anims[1]} style={styles.card}>
+          <FlatCard animValue={anims[1]} style={styles.card}>
             <View style={styles.rowBetween}>
               <Feather name="wifi-off" size={20} color={colors.destructive} />
               <Text style={[styles.errorText, { color: colors.destructive, fontFamily: 'Inter_400Regular', flex: 1, marginLeft: 10 }]}>
                 {checkError}
               </Text>
             </View>
-          </GlassCard>
+          </FlatCard>
         )}
 
         {/* Up to date */}
         {checked && !checkError && !isUpdateAvailable && (
-          <GlassCard animValue={anims[1]} style={[styles.card, styles.centerCard]}>
+          <FlatCard animValue={anims[1]} style={[styles.card, styles.centerCard]}>
             <View style={[styles.bigIcon, { backgroundColor: '#34D3991A' }]}>
               <Feather name="check-circle" size={30} color="#34D399" />
             </View>
@@ -772,12 +772,12 @@ export default function AppUpdateScreen() {
             <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
               Current Version: {currentVersion}
             </Text>
-          </GlassCard>
+          </FlatCard>
         )}
 
         {/* Update available */}
         {checked && isUpdateAvailable && latest && (
-          <GlassCard animValue={anims[1]} style={styles.card}>
+          <FlatCard animValue={anims[1]} style={styles.card}>
             <View style={styles.rowBetween}>
               <View style={[styles.iconWrap, { backgroundColor: typeMeta.color + '1A' }]}>
                 <Feather name="download-cloud" size={20} color={typeMeta.color} />
@@ -953,12 +953,12 @@ export default function AppUpdateScreen() {
                 </Text>
               </View>
             )}
-          </GlassCard>
+          </FlatCard>
         )}
 
         {/* Changelog */}
         {checked && !checkError && (
-          <GlassCard animValue={anims[2]} style={styles.card}>
+          <FlatCard animValue={anims[2]} style={styles.card}>
             <TouchableOpacity onPress={loadChangelog} style={styles.rowBetween} activeOpacity={0.7}>
               <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
                 View Full Changelog
@@ -1007,7 +1007,7 @@ export default function AppUpdateScreen() {
                 )}
               </View>
             )}
-          </GlassCard>
+          </FlatCard>
         )}
 
         <View style={{ height: 100 }} />

@@ -12,6 +12,7 @@ import syncRouter from "./sync";
 import appUpdatesRouter from "./appUpdates";
 import roleFeaturesRouter from "./roleFeatures";
 import notificationsRouter from "./notifications";
+import chatRouter from "./chat";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(syncRouter);
 router.use(appUpdatesRouter);
 router.use(roleFeaturesRouter);
 router.use(notificationsRouter);
+router.use(chatRouter);
 
 export default router;

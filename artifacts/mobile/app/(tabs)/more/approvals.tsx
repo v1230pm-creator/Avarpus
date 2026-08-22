@@ -21,14 +21,14 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
-import { GlassCard, ScreenGlow, FadeInView, useIsDark, useStaggerAnim } from '@/components/ui/Glass';
+import { FlatCard, FadeInView, useIsDark, useStaggerAnim } from '@/components/ui/Glass';
 import { formatDate } from '@/utils/helpers';
 import { KeyboardAvoidingCompat } from '@/components/KeyboardAvoidingCompat';
-import { 
-  useApprovalsList, 
-  approvalsApprove, 
-  approvalsReject, 
-  ApprovalRequest 
+import {
+  useApprovalsList,
+  approvalsApprove,
+  approvalsReject,
+  ApprovalRequest
 } from '@workspace/api-client-react';
 
 const STATUS_COLORS = {
@@ -37,13 +37,13 @@ const STATUS_COLORS = {
   rejected: 'error',
 } as const;
 
-function ApprovalCard({ 
-  request, 
-  isStaff, 
-  onApprove, 
-  onReject 
-}: { 
-  request: ApprovalRequest; 
+function ApprovalCard({
+  request,
+  isStaff,
+  onApprove,
+  onReject
+}: {
+  request: ApprovalRequest;
   isStaff: boolean;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
@@ -64,7 +64,7 @@ function ApprovalCard({
   }
 
   return (
-    <GlassCard style={styles.card}>
+    <FlatCard style={styles.card}>
       <View style={styles.cardTop}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.requester, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
@@ -104,16 +104,16 @@ function ApprovalCard({
 
       {!isStaff && request.status === 'pending' && (
         <View style={styles.actionRow}>
-          <Button 
-            title="Reject" 
-            variant="outline" 
-            onPress={() => onReject(request.id)} 
-            style={{ flex: 1 }} 
+          <Button
+            title="Reject"
+            variant="outline"
+            onPress={() => onReject(request.id)}
+            style={{ flex: 1 }}
           />
-          <Button 
-            title="Approve" 
-            onPress={() => onApprove(request.id)} 
-            style={{ flex: 1, backgroundColor: colors.success }} 
+          <Button
+            title="Approve"
+            onPress={() => onApprove(request.id)}
+            style={{ flex: 1, backgroundColor: colors.success }}
           />
         </View>
       )}
@@ -130,7 +130,7 @@ function ApprovalCard({
           )}
         </View>
       )}
-    </GlassCard>
+    </FlatCard>
   );
 }
 
@@ -159,8 +159,8 @@ export default function ApprovalsScreen() {
       'Are you sure you want to approve this backdated entry? It will be saved immediately.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Approve', 
+        {
+          text: 'Approve',
           style: 'default',
           onPress: async () => {
             setProcessing(true);
@@ -169,7 +169,7 @@ export default function ApprovalsScreen() {
               await refetch();
               // Invalidate specific lists since a new record was just created
               // (Simplest approach without importing every single hook's queryKey)
-              queryClient.invalidateQueries(); 
+              queryClient.invalidateQueries();
             } catch (err: any) {
               Alert.alert('Error', err.message || 'Failed to approve request');
             } finally {
@@ -198,7 +198,7 @@ export default function ApprovalsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <FadeInView animValue={anims[0]}>
         <View style={[styles.header, { paddingTop: topPad + 14 }]}>
@@ -232,11 +232,11 @@ export default function ApprovalsScreen() {
             refreshControl={<RefreshControl refreshing={isRefetching || processing} onRefresh={refetch} tintColor={colors.primary} />}
             ListEmptyComponent={<EmptyState icon="check-circle" title="No requests" description={isStaff ? "You haven't made any backdated entry requests." : "No pending approvals found."} />}
             renderItem={({ item }) => (
-              <ApprovalCard 
-                request={item} 
-                isStaff={isStaff} 
-                onApprove={handleApprove} 
-                onReject={(id) => setRejectingId(id)} 
+              <ApprovalCard
+                request={item}
+                isStaff={isStaff}
+                onApprove={handleApprove}
+                onReject={(id) => setRejectingId(id)}
               />
             )}
           />
@@ -251,7 +251,7 @@ export default function ApprovalsScreen() {
             <Text style={[styles.modalSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
               Please provide a reason for rejecting this backdated entry.
             </Text>
-            
+
             <TextInput
               value={rejectReason}
               onChangeText={setRejectReason}
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   decidedBox: { borderTopWidth: 1, paddingTop: 12, marginTop: 4, gap: 4 },
   decidedText: { fontSize: 12 },
   rejectionReason: { fontSize: 12 },
-  
+
   overlayCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
   rejectModal: { width: '100%', padding: 20, borderRadius: 16, borderWidth: 1 },
   modalTitle: { fontSize: 18, marginBottom: 8 },

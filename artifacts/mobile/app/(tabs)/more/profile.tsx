@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
-import { GlassCard, ScreenGlow, useStaggerAnim } from '@/components/ui/Glass';
+import { FlatCard, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
 import { authMeUpdate, authChangePassword } from '@workspace/api-client-react';
 
@@ -80,7 +80,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
       <View style={[styles.header, { paddingTop: topPad + 16 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
@@ -90,7 +90,7 @@ export default function ProfileScreen() {
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
-          <GlassCard animValue={anims[0]} style={styles.card}>
+          <FlatCard animValue={anims[0]} style={styles.card}>
             <View style={{ alignItems: 'center', marginBottom: 16 }}>
               <Avatar name={user?.name ?? 'User'} size={64} />
               <Text style={[styles.email, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{user?.email}</Text>
@@ -107,9 +107,9 @@ export default function ProfileScreen() {
             <TouchableOpacity onPress={saveProfile} disabled={savingProfile} activeOpacity={0.85} style={[styles.button, { backgroundColor: colors.primary, opacity: savingProfile ? 0.6 : 1 }]}>
               {savingProfile ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={styles.buttonText}>Save Profile</Text>}
             </TouchableOpacity>
-          </GlassCard>
+          </FlatCard>
 
-          <GlassCard animValue={anims[1]} style={styles.card}>
+          <FlatCard animValue={anims[1]} style={styles.card}>
             <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Change Password</Text>
             <Text style={[styles.sectionHint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
               8+ characters with uppercase, lowercase and a number. Other devices are signed out after the change.
@@ -127,14 +127,14 @@ export default function ProfileScreen() {
             <TouchableOpacity onPress={changePassword} disabled={savingPw} activeOpacity={0.85} style={[styles.button, { backgroundColor: colors.primary, opacity: savingPw ? 0.6 : 1 }]}>
               {savingPw ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={styles.buttonText}>Change Password</Text>}
             </TouchableOpacity>
-          </GlassCard>
+          </FlatCard>
 
-          <GlassCard animValue={anims[2]} style={styles.card}>
+          <FlatCard animValue={anims[2]} style={styles.card}>
             <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Forgot your password?</Text>
             <Text style={[styles.sectionHint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
               If you can't remember your current password, sign out and use "Forgot Password?" on the login screen — an OTP is sent to your registered email.
             </Text>
-          </GlassCard>
+          </FlatCard>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

@@ -1,10 +1,10 @@
 ---
 name: Managed Matrix provider
-description: Approved managed service and provisioning boundary for VMC encrypted communications.
+description: Approved ESS Pro service, Application Service boundary, and deferred encryption status.
 ---
 
-VMC’s approved managed Matrix service is Element Server Suite Pro (fully managed cloud). Provision a dedicated private tenant with a real custom Matrix homeserver domain before implementing provider-dependent messaging.
+VMC’s approved managed Matrix service is Element Server Suite Pro (fully managed cloud). The app must connect through a registered Matrix Application Service whose exclusive virtual-user namespace matches the app’s configured namespace.
 
-**Why:** The app requires audited end-to-end encryption, private account provisioning, and no placeholder endpoints or custom cryptography.
+**Why:** Matrix `?user_id=` masquerading is an Application Service capability, not a normal administrator-token capability. Creating rooms as an admin also adds an unintended third provider member. E2EE is deferred and must not be claimed as enabled.
 
-**How to apply:** Do not add a homeserver URL, Matrix administrator credential, user credential, or encryption fallback until Element has provisioned the tenant and the user supplies the actual values through Replit Secrets. Keep public registration, guest access, public room discovery, and unapproved federation disabled.
+**How to apply:** Require an explicit homeserver URL, server name, and Application Service token supplied through Replit Secrets. Create/send as virtual participants and verify exactly two joined provider members before local persistence. Keep public registration, guest access, public room discovery, unapproved federation, and encryption fallbacks disabled.

@@ -3,3 +3,4 @@ export * from "./business";
 export * from "./appUpdates";
 export * from "./roleFeatures";
 export * from "./notifications";
+export * from "./chat";

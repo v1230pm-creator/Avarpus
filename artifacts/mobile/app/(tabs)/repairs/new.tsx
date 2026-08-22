@@ -30,7 +30,7 @@ import { useColors } from '@/hooks/useColors';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { SelectInput } from '@/components/ui/SelectInput';
-import { ScreenGlow, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { Repair } from '@/types';
 import {
   getTodayStr,
@@ -140,7 +140,7 @@ export default function NewRepairScreen() {
   const [alternateMobile, setAlternateMobile] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
-  
+
   const [deviceType, setDeviceType] = useState('Smartphone');
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
@@ -154,7 +154,7 @@ export default function NewRepairScreen() {
   const [showDevicePassword, setShowDevicePassword] = useState(false);
   const [simPresent, setSimPresent] = useState(false);
   const [memoryCardPresent, setMemoryCardPresent] = useState(false);
-  
+
   const [accessoriesList, setAccessoriesList] = useState<string[]>([]);
   const [showAccessories, setShowAccessories] = useState(false);
   const [showPhysical, setShowPhysical] = useState(false);
@@ -166,7 +166,7 @@ export default function NewRepairScreen() {
   const [physicalCondition, setPhysicalCondition] = useState<Record<string, boolean>>({});
   const [deviceCondition, setDeviceCondition] = useState('');
   const [problem, setProblem] = useState('');
-  
+
   const [priority, setPriority] = useState('normal');
   // Optional B2B dealer link — permanent association made at intake.
   const [dealerId, setDealerId] = useState<string | null>(null);
@@ -221,7 +221,7 @@ export default function NewRepairScreen() {
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
   const [reason, setReason] = useState('');
   const [forceApprovalMode, setForceApprovalMode] = useState(false);
-  
+
   const [photos, setPhotos] = useState<{ uri: string, kind: string }[]>([]);
   const [receivingSignatureUri, setReceivingSignatureUri] = useState<string | null>(null);
   const [customerConfirmed, setCustomerConfirmed] = useState(false);
@@ -674,7 +674,7 @@ export default function NewRepairScreen() {
   if (createdRepair) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
-        <ScreenGlow />
+
         <View style={styles.successView}>
           <View style={[styles.successIconWrap, { backgroundColor: colors.success + '22' }]}>
             <Feather name="check-circle" size={48} color={colors.success} />
@@ -685,7 +685,7 @@ export default function NewRepairScreen() {
           <Text style={[styles.successSubtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
             Ticket No: {createdRepair.repairId}
           </Text>
-          
+
           <View style={styles.qrWrap}>
             <QRCode value={createdRepair.id} size={160} getRef={(c) => (qrRef.current = c)} />
           </View>
@@ -701,7 +701,7 @@ export default function NewRepairScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenGlow />
+
 
       <FadeInView animValue={anims[0]} style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => step === 2 ? setStep(1) : router.replace('/(tabs)/repairs')} style={styles.backBtn}>
@@ -719,7 +719,7 @@ export default function NewRepairScreen() {
         bottomOffset={24}
       >
         <FadeInView animValue={anims[1]} style={{ gap: 20 }}>
-          
+
           {step === 1 ? (
             <>
               {/* Customer */}
@@ -913,7 +913,7 @@ export default function NewRepairScreen() {
                   </View>
                 )}
                 <Input label="Model *" value={model} onChangeText={setModel} placeholder="Enter your model" leftIcon="smartphone" error={errors.model} />
-                
+
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
                     <Input label="IMEI 1" value={imei} onChangeText={setImei} placeholder="Optional" keyboardType="number-pad" />
@@ -923,7 +923,7 @@ export default function NewRepairScreen() {
                   </View>
                 </View>
                 <Input label="Serial Number" value={serialNumber} onChangeText={setSerialNumber} placeholder="Optional" />
-                
+
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}><Input label="Color" value={colorAttr} onChangeText={setColorAttr} placeholder="Optional" /></View>
                   <View style={{ flex: 1 }}><Input label="Storage" value={storage} onChangeText={setStorage} placeholder="e.g. 128GB" /></View>
@@ -931,10 +931,10 @@ export default function NewRepairScreen() {
                 </View>
 
                 <View style={{ position: 'relative' }}>
-                  <Input 
-                    label="Device Password / Pattern" 
-                    value={devicePassword} 
-                    onChangeText={setDevicePassword} 
+                  <Input
+                    label="Device Password / Pattern"
+                    value={devicePassword}
+                    onChangeText={setDevicePassword}
                     placeholder="Optional"
                     secureTextEntry={!showDevicePassword}
                   />
@@ -1100,7 +1100,7 @@ export default function NewRepairScreen() {
                       <View style={[styles.photoBadge, { backgroundColor: colors.primary }]}>
                         <Text style={styles.photoBadgeText}>{PHOTO_KINDS.find(k => k.id === p.kind)?.label || p.kind}</Text>
                       </View>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         style={[styles.photoRemove, { backgroundColor: colors.destructive }]}
                         onPress={() => setPhotos(prev => prev.filter((_, idx) => idx !== i))}
                       >
@@ -1139,7 +1139,7 @@ export default function NewRepairScreen() {
                 {isBackdated && (
                   <Input label="Reason for backdating *" value={reason} onChangeText={setReason} placeholder="Explain why this is backdated..." error={errors.reason} />
                 )}
-                
+
                 <Input label="Expected Delivery *" value={expectedDate} onChangeText={setExpectedDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} leftIcon="calendar" error={errors.expectedDate} />
                 <SelectInput label="Priority" options={PRIORITIES} value={priority} onChange={setPriority} labelMap={PRIORITY_LABELS} />
                 <TouchableOpacity
@@ -1251,9 +1251,9 @@ export default function NewRepairScreen() {
 
               {/* Customer Confirmation */}
               <View style={styles.section}>
-                <TouchableOpacity 
-                  activeOpacity={0.7} 
-                  onPress={() => setCustomerConfirmed(!customerConfirmed)} 
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setCustomerConfirmed(!customerConfirmed)}
                   style={[styles.confirmationWrap, { backgroundColor: colors.card, borderColor: customerConfirmed ? colors.primary : colors.border }]}
                 >
                   <View style={[styles.checkbox, { backgroundColor: customerConfirmed ? colors.primary : 'transparent', borderColor: customerConfirmed ? colors.primary : colors.muted }]}>

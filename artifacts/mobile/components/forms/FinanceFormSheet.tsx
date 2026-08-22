@@ -62,7 +62,7 @@ export function FinanceFormSheet({ visible, onClose, entry }: Props) {
     if (!Number.isFinite(amt) || amt <= 0) e.amount = 'Enter an amount greater than 0';
     if (!isValidDateStr(date.trim())) e.date = 'Enter a valid date as YYYY-MM-DD';
     else if (date.trim() > getTodayStr()) e.date = 'Date cannot be in the future';
-    
+
     if (isBackdated && !reason.trim()) {
       e.reason = 'A reason is required for backdated entries';
     }
@@ -140,7 +140,7 @@ export function FinanceFormSheet({ visible, onClose, entry }: Props) {
       <SelectInput label="Type" options={TYPE_OPTIONS} value={type} onChange={setType} labelMap={TYPE_LABELS} />
       <Input label="Category *" value={category} onChangeText={setCategory} placeholder="e.g. Repair Charges, Utilities" error={errors.category} />
       <Input label="Date *" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} error={errors.date} />
-      
+
       {isBackdated && (
         <Input label="Reason for backdating *" value={reason} onChangeText={setReason} placeholder="Explain why this is backdated..." error={errors.reason} />
       )}
