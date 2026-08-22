@@ -6,7 +6,6 @@ import { Feather } from '@expo/vector-icons';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
-import { isDealerPortalRole } from '@/types';
 import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { RepairStatusBadge, SampleBadge } from '@/components/ui/Badge';
@@ -22,7 +21,7 @@ export default function CustomerDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { customers, repairs } = useData();
-  const { user, canAccess } = useAuth();
+  const { canAccess } = useAuth();
   const [showEdit, setShowEdit] = useState(false);
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
@@ -103,28 +102,26 @@ export default function CustomerDetailScreen() {
               <Text style={[styles.address, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{customer.address}</Text>
             </View>
           )}
-          {!isDealerPortalRole(user?.role) && canAccess('customers') && (
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, width: '100%' }}>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, width: '100%' }}>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: colors.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+              onPress={() => router.push(`/(tabs)/customers/chat/${customer.id}?type=customer&name=${encodeURIComponent(customer.name)}`)}
+              activeOpacity={0.8}
+            >
+              <Feather name="message-square" size={16} color="#FFFFFF" />
+              <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 14 }}>Message</Text>
+            </TouchableOpacity>
+            {canAccess('payments') && (
               <TouchableOpacity
-                style={{ flex: 1, backgroundColor: colors.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
-                onPress={() => router.push(`/(tabs)/customers/chat/${customer.id}?type=customer&name=${encodeURIComponent(customer.name)}`)}
+                style={{ flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                onPress={() => router.push(`/(tabs)/khata/party/customer/${customer.id}?name=${encodeURIComponent(customer.name)}`)}
                 activeOpacity={0.8}
               >
-                <Feather name="message-square" size={16} color="#FFFFFF" />
-                <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 14 }}>Message</Text>
+                <Feather name="book" size={16} color={colors.foreground} />
+                <Text style={{ color: colors.foreground, fontWeight: '600', fontSize: 14 }}>Khata</Text>
               </TouchableOpacity>
-              {canAccess('payments') && (
-                <TouchableOpacity
-                  style={{ flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
-                  onPress={() => router.push(`/(tabs)/khata/party/customer/${customer.id}?name=${encodeURIComponent(customer.name)}`)}
-                  activeOpacity={0.8}
-                >
-                  <Feather name="book" size={16} color={colors.foreground} />
-                  <Text style={{ color: colors.foreground, fontWeight: '600', fontSize: 14 }}>Khata</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
+            )}
+          </View>
 
           {summary && (
             <View style={{ width: '100%', marginTop: 16 }}>
