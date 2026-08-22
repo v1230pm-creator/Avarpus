@@ -58,6 +58,9 @@ export function buildKhataLedger(repairs: Repair[], payments: PaymentsList200Pay
 
     const isDealer = !!repair.dealerId;
     const partyId = isDealer ? repair.dealerId! : repair.customerId;
+    // Do not create a made-up customer ledger for an unresolved legacy repair.
+    // The database migration restores only safe, unambiguous customer links.
+    if (!partyId) continue;
     const partyName = isDealer ? (repair.dealerName?.trim() || 'Dealer') : repair.customerName;
     const partyType: KhataPartyType = isDealer ? 'dealer' : 'customer';
 

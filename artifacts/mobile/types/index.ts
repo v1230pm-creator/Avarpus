@@ -52,7 +52,9 @@ export type RepairPriority = 'low' | 'normal' | 'high' | 'urgent';
 export interface Repair {
   id: string;
   repairId: string;
-  customerId: string;
+  // Legacy repairs may not have a persisted customer link until the repair
+  // customer-link migration has matched them safely.
+  customerId?: string;
   customerName: string;
   mobile: string;
   alternateMobile?: string;

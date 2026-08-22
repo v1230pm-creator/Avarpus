@@ -484,6 +484,51 @@ describe('Staff repair home', () => {
     );
     expect(screen.getByText('Mohit Murya')).toBeTruthy();
   });
+
+  it('opens customer chat for a delivered legacy repair with one unique customer match', () => {
+    const push = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ push, back: jest.fn(), replace: jest.fn() });
+    mockUseData.mockReturnValue({
+      customers: [{ id: 'legacy-customer-1', name: 'Asha Kumar', mobile: '98765 43210' }],
+    });
+    mockUseRepairsList.mockReturnValue({
+      data: {
+        repairs: [
+          {
+            id: 'legacy-repair-1',
+            repairId: 'VMC-LEGACY-1',
+            customerName: 'Asha Kumar',
+            mobile: '9876543210',
+            deviceType: 'Mobile',
+            brand: 'Samsung',
+            model: 'A15',
+            problem: 'Legacy display issue',
+            status: 'delivered',
+            priority: 'normal',
+            repairCharge: 1200,
+            partsCharge: 0,
+            advance: 1200,
+            receiveDate: '2026-08-01',
+            expectedDate: '2026-08-03',
+            deliveryDate: '2026-08-04',
+            createdAt: '2026-08-01T10:24:00.000Z',
+          },
+        ],
+        total: 1,
+      },
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: jest.fn(),
+    });
+
+    render(<HomeScreen />);
+
+    fireEvent.press(screen.getByTestId('home-chat-customer-legacy-repair-1'));
+    expect(push).toHaveBeenCalledWith(
+      '/(tabs)/customers/chat/legacy-customer-1?targetId=legacy-customer-1&type=customer&name=Asha%20Kumar',
+    );
+  });
 });
 
 // ── Customer role permissions ──────────────────────────────────────────────
