@@ -23,7 +23,7 @@ function NativeTabLayout({ portal, customer }: { portal: boolean; customer: bool
     <NativeTabs>
       {!portal && (
         <NativeTabs.Trigger name="index">
-          <Icon sf={{ default: 'message', selected: 'message.fill' }} />
+          <Icon sf={{ default: 'house', selected: 'house.fill' }} />
           <Label>Home</Label>
         </NativeTabs.Trigger>
       )}
@@ -79,9 +79,9 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
           title: 'Home',
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="message" tintColor={color} size={22} />
+              <SymbolView name="house" tintColor={color} size={22} />
             ) : (
-              <Feather name="message-square" size={22} color={color} />
+              <Feather name="home" size={22} color={color} />
             ),
         }}
       />

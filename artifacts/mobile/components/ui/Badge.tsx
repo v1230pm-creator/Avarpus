@@ -63,8 +63,9 @@ export function RepairStatusBadge({ status }: { status: RepairStatus }) {
   return <Badge label={REPAIR_STATUS_LABELS[status]} variant={REPAIR_STATUS_VARIANTS[status]} size="sm" />;
 }
 
-export function PriorityBadge({ priority }: { priority: RepairPriority }) {
-  return <Badge label={priority.charAt(0).toUpperCase() + priority.slice(1)} variant={PRIORITY_VARIANTS[priority]} size="sm" />;
+export function PriorityBadge({ priority }: { priority?: RepairPriority | null }) {
+  const safePriority = priority ?? 'normal';
+  return <Badge label={safePriority.charAt(0).toUpperCase() + safePriority.slice(1)} variant={PRIORITY_VARIANTS[safePriority]} size="sm" />;
 }
 
 export function SampleBadge({ style }: { style?: ViewStyle }) {

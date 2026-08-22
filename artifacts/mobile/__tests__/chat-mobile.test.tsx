@@ -44,11 +44,17 @@ jest.mock('@/hooks/useColors', () => ({
     card: '#FFFFFF',
     border: '#E2E8F0',
     primary: '#2F80ED',
+    primaryForeground: '#FFFFFF',
+    secondaryForeground: '#334155',
     mutedForeground: '#64748B',
     backgroundSecondary: '#F1F5F9',
     accent: '#EAF2FF',
     destructive: '#EF4444',
     success: '#22C55E',
+    successLight: '#EAF8EF',
+    warning: '#B45309',
+    info: '#0B63F6',
+    purple: '#8B5CF6',
   }),
 }));
 
@@ -79,6 +85,7 @@ const mockUseChatMessagesList = jest.fn();
 const mockUseChatMessagesSend = jest.fn();
 const mockUseChatMarkRead = jest.fn();
 const mockUseChatUploadUrl = jest.fn();
+const mockUseRepairsList = jest.fn();
 
 jest.mock('@workspace/api-client-react', () => ({
   useChatCapabilities: (...args: any[]) => mockUseChatCapabilities(...args),
@@ -89,10 +96,12 @@ jest.mock('@workspace/api-client-react', () => ({
   useChatMessagesSend: (...args: any[]) => mockUseChatMessagesSend(...args),
   useChatMarkRead: (...args: any[]) => mockUseChatMarkRead(...args),
   useChatUploadUrl: (...args: any[]) => mockUseChatUploadUrl(...args),
+  useRepairsList: (...args: any[]) => mockUseRepairsList(...args),
   // Query key helpers
   getChatRoomsListQueryKey: () => ['/api/chat/rooms'],
   getChatRoomsGetQueryKey: (roomId: string) => [`/api/chat/rooms/${roomId}`],
   getChatMessagesListQueryKey: (roomId: string) => [`/api/chat/rooms/${roomId}/messages`],
+  getRepairsListQueryKey: (params: any) => ['/api/repairs', params],
   // Media URL — private per-message endpoint, not generic storage
   getChatMessageMediaUrl: (roomId: string, messageId: string) =>
     `/api/chat/rooms/${roomId}/messages/${messageId}/media`,
@@ -200,7 +209,7 @@ jest.mock('expo-audio', () => ({
 }));
 
 // Import after mocks
-import InboxScreen from '../app/(tabs)/index';
+import HomeScreen from '../app/(tabs)/index';
 import ChatRoomScreen from '../app/(tabs)/customers/chat/[id]';
 import ChatLayout from '../app/(tabs)/customers/chat/_layout';
 
@@ -230,6 +239,13 @@ beforeEach(() => {
   mockUseChatMessagesSend.mockReturnValue({ mutate: jest.fn(), isPending: false });
   mockUseChatMarkRead.mockReturnValue({ mutate: jest.fn() });
   mockUseChatUploadUrl.mockReturnValue({ mutate: jest.fn(), isPending: false });
+  mockUseRepairsList.mockReturnValue({
+    data: { repairs: [], total: 0 },
+    isLoading: false,
+    isError: false,
+    isFetching: false,
+    refetch: jest.fn(),
+  });
   mockGetDocumentAsync.mockResolvedValue({ canceled: true, assets: null });
   mockGetInfoAsync.mockResolvedValue({ exists: true, size: 1024 });
   mockCreateUploadTask.mockReturnValue({ uploadAsync: jest.fn().mockResolvedValue({ status: 200 }) });
@@ -299,13 +315,20 @@ beforeEach(() => {
 // ── Inbox: no fake data ────────────────────────────────────────────────────
 
 describe('Inbox — no fake data', () => {
+  beforeEach(() => {
+    (useAuth as jest.Mock).mockReturnValue({
+      user: { id: 'customer-1', name: 'Customer', role: 'customer' },
+      canAccess: (f: string) => f === 'chat',
+    });
+  });
+
   it('shows provider-not-configured state when matrixAvailable is false', () => {
     mockUseChatCapabilities.mockReturnValue({
       data: { matrixAvailable: false, livekitAvailable: false, e2eeEnabled: false },
       isLoading: false,
       isError: false,
     });
-    render(<InboxScreen />);
+    render(<HomeScreen />);
     expect(screen.getByText('Chat provider not configured')).toBeTruthy();
     // No fake contacts or messages
     expect(screen.queryByText('Alice')).toBeNull();
@@ -314,7 +337,7 @@ describe('Inbox — no fake data', () => {
 
   it('shows loading indicator while fetching capabilities', () => {
     mockUseChatCapabilities.mockReturnValue({ data: undefined, isLoading: true, isError: false });
-    render(<InboxScreen />);
+    render(<HomeScreen />);
     expect(screen.getByText('Loading conversations…')).toBeTruthy();
   });
 
@@ -335,7 +358,7 @@ describe('Inbox — no fake data', () => {
       isError: false,
       refetch: jest.fn(),
     });
-    render(<InboxScreen />);
+    render(<HomeScreen />);
     expect(screen.getByTestId('room-item-r1')).toBeTruthy();
     expect(screen.getByTestId('room-item-r2')).toBeTruthy();
     expect(screen.getByText('Alice')).toBeTruthy();
@@ -355,7 +378,7 @@ describe('Inbox — no fake data', () => {
       isError: false,
       refetch: jest.fn(),
     });
-    render(<InboxScreen />);
+    render(<HomeScreen />);
     expect(screen.getByText('No conversations yet')).toBeTruthy();
   });
 
@@ -372,10 +395,70 @@ describe('Inbox — no fake data', () => {
       isError: true,
       refetch,
     });
-    render(<InboxScreen />);
+    render(<HomeScreen />);
     expect(screen.getByText('Could not load conversations')).toBeTruthy();
     fireEvent.press(screen.getByText('Retry'));
     expect(refetch).toHaveBeenCalled();
+  });
+});
+
+describe('Staff repair home', () => {
+  it('renders the operational repair list without status filter chips', () => {
+    mockUseRepairsList.mockReturnValue({
+      data: {
+        repairs: [
+          {
+            id: 'repair-1',
+            repairId: 'VMC-051',
+            customerId: 'customer-1',
+            customerName: 'Mohit Murya',
+            mobile: '9999999999',
+            deviceType: 'Mobile',
+            brand: 'Samsung',
+            model: 'M34',
+            problem: 'Display issue',
+            status: 'repairing',
+            priority: 'normal',
+            repairCharge: 1500,
+            partsCharge: 0,
+            advance: 0,
+            receiveDate: '2026-08-16T10:24:00.000Z',
+            expectedDate: '2026-08-18T10:24:00.000Z',
+            createdAt: '2026-08-16T10:24:00.000Z',
+          },
+        ],
+        total: 1,
+      },
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: jest.fn(),
+    });
+
+    render(<HomeScreen />);
+
+    expect(screen.getByText('Mohit Murya')).toBeTruthy();
+    expect(screen.getByText('VMC-051')).toBeTruthy();
+    expect(screen.getByText('· Samsung M34')).toBeTruthy();
+    expect(screen.getByText('In Repair')).toBeTruthy();
+    expect(screen.getByPlaceholderText('Search customer or ticket...')).toBeTruthy();
+    expect(screen.getByTestId('home-create-repair')).toBeTruthy();
+    expect(screen.queryByText('All')).toBeNull();
+    expect(screen.queryByText('Received')).toBeNull();
+    expect(screen.queryByText('Repair')).toBeNull();
+    expect(screen.queryByText('Ready')).toBeNull();
+    expect(screen.queryByText('Delivered')).toBeNull();
+
+    const searchInput = screen.getByPlaceholderText('Search customer or ticket...');
+    fireEvent.changeText(searchInput, 'zzzzzz');
+    expect(screen.queryByText('Mohit Murya')).toBeNull();
+    expect(screen.getByText('No matching repairs')).toBeTruthy();
+
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Search customer or ticket...'),
+      'VMC-051',
+    );
+    expect(screen.getByText('Mohit Murya')).toBeTruthy();
   });
 });
 

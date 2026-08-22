@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Platform,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -10,16 +12,19 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { isDealerPortalRole } from '@/types';
+import { isCustomerRole, type Repair } from '@/types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
+import { formatCurrency, formatDate } from '@/utils/helpers';
 import {
   useChatCapabilities,
   useChatRoomsList,
   getChatRoomsListQueryKey,
+  getRepairsListQueryKey,
+  useRepairsList,
 } from '@workspace/api-client-react';
 import type { ChatRoom } from '@workspace/api-client-react';
 
@@ -85,7 +90,7 @@ function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => vo
   );
 }
 
-export default function InboxScreen() {
+function CustomerInboxScreen() {
   const colors = useColors();
   const router = useRouter();
   const { user } = useAuth();
@@ -317,6 +322,481 @@ export default function InboxScreen() {
   );
 }
 
+function formatRepairTime(dateStr?: string): string {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function repairStatusLine(repair: Repair): string {
+  if (repair.status === 'received') {
+    return `Received: ${formatDate(repair.receiveDate || repair.createdAt)}`;
+  }
+  if (repair.status === 'ready') return 'Ready for Delivery';
+  if (repair.status === 'delivered') {
+    return `Delivered: ${formatDate(repair.deliveryDate || repair.createdAt)}`;
+  }
+  if (repair.status === 'testing') return 'Testing in progress';
+  if (repair.status === 'waiting_parts') return 'Waiting for parts';
+  if (repair.status === 'customer_approval') return 'Customer approval pending';
+  if (repair.status === 'cannot_repair') return 'Cannot repair';
+  return 'In Repair';
+}
+
+function RepairHomeItem({
+  repair,
+  colors,
+  onPress,
+}: {
+  repair: Repair;
+  colors: any;
+  onPress: () => void;
+}) {
+  const total = repair.totalAmount ?? repair.repairCharge + repair.partsCharge;
+  const paid = repair.paidAmount ?? repair.advance;
+  const due = Math.max(0, total - paid);
+  const isPaid = total > 0 && due <= 0;
+  const avatarPalette = [
+    colors.primary,
+    colors.purple,
+    colors.info,
+    colors.success,
+    colors.warning,
+  ];
+  const avatarIndex =
+    Array.from(repair.customerName).reduce(
+      (sum, char) => sum + char.charCodeAt(0),
+      0,
+    ) % avatarPalette.length;
+  const initials = repair.customerName
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+  const statusColor =
+    repair.status === 'received'
+      ? colors.primary
+      : repair.status === 'ready' || repair.status === 'delivered'
+        ? colors.success
+        : colors.info;
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.72}
+      onPress={onPress}
+      style={[styles.repairItem, { borderBottomColor: colors.border }]}
+      testID={`home-repair-${repair.id}`}
+    >
+      <View
+        style={[
+          styles.repairAvatar,
+          { backgroundColor: avatarPalette[avatarIndex] },
+        ]}
+      >
+        <Text
+          style={[
+            styles.repairAvatarText,
+            { fontFamily: 'Inter_700Bold' },
+          ]}
+        >
+          {initials || 'C'}
+        </Text>
+      </View>
+
+      <View style={styles.repairContent}>
+        <View style={styles.repairNameRow}>
+          <View style={styles.repairNameWrap}>
+            <Text
+              style={[
+                styles.repairCustomerName,
+                {
+                  color: colors.foreground,
+                  fontFamily: 'Inter_700Bold',
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {repair.customerName}
+            </Text>
+            {!!repair.dealerName && (
+              <View
+                style={[
+                  styles.dealerPill,
+                  { backgroundColor: colors.successLight },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.dealerPillText,
+                    {
+                      color: colors.success,
+                      fontFamily: 'Inter_600SemiBold',
+                    },
+                  ]}
+                >
+                  Dealer
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text
+            style={[
+              styles.repairTime,
+              {
+                color: colors.mutedForeground,
+                fontFamily: 'Inter_500Medium',
+              },
+            ]}
+          >
+            {formatRepairTime(repair.createdAt)}
+          </Text>
+        </View>
+
+        <View style={styles.repairTicketRow}>
+          <Text
+            style={[
+              styles.repairMeta,
+              {
+                color: colors.secondaryForeground,
+                fontFamily: 'Inter_500Medium',
+              },
+            ]}
+          >
+            {repair.repairId}
+          </Text>
+          <Text
+            style={[
+              styles.repairDevice,
+              {
+                color: colors.secondaryForeground,
+                fontFamily: 'Inter_500Medium',
+              },
+            ]}
+            numberOfLines={1}
+          >
+            · {repair.brand} {repair.model}
+          </Text>
+        </View>
+
+        <View style={styles.repairBottomRow}>
+          <Text
+            style={[
+              styles.repairStatus,
+              { color: statusColor, fontFamily: 'Inter_600SemiBold' },
+            ]}
+            numberOfLines={1}
+          >
+            {repairStatusLine(repair)}
+          </Text>
+
+          <View
+            style={[
+              styles.amountPill,
+              {
+                backgroundColor:
+                  total <= 0
+                    ? colors.backgroundSecondary
+                    : isPaid
+                      ? colors.successLight
+                      : `${colors.destructive}12`,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.amountLabel,
+                {
+                  color:
+                    total <= 0
+                      ? colors.mutedForeground
+                      : isPaid
+                        ? colors.success
+                        : colors.destructive,
+                  fontFamily: 'Inter_600SemiBold',
+                },
+              ]}
+            >
+              {total <= 0 ? 'No Amount' : isPaid ? 'Paid' : 'Due'}
+            </Text>
+            {total > 0 && (
+              <Text
+                style={[
+                  styles.amountValue,
+                  {
+                    color: isPaid ? colors.success : colors.destructive,
+                    fontFamily: 'Inter_700Bold',
+                  },
+                ]}
+              >
+                {formatCurrency(isPaid ? total : due)}
+              </Text>
+            )}
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function RepairHomeScreen() {
+  const colors = useColors();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { canAccess } = useAuth();
+  const [search, setSearch] = useState('');
+  const searchInputRef = useRef<TextInput>(null);
+
+  const repairsParams = {
+    q: search.trim() || undefined,
+    page: 1,
+    limit: 50,
+  };
+  const {
+    data,
+    isLoading,
+    isError,
+    refetch,
+    isFetching,
+  } = useRepairsList(repairsParams, {
+    query: { queryKey: getRepairsListQueryKey(repairsParams) },
+  });
+  const allRepairs = (data?.repairs ?? []) as Repair[];
+  const repairs = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return allRepairs;
+    return allRepairs.filter((repair) =>
+      [
+        repair.customerName,
+        repair.repairId,
+        repair.mobile,
+        repair.brand,
+        repair.model,
+      ].some((value) => value?.toLowerCase().includes(query)),
+    );
+  }, [allRepairs, search]);
+  const topPad =
+    Platform.OS === 'web' ? insets.top + 67 : Math.max(insets.top, 12);
+  const canCreateRepair = canAccess('repairs_create');
+
+  const renderHeader = () => (
+    <View
+      style={[
+        styles.homeHeader,
+        {
+          paddingTop: topPad,
+          backgroundColor: colors.card,
+          borderBottomColor: colors.border,
+        },
+      ]}
+    >
+      <View style={styles.homeHeaderRow}>
+        <TouchableOpacity
+          onPress={() => router.push('/(tabs)/more')}
+          style={styles.headerIconButton}
+          accessibilityLabel="Open menu"
+        >
+          <Feather name="menu" size={27} color={colors.foreground} />
+        </TouchableOpacity>
+
+        <Image
+          source={require('@/assets/images/vmc-text.png')}
+          style={[styles.vmcLogo, { tintColor: colors.primary }]}
+          resizeMode="contain"
+        />
+
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => searchInputRef.current?.focus()}
+            style={styles.headerIconButton}
+            accessibilityLabel="Search repairs"
+          >
+            <Feather name="search" size={23} color={colors.foreground} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/more/notifications')}
+            style={styles.headerIconButton}
+            accessibilityLabel="Open notifications"
+          >
+            <Feather name="bell" size={22} color={colors.foreground} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.searchRow}>
+        <View
+          style={[
+            styles.homeSearch,
+            { backgroundColor: colors.backgroundSecondary },
+          ]}
+        >
+          <Feather
+            name="search"
+            size={19}
+            color={colors.mutedForeground}
+          />
+          <TextInput
+            ref={searchInputRef}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search customer or ticket..."
+            placeholderTextColor={colors.mutedForeground}
+            style={[
+              styles.homeSearchInput,
+              {
+                color: colors.foreground,
+                fontFamily: 'Inter_400Regular',
+              },
+            ]}
+            accessibilityLabel="Search customer or ticket"
+            returnKeyType="search"
+          />
+          {search.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearch('')}
+              accessibilityLabel="Clear search"
+            >
+              <Feather
+                name="x"
+                size={18}
+                color={colors.mutedForeground}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity
+          onPress={() => router.push('/(tabs)/repairs')}
+          style={[
+            styles.filterButton,
+            { backgroundColor: colors.backgroundSecondary },
+          ]}
+          accessibilityLabel="Open repair filters"
+        >
+          <Feather name="sliders" size={21} color={colors.foreground} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <FlatList
+        data={repairs}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <RepairHomeItem
+            repair={item}
+            colors={colors}
+            onPress={() => router.push(`/(tabs)/repairs/${item.id}`)}
+          />
+        )}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={
+          isLoading ? (
+            <View style={styles.homeEmpty}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : (
+            <View style={styles.homeEmpty}>
+              <Feather
+                name={isError ? 'alert-circle' : 'clipboard'}
+                size={32}
+                color={
+                  isError ? colors.destructive : colors.mutedForeground
+                }
+              />
+              <Text
+                style={[
+                  styles.homeEmptyTitle,
+                  {
+                    color: colors.foreground,
+                    fontFamily: 'Inter_700Bold',
+                  },
+                ]}
+              >
+                {isError
+                  ? 'Could not load repairs'
+                  : search
+                    ? 'No matching repairs'
+                    : 'No repairs yet'}
+              </Text>
+              <Text
+                style={[
+                  styles.homeEmptyText,
+                  {
+                    color: colors.mutedForeground,
+                    fontFamily: 'Inter_400Regular',
+                  },
+                ]}
+              >
+                {isError
+                  ? 'Check your connection and try again.'
+                  : search
+                    ? 'Try a customer name or repair ticket.'
+                    : 'New repair jobs will appear here.'}
+              </Text>
+              {isError && (
+                <TouchableOpacity
+                  onPress={() => refetch()}
+                  style={[
+                    styles.retryBtn,
+                    { backgroundColor: colors.primary },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      color: colors.primaryForeground,
+                      fontFamily: 'Inter_600SemiBold',
+                    }}
+                  >
+                    Retry
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )
+        }
+        contentContainerStyle={styles.homeListContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isFetching && !isLoading}
+            onRefresh={refetch}
+            tintColor={colors.primary}
+          />
+        }
+      />
+
+      {canCreateRepair && (
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: colors.primary }]}
+          onPress={() => router.push('/(tabs)/repairs/new')}
+          accessibilityLabel="Create new repair"
+          testID="home-create-repair"
+        >
+          <Feather
+            name="plus"
+            size={32}
+            color={colors.primaryForeground}
+          />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+export default function HomeScreen() {
+  const { user } = useAuth();
+  return isCustomerRole(user?.role) ? (
+    <CustomerInboxScreen />
+  ) : (
+    <RepairHomeScreen />
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -418,5 +898,181 @@ const styles = StyleSheet.create({
   unreadText: {
     fontSize: 11,
     color: '#FFFFFF',
+  },
+  homeHeader: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+  },
+  homeHeaderRow: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 11,
+  },
+  headerIconButton: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 1,
+  },
+  vmcLogo: {
+    width: 88,
+    height: 31,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  homeSearch: {
+    flex: 1,
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 13,
+    paddingHorizontal: 14,
+  },
+  homeSearchInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 14,
+    paddingVertical: 0,
+  },
+  filterButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  homeListContent: {
+    flexGrow: 1,
+    paddingBottom: 108,
+  },
+  repairItem: {
+    minHeight: 112,
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  repairAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 13,
+    marginTop: 1,
+  },
+  repairAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+  },
+  repairContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  repairNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  repairNameWrap: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  repairCustomerName: {
+    flexShrink: 1,
+    fontSize: 16,
+  },
+  dealerPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  dealerPillText: {
+    fontSize: 10,
+  },
+  repairTime: {
+    fontSize: 11,
+  },
+  repairTicketRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+    minWidth: 0,
+  },
+  repairMeta: {
+    fontSize: 12,
+  },
+  repairDevice: {
+    flex: 1,
+    fontSize: 12,
+  },
+  repairBottomRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  repairStatus: {
+    flex: 1,
+    fontSize: 12,
+  },
+  amountPill: {
+    alignItems: 'flex-end',
+    borderRadius: 9,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    minWidth: 72,
+  },
+  amountLabel: {
+    fontSize: 11,
+  },
+  amountValue: {
+    fontSize: 13,
+    marginTop: 1,
+  },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: Platform.OS === 'web' ? 100 : 24,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0B63F6',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.25,
+    shadowRadius: 9,
+    elevation: 6,
+  },
+  homeEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingTop: 72,
+  },
+  homeEmptyTitle: {
+    fontSize: 17,
+    marginTop: 14,
+  },
+  homeEmptyText: {
+    fontSize: 14,
+    marginTop: 6,
+    textAlign: 'center',
   },
 });
