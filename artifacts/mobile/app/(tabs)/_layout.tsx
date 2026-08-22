@@ -15,7 +15,7 @@ import { SymbolView } from 'expo-symbols';
 
 function NativeTabLayout({ portal, customer }: { portal: boolean; customer: boolean }) {
   const { canAccess } = useAuth();
-  // Customer role: only Home (chat inbox) is visible.
+  // Customer role: only Chats (chat inbox) is visible.
   // Dealer-portal accounts only get Repairs (their read-only "My Repairs"
   // view). Staff tabs additionally honor the
   // shop's per-role feature toggles (More → Staff Permissions).
@@ -23,8 +23,8 @@ function NativeTabLayout({ portal, customer }: { portal: boolean; customer: bool
     <NativeTabs>
       {!portal && (
         <NativeTabs.Trigger name="index">
-          <Icon sf={{ default: 'house', selected: 'house.fill' }} />
-          <Label>Home</Label>
+          <Icon sf={{ default: 'message', selected: 'message.fill' }} />
+          <Label>Chats</Label>
         </NativeTabs.Trigger>
       )}
       {!customer && (portal ? canAccess('repairs_portal') : canAccess('repairs')) && (
@@ -76,12 +76,12 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
         name="index"
         options={{
           href: portal ? null : undefined,
-          title: 'Home',
+          title: 'Chats',
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="house" tintColor={color} size={22} />
+              <SymbolView name="message" tintColor={color} size={22} />
             ) : (
-              <Feather name="home" size={22} color={color} />
+              <Feather name="message-circle" size={22} color={color} />
             ),
         }}
       />
