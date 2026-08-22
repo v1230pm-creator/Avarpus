@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { isCustomerRole, type Repair } from '@/types';
+import { type Repair } from '@/types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
@@ -45,17 +45,32 @@ function formatRoomTime(dateStr?: string): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
+function formatMessagePreview(room: ChatRoom): { text: string; icon?: 'image' | 'mic' | 'paperclip' } {
+  const message = room.lastMessage;
+  if (!message) return { text: 'No messages yet' };
+  if (message.kind === 'image') return { text: 'Photo', icon: 'image' };
+  if (message.kind === 'audio') return { text: 'Voice message', icon: 'mic' };
+  if (message.kind === 'file') return { text: 'Attachment', icon: 'paperclip' };
+  return { text: message.body };
+}
+
 function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => void; colors: any }) {
   const lastMsg = room.lastMessage;
   const unread = room.unreadCount ?? 0;
+  const preview = formatMessagePreview(room);
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
       style={[styles.roomItem, { borderBottomColor: colors.border }]}
       testID={`room-item-${room.id}`}
+      accessibilityLabel={`Open chat with ${room.name}`}
     >
-      <Avatar name={room.name} size={46} />
+      <Avatar
+        name={room.name}
+        size={52}
+        style={{ ...styles.roomAvatar, borderColor: colors.backgroundSecondary }}
+      />
       <View style={styles.roomContent}>
         <View style={styles.roomHeader}>
           <Text
@@ -64,11 +79,27 @@ function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => vo
           >
             {room.name}
           </Text>
-          <Text style={[styles.roomTime, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text
+            style={[
+              styles.roomTime,
+              {
+                color: unread > 0 ? colors.primary : colors.mutedForeground,
+                fontFamily: unread > 0 ? 'Inter_600SemiBold' : 'Inter_400Regular',
+              },
+            ]}
+          >
             {formatRoomTime(lastMsg?.createdAt ?? room.createdAt)}
           </Text>
         </View>
         <View style={styles.roomFooter}>
+          {preview.icon && (
+            <Feather
+              name={preview.icon}
+              size={14}
+              color={colors.mutedForeground}
+              style={styles.roomPreviewIcon}
+            />
+          )}
           <Text
             style={[
               styles.roomLastMsg,
@@ -76,7 +107,7 @@ function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => vo
             ]}
             numberOfLines={1}
           >
-            {lastMsg ? lastMsg.body : 'No messages yet'}
+            {preview.text}
           </Text>
           {unread > 0 && (
             <View style={[styles.unreadBadge, { backgroundColor: colors.primary }]}>
@@ -94,7 +125,6 @@ function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => vo
 function CustomerInboxScreen() {
   const colors = useColors();
   const router = useRouter();
-  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
 
@@ -103,7 +133,6 @@ function CustomerInboxScreen() {
   const {
     data: capData,
     isLoading: capLoading,
-    isError: capError,
   } = useChatCapabilities();
 
   const providerConfigured = capData?.matrixAvailable === true;
@@ -118,7 +147,9 @@ function CustomerInboxScreen() {
   });
 
   const rooms = useMemo(() => {
-    const all = roomsData?.rooms ?? [];
+    // Chats is intentionally customer-only. Repairs, payment activity and
+    // dealer conversations belong in their own app areas, not this inbox.
+    const all = (roomsData?.rooms ?? []).filter((room) => room.kind === 'customer');
     if (!search.trim()) return all;
     const q = search.toLowerCase();
     return all.filter(
@@ -142,28 +173,21 @@ function CustomerInboxScreen() {
       }}
     >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <View>
-          <Text style={{ fontSize: 24, color: colors.foreground, fontFamily: 'Inter_700Bold' }}>
-            Inbox
+          <Text
+            style={{ fontSize: 24, color: colors.foreground, fontFamily: 'Inter_700Bold' }}
+          >
+            Chats
           </Text>
-          <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginTop: 2 }}>
-            Customer conversations
-          </Text>
-        </View>
 
         <TouchableOpacity
           onPress={() => router.push('/(tabs)/more')}
           style={{
-            width: 44, height: 44, borderRadius: 22,
-            backgroundColor: colors.backgroundSecondary,
+            width: 40, height: 40, borderRadius: 20,
             alignItems: 'center', justifyContent: 'center',
-            borderWidth: 1, borderColor: colors.border,
           }}
+          accessibilityLabel="Open more options"
         >
-          <Avatar name={user?.name ?? 'User'} size={40} />
-          <View style={{ position: 'absolute', bottom: -2, right: -2, backgroundColor: colors.card, borderRadius: 10, padding: 2 }}>
-            <Feather name="menu" size={12} color={colors.primary} />
-          </View>
+          <Feather name="more-vertical" size={22} color={colors.foreground} />
         </TouchableOpacity>
       </View>
 
@@ -181,7 +205,7 @@ function CustomerInboxScreen() {
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Search conversations…"
+            placeholder="Search chats"
             placeholderTextColor={colors.mutedForeground}
             style={{ flex: 1, marginLeft: 8, fontSize: 14, color: colors.foreground, fontFamily: 'Inter_400Regular' }}
           />
@@ -276,7 +300,7 @@ function CustomerInboxScreen() {
             No conversations yet
           </Text>
           <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            Start a conversation by messaging a customer from their profile page.
+            Customer conversations will appear here.
           </Text>
           <View style={[styles.shieldBox, { backgroundColor: colors.backgroundSecondary }]}>
             <Feather name="shield" size={16} color={colors.mutedForeground} />
@@ -866,12 +890,9 @@ function RepairHomeScreen() {
 }
 
 export default function HomeScreen() {
-  const { user } = useAuth();
-  return isCustomerRole(user?.role) ? (
-    <CustomerInboxScreen />
-  ) : (
-    <RepairHomeScreen />
-  );
+  // The first tab is Chats for every role. Repair, payment, and dealer
+  // workflows stay in their own tabs instead of leaking into the chat inbox.
+  return <CustomerInboxScreen />;
 }
 
 const styles = StyleSheet.create({
@@ -932,14 +953,19 @@ const styles = StyleSheet.create({
   roomItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    gap: 14,
+    minHeight: 76,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 13,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  roomAvatar: {
+    borderWidth: 1,
   },
   roomContent: {
     flex: 1,
-    gap: 4,
+    minWidth: 0,
+    gap: 3,
   },
   roomHeader: {
     flexDirection: 'row',
@@ -947,12 +973,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   roomName: {
-    fontSize: 15,
+    fontSize: 16,
     flex: 1,
-    marginRight: 8,
+    marginRight: 12,
   },
   roomTime: {
-    fontSize: 11,
+    fontSize: 12,
   },
   roomFooter: {
     flexDirection: 'row',
@@ -960,9 +986,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   roomLastMsg: {
-    fontSize: 13,
+    fontSize: 14,
     flex: 1,
     marginRight: 8,
+  },
+  roomPreviewIcon: {
+    marginRight: 5,
   },
   unreadBadge: {
     minWidth: 20,

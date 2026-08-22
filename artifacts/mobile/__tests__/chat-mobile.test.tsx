@@ -352,7 +352,7 @@ describe('Inbox — no fake data', () => {
     expect(screen.getByText('Loading conversations…')).toBeTruthy();
   });
 
-  it('renders actual rooms from API when provider is configured', () => {
+  it('renders customer conversations but filters dealer rooms from Chats', () => {
     mockUseChatCapabilities.mockReturnValue({
       data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },
       isLoading: false,
@@ -371,9 +371,9 @@ describe('Inbox — no fake data', () => {
     });
     render(<HomeScreen />);
     expect(screen.getByTestId('room-item-r1')).toBeTruthy();
-    expect(screen.getByTestId('room-item-r2')).toBeTruthy();
+    expect(screen.queryByTestId('room-item-r2')).toBeNull();
     expect(screen.getByText('Alice')).toBeTruthy();
-    expect(screen.getByText('Bob')).toBeTruthy();
+    expect(screen.queryByText('Bob')).toBeNull();
     expect(screen.getByText('Hello!')).toBeTruthy();
   });
 
@@ -445,124 +445,6 @@ describe('Inbox — no fake data', () => {
     expect(screen.getByText('Could not load conversations')).toBeTruthy();
     fireEvent.press(screen.getByText('Retry'));
     expect(refetch).toHaveBeenCalled();
-  });
-});
-
-describe('Staff repair home', () => {
-  it('opens customer chat from the customer identity and repair detail from ticket content', () => {
-    const push = jest.fn();
-    (useRouter as jest.Mock).mockReturnValue({ push, back: jest.fn(), replace: jest.fn() });
-    mockUseData.mockReturnValue({
-      customers: [{ id: 'customer-1', name: 'Mohit Murya', mobile: '9999999999' }],
-    });
-    mockUseRepairsList.mockReturnValue({
-      data: {
-        repairs: [
-          {
-            id: 'repair-1',
-            repairId: 'VMC-051',
-            customerId: 'customer-1',
-            customerName: 'Mohit Murya',
-            mobile: '9999999999',
-            deviceType: 'Mobile',
-            brand: 'Samsung',
-            model: 'M34',
-            problem: 'Display issue',
-            status: 'repairing',
-            priority: 'normal',
-            repairCharge: 1500,
-            partsCharge: 0,
-            advance: 0,
-            receiveDate: '2026-08-16T10:24:00.000Z',
-            expectedDate: '2026-08-18T10:24:00.000Z',
-            createdAt: '2026-08-16T10:24:00.000Z',
-          },
-        ],
-        total: 1,
-      },
-      isLoading: false,
-      isError: false,
-      isFetching: false,
-      refetch: jest.fn(),
-    });
-
-    render(<HomeScreen />);
-
-    expect(screen.getByText('Mohit Murya')).toBeTruthy();
-    expect(screen.getByText('VMC-051')).toBeTruthy();
-    expect(screen.getByText('· Samsung M34')).toBeTruthy();
-    expect(screen.getByText('In Repair')).toBeTruthy();
-    expect(screen.getByPlaceholderText('Search customer or ticket...')).toBeTruthy();
-    expect(screen.getByTestId('home-create-repair')).toBeTruthy();
-    expect(screen.queryByText('All')).toBeNull();
-    expect(screen.queryByText('Received')).toBeNull();
-    expect(screen.queryByText('Repair')).toBeNull();
-    expect(screen.queryByText('Ready')).toBeNull();
-    expect(screen.queryByText('Delivered')).toBeNull();
-
-    fireEvent.press(screen.getByTestId('home-chat-customer-repair-1'));
-    expect(push).toHaveBeenCalledWith(
-      '/(tabs)/customers/chat/customer-1?targetId=customer-1&type=customer&name=Mohit%20Murya',
-    );
-
-    fireEvent.press(screen.getByTestId('home-repair-repair-1'));
-    expect(push).toHaveBeenCalledWith('/(tabs)/repairs/repair-1');
-
-    const searchInput = screen.getByPlaceholderText('Search customer or ticket...');
-    fireEvent.changeText(searchInput, 'zzzzzz');
-    expect(screen.queryByText('Mohit Murya')).toBeNull();
-    expect(screen.getByText('No matching repairs')).toBeTruthy();
-
-    fireEvent.changeText(
-      screen.getByPlaceholderText('Search customer or ticket...'),
-      'VMC-051',
-    );
-    expect(screen.getByText('Mohit Murya')).toBeTruthy();
-  });
-
-  it('opens customer chat for a delivered legacy repair with one unique customer match', () => {
-    const push = jest.fn();
-    (useRouter as jest.Mock).mockReturnValue({ push, back: jest.fn(), replace: jest.fn() });
-    mockUseData.mockReturnValue({
-      customers: [{ id: 'legacy-customer-1', name: 'Asha Kumar', mobile: '98765 43210' }],
-    });
-    mockUseRepairsList.mockReturnValue({
-      data: {
-        repairs: [
-          {
-            id: 'legacy-repair-1',
-            repairId: 'VMC-LEGACY-1',
-            customerName: 'Asha Kumar',
-            mobile: '9876543210',
-            deviceType: 'Mobile',
-            brand: 'Samsung',
-            model: 'A15',
-            problem: 'Legacy display issue',
-            status: 'delivered',
-            priority: 'normal',
-            repairCharge: 1200,
-            partsCharge: 0,
-            advance: 1200,
-            receiveDate: '2026-08-01',
-            expectedDate: '2026-08-03',
-            deliveryDate: '2026-08-04',
-            createdAt: '2026-08-01T10:24:00.000Z',
-          },
-        ],
-        total: 1,
-      },
-      isLoading: false,
-      isError: false,
-      isFetching: false,
-      refetch: jest.fn(),
-    });
-
-    render(<HomeScreen />);
-
-    fireEvent.press(screen.getByTestId('home-chat-customer-legacy-repair-1'));
-    expect(push).toHaveBeenCalledWith(
-      '/(tabs)/customers/chat/legacy-customer-1?targetId=legacy-customer-1&type=customer&name=Asha%20Kumar',
-    );
   });
 });
 
