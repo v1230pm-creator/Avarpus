@@ -34,3 +34,4 @@
 - [Managed Matrix provider](managed-matrix-provider.md) — ESS Pro requires a registered Application Service; admin-token masquerading is invalid, and E2EE remains deferred.
 - [LiveKit native calls](livekit-native-calls.md) — calls require a custom native APK plus real credentials and two devices; Expo Go/web cannot validate WebRTC behavior.
 - [Nested chat navigation](nested-chat-navigation.md) — tab-nested conversations need explicit stack registration, focused tab-bar control, and deterministic profile back navigation.
+- [Repair chat identity](repair-chat-identity.md) — legacy repair rows can lack customer links; resolve only one safe, live customer before opening chat.

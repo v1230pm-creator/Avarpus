@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -16,6 +16,7 @@ import { isCustomerRole, type Repair } from '@/types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
+import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
 import { formatCurrency, formatDate } from '@/utils/helpers';
@@ -345,14 +346,24 @@ function repairStatusLine(repair: Repair): string {
   return 'In Repair';
 }
 
+function normalizeIdentityText(value?: string): string {
+  return (value ?? '').trim().toLocaleLowerCase();
+}
+
+function normalizePhone(value?: string): string {
+  return (value ?? '').replace(/\D/g, '');
+}
+
 function RepairHomeItem({
   repair,
   colors,
   onPress,
+  onCustomerPress,
 }: {
   repair: Repair;
   colors: any;
   onPress: () => void;
+  onCustomerPress?: () => void;
 }) {
   const total = repair.totalAmount ?? repair.repairCharge + repair.partsCharge;
   const paid = repair.paidAmount ?? repair.advance;
@@ -384,17 +395,19 @@ function RepairHomeItem({
         : colors.info;
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.72}
-      onPress={onPress}
+    <View
       style={[styles.repairItem, { borderBottomColor: colors.border }]}
-      testID={`home-repair-${repair.id}`}
     >
-      <View
+      <TouchableOpacity
+        activeOpacity={0.72}
+        onPress={onCustomerPress}
+        disabled={!onCustomerPress}
         style={[
           styles.repairAvatar,
           { backgroundColor: avatarPalette[avatarIndex] },
         ]}
+        testID={`home-customer-avatar-${repair.id}`}
+        accessibilityLabel={`Open chat with ${repair.customerName}`}
       >
         <Text
           style={[
@@ -404,11 +417,18 @@ function RepairHomeItem({
         >
           {initials || 'C'}
         </Text>
-      </View>
+      </TouchableOpacity>
 
       <View style={styles.repairContent}>
         <View style={styles.repairNameRow}>
-          <View style={styles.repairNameWrap}>
+          <TouchableOpacity
+            activeOpacity={0.72}
+            onPress={onCustomerPress}
+            disabled={!onCustomerPress}
+            style={styles.repairNameWrap}
+            testID={`home-chat-customer-${repair.id}`}
+            accessibilityLabel={`Open chat with ${repair.customerName}`}
+          >
             <Text
               style={[
                 styles.repairCustomerName,
@@ -441,103 +461,116 @@ function RepairHomeItem({
                 </Text>
               </View>
             )}
-          </View>
-          <Text
-            style={[
-              styles.repairTime,
-              {
-                color: colors.mutedForeground,
-                fontFamily: 'Inter_500Medium',
-              },
-            ]}
-          >
-            {formatRepairTime(repair.createdAt)}
-          </Text>
-        </View>
-
-        <View style={styles.repairTicketRow}>
-          <Text
-            style={[
-              styles.repairMeta,
-              {
-                color: colors.secondaryForeground,
-                fontFamily: 'Inter_500Medium',
-              },
-            ]}
-          >
-            {repair.repairId}
-          </Text>
-          <Text
-            style={[
-              styles.repairDevice,
-              {
-                color: colors.secondaryForeground,
-                fontFamily: 'Inter_500Medium',
-              },
-            ]}
-            numberOfLines={1}
-          >
-            · {repair.brand} {repair.model}
-          </Text>
-        </View>
-
-        <View style={styles.repairBottomRow}>
-          <Text
-            style={[
-              styles.repairStatus,
-              { color: statusColor, fontFamily: 'Inter_600SemiBold' },
-            ]}
-            numberOfLines={1}
-          >
-            {repairStatusLine(repair)}
-          </Text>
-
-          <View
-            style={[
-              styles.amountPill,
-              {
-                backgroundColor:
-                  total <= 0
-                    ? colors.backgroundSecondary
-                    : isPaid
-                      ? colors.successLight
-                      : `${colors.destructive}12`,
-              },
-            ]}
+          </TouchableOpacity>
+          <TouchableOpacity
+            activeOpacity={0.72}
+            onPress={onPress}
+            accessibilityLabel={`Open repair ${repair.repairId}`}
           >
             <Text
               style={[
-                styles.amountLabel,
+                styles.repairTime,
                 {
-                  color:
-                    total <= 0
-                      ? colors.mutedForeground
-                      : isPaid
-                        ? colors.success
-                        : colors.destructive,
-                  fontFamily: 'Inter_600SemiBold',
+                  color: colors.mutedForeground,
+                  fontFamily: 'Inter_500Medium',
                 },
               ]}
             >
-              {total <= 0 ? 'No Amount' : isPaid ? 'Paid' : 'Due'}
+              {formatRepairTime(repair.createdAt)}
             </Text>
-            {total > 0 && (
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          activeOpacity={0.72}
+          onPress={onPress}
+          testID={`home-repair-${repair.id}`}
+          accessibilityLabel={`Open repair ${repair.repairId}`}
+        >
+          <View style={styles.repairTicketRow}>
+            <Text
+              style={[
+                styles.repairMeta,
+                {
+                  color: colors.secondaryForeground,
+                  fontFamily: 'Inter_500Medium',
+                },
+              ]}
+            >
+              {repair.repairId}
+            </Text>
+            <Text
+              style={[
+                styles.repairDevice,
+                {
+                  color: colors.secondaryForeground,
+                  fontFamily: 'Inter_500Medium',
+                },
+              ]}
+              numberOfLines={1}
+            >
+              · {repair.brand} {repair.model}
+            </Text>
+          </View>
+
+          <View style={styles.repairBottomRow}>
+            <Text
+              style={[
+                styles.repairStatus,
+                { color: statusColor, fontFamily: 'Inter_600SemiBold' },
+              ]}
+              numberOfLines={1}
+            >
+              {repairStatusLine(repair)}
+            </Text>
+
+            <View
+              style={[
+                styles.amountPill,
+                {
+                  backgroundColor:
+                    total <= 0
+                      ? colors.backgroundSecondary
+                      : isPaid
+                        ? colors.successLight
+                        : `${colors.destructive}12`,
+                },
+              ]}
+            >
               <Text
                 style={[
-                  styles.amountValue,
+                  styles.amountLabel,
                   {
-                    color: isPaid ? colors.success : colors.destructive,
-                    fontFamily: 'Inter_700Bold',
+                    color:
+                      total <= 0
+                        ? colors.mutedForeground
+                        : isPaid
+                          ? colors.success
+                          : colors.destructive,
+                    fontFamily: 'Inter_600SemiBold',
                   },
                 ]}
               >
-                {formatCurrency(isPaid ? total : due)}
+                {total <= 0 ? 'No Amount' : isPaid ? 'Paid' : 'Due'}
               </Text>
-            )}
+              {total > 0 && (
+                <Text
+                  style={[
+                    styles.amountValue,
+                    {
+                      color: isPaid ? colors.success : colors.destructive,
+                      fontFamily: 'Inter_700Bold',
+                    },
+                  ]}
+                >
+                  {formatCurrency(isPaid ? total : due)}
+                </Text>
+              )}
+            </View>
           </View>
-        </View>
+        </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -546,6 +579,7 @@ function RepairHomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { canAccess } = useAuth();
+  const { customers } = useData();
   const [search, setSearch] = useState('');
   const searchInputRef = useRef<TextInput>(null);
 
@@ -580,6 +614,29 @@ function RepairHomeScreen() {
   const topPad =
     Platform.OS === 'web' ? insets.top + 67 : Math.max(insets.top, 12);
   const canCreateRepair = canAccess('repairs_create');
+  const chatCustomerForRepair = useCallback(
+    (repair: Repair) => {
+      const directMatch = customers.find((customer) => customer.id === repair.customerId);
+      if (directMatch) return directMatch;
+
+      // Older repair rows can predate the customerId link. Resolve a safe,
+      // unique customer identity from the live, shop-scoped customer list.
+      const mobile = normalizePhone(repair.mobile);
+      const mobileMatches = mobile
+        ? customers.filter((customer) => normalizePhone(customer.mobile) === mobile)
+        : [];
+      if (mobileMatches.length === 1) return mobileMatches[0];
+
+      const customerName = normalizeIdentityText(repair.customerName);
+      const nameMatches = customerName
+        ? customers.filter(
+            (customer) => normalizeIdentityText(customer.name) === customerName,
+          )
+        : [];
+      return nameMatches.length === 1 ? nameMatches[0] : null;
+    },
+    [customers],
+  );
 
   const renderHeader = () => (
     <View
@@ -685,13 +742,24 @@ function RepairHomeScreen() {
       <FlatList
         data={repairs}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <RepairHomeItem
-            repair={item}
-            colors={colors}
-            onPress={() => router.push(`/(tabs)/repairs/${item.id}`)}
-          />
-        )}
+        renderItem={({ item }) => {
+          const chatCustomer = chatCustomerForRepair(item);
+          return (
+            <RepairHomeItem
+              repair={item}
+              colors={colors}
+              onPress={() => router.push(`/(tabs)/repairs/${item.id}`)}
+              onCustomerPress={
+                chatCustomer
+                  ? () =>
+                      router.push(
+                        `/(tabs)/customers/chat/${chatCustomer.id}?targetId=${chatCustomer.id}&type=customer&name=${encodeURIComponent(chatCustomer.name)}`,
+                      )
+                  : undefined
+              }
+            />
+          );
+        }}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
           isLoading ? (

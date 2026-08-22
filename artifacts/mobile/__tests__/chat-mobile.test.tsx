@@ -37,6 +37,11 @@ jest.mock('@/context/AuthContext', () => ({
   useAuth: jest.fn(),
 }));
 
+const mockUseData = jest.fn();
+jest.mock('@/context/DataContext', () => ({
+  useData: (...args: any[]) => mockUseData(...args),
+}));
+
 jest.mock('@/types', () => ({
   isDealerPortalRole: (role: string) => role === 'dealer_owner' || role === 'dealer_staff',
   isCustomerRole: (role: string) => role === 'customer',
@@ -233,6 +238,7 @@ const stubMutate = (onSuccessResult?: any) =>
 beforeEach(() => {
   jest.clearAllMocks();
   (useAuth as jest.Mock).mockReturnValue(defaultAuth);
+  mockUseData.mockReturnValue({ customers: [] });
   (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'room-1', name: 'Alice' });
   (useRouter as jest.Mock).mockReturnValue({ push: jest.fn(), back: jest.fn(), replace: jest.fn() });
 
@@ -408,7 +414,12 @@ describe('Inbox — no fake data', () => {
 });
 
 describe('Staff repair home', () => {
-  it('renders the operational repair list without status filter chips', () => {
+  it('opens customer chat from the customer identity and repair detail from ticket content', () => {
+    const push = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ push, back: jest.fn(), replace: jest.fn() });
+    mockUseData.mockReturnValue({
+      customers: [{ id: 'customer-1', name: 'Mohit Murya', mobile: '9999999999' }],
+    });
     mockUseRepairsList.mockReturnValue({
       data: {
         repairs: [
@@ -453,6 +464,14 @@ describe('Staff repair home', () => {
     expect(screen.queryByText('Repair')).toBeNull();
     expect(screen.queryByText('Ready')).toBeNull();
     expect(screen.queryByText('Delivered')).toBeNull();
+
+    fireEvent.press(screen.getByTestId('home-chat-customer-repair-1'));
+    expect(push).toHaveBeenCalledWith(
+      '/(tabs)/customers/chat/customer-1?targetId=customer-1&type=customer&name=Mohit%20Murya',
+    );
+
+    fireEvent.press(screen.getByTestId('home-repair-repair-1'));
+    expect(push).toHaveBeenCalledWith('/(tabs)/repairs/repair-1');
 
     const searchInput = screen.getByPlaceholderText('Search customer or ticket...');
     fireEvent.changeText(searchInput, 'zzzzzz');
