@@ -377,6 +377,41 @@ describe('Inbox — no fake data', () => {
     expect(screen.getByText('Hello!')).toBeTruthy();
   });
 
+  it('opens every customer conversation name in its direct customer chat', () => {
+    const push = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ push, back: jest.fn(), replace: jest.fn() });
+    mockUseChatCapabilities.mockReturnValue({
+      data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseChatRoomsList.mockReturnValue({
+      data: {
+        rooms: [
+          { id: 'r-alice', name: 'Alice', kind: 'customer', customerId: 'c-alice', shopId: 's1', isArchived: false, createdAt: '2026-01-01T10:00:00Z' },
+          { id: 'r-carol', name: 'Carol', kind: 'customer', customerId: 'c-carol', shopId: 's1', isArchived: false, createdAt: '2026-01-01T09:00:00Z' },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+
+    render(<HomeScreen />);
+
+    fireEvent.press(screen.getByTestId('room-item-r-alice'));
+    fireEvent.press(screen.getByTestId('room-item-r-carol'));
+
+    expect(push).toHaveBeenNthCalledWith(
+      1,
+      '/(tabs)/customers/chat/c-alice?targetId=c-alice&type=customer&name=Alice',
+    );
+    expect(push).toHaveBeenNthCalledWith(
+      2,
+      '/(tabs)/customers/chat/c-carol?targetId=c-carol&type=customer&name=Carol',
+    );
+  });
+
   it('shows empty state when provider is up but no rooms exist', () => {
     mockUseChatCapabilities.mockReturnValue({
       data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },

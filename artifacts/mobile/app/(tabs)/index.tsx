@@ -299,11 +299,20 @@ function CustomerInboxScreen() {
           <RoomItem
             room={item}
             colors={colors}
-            onPress={() =>
+            onPress={() => {
+              // Customer inbox rows should open the customer-targeted chat
+              // when the API gives us the identity. Keep the existing room
+              // route as a safe fallback for legacy rooms without a link.
+              if (item.kind === 'customer' && item.customerId) {
+                router.push(
+                  `/(tabs)/customers/chat/${item.customerId}?targetId=${item.customerId}&type=customer&name=${encodeURIComponent(item.name)}`,
+                );
+                return;
+              }
               router.push(
                 `/(tabs)/customers/chat/${item.id}?name=${encodeURIComponent(item.name)}`,
-              )
-            }
+              );
+            }}
           />
         )}
         ListEmptyComponent={
