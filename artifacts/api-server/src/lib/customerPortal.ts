@@ -26,6 +26,10 @@ const ALLOWED: Array<{ method: string | "*"; re: RegExp }> = [
   // ── Chat ─────────────────────────────────────────────────────────────────
   // Capabilities
   { method: "GET",    re: /^\/chat\/capabilities$/ },
+  // Privacy-safe contact match (exact number lookup, same-shop only)
+  { method: "POST",   re: /^\/chat\/contacts\/match$/ },
+  // Direct room creation (kind=direct, same-shop target only)
+  { method: "POST",   re: /^\/chat\/rooms$/ },
   // Room list (filtered to rooms customer is a member of inside the route)
   { method: "GET",    re: /^\/chat\/rooms$/ },
   // Single room (membership enforced inside the route)

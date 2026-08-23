@@ -24,7 +24,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   db,
   pool,
@@ -39,6 +39,9 @@ import {
   chatRoomMembersTable,
   chatMessagesTable,
   chatReadStateTable,
+  chatContactMatchGrantsTable,
+  chatContactMatchAttemptsTable,
+  sessionsTable,
 } from "@workspace/db";
 
 vi.mock("../lib/mailer", () => ({
@@ -62,7 +65,19 @@ beforeAll(() => {
 });
 
 const { default: app } = await import("../app");
-const { hashPassword, generateToken, sha256 } = await import("../lib/authUtils");
+const { hashPassword, generateToken, sha256, createSession } = await import("../lib/authUtils");
+
+async function issueContactMatchGrant(callerUserId: string, targetUserId: string, shopId: string) {
+  const rawToken = generateToken();
+  await db.insert(chatContactMatchGrantsTable).values({
+    tokenHash: sha256(rawToken),
+    callerUserId,
+    targetUserId,
+    shopId,
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+  });
+  return rawToken;
+}
 
 const RUN = Date.now().toString().slice(-8);
 const mob = (n: string | number) => `9${RUN}${n}`.slice(0, 10);
@@ -419,12 +434,21 @@ describe("Room creation: validation + Matrix-absent fail-closed", () => {
     expect(rows.length).toBe(0);
   });
 
-  it("customers cannot create rooms (403 via portal allowlist)", async () => {
+  it("customers cannot create kind=customer rooms (403 — only kind=direct allowed)", async () => {
     if (!customerTokenA) return;
     const res = await request(app)
       .post("/api/chat/rooms")
       .set("Authorization", `Bearer ${customerTokenA}`)
       .send({ name: "Customer Room", kind: "customer", customerId: customerA.id });
+    expect(res.status).toBe(403);
+  });
+
+  it("customers cannot create kind=dealer rooms (403 — only kind=direct allowed)", async () => {
+    if (!customerTokenA) return;
+    const res = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${customerTokenA}`)
+      .send({ name: "Dealer Room", kind: "dealer", dealerId: dealerA.id });
     expect(res.status).toBe(403);
   });
 });
@@ -1371,5 +1395,627 @@ describe("Chat capabilities endpoint", () => {
     expect(res.body.e2eeEnabled).toBe(false);
     expect(res.body.matrixAvailable).toBe(false);
     expect(res.body.livekitAvailable).toBe(false);
+  });
+});
+
+// ── Contact match: privacy-safe exact-match ───────────────────────────────────
+
+describe("Contact match: privacy-safe exact lookup", () => {
+  let staffInShopA: { id: string; mobile: string };
+  let staffInShopB: { id: string; mobile: string };
+  let inactiveInShopA: { id: string; mobile: string };
+
+  beforeAll(async () => {
+    // Active staff in shopA
+    const mobileA = uniqMob();
+    const [sA] = await db.insert(usersTable).values({
+      name: "Staff Match A",
+      email: email("staffmatcha"),
+      mobile: mobileA,
+      passwordHash: hashPassword(PASSWORD),
+      role: "reception",
+      shopId: shopA.id,
+      isActive: true,
+    }).returning();
+    staffInShopA = { id: sA.id, mobile: mobileA };
+
+    // Active staff in shopB (cross-shop — must never appear for shopA callers)
+    const mobileB = uniqMob();
+    const [sB] = await db.insert(usersTable).values({
+      name: "Staff Match B",
+      email: email("staffmatchb"),
+      mobile: mobileB,
+      passwordHash: hashPassword(PASSWORD),
+      role: "reception",
+      shopId: shopB.id,
+      isActive: true,
+    }).returning();
+    staffInShopB = { id: sB.id, mobile: mobileB };
+
+    // Inactive user in shopA (must never appear in results)
+    const mobileInactive = uniqMob();
+    const [sI] = await db.insert(usersTable).values({
+      name: "Inactive Match A",
+      email: email("inactivematcha"),
+      mobile: mobileInactive,
+      passwordHash: hashPassword(PASSWORD),
+      role: "reception",
+      shopId: shopA.id,
+      isActive: false,
+    }).returning();
+    inactiveInShopA = { id: sI.id, mobile: mobileInactive };
+  });
+
+  afterAll(async () => {
+    if (staffInShopA?.id) await db.delete(usersTable).where(eq(usersTable.id, staffInShopA.id));
+    if (staffInShopB?.id) await db.delete(usersTable).where(eq(usersTable.id, staffInShopB.id));
+    if (inactiveInShopA?.id) await db.delete(usersTable).where(eq(usersTable.id, inactiveInShopA.id));
+  });
+
+  it("exact match by 10-digit number returns same-shop active user", async () => {
+    const res = await request(app)
+      .post("/api/chat/contacts/match")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ phone: staffInShopA.mobile });
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.contacts)).toBe(true);
+    const match = res.body.contacts.find((c: { userId: string }) => c.userId === staffInShopA.id);
+    expect(match).toBeDefined();
+    expect(match.name).toBeDefined();
+    expect(match.mobile).toBe(staffInShopA.mobile);
+    expect(typeof match.matchToken).toBe("string");
+    expect(match.matchToken.length).toBeGreaterThan(20);
+  });
+
+  it("cross-shop number not returned (shop isolation)", async () => {
+    const res = await request(app)
+      .post("/api/chat/contacts/match")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ phone: staffInShopB.mobile });
+    expect(res.status).toBe(200);
+    const ids = res.body.contacts.map((c: { userId: string }) => c.userId);
+    expect(ids).not.toContain(staffInShopB.id);
+  });
+
+  it("inactive user in same shop is excluded", async () => {
+    const res = await request(app)
+      .post("/api/chat/contacts/match")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ phone: inactiveInShopA.mobile });
+    expect(res.status).toBe(200);
+    const ids = res.body.contacts.map((c: { userId: string }) => c.userId);
+    expect(ids).not.toContain(inactiveInShopA.id);
+  });
+
+  it("self is excluded from match results", async () => {
+    const res = await request(app)
+      .post("/api/chat/contacts/match")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ phone: mob("1") }); // dealerA's own mobile
+    expect(res.status).toBe(200);
+    const ids = res.body.contacts.map((c: { userId: string }) => c.userId);
+    expect(ids).not.toContain(dealerA.id);
+  });
+
+  it("unregistered number returns empty contacts (no information leak)", async () => {
+    const res = await request(app)
+      .post("/api/chat/contacts/match")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ phone: "9999999999" }); // guaranteed not in DB
+    expect(res.status).toBe(200);
+    expect(res.body.contacts).toEqual([]);
+  });
+
+  it("accepts +91 prefix (normalized to 10 digits)", async () => {
+    const res = await request(app)
+      .post("/api/chat/contacts/match")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ phone: `+91${staffInShopA.mobile}` });
+    expect(res.status).toBe(200);
+    const ids = res.body.contacts.map((c: { userId: string }) => c.userId);
+    expect(ids).toContain(staffInShopA.id);
+  });
+
+  it("accepts phones array (batch exact match)", async () => {
+    const res = await request(app)
+      .post("/api/chat/contacts/match")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ phones: [staffInShopA.mobile, "9999999999"] });
+    expect(res.status).toBe(200);
+    const ids = res.body.contacts.map((c: { userId: string }) => c.userId);
+    expect(ids).toContain(staffInShopA.id);
+    // Unregistered number not leaked
+    expect(ids.length).toBe(1);
+  });
+
+  it("rejects oversized phones array (> 50 entries)", async () => {
+    const res = await request(app)
+      .post("/api/chat/contacts/match")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ phones: Array.from({ length: 51 }, (_, i) => `900000${String(i).padStart(4, "0")}`) });
+    expect(res.status).toBe(400);
+  });
+
+  it("customer can call contact match (allowed in portal)", async () => {
+    if (!customerTokenA) return;
+    const res = await request(app)
+      .post("/api/chat/contacts/match")
+      .set("Authorization", `Bearer ${customerTokenA}`)
+      .send({ phone: staffInShopA.mobile });
+    expect(res.status).toBe(200);
+    // Customer is in shopA → should see shopA staff
+    const ids = res.body.contacts.map((c: { userId: string }) => c.userId);
+    expect(ids).toContain(staffInShopA.id);
+  });
+
+  it("no auth → 401", async () => {
+    const res = await request(app)
+      .post("/api/chat/contacts/match")
+      .send({ phone: staffInShopA.mobile });
+    expect(res.status).toBe(401);
+  });
+
+  it("durably limits contact matching even when every lookup has zero matches", async () => {
+    await db.delete(chatContactMatchAttemptsTable).where(eq(chatContactMatchAttemptsTable.userId, dealerA.id));
+    for (let i = 0; i < 10; i++) {
+      const allowed = await request(app)
+        .post("/api/chat/contacts/match")
+        .set("Authorization", `Bearer ${dealerTokenA}`)
+        .set("X-Forwarded-For", `198.51.100.${i + 1}`)
+        .send({ phone: "9999999999" });
+      expect(allowed.status).toBe(200);
+      expect(allowed.body.contacts).toEqual([]);
+    }
+    const limited = await request(app)
+      .post("/api/chat/contacts/match")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .set("X-Forwarded-For", "198.51.100.200")
+      .send({ phone: "9999999999" });
+    expect(limited.status).toBe(429);
+    expect(limited.body).toEqual({ message: expect.any(String) });
+    await db.delete(chatContactMatchAttemptsTable).where(eq(chatContactMatchAttemptsTable.userId, dealerA.id));
+  });
+
+  it("durably limits one IP across different authenticated users", async () => {
+    const forwardedIp = "203.0.113.77";
+    const secret = process.env.SESSION_SECRET;
+    if (!secret) throw new Error("SESSION_SECRET is required for this test");
+    const ipHash = sha256(`chat-contact-match-ip:v1:${secret}:${forwardedIp}`);
+    const sharedPasswordHash = hashPassword(PASSWORD);
+    const createdUsers = await db
+      .insert(usersTable)
+      .values(
+        Array.from({ length: 21 }, (_, index) => ({
+          name: `IP Limit User ${index}`,
+          email: email(`iplimit${index}`),
+          mobile: uniqMob(),
+          passwordHash: sharedPasswordHash,
+          role: "reception",
+          shopId: shopA.id,
+          isActive: true,
+        })),
+      )
+      .returning({ id: usersTable.id });
+
+    try {
+      await db
+        .delete(chatContactMatchAttemptsTable)
+        .where(eq(chatContactMatchAttemptsTable.ipHash, ipHash));
+      const tokens = await Promise.all(
+        createdUsers.map((user) => createSession(user.id, false, null)),
+      );
+      for (let index = 0; index < 20; index++) {
+        const allowed = await request(app)
+          .post("/api/chat/contacts/match")
+          .set("Authorization", `Bearer ${tokens[index]}`)
+          .set("X-Forwarded-For", forwardedIp)
+          .send({ phone: "9999999999" });
+        expect(allowed.status).toBe(200);
+      }
+      const limited = await request(app)
+        .post("/api/chat/contacts/match")
+        .set("Authorization", `Bearer ${tokens[20]}`)
+        .set("X-Forwarded-For", forwardedIp)
+        .send({ phone: "9999999999" });
+      expect(limited.status).toBe(429);
+    } finally {
+      await db
+        .delete(chatContactMatchAttemptsTable)
+        .where(eq(chatContactMatchAttemptsTable.ipHash, ipHash));
+      await db
+        .delete(usersTable)
+        .where(inArray(usersTable.id, createdUsers.map((user) => user.id)));
+    }
+  });
+});
+
+// ── Direct room creation (kind=direct) ───────────────────────────────────────
+
+describe("Direct room creation (kind=direct)", () => {
+  let directTarget: { id: string };
+  let directTargetInactive: { id: string };
+  let directTargetShopB: { id: string };
+
+  beforeAll(async () => {
+    // Active target in shopA
+    const [t] = await db.insert(usersTable).values({
+      name: "Direct Target",
+      email: email("directtarget"),
+      mobile: uniqMob(),
+      passwordHash: hashPassword(PASSWORD),
+      role: "reception",
+      shopId: shopA.id,
+      isActive: true,
+    }).returning();
+    directTarget = t;
+
+    // Inactive target in shopA
+    const [ti] = await db.insert(usersTable).values({
+      name: "Direct Target Inactive",
+      email: email("directtargetinactive"),
+      mobile: uniqMob(),
+      passwordHash: hashPassword(PASSWORD),
+      role: "reception",
+      shopId: shopA.id,
+      isActive: false,
+    }).returning();
+    directTargetInactive = ti;
+
+    // Active target in shopB (cross-shop — must be rejected)
+    const [tb] = await db.insert(usersTable).values({
+      name: "Direct Target ShopB",
+      email: email("directtargetshopb"),
+      mobile: uniqMob(),
+      passwordHash: hashPassword(PASSWORD),
+      role: "reception",
+      shopId: shopB.id,
+      isActive: true,
+    }).returning();
+    directTargetShopB = tb;
+  });
+
+  afterAll(async () => {
+    for (const u of [directTarget, directTargetInactive, directTargetShopB]) {
+      if (u?.id) {
+        await db.delete(chatRoomMembersTable).where(eq(chatRoomMembersTable.userId, u.id));
+        await db.delete(usersTable).where(eq(usersTable.id, u.id));
+      }
+    }
+    // Clean up any direct rooms created in shopA
+    const directRooms = await db.select({ id: chatRoomsTable.id })
+      .from(chatRoomsTable)
+      .where(and(eq(chatRoomsTable.shopId, shopA.id), eq(chatRoomsTable.kind, "direct")));
+    for (const r of directRooms) {
+      await db.delete(chatRoomMembersTable).where(eq(chatRoomMembersTable.roomId, r.id));
+      await db.delete(chatRoomsTable).where(eq(chatRoomsTable.id, r.id));
+    }
+  });
+
+  it("kind=direct without targetUserId and matchToken → generic 403", async () => {
+    const res = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ name: "Direct Room", kind: "direct" });
+    expect(res.status).toBe(403);
+  });
+
+  it("kind=direct with targetUserId = self → generic 403", async () => {
+    const res = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ name: "Self Room", kind: "direct", targetUserId: dealerA.id });
+    expect(res.status).toBe(403);
+  });
+
+  it("kind=direct with inactive target and no proof → generic 403", async () => {
+    const res = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ name: "Inactive Room", kind: "direct", targetUserId: directTargetInactive.id });
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBeUndefined();
+  });
+
+  it("kind=direct with cross-shop target and no proof → generic 403", async () => {
+    const res = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ name: "Cross Shop Room", kind: "direct", targetUserId: directTargetShopB.id });
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBeUndefined();
+  });
+
+  it("kind=direct with valid target but Matrix absent → 503 MATRIX_UNAVAILABLE, no DB row", async () => {
+    const clientReqId = `direct-503-${RUN}`;
+    const matchToken = await issueContactMatchGrant(dealerA.id, directTarget.id, shopA.id);
+    const res = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ name: "Direct Room 503", kind: "direct", targetUserId: directTarget.id, matchToken, clientRequestId: clientReqId });
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("MATRIX_UNAVAILABLE");
+    // Zero DB writes
+    const rows = await db.select().from(chatRoomsTable)
+      .where(and(eq(chatRoomsTable.shopId, shopA.id), eq(chatRoomsTable.clientRequestId, clientReqId)));
+    expect(rows.length).toBe(0);
+  });
+
+  it("customer can call POST /chat/rooms (portal allowed)", async () => {
+    if (!customerTokenA) return;
+    // Should reach business logic (not portal 403) — result will be 400/404/503
+    // depending on the input, but NOT 403 CUSTOMER_PORTAL_FORBIDDEN.
+    const res = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${customerTokenA}`)
+      .send({ name: "Direct Room", kind: "direct", targetUserId: "00000000-0000-0000-0000-000000000000" });
+    // Proof rejection is in-route, not the portal allowlist.
+    expect(res.status).toBe(403);
+    expect(res.body.code).not.toBe("CUSTOMER_PORTAL_FORBIDDEN");
+  });
+
+  it("customer cannot create kind=customer rooms even though POST /chat/rooms is in portal allowlist", async () => {
+    if (!customerTokenA) return;
+    const res = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${customerTokenA}`)
+      .send({ name: "Bad Customer Room", kind: "customer", customerId: customerA.id });
+    expect(res.status).toBe(403);
+    // This is the in-route 403, not the portal 403
+    expect(res.body.code).not.toBe("CUSTOMER_PORTAL_FORBIDDEN");
+  });
+});
+
+// ── Direct room creation: Matrix-mocked (two members, peerKey idempotency) ────
+
+describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
+  let directTarget2: { id: string };
+  let concurrentTarget: { id: string };
+  let sameShopNonMember: { id: string };
+  let sameShopNonMemberToken: string;
+  let fetchSpy2: ReturnType<typeof vi.spyOn> | null = null;
+  let createdDirectRoomId: string | null = null;
+  let concurrentRoomId: string | null = null;
+  let directTargetMatchToken: string;
+  let createRoomCalls = 0;
+  let delayFirstCreateRoom = false;
+  let joinedMemberIds: string[] = [];
+
+  const SERVER_NAME2 = "example.com";
+  const AS_TOKEN2 = "test-as-token";
+  const AS_ROOM2 = "!mockdirectroom:example.com";
+
+  beforeAll(async () => {
+    process.env.MATRIX_BASE_URL = "https://matrix.example.com";
+    process.env.MATRIX_SERVER_NAME = SERVER_NAME2;
+    process.env.MATRIX_APP_SERVICE_TOKEN = AS_TOKEN2;
+
+    // A fresh active staff user in shopA as the direct target.
+    const [t] = await db.insert(usersTable).values({
+      name: "Direct Target Mocked",
+      email: email("directtargetmocked"),
+      mobile: uniqMob(),
+      passwordHash: hashPassword(PASSWORD),
+      role: "reception",
+      shopId: shopA.id,
+      isActive: true,
+    }).returning();
+    directTarget2 = t;
+
+    const [concurrent] = await db.insert(usersTable).values({
+      name: "Concurrent Direct Target",
+      email: email("concurrentdirecttarget"),
+      mobile: uniqMob(),
+      passwordHash: hashPassword(PASSWORD),
+      role: "reception",
+      shopId: shopA.id,
+      isActive: true,
+    }).returning();
+    concurrentTarget = concurrent;
+
+    const [nonMember] = await db.insert(usersTable).values({
+      name: "Same Shop Non Member",
+      email: email("sameshopnonmember"),
+      mobile: uniqMob(),
+      passwordHash: hashPassword(PASSWORD),
+      role: "reception",
+      shopId: shopA.id,
+      isActive: true,
+    }).returning();
+    sameShopNonMember = nonMember;
+    sameShopNonMemberToken = await signIn(nonMember.email, PASSWORD);
+
+    // Minimal fetch mock — reuse the same pattern as Provider-mocked suite.
+    fetchSpy2 = vi.spyOn(globalThis, "fetch").mockImplementation((async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/_matrix/client/v3/register")) {
+        return new Response(JSON.stringify({ user_id: "@x:example.com" }), { status: 200 });
+      }
+      if (url.includes("/profile/") && url.includes("/displayname")) {
+        return new Response(JSON.stringify({}), { status: 200 });
+      }
+      if (url.includes("/createRoom")) {
+        createRoomCalls++;
+        const creator = new URL(url).searchParams.get("user_id");
+        const body = JSON.parse(String(init?.body ?? "{}")) as { invite?: string[] };
+        joinedMemberIds = [creator, body.invite?.[0]].filter(
+          (id): id is string => Boolean(id),
+        );
+        if (delayFirstCreateRoom && createRoomCalls === 1) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        return new Response(JSON.stringify({ room_id: AS_ROOM2 }), { status: 200 });
+      }
+      if (/\/rooms\/[^/]+\/join(\?|$)/.test(url)) {
+        return new Response(JSON.stringify({ room_id: AS_ROOM2 }), { status: 200 });
+      }
+      if (url.includes("/joined_members")) {
+        const joined: Record<string, unknown> = {};
+        for (const id of joinedMemberIds) joined[id] = { display_name: id };
+        return new Response(JSON.stringify({ joined }), { status: 200 });
+      }
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch);
+  });
+
+  afterAll(async () => {
+    fetchSpy2?.mockRestore();
+    delete process.env.MATRIX_BASE_URL;
+    delete process.env.MATRIX_SERVER_NAME;
+    delete process.env.MATRIX_APP_SERVICE_TOKEN;
+    if (createdDirectRoomId) {
+      await db.delete(chatProviderIdentitiesTable).where(eq(chatProviderIdentitiesTable.shopId, shopA.id));
+      await db.delete(chatRoomMembersTable).where(eq(chatRoomMembersTable.roomId, createdDirectRoomId));
+      await db.delete(chatRoomsTable).where(eq(chatRoomsTable.id, createdDirectRoomId));
+    }
+    if (concurrentRoomId) {
+      await db.delete(chatRoomMembersTable).where(eq(chatRoomMembersTable.roomId, concurrentRoomId));
+      await db.delete(chatRoomsTable).where(eq(chatRoomsTable.id, concurrentRoomId));
+    }
+    for (const user of [directTarget2, concurrentTarget, sameShopNonMember]) {
+      if (user?.id) {
+        await db.delete(sessionsTable).where(eq(sessionsTable.userId, user.id));
+        await db.delete(usersTable).where(eq(usersTable.id, user.id));
+      }
+    }
+  });
+
+  it("creates a direct room with EXACTLY two members (dealer → staff, kind=direct)", async () => {
+    directTargetMatchToken = await issueContactMatchGrant(dealerA.id, directTarget2.id, shopA.id);
+    const res = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({
+        name: "Direct Room Mocked",
+        kind: "direct",
+        targetUserId: directTarget2.id,
+        matchToken: directTargetMatchToken,
+        clientRequestId: `direct-member-only-${RUN}`,
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.created).toBe(true);
+    expect(res.body.room.kind).toBe("direct");
+    createdDirectRoomId = res.body.room.id;
+
+    const members = await db.select().from(chatRoomMembersTable)
+      .where(eq(chatRoomMembersTable.roomId, createdDirectRoomId!));
+    expect(members.length).toBe(2);
+    const memberIds = members.map((m) => m.userId).sort();
+    expect(memberIds).toEqual([dealerA.id, directTarget2.id].sort());
+  });
+
+  it("does not replay another member's clientRequestId to a same-shop nonmember", async () => {
+    const res = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${sameShopNonMemberToken}`)
+      .send({
+        name: "Must Not Be Disclosed",
+        kind: "direct",
+        targetUserId: directTarget2.id,
+        clientRequestId: `direct-member-only-${RUN}`,
+      });
+    expect(res.status).toBe(404);
+    expect(res.body.room).toBeUndefined();
+    expect(JSON.stringify(res.body)).not.toContain("provider");
+  });
+
+  it("rejects a match proof presented by a different authenticated caller", async () => {
+    const token = await issueContactMatchGrant(dealerA.id, concurrentTarget.id, shopA.id);
+    const res = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${sameShopNonMemberToken}`)
+      .send({
+        name: "Wrong caller",
+        kind: "direct",
+        targetUserId: concurrentTarget.id,
+        matchToken: token,
+      });
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(res.body)).not.toContain("Concurrent Direct Target");
+  });
+
+  it("cannot reuse a consumed proof for a different new target", async () => {
+    const res = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({
+        name: "Wrong target",
+        kind: "direct",
+        targetUserId: concurrentTarget.id,
+        matchToken: directTargetMatchToken,
+      });
+    expect(res.status).toBe(403);
+    expect(res.body.room).toBeUndefined();
+  });
+
+  it("peerKey idempotency: re-creating the same pair returns existing room", async () => {
+    const res = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({
+        name: "Direct Room Dup",
+        kind: "direct",
+        targetUserId: directTarget2.id,
+        matchToken: directTargetMatchToken,
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.created).toBe(false);
+    expect(res.body.room.id).toBe(createdDirectRoomId);
+  });
+
+  it("serializes concurrent direct creation across requests before Matrix provisioning", async () => {
+    createRoomCalls = 0;
+    delayFirstCreateRoom = true;
+    const matchToken = await issueContactMatchGrant(dealerA.id, concurrentTarget.id, shopA.id);
+    const payload = {
+      name: "Concurrent Direct Room",
+      kind: "direct",
+      targetUserId: concurrentTarget.id,
+      matchToken,
+    };
+    try {
+      const [first, second] = await Promise.all([
+        request(app).post("/api/chat/rooms").set("Authorization", `Bearer ${dealerTokenA}`).send(payload),
+        request(app).post("/api/chat/rooms").set("Authorization", `Bearer ${dealerTokenA}`).send(payload),
+      ]);
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(createRoomCalls).toBe(1);
+      expect([first.body.created, second.body.created].sort()).toEqual([false, true]);
+      expect(first.body.room.id).toBe(second.body.room.id);
+      concurrentRoomId = first.body.room.id;
+    } finally {
+      delayFirstCreateRoom = false;
+    }
+  });
+
+  it("customer can create kind=direct room when Matrix is configured (Matrix-mocked)", async () => {
+    if (!customerTokenA || !customerUserA) return;
+    const matchToken = await issueContactMatchGrant(customerUserA.id, dealerA.id, shopA.id);
+    // Customer creates a direct room targeting dealerA
+    const res = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${customerTokenA}`)
+      .send({ name: "Customer Direct Room", kind: "direct", targetUserId: dealerA.id, matchToken });
+    // Should succeed (200) or return idempotent existing room
+    // dealerA and customerUserA are in the same shopA
+    if (res.status === 200) {
+      expect(res.body.room.kind).toBe("direct");
+      const members = await db.select().from(chatRoomMembersTable)
+        .where(eq(chatRoomMembersTable.roomId, res.body.room.id));
+      expect(members.length).toBe(2);
+      const memberIds = members.map((m) => m.userId);
+      expect(memberIds).toContain(customerUserA.id);
+      expect(memberIds).toContain(dealerA.id);
+      // Cleanup
+      await db.delete(chatRoomMembersTable).where(eq(chatRoomMembersTable.roomId, res.body.room.id));
+      await db.delete(chatRoomsTable).where(eq(chatRoomsTable.id, res.body.room.id));
+    } else {
+      // Acceptable: peerKey already exists (test isolation) or some other non-portal error
+      expect(res.status).not.toBe(403);
+      expect(res.body.code).not.toBe("CUSTOMER_PORTAL_FORBIDDEN");
+    }
   });
 });

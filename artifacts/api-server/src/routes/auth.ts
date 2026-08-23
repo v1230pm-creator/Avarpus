@@ -21,6 +21,7 @@ import {
 import type { Request } from "express";
 import { sendOtpEmail } from "../lib/mailer";
 import {
+  acquireRateLimitLock,
   checkFailureLockout,
   checkWindowLimit,
   clearFailures,
@@ -29,6 +30,12 @@ import {
 } from "../lib/rateLimit";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
+import {
+  msg91SendOtp,
+  msg91VerifyOtp,
+  msg91RetryOtp,
+  normaliseIndianMobile,
+} from "../lib/msg91";
 
 const router: IRouter = Router();
 
@@ -106,12 +113,18 @@ router.post("/auth/login", asyncHandler(async (req, res) => {
 
 // ── Mobile OTP login ──────────────────────────────────────────────────────
 router.post("/auth/otp/request", asyncHandler(async (req, res) => {
-  const { mobile } = req.body ?? {};
-  if (typeof mobile !== "string" || !/^\d{10}$/.test(mobile)) {
-    res.status(400).json({ message: "A valid 10-digit mobile number is required" });
+  const { mobile: rawMobile } = req.body ?? {};
+  if (typeof rawMobile !== "string") {
+    res.status(400).json({ message: "A valid Indian mobile number is required" });
     return;
   }
-  // Throttle OTP requests per mobile number and per IP to prevent email flooding.
+  // Accept 10-digit local, +91XXXXXXXXXX, or 91XXXXXXXXXX; normalise to 10-digit.
+  const mobile = normaliseIndianMobile(rawMobile);
+  if (!mobile) {
+    res.status(400).json({ message: "A valid Indian mobile number is required" });
+    return;
+  }
+  // Throttle OTP requests per mobile number and per IP to prevent SMS flooding.
   const perMobile = checkWindowLimit(`otpreq:mobile:${mobile}`, 3, 15 * 60 * 1000);
   const perIp = checkWindowLimit(`otpreq:ip:${req.ip ?? "unknown"}`, 10, 15 * 60 * 1000);
   const throttled = [perMobile, perIp].find((s) => s.limited);
@@ -127,47 +140,125 @@ router.post("/auth/otp/request", asyncHandler(async (req, res) => {
     .where(eq(usersTable.mobile, mobile))
     .limit(1);
   const user = rows[0];
-  // Generic response — identical for known/unknown mobiles to prevent account enumeration
-  const genericMessage =
-    "If this mobile number is registered, a verification code has been sent to the account's email.";
-  if (user?.isActive) {
-    try {
-      const code = await createOtp(mobile, "login");
-      await sendOtpEmail(user.email, code, "sign-in");
-    } catch (err) {
-      // Log but do not propagate — response must be identical for any mobile number
-      console.error("OTP email delivery failed:", err instanceof Error ? err.message : err);
-    }
-  }
+  // Generic response — identical for known/unknown/inactive mobiles to prevent
+  // account enumeration.
+  const genericMessage = "If this mobile number is registered, a verification code has been sent.";
   res.json({ message: genericMessage });
+  if (user?.isActive) {
+    void msg91SendOtp(mobile)
+      .then((result) => {
+        if (!result.ok) req.log.warn("MSG91 OTP send failed");
+      })
+      .catch(() => req.log.error("Unexpected error calling MSG91 send"));
+  }
 }));
 
-router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
-  const { mobile, code, rememberMe } = req.body ?? {};
-  if (typeof mobile !== "string" || typeof code !== "string") {
-    res.status(400).json({ message: "Mobile and code are required" });
+// ── Mobile OTP resend ─────────────────────────────────────────────────────
+router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
+  const { mobile: rawMobile } = req.body ?? {};
+  if (typeof rawMobile !== "string") {
+    res.status(400).json({ message: "A valid Indian mobile number is required" });
     return;
   }
-  const result = await consumeOtp(mobile, "login", code);
-  if (!result.ok) {
-    res.status(401).json({ message: result.error });
+  const mobile = normaliseIndianMobile(rawMobile);
+  if (!mobile) {
+    res.status(400).json({ message: "A valid Indian mobile number is required" });
     return;
   }
+  // Stricter throttle for resend: 2 resends per 15-minute window per mobile.
+  const perMobile = checkWindowLimit(`otpresend:mobile:${mobile}`, 2, 15 * 60 * 1000);
+  const perIp = checkWindowLimit(`otpresend:ip:${req.ip ?? "unknown"}`, 5, 15 * 60 * 1000);
+  const throttled = [perMobile, perIp].find((s) => s.limited);
+  if (throttled) {
+    res.status(429).json({
+      message: `Too many resend requests. Try again in ${retryAfterText(throttled.retryAfterMs)}.`,
+    });
+    return;
+  }
+  const genericMessage = "If this mobile number is registered, a new code has been sent.";
+  // Only call retry for existing active users; same generic response regardless.
   const rows = await db
-    .select()
+    .select({ isActive: usersTable.isActive })
     .from(usersTable)
     .where(eq(usersTable.mobile, mobile))
     .limit(1);
-  const user = rows[0];
-  if (!user || !user.isActive) {
-    res.status(401).json({ message: "Account not found or inactive" });
+  res.json({ message: genericMessage });
+  if (rows[0]?.isActive) {
+    void msg91RetryOtp(mobile)
+      .then((result) => {
+        if (!result.ok) req.log.warn("MSG91 OTP retry failed");
+      })
+      .catch(() => req.log.error("Unexpected error calling MSG91 retry"));
+  }
+}));
+
+router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
+  const { mobile: rawMobile, code, rememberMe } = req.body ?? {};
+  if (typeof rawMobile !== "string" || typeof code !== "string") {
+    res.status(400).json({ message: "Mobile and code are required" });
     return;
   }
-  const remember = rememberMe === true;
-  const deviceInfo = deviceInfoFrom(req);
-  const token = await createSession(user.id, remember, deviceInfo);
-  await recordLoginEvent(user.id, "otp", remember, deviceInfo);
-  res.json({ token, user: publicUser(user) });
+  // Accept 10-digit, +91 or 91-prefixed; normalise to local 10-digit for DB lookup.
+  const mobile = normaliseIndianMobile(rawMobile);
+  if (!mobile) {
+    res.status(400).json({ message: "A valid Indian mobile number is required" });
+    return;
+  }
+
+  const attemptKey = `otpverify:${mobile}`;
+  // Serialize the lockout check, provider verification, and failure update for
+  // this mobile so concurrent guesses cannot bypass the server-side lockout.
+  const releaseLock = await acquireRateLimitLock(attemptKey);
+  try {
+    // Server-side attempt lockout to guard against brute-force on verify endpoint.
+    const lockout = checkFailureLockout(attemptKey);
+    if (lockout.limited) {
+      res.status(429).json({
+        message: `Too many incorrect attempts. Try again in ${retryAfterText(lockout.retryAfterMs)}.`,
+      });
+      return;
+    }
+
+    // Verify with MSG91 — this is the authoritative check; no local OTP codes stored.
+    let providerResult;
+    try {
+      providerResult = await msg91VerifyOtp(mobile, code);
+    } catch {
+      req.log.error("Unexpected error calling MSG91 verify");
+      recordFailure(attemptKey);
+      res.status(401).json({ message: "Incorrect or expired code. Please try again." });
+      return;
+    }
+    if (!providerResult.ok) {
+      recordFailure(attemptKey);
+      // Use a generic message to avoid leaking whether provider rejected the code
+      // specifically vs. other failure modes.
+      res.status(401).json({ message: "Incorrect or expired code. Please try again." });
+      return;
+    }
+
+    // Code approved by provider — clear failure counter then look up the user.
+    clearFailures(attemptKey);
+
+    const rows = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.mobile, mobile))
+      .limit(1);
+    const user = rows[0];
+    if (!user || !user.isActive) {
+      // Provider approved the code but the account is not eligible (unknown or inactive).
+      res.status(401).json({ message: "Account not found or inactive" });
+      return;
+    }
+    const remember = rememberMe === true;
+    const deviceInfo = deviceInfoFrom(req);
+    const token = await createSession(user.id, remember, deviceInfo);
+    await recordLoginEvent(user.id, "otp", remember, deviceInfo);
+    res.json({ token, user: publicUser(user) });
+  } finally {
+    releaseLock();
+  }
 }));
 
 // ── Registration (email OTP verification) ────────────────────────────────

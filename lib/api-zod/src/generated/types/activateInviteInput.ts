@@ -9,5 +9,4 @@
 export interface ActivateInviteInput {
   token: string;
   name: string;
-  password: string;
 }

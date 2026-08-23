@@ -53,6 +53,18 @@ export const AuthOtpRequestResponse = zod.object({
 
 
 /**
+ * @summary Resend a login OTP for a mobile number
+ */
+export const AuthOtpResendBody = zod.object({
+  "mobile": zod.string()
+})
+
+export const AuthOtpResendResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
  * @summary Verify a login OTP and sign in
  */
 export const AuthOtpVerifyBody = zod.object({
@@ -3189,8 +3201,7 @@ export const CustomerInviteCreateResponse = zod.object({
  */
 export const AuthActivateInviteBody = zod.object({
   "token": zod.string(),
-  "name": zod.string(),
-  "password": zod.string()
+  "name": zod.string()
 })
 
 export const AuthActivateInviteResponse = zod.object({
@@ -3226,17 +3237,43 @@ export const ChatCapabilitiesResponse = zod.object({
 
 
 /**
+ * @summary Match exact phone numbers to active users in the caller's shop
+ */
+export const chatContactsMatchBodyPhonesMax = 50;
+
+
+
+export const ChatContactsMatchBody = zod.object({
+  "phone": zod.string().optional().describe('One exact Indian phone number.'),
+  "phones": zod.array(zod.string()).max(chatContactsMatchBodyPhonesMax).optional().describe('Exact Indian phone numbers read with device contact permission.')
+})
+
+export const ChatContactsMatchResponse = zod.object({
+  "contacts": zod.array(zod.object({
+  "userId": zod.string(),
+  "name": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "matchToken": zod.string().describe('Short-lived opaque proof bound to this caller, target, and shop.'),
+  "profilePhoto": zod.string().optional()
+}))
+})
+
+
+/**
  * @summary List chat rooms the caller belongs to (shop-scoped)
  */
 export const ChatRoomsListResponse = zod.object({
   "rooms": zod.array(zod.object({
   "id": zod.string(),
   "shopId": zod.string(),
-  "kind": zod.enum(['customer', 'dealer']),
+  "kind": zod.enum(['customer', 'dealer', 'direct']),
   "name": zod.string(),
   "customerId": zod.string().optional(),
   "dealerId": zod.string().optional(),
   "providerRoomId": zod.string().optional(),
+  "peerUserId": zod.string().optional().describe('The other member for a direct room, resolved for the current caller.'),
+  "profilePhoto": zod.string().optional().describe('The other member\'s profile image for a direct room.'),
   "peerKey": zod.string().optional().describe('Deterministic sorted pair of participant user IDs for one-to-one rooms.'),
   "isArchived": zod.boolean(),
   "createdById": zod.string().optional(),
@@ -3266,21 +3303,25 @@ export const ChatRoomsListResponse = zod.object({
  */
 export const ChatRoomsCreateBody = zod.object({
   "name": zod.string(),
-  "kind": zod.enum(['customer', 'dealer']),
+  "kind": zod.enum(['customer', 'dealer', 'direct']),
   "customerId": zod.string().optional(),
   "dealerId": zod.string().optional(),
+  "targetUserId": zod.string().optional(),
+  "matchToken": zod.string().optional().describe('Required with kind=direct; obtained from \/chat\/contacts\/match.'),
   "clientRequestId": zod.string().optional()
-}).describe('Create (or return existing) a one-to-one chat room. kind=customer requires customerId (must have exactly one active customer user link). kind=dealer requires dealerId (same shop) and resolves exactly one active dealer-portal target. support\/group kinds are out of scope (400).\n')
+}).describe('Create (or return existing) a one-to-one chat room. kind=customer requires customerId (must have exactly one active customer user link). kind=dealer requires dealerId (same shop) and resolves exactly one active dealer-portal target. kind=direct requires targetUserId and the matchToken returned by exact contact matching. support\/group kinds are out of scope (400).\n')
 
 export const ChatRoomsCreateResponse = zod.object({
   "room": zod.object({
   "id": zod.string(),
   "shopId": zod.string(),
-  "kind": zod.enum(['customer', 'dealer']),
+  "kind": zod.enum(['customer', 'dealer', 'direct']),
   "name": zod.string(),
   "customerId": zod.string().optional(),
   "dealerId": zod.string().optional(),
   "providerRoomId": zod.string().optional(),
+  "peerUserId": zod.string().optional().describe('The other member for a direct room, resolved for the current caller.'),
+  "profilePhoto": zod.string().optional().describe('The other member\'s profile image for a direct room.'),
   "peerKey": zod.string().optional().describe('Deterministic sorted pair of participant user IDs for one-to-one rooms.'),
   "isArchived": zod.boolean(),
   "createdById": zod.string().optional(),
@@ -3317,11 +3358,13 @@ export const ChatRoomsGetResponse = zod.object({
   "room": zod.object({
   "id": zod.string(),
   "shopId": zod.string(),
-  "kind": zod.enum(['customer', 'dealer']),
+  "kind": zod.enum(['customer', 'dealer', 'direct']),
   "name": zod.string(),
   "customerId": zod.string().optional(),
   "dealerId": zod.string().optional(),
   "providerRoomId": zod.string().optional(),
+  "peerUserId": zod.string().optional().describe('The other member for a direct room, resolved for the current caller.'),
+  "profilePhoto": zod.string().optional().describe('The other member\'s profile image for a direct room.'),
   "peerKey": zod.string().optional().describe('Deterministic sorted pair of participant user IDs for one-to-one rooms.'),
   "isArchived": zod.boolean(),
   "createdById": zod.string().optional(),

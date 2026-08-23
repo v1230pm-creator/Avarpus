@@ -28,6 +28,7 @@ const LOCKOUT_MS = 15 * 60 * 1000;
 
 const failures = new Map<string, FailureEntry>();
 const windows = new Map<string, WindowEntry>();
+const locks = new Map<string, Promise<void>>();
 
 function now(): number {
   return Date.now();
@@ -81,6 +82,27 @@ export function recordFailure(key: string): void {
 /** Clear failures for a key (call on successful authentication). */
 export function clearFailures(key: string): void {
   failures.delete(key);
+}
+
+/**
+ * Serialize async work for one rate-limit key. OTP verification holds this
+ * lock while it checks the failure state and calls its remote provider, so
+ * concurrent attempts cannot all bypass a just-created lockout.
+ */
+export async function acquireRateLimitLock(key: string): Promise<() => void> {
+  const previous = locks.get(key) ?? Promise.resolve();
+  let releaseCurrent!: () => void;
+  const current = new Promise<void>((resolve) => {
+    releaseCurrent = resolve;
+  });
+  const queued = previous.then(() => current);
+  locks.set(key, queued);
+  await previous;
+
+  return () => {
+    releaseCurrent();
+    if (locks.get(key) === queued) locks.delete(key);
+  };
 }
 
 /**

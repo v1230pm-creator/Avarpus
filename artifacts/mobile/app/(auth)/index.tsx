@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
@@ -12,47 +12,16 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
 
-type LoginTab = 'email' | 'mobile';
-
 export default function LoginScreen() {
-  const { login, signedOutNotice, clearSignedOutNotice } = useAuth();
+  const { signedOutNotice, clearSignedOutNotice } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useColors();
 
-  const [activeTab, setActiveTab] = useState<LoginTab>('email');
-
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
 
   const [mobile, setMobile] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const switchTab = (tab: LoginTab) => {
-    setActiveTab(tab);
-    setError('');
-  };
-
-  const handleSignIn = async () => {
-    if (!email.trim() || !password.trim()) {
-      setError('Please enter your email and password');
-      return;
-    }
-    setLoading(true);
-    setError('');
-    clearSignedOutNotice();
-    const result = await login(email.trim(), password, rememberMe);
-    setLoading(false);
-    if (!result.success) {
-      setError(result.error ?? 'Invalid credentials. Please try again.');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(auth)/biometric');
-    }
-  };
 
   const [otpLoading, setOtpLoading] = useState(false);
 
@@ -64,7 +33,8 @@ export default function LoginScreen() {
     setError('');
     setOtpLoading(true);
     try {
-      const res = await authOtpRequest({ mobile: mobile.trim() });
+      clearSignedOutNotice();
+      await authOtpRequest({ mobile: mobile.trim() });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       router.push({
         pathname: '/(auth)/otp',
@@ -104,26 +74,7 @@ export default function LoginScreen() {
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.cardHeader}>
             <Text style={[styles.cardTitle, { color: colors.foreground }]}>Welcome Back</Text>
-            <Text style={[styles.cardSub, { color: colors.textMuted }]}>Sign in to manage your business.</Text>
-          </View>
-
-          <View style={[styles.tabContainer, { backgroundColor: colors.secondary }]}>
-            <TouchableOpacity
-              onPress={() => switchTab('email')}
-              style={[styles.tabBtn, activeTab === 'email' && { backgroundColor: colors.card, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 2 }]}
-              activeOpacity={0.8}
-            >
-              <Feather name="mail" size={14} color={activeTab === 'email' ? colors.primary : colors.textMuted} />
-              <Text style={[styles.tabText, { color: activeTab === 'email' ? colors.foreground : colors.textMuted, fontFamily: activeTab === 'email' ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>Email</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => switchTab('mobile')}
-              style={[styles.tabBtn, activeTab === 'mobile' && { backgroundColor: colors.card, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 2 }]}
-              activeOpacity={0.8}
-            >
-              <Feather name="smartphone" size={14} color={activeTab === 'mobile' ? colors.primary : colors.textMuted} />
-              <Text style={[styles.tabText, { color: activeTab === 'mobile' ? colors.foreground : colors.textMuted, fontFamily: activeTab === 'mobile' ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>Mobile OTP</Text>
-            </TouchableOpacity>
+            <Text style={[styles.cardSub, { color: colors.textMuted }]}>Sign in securely with your registered mobile number.</Text>
           </View>
 
           {!!signedOutNotice && !error && (
@@ -140,44 +91,7 @@ export default function LoginScreen() {
             </View>
           )}
 
-          {activeTab === 'email' ? (
-            <View style={styles.form}>
-              <Input
-                label="Email Address"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="name@company.com"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                leftIcon="mail"
-              />
-              <Input
-                label="Password"
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Enter password"
-                isPassword
-                leftIcon="lock"
-                onSubmitEditing={handleSignIn}
-                returnKeyType="done"
-              />
-
-              <View style={styles.rememberRow}>
-                <TouchableOpacity onPress={() => setRememberMe(!rememberMe)} style={styles.checkboxRow} activeOpacity={0.7}>
-                  <View style={[styles.checkbox, { borderColor: colors.border, backgroundColor: rememberMe ? colors.primary : colors.input }]}>
-                    {rememberMe && <Feather name="check" size={12} color="#FFFFFF" />}
-                  </View>
-                  <Text style={[styles.rememberText, { color: colors.foreground }]}>Remember me</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => router.push('/(auth)/forgot')} activeOpacity={0.7}>
-                  <Text style={[styles.forgotText, { color: colors.primary }]}>Forgot Password?</Text>
-                </TouchableOpacity>
-              </View>
-
-              <Button title="Sign In" onPress={handleSignIn} loading={loading} fullWidth size="lg" />
-            </View>
-          ) : (
-            <View style={styles.form}>
+          <View style={styles.form}>
               <Input
                 label="Mobile Number"
                 value={mobile}
@@ -197,8 +111,7 @@ export default function LoginScreen() {
               </View>
 
               <Button title="Send OTP" onPress={handleSendOtp} loading={otpLoading} fullWidth size="lg" />
-            </View>
-          )}
+          </View>
         </View>
 
         <View style={styles.bottomSection}>
@@ -230,9 +143,6 @@ const styles = StyleSheet.create({
   cardHeader: { gap: 4 },
   cardTitle: { fontSize: 24, fontFamily: 'Inter_700Bold' },
   cardSub: { fontSize: 14, fontFamily: 'Inter_400Regular' },
-  tabContainer: { flexDirection: 'row', padding: 4, borderRadius: 10, gap: 4 },
-  tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 8, gap: 6 },
-  tabText: { fontSize: 14 },
   alertBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 8, borderWidth: 1 },
   alertText: { fontSize: 13, flex: 1, fontFamily: 'Inter_500Medium', lineHeight: 18 },
   form: { gap: 16 },
@@ -240,7 +150,6 @@ const styles = StyleSheet.create({
   checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   rememberText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
-  forgotText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
   bottomSection: { gap: 16, alignItems: 'center' },
   bottomText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
 });

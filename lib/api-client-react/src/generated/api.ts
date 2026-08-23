@@ -41,11 +41,14 @@ import type {
   AuthMe200,
   AuthMeUpdate200,
   AuthOtpRequest200,
+  AuthOtpResend200,
   AuthSession,
   AuthSessions200,
   ChangePasswordInput,
   ChatCallTokenResult,
   ChatCapabilities,
+  ChatContactMatchInput,
+  ChatContactsMatch200,
   ChatMarkReadInput,
   ChatMessageSendInput,
   ChatMessagesList200,
@@ -339,6 +342,77 @@ export const useAuthOtpRequest = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAuthOtpRequestMutationOptions(options));
+    }
+
+export const getAuthOtpResendUrl = () => {
+
+
+
+
+  return `/api/auth/otp/resend`
+}
+
+/**
+ * @summary Resend a login OTP for a mobile number
+ */
+export const authOtpResend = async (otpRequestInput: OtpRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthOtpResend200> => {
+
+  return customFetch<AuthOtpResend200>(getAuthOtpResendUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(otpRequestInput)
+  }
+);}
+
+
+
+
+
+export const getAuthOtpResendMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authOtpResend>>, TError,{data: BodyType<OtpRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authOtpResend>>, TError,{data: BodyType<OtpRequestInput>}, TContext> => {
+
+const mutationKey = ['authOtpResend'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authOtpResend>>, {data: BodyType<OtpRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  authOtpResend(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthOtpResendMutationResult = NonNullable<Awaited<ReturnType<typeof authOtpResend>>>
+    export type AuthOtpResendMutationBody = BodyType<OtpRequestInput>
+    export type AuthOtpResendMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Resend a login OTP for a mobile number
+ */
+export const useAuthOtpResend = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authOtpResend>>, TError,{data: BodyType<OtpRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authOtpResend>>,
+        TError,
+        {data: BodyType<OtpRequestInput>},
+        TContext
+      > => {
+      return useMutation(getAuthOtpResendMutationOptions(options));
     }
 
 export const getAuthOtpVerifyUrl = () => {
@@ -8062,6 +8136,77 @@ export function useChatCapabilities<TData = Awaited<ReturnType<typeof chatCapabi
 
 
 
+
+export const getChatContactsMatchUrl = () => {
+
+
+
+
+  return `/api/chat/contacts/match`
+}
+
+/**
+ * @summary Match exact phone numbers to active users in the caller's shop
+ */
+export const chatContactsMatch = async (chatContactMatchInput: ChatContactMatchInput, options?: Parameters<typeof customFetch>[1]): Promise<ChatContactsMatch200> => {
+
+  return customFetch<ChatContactsMatch200>(getChatContactsMatchUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chatContactMatchInput)
+  }
+);}
+
+
+
+
+
+export const getChatContactsMatchMutationOptions = <TError = ErrorType<Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatContactsMatch>>, TError,{data: BodyType<ChatContactMatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatContactsMatch>>, TError,{data: BodyType<ChatContactMatchInput>}, TContext> => {
+
+const mutationKey = ['chatContactsMatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatContactsMatch>>, {data: BodyType<ChatContactMatchInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  chatContactsMatch(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatContactsMatchMutationResult = NonNullable<Awaited<ReturnType<typeof chatContactsMatch>>>
+    export type ChatContactsMatchMutationBody = BodyType<ChatContactMatchInput>
+    export type ChatContactsMatchMutationError = ErrorType<Message>
+
+    /**
+ * @summary Match exact phone numbers to active users in the caller's shop
+ */
+export const useChatContactsMatch = <TError = ErrorType<Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatContactsMatch>>, TError,{data: BodyType<ChatContactMatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatContactsMatch>>,
+        TError,
+        {data: BodyType<ChatContactMatchInput>},
+        TContext
+      > => {
+      return useMutation(getChatContactsMatchMutationOptions(options));
+    }
 
 export const getChatRoomsListUrl = () => {
 

@@ -15,7 +15,9 @@ export const usersTable = pgTable("users", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   mobile: text("mobile").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
+  // Nullable for OTP-only accounts. Legacy password login remains available
+  // only for users that already have a stored hash.
+  passwordHash: text("password_hash"),
   role: text("role").notNull().default("reception"),
   // Shop the user belongs to. Dealers own their shop; staff accounts created
   // by a dealer inherit the dealer's shop. (No FK to avoid a circular

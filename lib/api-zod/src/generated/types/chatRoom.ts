@@ -16,6 +16,10 @@ export interface ChatRoom {
   customerId?: string;
   dealerId?: string;
   providerRoomId?: string;
+  /** The other member for a direct room, resolved for the current caller. */
+  peerUserId?: string;
+  /** The other member's profile image for a direct room. */
+  profilePhoto?: string;
   /** Deterministic sorted pair of participant user IDs for one-to-one rooms. */
   peerKey?: string;
   isArchived: boolean;

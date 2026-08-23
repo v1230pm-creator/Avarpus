@@ -53,6 +53,11 @@ export default defineConfig({
       target: "generated",
       schemas: { path: "generated/types", type: "typescript" },
       mode: "split",
+      // Orval's generated root barrel re-exports both Zod validators and
+      // TypeScript models. Query-parameter models share names with validators
+      // (for example ChatMessagesListParams), which makes the barrel fail
+      // TypeScript with TS2308. Keep our small hand-authored package barrel.
+      indexFiles: false,
       clean: true,
       prettier: true,
       override: {

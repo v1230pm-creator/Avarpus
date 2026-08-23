@@ -12,4 +12,5 @@ export type ChatRoomCreateInputKind = typeof ChatRoomCreateInputKind[keyof typeo
 export const ChatRoomCreateInputKind = {
   customer: 'customer',
   dealer: 'dealer',
+  direct: 'direct',
 } as const;

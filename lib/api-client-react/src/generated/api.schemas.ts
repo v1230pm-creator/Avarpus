@@ -1117,7 +1117,6 @@ export interface CustomerInviteResult {
 export interface ActivateInviteInput {
   token: string;
   name: string;
-  password: string;
 }
 
 export interface ChatCapabilities {
@@ -1126,12 +1125,33 @@ export interface ChatCapabilities {
   livekitAvailable: boolean;
 }
 
+export interface ChatContactMatchInput {
+  /** One exact Indian phone number. */
+  phone?: string;
+  /**
+     * Exact Indian phone numbers read with device contact permission.
+     * @maxItems 50
+     */
+  phones?: string[];
+}
+
+export interface ChatContact {
+  userId: string;
+  name: string;
+  mobile: string;
+  role: string;
+  /** Short-lived opaque proof bound to this caller, target, and shop. */
+  matchToken: string;
+  profilePhoto?: string;
+}
+
 export type ChatRoomKind = typeof ChatRoomKind[keyof typeof ChatRoomKind];
 
 
 export const ChatRoomKind = {
   customer: 'customer',
   dealer: 'dealer',
+  direct: 'direct',
 } as const;
 
 export type ChatMessageKind = typeof ChatMessageKind[keyof typeof ChatMessageKind];
@@ -1169,6 +1189,10 @@ export interface ChatRoom {
   customerId?: string;
   dealerId?: string;
   providerRoomId?: string;
+  /** The other member for a direct room, resolved for the current caller. */
+  peerUserId?: string;
+  /** The other member's profile image for a direct room. */
+  profilePhoto?: string;
   /** Deterministic sorted pair of participant user IDs for one-to-one rooms. */
   peerKey?: string;
   isArchived: boolean;
@@ -1185,16 +1209,20 @@ export type ChatRoomCreateInputKind = typeof ChatRoomCreateInputKind[keyof typeo
 export const ChatRoomCreateInputKind = {
   customer: 'customer',
   dealer: 'dealer',
+  direct: 'direct',
 } as const;
 
 /**
- * Create (or return existing) a one-to-one chat room. kind=customer requires customerId (must have exactly one active customer user link). kind=dealer requires dealerId (same shop) and resolves exactly one active dealer-portal target. support/group kinds are out of scope (400).
+ * Create (or return existing) a one-to-one chat room. kind=customer requires customerId (must have exactly one active customer user link). kind=dealer requires dealerId (same shop) and resolves exactly one active dealer-portal target. kind=direct requires targetUserId and the matchToken returned by exact contact matching. support/group kinds are out of scope (400).
  */
 export interface ChatRoomCreateInput {
   name: string;
   kind: ChatRoomCreateInputKind;
   customerId?: string;
   dealerId?: string;
+  targetUserId?: string;
+  /** Required with kind=direct; obtained from /chat/contacts/match. */
+  matchToken?: string;
   clientRequestId?: string;
 }
 
@@ -1252,6 +1280,10 @@ export interface ServiceUnavailable {
 }
 
 export type AuthOtpRequest200 = {
+  message: string;
+};
+
+export type AuthOtpResend200 = {
   message: string;
 };
 
@@ -1679,6 +1711,10 @@ export type RoleFeaturesUpdate200Matrix = {[key: string]: {[key: string]: boolea
 
 export type RoleFeaturesUpdate200 = {
   matrix: RoleFeaturesUpdate200Matrix;
+};
+
+export type ChatContactsMatch200 = {
+  contacts: ChatContact[];
 };
 
 export type ChatRoomsList200 = {

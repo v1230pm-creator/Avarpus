@@ -60,6 +60,27 @@ paths:
                 properties:
                   message: { type: string }
                 required: [message]
+  /auth/otp/resend:
+    post:
+      operationId: authOtpResend
+      tags: [auth]
+      summary: Resend a login OTP for a mobile number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpRequestInput"
+      responses:
+        "200":
+          description: OTP resend request accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                required: [message]
   /auth/otp/verify:
     post:
       operationId: authOtpVerify
@@ -2252,6 +2273,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/ChatCapabilities"
 
+  /chat/contacts/match:
+    post:
+      operationId: chatContactsMatch
+      tags: [chat]
+      summary: Match exact phone numbers to active users in the caller's shop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatContactMatchInput"
+      responses:
+        "200":
+          description: Registered active exact matches only
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contacts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChatContact"
+                required: [contacts]
+        "429":
+          description: Durable per-user or per-IP contact match limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
   # ── Chat rooms ───────────────────────────────────────────────────────────────
   /chat/rooms:
     get:
@@ -3485,8 +3537,7 @@ components:
       properties:
         token: { type: string }
         name: { type: string }
-        password: { type: string }
-      required: [token, name, password]
+      required: [token, name]
 
     # ── Chat schemas ──────────────────────────────────────────────────────────
     ChatCapabilities:
@@ -3496,16 +3547,45 @@ components:
         matrixAvailable: { type: boolean }
         livekitAvailable: { type: boolean }
       required: [e2eeEnabled, matrixAvailable, livekitAvailable]
+    ChatContactMatchInput:
+      type: object
+      properties:
+        phone:
+          type: string
+          description: One exact Indian phone number.
+        phones:
+          type: array
+          maxItems: 50
+          items: { type: string }
+          description: Exact Indian phone numbers read with device contact permission.
+    ChatContact:
+      type: object
+      properties:
+        userId: { type: string }
+        name: { type: string }
+        mobile: { type: string }
+        role: { type: string }
+        matchToken:
+          type: string
+          description: Short-lived opaque proof bound to this caller, target, and shop.
+        profilePhoto: { type: string }
+      required: [userId, name, mobile, role, matchToken]
     ChatRoom:
       type: object
       properties:
         id: { type: string }
         shopId: { type: string }
-        kind: { type: string, enum: [customer, dealer] }
+        kind: { type: string, enum: [customer, dealer, direct] }
         name: { type: string }
         customerId: { type: string }
         dealerId: { type: string }
         providerRoomId: { type: string }
+        peerUserId:
+          type: string
+          description: The other member for a direct room, resolved for the current caller.
+        profilePhoto:
+          type: string
+          description: The other member's profile image for a direct room.
         peerKey:
           type: string
           description: Deterministic sorted pair of participant user IDs for one-to-one rooms.
@@ -3523,12 +3603,17 @@ components:
         Create (or return existing) a one-to-one chat room. kind=customer
         requires customerId (must have exactly one active customer user link).
         kind=dealer requires dealerId (same shop) and resolves exactly one active
-        dealer-portal target. support/group kinds are out of scope (400).
+        dealer-portal target. kind=direct requires targetUserId and the matchToken
+        returned by exact contact matching. support/group kinds are out of scope (400).
       properties:
         name: { type: string }
-        kind: { type: string, enum: [customer, dealer] }
+        kind: { type: string, enum: [customer, dealer, direct] }
         customerId: { type: string }
         dealerId: { type: string }
+        targetUserId: { type: string }
+        matchToken:
+          type: string
+          description: Required with kind=direct; obtained from /chat/contacts/match.
         clientRequestId: { type: string }
       required: [name, kind]
     ChatMessage:

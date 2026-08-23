@@ -5,6 +5,7 @@ import {
   pgTable,
   text,
   timestamp,
+  index,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -64,6 +65,56 @@ export const customerInvitesTable = pgTable("customer_invites", {
     .notNull()
     .defaultNow(),
 });
+
+// Short-lived proof that an authenticated caller found a specific same-shop
+// user through exact contact matching. Only a hash of the bearer token is kept.
+export const chatContactMatchGrantsTable = pgTable(
+  "chat_contact_match_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tokenHash: text("token_hash").notNull().unique(),
+    callerUserId: uuid("caller_user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    targetUserId: uuid("target_user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    shopId: uuid("shop_id")
+      .notNull()
+      .references(() => shopsTable.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("chat_contact_match_grants_lookup_idx").on(
+      t.tokenHash,
+      t.callerUserId,
+      t.targetUserId,
+      t.shopId,
+    ),
+    index("chat_contact_match_grants_expires_idx").on(t.expiresAt),
+  ],
+);
+
+// Durable, cross-instance contact lookup accounting. IP addresses are stored
+// only as one-way hashes.
+export const chatContactMatchAttemptsTable = pgTable(
+  "chat_contact_match_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    ipHash: text("ip_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("chat_contact_match_attempts_user_created_idx").on(t.userId, t.createdAt),
+    index("chat_contact_match_attempts_ip_created_idx").on(t.ipHash, t.createdAt),
+    index("chat_contact_match_attempts_created_idx").on(t.createdAt),
+  ],
+);
 
 // ── Chat rooms ────────────────────────────────────────────────────────────────
 // Each room is scoped to a shop. `kind` distinguishes customer-facing rooms
@@ -241,6 +292,8 @@ export const chatProviderIdentitiesTable = pgTable(
 // ── Type exports ─────────────────────────────────────────────────────────────
 export type DbCustomerUser = typeof customerUsersTable.$inferSelect;
 export type DbCustomerInvite = typeof customerInvitesTable.$inferSelect;
+export type DbChatContactMatchGrant = typeof chatContactMatchGrantsTable.$inferSelect;
+export type DbChatContactMatchAttempt = typeof chatContactMatchAttemptsTable.$inferSelect;
 export type DbChatRoom = typeof chatRoomsTable.$inferSelect;
 export type DbChatRoomMember = typeof chatRoomMembersTable.$inferSelect;
 export type DbChatMessage = typeof chatMessagesTable.$inferSelect;

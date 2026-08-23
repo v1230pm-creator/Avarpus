@@ -35,4 +35,4 @@
 - [LiveKit native calls](livekit-native-calls.md) — calls require a custom native APK plus real credentials and two devices; Expo Go/web cannot validate WebRTC behavior.
 - [Nested chat navigation](nested-chat-navigation.md) — tab-nested conversations need explicit stack registration, focused tab-bar control, and deterministic profile back navigation.
 - [Repair chat identity](repair-chat-identity.md) — legacy repair rows can lack customer links; resolve only one safe, live customer before opening chat.
-- [Chats inbox scope](chats-inbox-scope.md) — the main Chats tab is customer-only; keep repair, payment, delivery, and dealer content in their own areas.
+- [Chats inbox scope](chats-inbox-scope.md) — Chats shows customer and exact-contact direct rooms only; keep repair, payment, delivery, and dealer content in their own areas.

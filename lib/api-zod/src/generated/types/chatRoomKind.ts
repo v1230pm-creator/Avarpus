@@ -12,4 +12,5 @@ export type ChatRoomKind = typeof ChatRoomKind[keyof typeof ChatRoomKind];
 export const ChatRoomKind = {
   customer: 'customer',
   dealer: 'dealer',
+  direct: 'direct',
 } as const;

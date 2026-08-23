@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Contacts from 'expo-contacts';
 import { type Repair } from '@/types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -22,12 +23,22 @@ import { Avatar } from '@/components/ui/Avatar';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import {
   useChatCapabilities,
+  useChatContactsMatch,
+  useChatRoomsCreate,
   useChatRoomsList,
   getChatRoomsListQueryKey,
   getRepairsListQueryKey,
   useRepairsList,
 } from '@workspace/api-client-react';
-import type { ChatRoom } from '@workspace/api-client-react';
+import type { ChatContact, ChatRoom } from '@workspace/api-client-react';
+
+const PHONE_BATCH_SIZE = 50;
+
+function normalizeIndianPhone(value: string): string | null {
+  const digits = value.replace(/\D/g, '');
+  const local = digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
+  return /^[6-9]\d{9}$/.test(local) ? local : null;
+}
 
 function formatRoomTime(dateStr?: string): string {
   if (!dateStr) return '';
@@ -127,6 +138,14 @@ function CustomerInboxScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
+  const [showContactDiscovery, setShowContactDiscovery] = useState(false);
+  const [exactPhone, setExactPhone] = useState('');
+  const [matchedContacts, setMatchedContacts] = useState<ChatContact[]>([]);
+  const [contactStatus, setContactStatus] = useState<'idle' | 'loading' | 'denied' | 'empty' | 'error'>('idle');
+  const [contactError, setContactError] = useState<string | null>(null);
+  const [openingContactId, setOpeningContactId] = useState<string | null>(null);
+  const contactsMatch = useChatContactsMatch();
+  const roomsCreate = useChatRoomsCreate();
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : Math.max(insets.top, 20);
 
@@ -147,9 +166,11 @@ function CustomerInboxScreen() {
   });
 
   const rooms = useMemo(() => {
-    // Chats is intentionally customer-only. Repairs, payment activity and
-    // dealer conversations belong in their own app areas, not this inbox.
-    const all = (roomsData?.rooms ?? []).filter((room) => room.kind === 'customer');
+    // Repairs, payment activity and dealer conversations belong in their own
+    // app areas. Direct rooms are intentionally included alongside customers.
+    const all = (roomsData?.rooms ?? []).filter(
+      (room) => room.kind === 'customer' || room.kind === 'direct',
+    );
     if (!search.trim()) return all;
     const q = search.toLowerCase();
     return all.filter(
@@ -160,6 +181,92 @@ function CustomerInboxScreen() {
   }, [roomsData, search]);
 
   const isLoading = capLoading || (providerConfigured && roomsLoading);
+
+  const openDirectChat = useCallback(async (contact: ChatContact) => {
+    if (openingContactId) return;
+    setOpeningContactId(contact.userId);
+    setContactError(null);
+    try {
+      const result = await roomsCreate.mutateAsync({
+        data: {
+          name: contact.name,
+          kind: 'direct',
+          targetUserId: contact.userId,
+          matchToken: contact.matchToken,
+        },
+      });
+      router.push(
+        `/(tabs)/customers/chat/${result.room.id}?name=${encodeURIComponent(contact.name)}`,
+      );
+    } catch (error: any) {
+      setContactStatus('error');
+      setContactError(
+        error?.data?.message ?? error?.message ?? 'Could not start this conversation. Please try again.',
+      );
+    } finally {
+      setOpeningContactId(null);
+    }
+  }, [openingContactId, roomsCreate, router]);
+
+  const matchPhones = useCallback(async (phones: string[]) => {
+    if (!phones.length) {
+      setMatchedContacts([]);
+      setContactStatus('empty');
+      return;
+    }
+    setContactStatus('loading');
+    setContactError(null);
+    try {
+      const responses = await Promise.all(
+        Array.from({ length: Math.ceil(phones.length / PHONE_BATCH_SIZE) }, (_, index) =>
+          contactsMatch.mutateAsync({ data: { phones: phones.slice(index * PHONE_BATCH_SIZE, (index + 1) * PHONE_BATCH_SIZE) } }),
+        ),
+      );
+      const byUserId = new Map<string, ChatContact>();
+      responses.flatMap((response) => response.contacts).forEach((contact) => byUserId.set(contact.userId, contact));
+      const contacts = [...byUserId.values()];
+      setMatchedContacts(contacts);
+      setContactStatus(contacts.length ? 'idle' : 'empty');
+    } catch (error: any) {
+      setContactStatus('error');
+      setContactError(error?.data?.message ?? error?.message ?? 'Could not check your contacts. Please try again.');
+    }
+  }, [contactsMatch]);
+
+  const discoverContacts = useCallback(async () => {
+    if (Platform.OS === 'web') {
+      setContactStatus('error');
+      setContactError('Contact discovery is available in the mobile app. You can still search an exact phone number.');
+      return;
+    }
+    setContactStatus('loading');
+    setContactError(null);
+    try {
+      const permission = await Contacts.requestPermissionsAsync();
+      if (!permission.granted) {
+        setContactStatus('denied');
+        return;
+      }
+      const result = await Contacts.getContactsAsync({ fields: [Contacts.Fields.PhoneNumbers] });
+      const phones = [...new Set(result.data.flatMap((contact) =>
+        (contact.phoneNumbers ?? []).map((phone) => normalizeIndianPhone(phone.number ?? '')).filter((phone): phone is string => !!phone),
+      ))];
+      await matchPhones(phones);
+    } catch (error: any) {
+      setContactStatus('error');
+      setContactError(error?.message ?? 'Could not read your contacts. Please try again.');
+    }
+  }, [matchPhones]);
+
+  const lookupExactPhone = useCallback(async () => {
+    const phone = normalizeIndianPhone(exactPhone);
+    if (!phone) {
+      setContactStatus('error');
+      setContactError('Enter a valid 10-digit mobile number.');
+      return;
+    }
+    await matchPhones([phone]);
+  }, [exactPhone, matchPhones]);
 
   const renderHeader = () => (
     <View
@@ -180,14 +287,15 @@ function CustomerInboxScreen() {
           </Text>
 
         <TouchableOpacity
-          onPress={() => router.push('/(tabs)/more')}
+          onPress={() => setShowContactDiscovery((visible) => !visible)}
           style={{
             width: 40, height: 40, borderRadius: 20,
             alignItems: 'center', justifyContent: 'center',
           }}
-          accessibilityLabel="Open more options"
+          accessibilityLabel="Start a new chat"
+          testID="new-chat-control"
         >
-          <Feather name="more-vertical" size={22} color={colors.foreground} />
+          <Feather name="user-plus" size={22} color={colors.foreground} />
         </TouchableOpacity>
       </View>
 
@@ -214,6 +322,59 @@ function CustomerInboxScreen() {
               <Feather name="x" size={16} color={colors.mutedForeground} />
             </TouchableOpacity>
           )}
+        </View>
+      )}
+      {providerConfigured && showContactDiscovery && (
+        <View style={{ marginTop: 12 }}>
+          <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 14, marginBottom: 8 }}>
+            Start a direct chat
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TextInput
+              value={exactPhone}
+              onChangeText={setExactPhone}
+              keyboardType="phone-pad"
+              placeholder="10-digit mobile number"
+              placeholderTextColor={colors.mutedForeground}
+              style={{ flex: 1, height: 40, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, color: colors.foreground, fontFamily: 'Inter_400Regular' }}
+              accessibilityLabel="Exact mobile number"
+            />
+            <TouchableOpacity onPress={lookupExactPhone} style={{ marginLeft: 8, padding: 10 }} accessibilityLabel="Find registered contact">
+              <Feather name="search" size={20} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={discoverContacts} style={{ marginLeft: 4, padding: 10 }} accessibilityLabel="Find contacts on this device">
+              <Feather name="users" size={20} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+          {contactStatus === 'loading' && <ActivityIndicator style={{ marginTop: 12 }} color={colors.primary} />}
+          {contactStatus === 'denied' && <Text style={{ marginTop: 10, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>Contacts permission was denied. Search an exact number instead.</Text>}
+          {contactStatus === 'empty' && <Text style={{ marginTop: 10, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>No registered contacts were found.</Text>}
+          {contactStatus === 'error' && (
+            <View style={{ marginTop: 10 }}>
+              <Text style={{ color: colors.destructive, fontFamily: 'Inter_400Regular' }}>{contactError}</Text>
+              <TouchableOpacity onPress={exactPhone ? lookupExactPhone : discoverContacts} accessibilityLabel="Retry contact lookup">
+                <Text style={{ color: colors.primary, marginTop: 6, fontFamily: 'Inter_600SemiBold' }}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {matchedContacts.map((contact) => (
+            <TouchableOpacity
+              key={contact.userId}
+              onPress={() => void openDirectChat(contact)}
+              disabled={openingContactId !== null}
+              testID={`matched-contact-${contact.userId}`}
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border, opacity: openingContactId && openingContactId !== contact.userId ? 0.5 : 1 }}
+            >
+              <Avatar name={contact.name} size={36} />
+              <View style={{ marginLeft: 10 }}>
+                <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{contact.name}</Text>
+                <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12 }}>{contact.mobile}</Text>
+              </View>
+              {openingContactId === contact.userId && (
+                <ActivityIndicator style={{ marginLeft: 'auto' }} color={colors.primary} />
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
       )}
     </View>
@@ -248,7 +409,7 @@ function CustomerInboxScreen() {
           </Text>
           <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
             Messaging, attachments, voice notes and calls will be available after the communication
-            service is connected. Until then, customer conversations will not appear here.
+            service is connected. Until then, conversations will not appear here.
           </Text>
           <View style={[styles.shieldBox, { backgroundColor: colors.backgroundSecondary }]}>
             <Feather name="shield" size={16} color={colors.mutedForeground} />
@@ -300,7 +461,7 @@ function CustomerInboxScreen() {
             No conversations yet
           </Text>
           <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            Customer conversations will appear here.
+            Customer and direct conversations will appear here.
           </Text>
           <View style={[styles.shieldBox, { backgroundColor: colors.backgroundSecondary }]}>
             <Feather name="shield" size={16} color={colors.mutedForeground} />
@@ -324,15 +485,8 @@ function CustomerInboxScreen() {
             room={item}
             colors={colors}
             onPress={() => {
-              // Customer inbox rows should open the customer-targeted chat
-              // when the API gives us the identity. Keep the existing room
-              // route as a safe fallback for legacy rooms without a link.
-              if (item.kind === 'customer' && item.customerId) {
-                router.push(
-                  `/(tabs)/customers/chat/${item.customerId}?targetId=${item.customerId}&type=customer&name=${encodeURIComponent(item.name)}`,
-                );
-                return;
-              }
+              // Existing rooms always open by room id. Contact discovery is
+              // the only path that creates a new direct room.
               router.push(
                 `/(tabs)/customers/chat/${item.id}?name=${encodeURIComponent(item.name)}`,
               );

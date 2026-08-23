@@ -19,8 +19,6 @@ export default function ActivateScreen() {
   const params = useLocalSearchParams<{ token?: string }>();
   const [token, setToken] = useState(params.token ?? '');
   const [name, setName] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
 
   const activateMutation = useAuthActivateInvite();
@@ -28,23 +26,10 @@ export default function ActivateScreen() {
   const handleActivate = async () => {
     if (!token.trim()) { setError('Please enter the activation token.'); return; }
     if (!name.trim()) { setError('Please enter your name.'); return; }
-    if (
-      password.length < 8 ||
-      !/[a-z]/.test(password) ||
-      !/[A-Z]/.test(password) ||
-      !/\d/.test(password)
-    ) {
-      setError('Use at least 8 characters with uppercase, lowercase and a number.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
     setError('');
 
     activateMutation.mutate(
-      { data: { token: token.trim(), name: name.trim(), password } },
+      { data: { token: token.trim(), name: name.trim() } },
       {
         onSuccess: async (session) => {
           await adoptSession(session);
@@ -71,7 +56,7 @@ export default function ActivateScreen() {
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Activate Account</Text>
           <Text style={[styles.subtitle, { color: colors.textMuted, fontFamily: 'Inter_400Regular' }]}>
-            Enter the single-use activation token you received, plus your details to set up your account.
+            Enter the single-use activation token you received. Future sign-ins use a mobile OTP.
           </Text>
         </View>
 
@@ -100,25 +85,6 @@ export default function ActivateScreen() {
             leftIcon="user"
             autoCapitalize="words"
           />
-          <Input
-            label="Password"
-            value={password}
-            onChangeText={(t) => { setPassword(t); setError(''); }}
-            placeholder="8+ chars, uppercase, lowercase, number"
-            isPassword
-            leftIcon="lock"
-          />
-          <Input
-            label="Confirm Password"
-            value={confirmPassword}
-            onChangeText={(t) => { setConfirmPassword(t); setError(''); }}
-            placeholder="Re-enter password"
-            isPassword
-            leftIcon="lock"
-            returnKeyType="done"
-            onSubmitEditing={handleActivate}
-          />
-
           <Button 
             title="Activate Account" 
             onPress={handleActivate} 

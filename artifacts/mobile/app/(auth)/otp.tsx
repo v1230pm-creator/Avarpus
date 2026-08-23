@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { authOtpRequest } from '@workspace/api-client-react';
+import { authOtpResend } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
@@ -70,7 +70,7 @@ export default function OTPScreen() {
   const handleResend = async () => {
     if (timer > 0) return;
     try {
-      await authOtpRequest({ mobile });
+      await authOtpResend({ mobile });
       setTimer(60);
       setOtp(['', '', '', '', '', '']);
       setError('');

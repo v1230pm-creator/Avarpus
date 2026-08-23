@@ -88,6 +88,7 @@ jest.mock('@/components/ui/Avatar', () => {
 
 // API client mocks — keyed by what each test controls via mockReturnValue
 const mockUseChatCapabilities = jest.fn();
+const mockUseChatContactsMatch = jest.fn();
 const mockUseChatRoomsList = jest.fn();
 const mockUseChatRoomsCreate = jest.fn();
 const mockUseChatRoomsGet = jest.fn();
@@ -99,6 +100,7 @@ const mockUseRepairsList = jest.fn();
 
 jest.mock('@workspace/api-client-react', () => ({
   useChatCapabilities: (...args: any[]) => mockUseChatCapabilities(...args),
+  useChatContactsMatch: (...args: any[]) => mockUseChatContactsMatch(...args),
   useChatRoomsList: (...args: any[]) => mockUseChatRoomsList(...args),
   useChatRoomsCreate: (...args: any[]) => mockUseChatRoomsCreate(...args),
   useChatRoomsGet: (...args: any[]) => mockUseChatRoomsGet(...args),
@@ -115,6 +117,14 @@ jest.mock('@workspace/api-client-react', () => ({
   // Media URL — private per-message endpoint, not generic storage
   getChatMessageMediaUrl: (roomId: string, messageId: string) =>
     `/api/chat/rooms/${roomId}/messages/${messageId}/media`,
+}));
+
+const mockRequestContactsPermissionsAsync = jest.fn();
+const mockGetContactsAsync = jest.fn();
+jest.mock('expo-contacts', () => ({
+  requestPermissionsAsync: (...args: any[]) => mockRequestContactsPermissionsAsync(...args),
+  getContactsAsync: (...args: any[]) => mockGetContactsAsync(...args),
+  Fields: { PhoneNumbers: 'phoneNumbers' },
 }));
 
 // Mock expo-document-picker
@@ -243,8 +253,13 @@ beforeEach(() => {
   (useRouter as jest.Mock).mockReturnValue({ push: jest.fn(), back: jest.fn(), replace: jest.fn() });
 
   mockUseChatCapabilities.mockReturnValue({ data: undefined, isLoading: false, isError: false });
+  mockUseChatContactsMatch.mockReturnValue({ mutateAsync: jest.fn() });
   mockUseChatRoomsList.mockReturnValue({ data: undefined, isLoading: false, isError: false, refetch: jest.fn() });
-  mockUseChatRoomsCreate.mockReturnValue({ mutate: jest.fn(), isPending: false });
+  mockUseChatRoomsCreate.mockReturnValue({
+    mutate: jest.fn(),
+    mutateAsync: jest.fn(),
+    isPending: false,
+  });
   mockUseChatRoomsGet.mockReturnValue({ data: undefined });
   mockUseChatMessagesList.mockReturnValue({ data: undefined, isLoading: false, isError: false, refetch: jest.fn() });
   mockUseChatMessagesSend.mockReturnValue({ mutate: jest.fn(), isPending: false });
@@ -257,6 +272,8 @@ beforeEach(() => {
     isFetching: false,
     refetch: jest.fn(),
   });
+  mockRequestContactsPermissionsAsync.mockResolvedValue({ granted: true });
+  mockGetContactsAsync.mockResolvedValue({ data: [] });
   mockGetDocumentAsync.mockResolvedValue({ canceled: true, assets: null });
   mockGetInfoAsync.mockResolvedValue({ exists: true, size: 1024 });
   mockCreateUploadTask.mockReturnValue({ uploadAsync: jest.fn().mockResolvedValue({ status: 200 }) });
@@ -362,6 +379,7 @@ describe('Inbox — no fake data', () => {
       data: {
         rooms: [
           { id: 'r1', name: 'Alice', kind: 'customer', shopId: 's1', isArchived: false, createdAt: '2026-01-01T10:00:00Z', unreadCount: 2, lastMessage: { id: 'm1', body: 'Hello!', createdAt: '2026-01-01T10:00:00Z', senderId: 'other', senderName: 'Alice', roomId: 'r1', shopId: 's1', kind: 'text' } },
+          { id: 'r-direct', name: 'Priya', kind: 'direct', shopId: 's1', isArchived: false, createdAt: '2026-01-01T10:00:00Z', unreadCount: 0 },
           { id: 'r2', name: 'Bob', kind: 'dealer', shopId: 's1', isArchived: false, createdAt: '2026-01-01T09:00:00Z', unreadCount: 0 },
         ],
       },
@@ -371,13 +389,76 @@ describe('Inbox — no fake data', () => {
     });
     render(<HomeScreen />);
     expect(screen.getByTestId('room-item-r1')).toBeTruthy();
+    expect(screen.getByTestId('room-item-r-direct')).toBeTruthy();
     expect(screen.queryByTestId('room-item-r2')).toBeNull();
     expect(screen.getByText('Alice')).toBeTruthy();
     expect(screen.queryByText('Bob')).toBeNull();
     expect(screen.getByText('Hello!')).toBeTruthy();
   });
 
-  it('opens every customer conversation name in its direct customer chat', () => {
+  it('matches an exact normalized phone number only after user action', async () => {
+    const mutateAsync = jest.fn().mockResolvedValue({
+      contacts: [{ userId: 'user-priya', name: 'Priya', mobile: '9876543210', role: 'staff', matchToken: 'proof-token' }],
+    });
+    const roomMutateAsync = jest.fn().mockResolvedValue({
+      room: { id: 'room-priya' },
+      created: true,
+    });
+    mockUseChatCapabilities.mockReturnValue({
+      data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseChatRoomsList.mockReturnValue({ data: { rooms: [] }, isLoading: false, isError: false, refetch: jest.fn() });
+    mockUseChatContactsMatch.mockReturnValue({ mutateAsync });
+    mockUseChatRoomsCreate.mockReturnValue({
+      mutate: jest.fn(),
+      mutateAsync: roomMutateAsync,
+      isPending: false,
+    });
+    const push = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ push, back: jest.fn(), replace: jest.fn() });
+
+    render(<HomeScreen />);
+    fireEvent.press(screen.getByTestId('new-chat-control'));
+    fireEvent.changeText(screen.getByLabelText('Exact mobile number'), '+91 98765 43210');
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Find registered contact'));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ data: { phones: ['9876543210'] } }));
+    const contactRow = await waitFor(() => screen.getByTestId('matched-contact-user-priya'));
+    await act(async () => {
+      fireEvent.press(contactRow);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(roomMutateAsync).toHaveBeenCalledWith({
+      data: {
+        name: 'Priya',
+        kind: 'direct',
+        targetUserId: 'user-priya',
+        matchToken: 'proof-token',
+      },
+    }));
+    expect(push).toHaveBeenCalledWith('/(tabs)/customers/chat/room-priya?name=Priya');
+  });
+
+  it('explains denied contact permission without querying contacts', async () => {
+    mockUseChatCapabilities.mockReturnValue({
+      data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseChatRoomsList.mockReturnValue({ data: { rooms: [] }, isLoading: false, isError: false, refetch: jest.fn() });
+    mockRequestContactsPermissionsAsync.mockResolvedValue({ granted: false });
+    render(<HomeScreen />);
+    fireEvent.press(screen.getByTestId('new-chat-control'));
+    fireEvent.press(screen.getByLabelText('Find contacts on this device'));
+    await waitFor(() => expect(screen.getByText(/Contacts permission was denied/)).toBeTruthy());
+    expect(mockGetContactsAsync).not.toHaveBeenCalled();
+  });
+
+  it('opens existing customer conversations by room id', () => {
     const push = jest.fn();
     (useRouter as jest.Mock).mockReturnValue({ push, back: jest.fn(), replace: jest.fn() });
     mockUseChatCapabilities.mockReturnValue({
@@ -404,11 +485,11 @@ describe('Inbox — no fake data', () => {
 
     expect(push).toHaveBeenNthCalledWith(
       1,
-      '/(tabs)/customers/chat/c-alice?targetId=c-alice&type=customer&name=Alice',
+      '/(tabs)/customers/chat/r-alice?name=Alice',
     );
     expect(push).toHaveBeenNthCalledWith(
       2,
-      '/(tabs)/customers/chat/c-carol?targetId=c-carol&type=customer&name=Carol',
+      '/(tabs)/customers/chat/r-carol?name=Carol',
     );
   });
 

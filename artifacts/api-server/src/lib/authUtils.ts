@@ -15,8 +15,8 @@ export function hashPassword(password: string): string {
   return bcrypt.hashSync(password, 10);
 }
 
-export function verifyPassword(password: string, hash: string): boolean {
-  return bcrypt.compareSync(password, hash);
+export function verifyPassword(password: string, hash: string | null): boolean {
+  return typeof hash === "string" && bcrypt.compareSync(password, hash);
 }
 
 export function sha256(value: string): string {

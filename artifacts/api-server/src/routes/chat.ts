@@ -30,7 +30,7 @@
 
 import { Readable } from "stream";
 import { Router, type IRouter, type Request } from "express";
-import { and, desc, eq, isNotNull, isNull, lt } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, lt, ne, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -43,6 +43,8 @@ import {
   chatMessagesTable,
   chatReadStateTable,
   chatProviderIdentitiesTable,
+  chatContactMatchGrantsTable,
+  chatContactMatchAttemptsTable,
   type DbUser,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -58,10 +60,18 @@ import {
   matrixUserIdForApp,
   matrixTxnId,
 } from "../lib/chatProviders";
-import { hashPassword, generateToken, sha256 } from "../lib/authUtils";
+import { generateToken, sha256 } from "../lib/authUtils";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
+
+class MatrixProvisioningError extends Error {
+  constructor(readonly cause: unknown) {
+    super("Matrix room/participant provisioning failed");
+  }
+}
+
+class MatchGrantError extends Error {}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -202,20 +212,12 @@ router.post(
 router.post(
   "/auth/activate-invite",
   asyncHandler(async (req, res) => {
-    const { token, name, password } = req.body ?? {};
+    const { token, name } = req.body ?? {};
     if (
       typeof token !== "string" || !token.trim() ||
-      typeof name !== "string" || !name.trim() ||
-      typeof password !== "string"
+      typeof name !== "string" || !name.trim()
     ) {
-      res.status(400).json({ message: "token, name and password are required" });
-      return;
-    }
-
-    if (!validPassword(password)) {
-      res.status(400).json({
-        message: "Password must be 8+ characters with uppercase, lowercase and a number",
-      });
+      res.status(400).json({ message: "token and name are required" });
       return;
     }
 
@@ -293,7 +295,7 @@ router.post(
           name: name.trim().slice(0, 120),
           email,
           mobile: customer.mobile,
-          passwordHash: hashPassword(password),
+          passwordHash: null,
           role: "customer",
           shopId: invite.shopId,
           isActive: true,
@@ -316,21 +318,11 @@ router.post(
 
     const { createSession, publicUser, recordLoginEvent } = await import("../lib/authUtils");
     const sessionToken = await createSession(newUser.id, false, null);
-    await recordLoginEvent(newUser.id, "password", false, null);
+    await recordLoginEvent(newUser.id, "otp", false, null);
 
     res.json({ token: sessionToken, user: publicUser(newUser) });
   }),
 );
-
-function validPassword(p: unknown): p is string {
-  return (
-    typeof p === "string" &&
-    p.length >= 8 &&
-    /[A-Z]/.test(p) &&
-    /[a-z]/.test(p) &&
-    /[0-9]/.test(p)
-  );
-}
 
 // ── Chat capabilities ─────────────────────────────────────────────────────────
 
@@ -372,7 +364,9 @@ router.get(
       )
       .orderBy(desc(chatRoomsTable.createdAt));
 
-    res.json({ rooms: rows.map((r) => formatRoom(r.room)) });
+    res.json({
+      rooms: await Promise.all(rows.map((r) => formatRoomForUser(r.room, me.id))),
+    });
   }),
 );
 
@@ -383,6 +377,191 @@ router.get(
 function computePeerKey(userA: string, userB: string): string {
   return [userA, userB].sort().join(":");
 }
+
+/**
+ * Normalize an Indian mobile number to a canonical 10-digit string.
+ * Accepts: +91XXXXXXXXXX, 91XXXXXXXXXX, 0XXXXXXXXXX, XXXXXXXXXX (10 digits).
+ * Returns null if the number does not match any recognized format.
+ */
+function normalizeIndianMobile(raw: string): string | null {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2);
+  if (digits.length === 11 && digits.startsWith("0")) return digits.slice(1);
+  if (digits.length === 10) return digits;
+  return null;
+}
+
+// ── Contact match endpoint ─────────────────────────────────────────────────────
+//
+// Privacy-safe, exact-match lookup of same-shop active users by normalized
+// Indian phone number. Never exposes a browseable directory. Does NOT reveal
+// whether a number is unregistered — unmatched numbers are simply omitted.
+// Returns only active users in the caller's shop, excluding the caller themselves.
+// Accessible to ALL authenticated roles including customers (allowlisted in
+// customerPortal.ts).
+
+router.post(
+  "/chat/contacts/match",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const me = (req as AuthedRequest).user;
+    const shopId = resolveShopId(me);
+
+    // Account every lookup attempt in PostgreSQL so limits apply across API
+    // instances and also cover requests that produce no matches.
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - 15 * 60 * 1000);
+    const retentionStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    const ipHashKey = process.env.SESSION_SECRET;
+    if (!ipHashKey) {
+      throw new Error("SESSION_SECRET is required for contact-match abuse protection");
+    }
+    const ipHash = sha256(`chat-contact-match-ip:v1:${ipHashKey}:${ip}`);
+    const limited = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`chat_match_user:${me.id}`}))`);
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`chat_match_ip:${ipHash}`}))`);
+
+      // Opportunistic bounded-retention cleanup; never remove records still
+      // relevant to the active rate-limit window.
+      await tx.execute(sql`
+        DELETE FROM chat_contact_match_attempts
+        WHERE id IN (
+          SELECT id FROM chat_contact_match_attempts
+          WHERE created_at < ${retentionStart}
+          ORDER BY created_at
+          LIMIT 500
+        )
+      `);
+      await tx.execute(sql`
+        DELETE FROM chat_contact_match_grants
+        WHERE id IN (
+          SELECT id FROM chat_contact_match_grants
+          WHERE expires_at < ${new Date(now.getTime() - 60 * 60 * 1000)}
+          ORDER BY expires_at
+          LIMIT 500
+        )
+      `);
+
+      const [[userCount], [ipCount]] = await Promise.all([
+        tx
+          .select({ value: sql<number>`count(*)::int` })
+          .from(chatContactMatchAttemptsTable)
+          .where(
+            and(
+              eq(chatContactMatchAttemptsTable.userId, me.id),
+              sql`${chatContactMatchAttemptsTable.createdAt} >= ${windowStart}`,
+            ),
+          ),
+        tx
+          .select({ value: sql<number>`count(*)::int` })
+          .from(chatContactMatchAttemptsTable)
+          .where(
+            and(
+              eq(chatContactMatchAttemptsTable.ipHash, ipHash),
+              sql`${chatContactMatchAttemptsTable.createdAt} >= ${windowStart}`,
+            ),
+          ),
+      ]);
+      if ((userCount?.value ?? 0) >= 10 || (ipCount?.value ?? 0) >= 20) return true;
+      await tx.insert(chatContactMatchAttemptsTable).values({ userId: me.id, ipHash });
+      return false;
+    });
+    if (limited) {
+      res.status(429).json({ message: "Too many contact checks. Please try again later." });
+      return;
+    }
+
+    if (!shopId) {
+      res.json({ contacts: [] });
+      return;
+    }
+
+    // Accept a single phone string or a bounded array.
+    const { phone, phones } = req.body ?? {};
+
+    // Build the raw list from either input.
+    let rawList: unknown[];
+    if (typeof phone === "string") {
+      rawList = [phone];
+    } else if (Array.isArray(phones)) {
+      rawList = phones;
+    } else {
+      res.status(400).json({
+        message: "Provide 'phone' (single string) or 'phones' (array of strings)",
+      });
+      return;
+    }
+
+    // Bounded: reject oversized payloads.
+    const MAX_PHONES = 50;
+    if (rawList.length > MAX_PHONES) {
+      res.status(400).json({
+        message: `Too many numbers. Maximum ${MAX_PHONES} per request.`,
+      });
+      return;
+    }
+
+    // Normalize each entry; skip any that don't parse as Indian mobile.
+    const normalized = rawList
+      .filter((p): p is string => typeof p === "string")
+      .map(normalizeIndianMobile)
+      .filter((p): p is string => p !== null);
+
+    if (normalized.length === 0) {
+      res.json({ contacts: [] });
+      return;
+    }
+
+    // Query: active same-shop users whose normalized mobile is in the list,
+    // excluding the caller. Never expose unregistered numbers.
+    const rows = await db
+      .select({
+        id: usersTable.id,
+        name: usersTable.name,
+        mobile: usersTable.mobile,
+        role: usersTable.role,
+      })
+      .from(usersTable)
+      .where(
+        and(
+          eq(usersTable.shopId, shopId),
+          eq(usersTable.isActive, true),
+          inArray(usersTable.mobile, normalized),
+        ),
+      );
+
+    // Exclude self and return minimal peer profile fields.
+    const matched = rows.filter((u) => u.id !== me.id);
+    const grantExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const contacts = await db.transaction(async (tx) => {
+      const issued = matched.map((u) => ({ user: u, rawToken: generateToken() }));
+      if (issued.length) {
+        await tx.insert(chatContactMatchGrantsTable).values(
+          issued.map(({ user, rawToken }) => ({
+            tokenHash: sha256(rawToken),
+            callerUserId: me.id,
+            targetUserId: user.id,
+            shopId,
+            expiresAt: grantExpiresAt,
+          })),
+        );
+      }
+      return issued.map(({ user: u, rawToken }) => ({
+        userId: u.id,
+        name: u.name,
+        // Return the mobile only if the caller supplied that exact number — we
+        // echo it back so the client can correlate the result. The server never
+        // volunteers numbers the caller did not already know.
+        mobile: u.mobile,
+        role: u.role,
+        matchToken: rawToken,
+      }));
+    });
+
+    res.json({ contacts });
+  }),
+);
 
 router.post(
   "/chat/rooms",
@@ -395,22 +574,29 @@ router.post(
       return;
     }
 
-    // Customers cannot create rooms
-    if (me.role === "customer") {
-      res.status(403).json({ message: "Customers cannot create chat rooms" });
-      return;
-    }
-
-    const { name, kind, customerId, dealerId, clientRequestId } = req.body ?? {};
+    const {
+      name,
+      kind,
+      customerId,
+      dealerId,
+      targetUserId: bodyTargetUserId,
+      matchToken,
+      clientRequestId,
+    } = req.body ?? {};
     if (typeof name !== "string" || !name.trim()) {
       res.status(400).json({ message: "name is required" });
       return;
     }
-    // Only one-to-one kinds are in scope. support/group are rejected.
-    const validKinds = ["customer", "dealer"] as const;
+    // Customers may only create kind=direct rooms.
+    if (me.role === "customer" && kind !== "direct") {
+      res.status(403).json({ message: "Customers may only create direct chat rooms (kind=direct)" });
+      return;
+    }
+    // Only supported kinds.
+    const validKinds = ["customer", "dealer", "direct"] as const;
     if (typeof kind !== "string" || !(validKinds as readonly string[]).includes(kind)) {
       res.status(400).json({
-        message: "kind must be one of: customer, dealer (support/group not supported yet)",
+        message: "kind must be one of: customer, dealer, direct (support/group not supported yet)",
       });
       return;
     }
@@ -428,7 +614,23 @@ router.post(
         )
         .limit(1);
       if (existing) {
-        res.json({ room: formatRoom(existing), created: false });
+        const [membership] = await db
+          .select({ roomId: chatRoomMembersTable.roomId })
+          .from(chatRoomMembersTable)
+          .where(
+            and(
+              eq(chatRoomMembersTable.roomId, existing.id),
+              eq(chatRoomMembersTable.userId, me.id),
+            ),
+          )
+          .limit(1);
+        if (!membership) {
+          // Do not disclose room/provider details to a same-shop user that
+          // reused another participant's client request ID.
+          res.status(404).json({ message: "Room not found" });
+          return;
+        }
+        res.json({ room: await formatRoomForUser(existing, me.id), created: false });
         return;
       }
     }
@@ -439,7 +641,25 @@ router.post(
     let resolvedCustomerId: string | null = null;
     let resolvedDealerId: string | null = null;
 
-    if (kind === "customer") {
+    if (kind === "direct") {
+      // Both values must originate from exact contact matching. Keep all proof
+      // failures generic so arbitrary IDs cannot be used as a user oracle.
+      if (
+        typeof bodyTargetUserId !== "string" ||
+        !UUID_RE.test(bodyTargetUserId.trim()) ||
+        typeof matchToken !== "string" ||
+        !matchToken.trim()
+      ) {
+        res.status(403).json({ message: "Direct chat authorization is invalid or expired." });
+        return;
+      }
+      const tid = bodyTargetUserId.trim();
+      if (tid === me.id) {
+        res.status(403).json({ message: "Direct chat authorization is invalid or expired." });
+        return;
+      }
+      targetUserId = tid;
+    } else if (kind === "customer") {
       if (typeof customerId !== "string" || !customerId.trim()) {
         res.status(400).json({ message: "customerId is required for kind=customer" });
         return;
@@ -536,7 +756,7 @@ router.post(
       resolvedDealerId = dealerId;
     }
 
-    // A one-to-one room with yourself is not allowed.
+    // A one-to-one room with yourself is not allowed (extra guard for non-direct paths).
     if (targetUserId === me.id) {
       res.status(400).json({ message: "Cannot create a chat room with yourself" });
       return;
@@ -553,32 +773,39 @@ router.post(
       )
       .limit(1);
     if (existingByPeer) {
-      res.json({ room: formatRoom(existingByPeer), created: false });
-      return;
-    }
-
-    // ── Matrix is REQUIRED — fail closed before any DB write ───────────────
-    if (!matrixConfigured()) {
-      res.status(503).json({
-        message: "Chat provider not configured. Room creation requires Matrix/ESS.",
-        code: "MATRIX_UNAVAILABLE",
-      });
-      return;
-    }
-
-    // Load target's display name for provisioning.
-    const [targetUser] = await db
-      .select({ id: usersTable.id, name: usersTable.name })
-      .from(usersTable)
-      .where(eq(usersTable.id, targetUserId))
-      .limit(1);
-    if (!targetUser) {
-      // Should not happen (we resolved it above) but fail closed.
-      res.status(409).json({
-        message: "Target account could not be resolved.",
-        code: kind === "customer" ? "CUSTOMER_ACCOUNT_REQUIRED" : "DEALER_ACCOUNT_REQUIRED",
-      });
-      return;
+      const [members, boundGrant] = await Promise.all([
+        db
+          .select({ userId: chatRoomMembersTable.userId })
+          .from(chatRoomMembersTable)
+          .where(
+            and(
+              eq(chatRoomMembersTable.roomId, existingByPeer.id),
+              inArray(chatRoomMembersTable.userId, [me.id, targetUserId]),
+            ),
+          ),
+        kind === "direct"
+          ? db
+              .select({ id: chatContactMatchGrantsTable.id })
+              .from(chatContactMatchGrantsTable)
+              .where(
+                and(
+                  eq(chatContactMatchGrantsTable.tokenHash, sha256(matchToken.trim())),
+                  eq(chatContactMatchGrantsTable.callerUserId, me.id),
+                  eq(chatContactMatchGrantsTable.targetUserId, targetUserId),
+                  eq(chatContactMatchGrantsTable.shopId, shopId),
+                ),
+              )
+              .limit(1)
+          : Promise.resolve([{ id: "not-required" }]),
+      ]);
+      if (members.length === 2 && boundGrant.length === 1) {
+        res.json({ room: await formatRoomForUser(existingByPeer, me.id), created: false });
+        return;
+      }
+      if (kind === "direct") {
+        res.status(403).json({ message: "Direct chat authorization is invalid or expired." });
+        return;
+      }
     }
 
     // ── Provider provisioning (pure Application Service semantics) ──────────
@@ -592,45 +819,118 @@ router.post(
     // room via AS impersonation and invites exactly the target virtual user;
     // the target joins via AS impersonation. No admin identity ever becomes a
     // member. See matrixProvisionDirectRoom for the exact endpoints/ordering.
-    let providerRoomId: string;
-    let creatorMatrixUserId: string;
-    let targetMatrixUserId: string;
-    try {
-      const provisioned = await matrixProvisionDirectRoom({
-        name: name.trim(),
-        topic: `Shop chat: ${name.trim()}`,
-        initiator: { appUserId: me.id, displayName: me.name },
-        target: { appUserId: targetUser.id, displayName: targetUser.name },
-      });
-      providerRoomId = provisioned.matrixRoomId;
-      creatorMatrixUserId = provisioned.initiatorUserId;
-      targetMatrixUserId = provisioned.targetUserId;
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code ?? "";
-      console.error("[chat] Matrix room/participant provisioning failed:", (err as Error).message);
-      res.status(503).json({
-        message:
-          code === "PROVIDER_UNAVAILABLE"
-            ? "Chat provider not available. Room not created."
-            : "Failed to provision room and participants on chat provider. Room not created.",
-        code: "MATRIX_UNAVAILABLE",
-      });
-      return;
-    }
-
-    // ── Persist room + BOTH members + provider identities in ONE transaction ─
     let room: typeof chatRoomsTable.$inferSelect;
+    let created: boolean;
     try {
-      room = await db.transaction(async (tx) => {
-        const [created] = await tx
+      const result = await db.transaction(async (tx) => {
+        // This must be transaction-scoped (rather than process-local) so API
+        // instances serialize provisioning for the same participant pair.
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtext(${`chat_room:${shopId}:${peerKey}`}))`,
+        );
+
+        // Recheck after acquiring the cross-instance lock. A competing request
+        // that created the room while this request waited must not provision a
+        // second Matrix room.
+        const [existingAfterLock] = await tx
+          .select()
+          .from(chatRoomsTable)
+          .where(
+            and(eq(chatRoomsTable.shopId, shopId), eq(chatRoomsTable.peerKey, peerKey)),
+          )
+          .limit(1);
+        if (existingAfterLock) {
+          if (kind === "direct") {
+            const [boundGrant] = await tx
+              .select({ id: chatContactMatchGrantsTable.id })
+              .from(chatContactMatchGrantsTable)
+              .where(
+                and(
+                  eq(chatContactMatchGrantsTable.tokenHash, sha256(matchToken.trim())),
+                  eq(chatContactMatchGrantsTable.callerUserId, me.id),
+                  eq(chatContactMatchGrantsTable.targetUserId, targetUserId),
+                  eq(chatContactMatchGrantsTable.shopId, shopId),
+                ),
+              )
+              .limit(1);
+            if (!boundGrant) throw new MatchGrantError();
+          }
+          return { room: existingAfterLock, created: false };
+        }
+
+        if (kind === "direct") {
+          const tokenHash = sha256(matchToken.trim());
+          const [grant] = await tx
+            .select({ id: chatContactMatchGrantsTable.id })
+            .from(chatContactMatchGrantsTable)
+            .where(
+              and(
+                eq(chatContactMatchGrantsTable.tokenHash, tokenHash),
+                eq(chatContactMatchGrantsTable.callerUserId, me.id),
+                eq(chatContactMatchGrantsTable.targetUserId, targetUserId),
+                eq(chatContactMatchGrantsTable.shopId, shopId),
+                isNull(chatContactMatchGrantsTable.consumedAt),
+                sql`${chatContactMatchGrantsTable.expiresAt} > ${new Date()}`,
+              ),
+            )
+            .limit(1);
+          if (!grant) throw new MatchGrantError();
+          const consumed = await tx
+            .update(chatContactMatchGrantsTable)
+            .set({ consumedAt: new Date() })
+            .where(
+              and(
+                eq(chatContactMatchGrantsTable.id, grant.id),
+                isNull(chatContactMatchGrantsTable.consumedAt),
+              ),
+            )
+            .returning({ id: chatContactMatchGrantsTable.id });
+          if (consumed.length !== 1) throw new MatchGrantError();
+        }
+
+        if (!matrixConfigured()) {
+          throw new MatrixProvisioningError(
+            Object.assign(new Error("Chat provider not configured"), { code: "PROVIDER_UNAVAILABLE" }),
+          );
+        }
+
+        const [targetUser] = await tx
+          .select({ id: usersTable.id, name: usersTable.name })
+          .from(usersTable)
+          .where(
+            and(
+              eq(usersTable.id, targetUserId),
+              eq(usersTable.shopId, shopId),
+              eq(usersTable.isActive, true),
+            ),
+          )
+          .limit(1);
+        if (!targetUser) {
+          if (kind === "direct") throw new MatchGrantError();
+          throw new Error("Resolved chat target is no longer active");
+        }
+
+        let provisioned: Awaited<ReturnType<typeof matrixProvisionDirectRoom>>;
+        try {
+          provisioned = await matrixProvisionDirectRoom({
+            name: name.trim(),
+            topic: `Shop chat: ${name.trim()}`,
+            initiator: { appUserId: me.id, displayName: me.name },
+            target: { appUserId: targetUser.id, displayName: targetUser.name },
+          });
+        } catch (err) {
+          throw new MatrixProvisioningError(err);
+        }
+
+        const [newRoom] = await tx
           .insert(chatRoomsTable)
           .values({
             shopId,
-            kind: kind as "customer" | "dealer",
+            kind: kind as "customer" | "dealer" | "direct",
             name: name.trim().slice(0, 200),
             customerId: resolvedCustomerId,
             dealerId: resolvedDealerId,
-            providerRoomId,
+            providerRoomId: provisioned.matrixRoomId,
             peerKey,
             clientRequestId:
               typeof clientRequestId === "string" && clientRequestId.trim()
@@ -643,25 +943,44 @@ router.post(
 
         // Exactly two application members: creator + resolved target.
         await tx.insert(chatRoomMembersTable).values([
-          { roomId: created.id, shopId, userId: me.id, role: "moderator" },
-          { roomId: created.id, shopId, userId: targetUserId, role: "member" },
+          { roomId: newRoom.id, shopId, userId: me.id, role: "moderator" },
+          { roomId: newRoom.id, shopId, userId: targetUserId, role: "member" },
         ]);
 
         // Record provider identities (idempotent upsert on (user, provider)).
         await tx
           .insert(chatProviderIdentitiesTable)
           .values([
-            { userId: me.id, shopId, provider: "matrix", providerUserId: creatorMatrixUserId },
-            { userId: targetUserId, shopId, provider: "matrix", providerUserId: targetMatrixUserId },
+            { userId: me.id, shopId, provider: "matrix", providerUserId: provisioned.initiatorUserId },
+            { userId: targetUserId, shopId, provider: "matrix", providerUserId: provisioned.targetUserId },
           ])
           .onConflictDoNothing({
             target: [chatProviderIdentitiesTable.userId, chatProviderIdentitiesTable.provider],
           });
 
-        return created;
+        return { room: newRoom, created: true };
       });
+      room = result.room;
+      created = result.created;
     } catch (err) {
-      // A concurrent request may have won the peerKey race — return that room.
+      if (err instanceof MatchGrantError) {
+        res.status(403).json({ message: "Direct chat authorization is invalid or expired." });
+        return;
+      }
+      if (err instanceof MatrixProvisioningError) {
+        const code = (err.cause as NodeJS.ErrnoException).code ?? "";
+        console.error("[chat] Matrix room/participant provisioning failed:", (err.cause as Error).message);
+        res.status(503).json({
+          message:
+            code === "PROVIDER_UNAVAILABLE"
+              ? "Chat provider not available. Room not created."
+              : "Failed to provision room and participants on chat provider. Room not created.",
+          code: "MATRIX_UNAVAILABLE",
+        });
+        return;
+      }
+      // A unique constraint from a legacy/concurrent writer can still race the
+      // transaction; return the winner without exposing a server error.
       const [raced] = await db
         .select()
         .from(chatRoomsTable)
@@ -670,13 +989,13 @@ router.post(
         )
         .limit(1);
       if (raced) {
-        res.json({ room: formatRoom(raced), created: false });
+        res.json({ room: await formatRoomForUser(raced, me.id), created: false });
         return;
       }
       throw err;
     }
 
-    res.json({ room: formatRoom(room), created: true });
+    res.json({ room: await formatRoomForUser(room, me.id), created });
   }),
 );
 
@@ -695,7 +1014,7 @@ router.get(
       res.status(404).json({ message: "Room not found" });
       return;
     }
-    res.json({ room: formatRoom(room) });
+    res.json({ room: await formatRoomForUser(room, me.id) });
   }),
 );
 
@@ -1264,6 +1583,38 @@ function formatRoom(room: typeof chatRoomsTable.$inferSelect) {
     createdById: room.createdById ?? undefined,
     createdByName: room.createdByName ?? undefined,
     createdAt: room.createdAt.toISOString(),
+  };
+}
+
+async function formatRoomForUser(
+  room: typeof chatRoomsTable.$inferSelect,
+  viewerUserId: string,
+) {
+  const base = formatRoom(room);
+  if (room.kind !== "direct") return base;
+
+  const [peer] = await db
+    .select({
+      id: usersTable.id,
+      name: usersTable.name,
+      profilePhoto: usersTable.profilePhoto,
+    })
+    .from(chatRoomMembersTable)
+    .innerJoin(usersTable, eq(usersTable.id, chatRoomMembersTable.userId))
+    .where(
+      and(
+        eq(chatRoomMembersTable.roomId, room.id),
+        ne(chatRoomMembersTable.userId, viewerUserId),
+        eq(usersTable.isActive, true),
+      ),
+    )
+    .limit(1);
+
+  return {
+    ...base,
+    name: peer?.name ?? base.name,
+    peerUserId: peer?.id,
+    profilePhoto: peer?.profilePhoto ?? undefined,
   };
 }
 
