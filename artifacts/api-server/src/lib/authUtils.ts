@@ -1,7 +1,14 @@
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { and, eq, gt, lt, isNull, ne } from "drizzle-orm";
-import { db, loginEventsTable, otpCodesTable, sessionsTable, usersTable } from "@workspace/db";
+import {
+  db,
+  loginEventsTable,
+  otpCodesTable,
+  otpVerificationRateLimitsTable,
+  sessionsTable,
+  usersTable,
+} from "@workspace/db";
 import type { DbUser } from "@workspace/db";
 import { desc } from "drizzle-orm";
 
@@ -210,11 +217,13 @@ export async function consumeOtp(
 // Retention window for login history rows.
 const LOGIN_EVENT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 
-// Delete expired sessions, expired/consumed OTP codes, and old login events.
+// Delete expired sessions, expired/consumed OTP codes, expired OTP verification
+// rate-limit rows, and old login events.
 // Returns counts so callers can log what was pruned.
 export async function cleanupExpiredAuthData(): Promise<{
   sessions: number;
   otpCodes: number;
+  otpVerificationRateLimits: number;
   loginEvents: number;
 }> {
   const now = new Date();
@@ -226,6 +235,10 @@ export async function cleanupExpiredAuthData(): Promise<{
     .delete(otpCodesTable)
     .where(lt(otpCodesTable.expiresAt, now))
     .returning({ id: otpCodesTable.id });
+  const otpVerificationRateLimits = await db
+    .delete(otpVerificationRateLimitsTable)
+    .where(lt(otpVerificationRateLimitsTable.expiresAt, now))
+    .returning({ keyHash: otpVerificationRateLimitsTable.keyHash });
   const loginEvents = await db
     .delete(loginEventsTable)
     .where(lt(loginEventsTable.createdAt, new Date(now.getTime() - LOGIN_EVENT_RETENTION_MS)))
@@ -233,6 +246,7 @@ export async function cleanupExpiredAuthData(): Promise<{
   return {
     sessions: sessions.length,
     otpCodes: otpCodes.length,
+    otpVerificationRateLimits: otpVerificationRateLimits.length,
     loginEvents: loginEvents.length,
   };
 }

@@ -7,6 +7,7 @@ import {
   db,
   loginEventsTable,
   otpCodesTable,
+  otpVerificationRateLimitsTable,
   pool,
   sessionsTable,
   usersTable,
@@ -43,6 +44,7 @@ vi.mock("../lib/msg91", () => ({
 
 const { default: app } = await import("../app");
 const { hashPassword } = await import("../lib/authUtils");
+const { otpVerificationRateLimitKeyHash } = await import("../lib/rateLimit");
 
 // Unique-per-run identifiers so parallel/repeated runs never collide.
 const RUN = Date.now().toString().slice(-9);
@@ -108,6 +110,14 @@ afterAll(async () => {
   await db
     .delete(otpCodesTable)
     .where(or(eq(otpCodesTable.identifier, EMAIL), eq(otpCodesTable.identifier, MOBILE)));
+  await db
+    .delete(otpVerificationRateLimitsTable)
+    .where(
+      eq(
+        otpVerificationRateLimitsTable.keyHash,
+        otpVerificationRateLimitKeyHash(`otpverify:${MOBILE}`),
+      ),
+    );
   await db.delete(usersTable).where(eq(usersTable.id, userId));
   await db.delete(usersTable).where(eq(usersTable.id, inactiveUserId));
   await db.delete(usersTable).where(eq(usersTable.id, providerFailureUserId));
@@ -377,7 +387,124 @@ describe("POST /api/auth/otp/verify", () => {
     expect(last!.status).toBe(429);
     expect(last!.body.message).toMatch(/too many incorrect attempts/i);
 
+    await db
+      .delete(otpVerificationRateLimitsTable)
+      .where(
+        eq(
+          otpVerificationRateLimitsTable.keyHash,
+          otpVerificationRateLimitKeyHash(`otpverify:${lockMobile}`),
+        ),
+      );
     await db.delete(usersTable).where(eq(usersTable.id, lUser.id));
+  });
+
+  it("honours a lockout written before this API process handled the request", async () => {
+    const restartSafeMobile = `4${RUN}`;
+    const now = Date.now();
+    await db.insert(otpVerificationRateLimitsTable).values({
+      keyHash: otpVerificationRateLimitKeyHash(`otpverify:${restartSafeMobile}`),
+      failureCount: 5,
+      windowStartedAt: new Date(now - 30_000),
+      lockedUntil: new Date(now + 60_000),
+      expiresAt: new Date(now + 60_000),
+    });
+
+    mockMsg91Verify.mockClear();
+    const res = await request(app)
+      .post("/api/auth/otp/verify")
+      .send({ mobile: restartSafeMobile, code: "000000" });
+
+    expect(res.status).toBe(429);
+    expect(res.body.message).toMatch(/too many incorrect attempts/i);
+    expect(mockMsg91Verify).not.toHaveBeenCalled();
+
+    await db
+      .delete(otpVerificationRateLimitsTable)
+      .where(
+        eq(
+          otpVerificationRateLimitsTable.keyHash,
+          otpVerificationRateLimitKeyHash(`otpverify:${restartSafeMobile}`),
+        ),
+      );
+  });
+
+  it("allows one provider call for concurrent wrong-code requests, then locks out durably", async () => {
+    const concurrentMobile = `3${RUN}`;
+    const [concurrentUser] = await db
+      .insert(usersTable)
+      .values({
+        name: "Concurrent OTP Lockout Test",
+        email: `concurrent-otp-${RUN}@example.test`,
+        mobile: concurrentMobile,
+        passwordHash: hashPassword(PASSWORD),
+        role: "dealer",
+        isActive: true,
+      })
+      .returning();
+
+    mockMsg91Verify.mockClear();
+    let providerStarted!: () => void;
+    const providerStartedPromise = new Promise<void>((resolve) => {
+      providerStarted = resolve;
+    });
+    let releaseProvider!: () => void;
+    const providerReleasePromise = new Promise<void>((resolve) => {
+      releaseProvider = resolve;
+    });
+    mockMsg91Verify.mockImplementation(
+      async (): Promise<Msg91Result> => {
+        providerStarted();
+        await providerReleasePromise;
+        return { ok: false, reason: "OTP not matched" };
+      },
+    );
+    const firstAttempt = request(app)
+      .post("/api/auth/otp/verify")
+      .send({ mobile: concurrentMobile, code: "000000" })
+      .then((res) => res);
+    await providerStartedPromise;
+    const busyResponses = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        request(app)
+          .post("/api/auth/otp/verify")
+          .send({ mobile: concurrentMobile, code: "000000" }),
+      ),
+    );
+    releaseProvider();
+    const responses = [await firstAttempt, ...busyResponses];
+
+    expect(responses.filter((res) => res.status === 401)).toHaveLength(1);
+    expect(responses.filter((res) => res.status === 429)).toHaveLength(5);
+    expect(mockMsg91Verify).toHaveBeenCalledTimes(1);
+    expect(
+      responses.filter((res) => res.status === 429)
+        .every((res) => /verification already in progress/i.test(res.body.message)),
+    ).toBe(true);
+
+    // Four later attempts complete one at a time, producing the fifth durable
+    // failure. The next request is blocked without reaching MSG91.
+    for (let i = 0; i < 4; i++) {
+      const res = await request(app)
+        .post("/api/auth/otp/verify")
+        .send({ mobile: concurrentMobile, code: "000000" });
+      expect(res.status).toBe(401);
+    }
+    const locked = await request(app)
+      .post("/api/auth/otp/verify")
+      .send({ mobile: concurrentMobile, code: "000000" });
+    expect(locked.status).toBe(429);
+    expect(locked.body.message).toMatch(/too many incorrect attempts/i);
+    expect(mockMsg91Verify).toHaveBeenCalledTimes(5);
+
+    await db
+      .delete(otpVerificationRateLimitsTable)
+      .where(
+        eq(
+          otpVerificationRateLimitsTable.keyHash,
+          otpVerificationRateLimitKeyHash(`otpverify:${concurrentMobile}`),
+        ),
+      );
+    await db.delete(usersTable).where(eq(usersTable.id, concurrentUser.id));
   });
 
   it("does not issue a session when MSG91 call throws (provider error)", async () => {

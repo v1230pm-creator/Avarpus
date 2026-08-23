@@ -47,6 +47,27 @@ async function fetchWithTimeout(
   }
 }
 
+/**
+ * Keep the abort timer active until both response headers and the JSON body
+ * arrive. A timeout that ends at headers alone can leave a stalled body read
+ * alive after the caller has released its verification reservation.
+ */
+async function fetchJsonWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number = FETCH_TIMEOUT_MS,
+): Promise<{ response: Response; body: unknown }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    const body = await response.json();
+    return { response, body };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export type Msg91Result =
   | { ok: true }
   | { ok: false; reason: string };
@@ -110,9 +131,9 @@ export async function msg91VerifyOtp(
   url.searchParams.set("mobile", mobile);
   url.searchParams.set("otp", code);
 
-  let res: Response;
+  let result: { response: Response; body: unknown };
   try {
-    res = await fetchWithTimeout(url.toString(), {
+    result = await fetchJsonWithTimeout(url.toString(), {
       method: "GET",
       headers: { authkey: authKey() },
     });
@@ -121,18 +142,11 @@ export async function msg91VerifyOtp(
     return { ok: false, reason: `MSG91 verify failed: ${msg}` };
   }
 
-  if (!res.ok) {
-    return { ok: false, reason: `MSG91 verify returned HTTP ${res.status}` };
+  if (!result.response.ok) {
+    return { ok: false, reason: `MSG91 verify returned HTTP ${result.response.status}` };
   }
 
-  let body: unknown;
-  try {
-    body = await res.json();
-  } catch {
-    return { ok: false, reason: "MSG91 verify returned invalid JSON" };
-  }
-
-  const data = body as Record<string, unknown>;
+  const data = result.body as Record<string, unknown>;
   if (data["type"] === "success" || data["message"] === "success") {
     return { ok: true };
   }

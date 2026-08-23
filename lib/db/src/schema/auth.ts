@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -99,6 +100,27 @@ export const otpCodesTable = pgTable("otp_codes", {
     .notNull()
     .defaultNow(),
 });
+
+// Short-lived, hashed state for MSG91 login verification throttling. This
+// intentionally contains no OTP value or provider credential.
+export const otpVerificationRateLimitsTable = pgTable(
+  "otp_verification_rate_limits",
+  {
+    keyHash: text("key_hash").primaryKey(),
+    failureCount: integer("failure_count").notNull().default(0),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    inFlightToken: text("in_flight_token"),
+    inFlightUntil: timestamp("in_flight_until", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("otp_verification_rate_limits_expires_idx").on(table.expiresAt),
+  ],
+);
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({
   id: true,

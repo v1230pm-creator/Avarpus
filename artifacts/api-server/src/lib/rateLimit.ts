@@ -1,3 +1,7 @@
+import crypto from "node:crypto";
+import { eq, sql } from "drizzle-orm";
+import { db, otpVerificationRateLimitsTable } from "@workspace/db";
+
 // Lightweight in-memory rate limiting for auth endpoints.
 //
 // Two mechanisms:
@@ -8,8 +12,8 @@
 // 2. Fixed-window request throttle (OTP request): cap the number of requests
 //    per key within a window regardless of outcome, to prevent email flooding.
 //
-// State is per-process and resets on restart — acceptable for this app's
-// single-instance deployment; a restart simply gives attackers a fresh window.
+// Password and request/resend throttles below are process-local. MSG91 OTP
+// verification uses the durable, cross-instance reservation mechanism below.
 
 interface FailureEntry {
   count: number;
@@ -38,6 +42,13 @@ export interface LimitStatus {
   limited: boolean;
   retryAfterMs: number;
 }
+
+export type OtpVerificationAttempt =
+  | { status: "approved" }
+  | { status: "rejected" }
+  | { status: "provider_error" }
+  | { status: "in_flight"; retryAfterMs: number }
+  | { status: "limited"; retryAfterMs: number };
 
 /** Human-friendly wait description, e.g. "14 minutes" or "45 seconds". */
 export function retryAfterText(ms: number): string {
@@ -82,6 +93,183 @@ export function recordFailure(key: string): void {
 /** Clear failures for a key (call on successful authentication). */
 export function clearFailures(key: string): void {
   failures.delete(key);
+}
+
+/**
+ * Hash a rate-limit key before persisting it. The durable record only contains
+ * the minimum lockout state, never an OTP code or MSG91 credential.
+ */
+export function otpVerificationRateLimitKeyHash(key: string): string {
+  return crypto.createHash("sha256").update(`otp-verification-limit:v1:${key}`).digest("hex");
+}
+
+/**
+ * Run one MSG91 verification attempt under a durable per-mobile reservation.
+ *
+ * Both database transactions are short. The MSG91 request runs outside them,
+ * so a slow provider cannot monopolize database connections. A random token
+ * ensures that only the request that owns the reservation can finalize it.
+ */
+export async function verifyOtpWithDurableLimit(
+  key: string,
+  verifyWithProvider: () => Promise<boolean>,
+): Promise<OtpVerificationAttempt> {
+  const keyHash = otpVerificationRateLimitKeyHash(key);
+  const reservation = await reserveOtpVerificationAttempt(key, keyHash);
+
+  if (reservation.status !== "reserved") {
+    return reservation;
+  }
+
+  let providerError = false;
+  let approved = false;
+  try {
+    approved = await verifyWithProvider();
+  } catch {
+    providerError = true;
+  }
+
+  return finalizeOtpVerificationAttempt(
+    key,
+    keyHash,
+    reservation.token,
+    approved,
+    providerError,
+  );
+}
+
+// MSG91 verification has a strict 10-second, abortable full-response timeout.
+// Leave additional time for the final short DB transaction and clock skew.
+const PROVIDER_RESERVATION_MS = 30 * 1000;
+
+type OtpVerificationReservation =
+  | { status: "reserved"; token: string }
+  | Extract<OtpVerificationAttempt, { status: "limited" | "in_flight" }>;
+
+async function reserveOtpVerificationAttempt(
+  key: string,
+  keyHash: string,
+): Promise<OtpVerificationReservation> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${key}))`);
+
+    const nowDate = new Date();
+    const nowMs = nowDate.getTime();
+    const [existing] = await tx
+      .select()
+      .from(otpVerificationRateLimitsTable)
+      .where(eq(otpVerificationRateLimitsTable.keyHash, keyHash))
+      .limit(1);
+
+    if (existing?.lockedUntil && existing.lockedUntil.getTime() > nowMs) {
+      return {
+        status: "limited" as const,
+        retryAfterMs: existing.lockedUntil.getTime() - nowMs,
+      };
+    }
+    if (existing?.inFlightUntil && existing.inFlightUntil.getTime() > nowMs) {
+      return {
+        status: "in_flight" as const,
+        retryAfterMs: existing.inFlightUntil.getTime() - nowMs,
+      };
+    }
+
+    const currentWindow =
+      existing !== undefined &&
+      nowMs - existing.windowStartedAt.getTime() <= FAILURE_WINDOW_MS;
+    const windowStartedAt = currentWindow ? existing.windowStartedAt : nowDate;
+    const inFlightUntil = new Date(nowMs + PROVIDER_RESERVATION_MS);
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(
+      Math.max(windowStartedAt.getTime() + FAILURE_WINDOW_MS, inFlightUntil.getTime()),
+    );
+
+    await tx
+      .insert(otpVerificationRateLimitsTable)
+      .values({
+        keyHash,
+        failureCount: currentWindow ? existing.failureCount : 0,
+        windowStartedAt,
+        lockedUntil: null,
+        inFlightToken: token,
+        inFlightUntil,
+        expiresAt,
+        updatedAt: nowDate,
+      })
+      .onConflictDoUpdate({
+        target: otpVerificationRateLimitsTable.keyHash,
+        set: {
+          failureCount: currentWindow ? existing.failureCount : 0,
+          windowStartedAt,
+          lockedUntil: null,
+          inFlightToken: token,
+          inFlightUntil,
+          expiresAt,
+          updatedAt: nowDate,
+        },
+      });
+
+    return { status: "reserved" as const, token };
+  });
+}
+
+async function finalizeOtpVerificationAttempt(
+  key: string,
+  keyHash: string,
+  token: string,
+  approved: boolean,
+  providerError: boolean,
+): Promise<OtpVerificationAttempt> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${key}))`);
+
+    const nowDate = new Date();
+    const nowMs = nowDate.getTime();
+    const [existing] = await tx
+      .select()
+      .from(otpVerificationRateLimitsTable)
+      .where(eq(otpVerificationRateLimitsTable.keyHash, keyHash))
+      .limit(1);
+
+    if (!existing || existing.inFlightToken !== token) {
+      return {
+        status: "in_flight" as const,
+        retryAfterMs: Math.max(
+          1_000,
+          (existing?.inFlightUntil?.getTime() ?? nowMs) - nowMs,
+        ),
+      };
+    }
+
+    if (approved) {
+      await tx
+        .delete(otpVerificationRateLimitsTable)
+        .where(eq(otpVerificationRateLimitsTable.keyHash, keyHash));
+      return { status: "approved" as const };
+    }
+
+    const currentWindow = nowMs - existing.windowStartedAt.getTime() <= FAILURE_WINDOW_MS;
+    const failureCount = currentWindow ? existing.failureCount + 1 : 1;
+    const windowStartedAt = currentWindow ? existing.windowStartedAt : nowDate;
+    const lockedUntil =
+      failureCount >= MAX_FAILURES ? new Date(nowMs + LOCKOUT_MS) : null;
+    const expiresAt = lockedUntil ?? new Date(windowStartedAt.getTime() + FAILURE_WINDOW_MS);
+
+    await tx
+      .update(otpVerificationRateLimitsTable)
+      .set({
+        failureCount,
+        windowStartedAt,
+        lockedUntil,
+        inFlightToken: null,
+        inFlightUntil: null,
+        expiresAt,
+        updatedAt: nowDate,
+      })
+      .where(eq(otpVerificationRateLimitsTable.keyHash, keyHash));
+
+    return { status: providerError ? "provider_error" as const : "rejected" as const };
+  });
 }
 
 /**
@@ -144,4 +332,5 @@ export const RATE_LIMIT_CONSTANTS = {
   FAILURE_WINDOW_MS,
   MAX_FAILURES,
   LOCKOUT_MS,
+  PROVIDER_RESERVATION_MS,
 };

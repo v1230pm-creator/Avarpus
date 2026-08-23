@@ -21,12 +21,12 @@ import {
 import type { Request } from "express";
 import { sendOtpEmail } from "../lib/mailer";
 import {
-  acquireRateLimitLock,
   checkFailureLockout,
   checkWindowLimit,
   clearFailures,
   recordFailure,
   retryAfterText,
+  verifyOtpWithDurableLimit,
 } from "../lib/rateLimit";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
@@ -206,59 +206,48 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
   }
 
   const attemptKey = `otpverify:${mobile}`;
-  // Serialize the lockout check, provider verification, and failure update for
-  // this mobile so concurrent guesses cannot bypass the server-side lockout.
-  const releaseLock = await acquireRateLimitLock(attemptKey);
-  try {
-    // Server-side attempt lockout to guard against brute-force on verify endpoint.
-    const lockout = checkFailureLockout(attemptKey);
-    if (lockout.limited) {
-      res.status(429).json({
-        message: `Too many incorrect attempts. Try again in ${retryAfterText(lockout.retryAfterMs)}.`,
-      });
-      return;
-    }
-
-    // Verify with MSG91 — this is the authoritative check; no local OTP codes stored.
-    let providerResult;
-    try {
-      providerResult = await msg91VerifyOtp(mobile, code);
-    } catch {
-      req.log.error("Unexpected error calling MSG91 verify");
-      recordFailure(attemptKey);
-      res.status(401).json({ message: "Incorrect or expired code. Please try again." });
-      return;
-    }
-    if (!providerResult.ok) {
-      recordFailure(attemptKey);
-      // Use a generic message to avoid leaking whether provider rejected the code
-      // specifically vs. other failure modes.
-      res.status(401).json({ message: "Incorrect or expired code. Please try again." });
-      return;
-    }
-
-    // Code approved by provider — clear failure counter then look up the user.
-    clearFailures(attemptKey);
-
-    const rows = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.mobile, mobile))
-      .limit(1);
-    const user = rows[0];
-    if (!user || !user.isActive) {
-      // Provider approved the code but the account is not eligible (unknown or inactive).
-      res.status(401).json({ message: "Account not found or inactive" });
-      return;
-    }
-    const remember = rememberMe === true;
-    const deviceInfo = deviceInfoFrom(req);
-    const token = await createSession(user.id, remember, deviceInfo);
-    await recordLoginEvent(user.id, "otp", remember, deviceInfo);
-    res.json({ token, user: publicUser(user) });
-  } finally {
-    releaseLock();
+  const attempt = await verifyOtpWithDurableLimit(
+    attemptKey,
+    async () => (await msg91VerifyOtp(mobile, code)).ok,
+  );
+  if (attempt.status === "limited") {
+    res.status(429).json({
+      message: `Too many incorrect attempts. Try again in ${retryAfterText(attempt.retryAfterMs)}.`,
+    });
+    return;
   }
+  if (attempt.status === "in_flight") {
+    res.status(429).json({
+      message: `Verification already in progress. Try again in ${retryAfterText(attempt.retryAfterMs)}.`,
+    });
+    return;
+  }
+  if (attempt.status === "provider_error") {
+    req.log.error("Unexpected error calling MSG91 verify");
+  }
+  if (attempt.status !== "approved") {
+    // Use a generic message to avoid leaking whether provider rejected the code
+    // specifically vs. other failure modes.
+    res.status(401).json({ message: "Incorrect or expired code. Please try again." });
+    return;
+  }
+
+  const rows = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.mobile, mobile))
+    .limit(1);
+  const user = rows[0];
+  if (!user || !user.isActive) {
+    // Provider approved the code but the account is not eligible (unknown or inactive).
+    res.status(401).json({ message: "Account not found or inactive" });
+    return;
+  }
+  const remember = rememberMe === true;
+  const deviceInfo = deviceInfoFrom(req);
+  const token = await createSession(user.id, remember, deviceInfo);
+  await recordLoginEvent(user.id, "otp", remember, deviceInfo);
+  res.json({ token, user: publicUser(user) });
 }));
 
 // ── Registration (email OTP verification) ────────────────────────────────
