@@ -24,7 +24,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import {
   db,
   pool,
@@ -817,11 +817,17 @@ describe("Provider-mocked room creation + idempotent send", () => {
     } finally {
       joinedMembersOverride = null;
     }
-    // No room persisted for this pair.
+    // The local reservation remains invisible and fences retries because the
+    // provider may already hold this invalid remote room; deleting it would
+    // allow a duplicate Matrix create.
     const peerRooms = await db.select().from(chatRoomsTable)
       .where(eq(chatRoomsTable.shopId, shopA.id));
     const badRoom = peerRooms.find((r) => r.name === "Bad Room");
-    expect(badRoom).toBeUndefined();
+    expect(badRoom?.providerRoomId).toBeNull();
+    const badRoomMembers = await db.select().from(chatRoomMembersTable)
+      .where(eq(chatRoomMembersTable.roomId, badRoom!.id));
+    expect(badRoomMembers).toEqual([]);
+    await db.delete(chatRoomsTable).where(eq(chatRoomsTable.id, badRoom!.id));
 
     await db.delete(customerUsersTable).where(eq(customerUsersTable.userId, u3.id));
     await db.delete(customersTable).where(eq(customersTable.id, c3.id));
@@ -1770,14 +1776,30 @@ describe("Direct room creation (kind=direct)", () => {
 describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
   let directTarget2: { id: string };
   let concurrentTarget: { id: string };
+  let timeoutTarget: { id: string };
+  let registrationFailureTarget: { id: string };
+  let registrationTimeoutTarget: { id: string };
+  let displayNameTimeoutTarget: { id: string };
   let sameShopNonMember: { id: string };
   let sameShopNonMemberToken: string;
   let fetchSpy2: ReturnType<typeof vi.spyOn> | null = null;
   let createdDirectRoomId: string | null = null;
   let concurrentRoomId: string | null = null;
+  let registrationRetryRoomId: string | null = null;
+  let registrationTimeoutRoomId: string | null = null;
+  let displayNameTimeoutRoomId: string | null = null;
   let directTargetMatchToken: string;
   let createRoomCalls = 0;
   let delayFirstCreateRoom = false;
+  let hangCreateRoomUntilAbort = false;
+  let hangRegistrationUntilAbort = false;
+  let hangDisplayNameOnCall: number | null = null;
+  let failNextRegistration = false;
+  let registerCalls = 0;
+  let registrationTimeoutSignalObserved = false;
+  let displayNameCalls = 0;
+  let displayNameTimeoutSignalObserved = false;
+  let timeoutSignalObserved = false;
   let joinedMemberIds: string[] = [];
 
   const SERVER_NAME2 = "example.com";
@@ -1812,6 +1834,50 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
     }).returning();
     concurrentTarget = concurrent;
 
+    const [timeout] = await db.insert(usersTable).values({
+      name: "Timeout Direct Target",
+      email: email("timeoutdirecttarget"),
+      mobile: uniqMob(),
+      passwordHash: hashPassword(PASSWORD),
+      role: "reception",
+      shopId: shopA.id,
+      isActive: true,
+    }).returning();
+    timeoutTarget = timeout;
+
+    const [registrationFailure] = await db.insert(usersTable).values({
+      name: "Registration Failure Direct Target",
+      email: email("registrationfailuredirecttarget"),
+      mobile: uniqMob(),
+      passwordHash: hashPassword(PASSWORD),
+      role: "reception",
+      shopId: shopA.id,
+      isActive: true,
+    }).returning();
+    registrationFailureTarget = registrationFailure;
+
+    const [registrationTimeout] = await db.insert(usersTable).values({
+      name: "Registration Timeout Direct Target",
+      email: email("registrationtimeoutdirecttarget"),
+      mobile: uniqMob(),
+      passwordHash: hashPassword(PASSWORD),
+      role: "reception",
+      shopId: shopA.id,
+      isActive: true,
+    }).returning();
+    registrationTimeoutTarget = registrationTimeout;
+
+    const [displayNameTimeout] = await db.insert(usersTable).values({
+      name: "Display Name Timeout Direct Target",
+      email: email("displaynametimeoutdirecttarget"),
+      mobile: uniqMob(),
+      passwordHash: hashPassword(PASSWORD),
+      role: "reception",
+      shopId: shopA.id,
+      isActive: true,
+    }).returning();
+    displayNameTimeoutTarget = displayNameTimeout;
+
     const [nonMember] = await db.insert(usersTable).values({
       name: "Same Shop Non Member",
       email: email("sameshopnonmember"),
@@ -1831,7 +1897,48 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
     ) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.includes("/_matrix/client/v3/register")) {
+        registerCalls++;
+        if (failNextRegistration) {
+          failNextRegistration = false;
+          return new Response(JSON.stringify({ errcode: "M_FORBIDDEN" }), { status: 403 });
+        }
+        if (hangRegistrationUntilAbort) {
+          const signal = init?.signal;
+          return await new Promise<Response>((_resolve, reject) => {
+            const abort = () => {
+              registrationTimeoutSignalObserved = true;
+              const err = new Error("mock Matrix registration aborted");
+              err.name = "AbortError";
+              reject(err);
+            };
+            if (!signal || signal.aborted) {
+              abort();
+              return;
+            }
+            signal.addEventListener("abort", abort, { once: true });
+          });
+        }
         return new Response(JSON.stringify({ user_id: "@x:example.com" }), { status: 200 });
+      }
+      if (url.includes("/_matrix/client/v3/profile/") && url.includes("/displayname")) {
+        displayNameCalls++;
+        if (hangDisplayNameOnCall === displayNameCalls) {
+          const signal = init?.signal;
+          return await new Promise<Response>((_resolve, reject) => {
+            const abort = () => {
+              displayNameTimeoutSignalObserved = true;
+              const err = new Error("mock Matrix display-name request aborted");
+              err.name = "AbortError";
+              reject(err);
+            };
+            if (!signal || signal.aborted) {
+              abort();
+              return;
+            }
+            signal.addEventListener("abort", abort, { once: true });
+          });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
       }
       if (url.includes("/profile/") && url.includes("/displayname")) {
         return new Response(JSON.stringify({}), { status: 200 });
@@ -1845,6 +1952,22 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
         );
         if (delayFirstCreateRoom && createRoomCalls === 1) {
           await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        if (hangCreateRoomUntilAbort) {
+          const signal = init?.signal;
+          return await new Promise<Response>((_resolve, reject) => {
+            const abort = () => {
+              timeoutSignalObserved = true;
+              const err = new Error("mock Matrix request aborted");
+              err.name = "AbortError";
+              reject(err);
+            };
+            if (!signal || signal.aborted) {
+              abort();
+              return;
+            }
+            signal.addEventListener("abort", abort, { once: true });
+          });
         }
         return new Response(JSON.stringify({ room_id: AS_ROOM2 }), { status: 200 });
       }
@@ -1874,7 +1997,27 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
       await db.delete(chatRoomMembersTable).where(eq(chatRoomMembersTable.roomId, concurrentRoomId));
       await db.delete(chatRoomsTable).where(eq(chatRoomsTable.id, concurrentRoomId));
     }
-    for (const user of [directTarget2, concurrentTarget, sameShopNonMember]) {
+    if (registrationRetryRoomId) {
+      await db.delete(chatRoomMembersTable).where(eq(chatRoomMembersTable.roomId, registrationRetryRoomId));
+      await db.delete(chatRoomsTable).where(eq(chatRoomsTable.id, registrationRetryRoomId));
+    }
+    if (registrationTimeoutRoomId) {
+      await db.delete(chatRoomMembersTable).where(eq(chatRoomMembersTable.roomId, registrationTimeoutRoomId));
+      await db.delete(chatRoomsTable).where(eq(chatRoomsTable.id, registrationTimeoutRoomId));
+    }
+    if (displayNameTimeoutRoomId) {
+      await db.delete(chatRoomMembersTable).where(eq(chatRoomMembersTable.roomId, displayNameTimeoutRoomId));
+      await db.delete(chatRoomsTable).where(eq(chatRoomsTable.id, displayNameTimeoutRoomId));
+    }
+    for (const user of [
+      directTarget2,
+      concurrentTarget,
+      timeoutTarget,
+      registrationFailureTarget,
+      registrationTimeoutTarget,
+      displayNameTimeoutTarget,
+      sameShopNonMember,
+    ]) {
       if (user?.id) {
         await db.delete(sessionsTable).where(eq(sessionsTable.userId, user.id));
         await db.delete(usersTable).where(eq(usersTable.id, user.id));
@@ -1989,6 +2132,221 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
     } finally {
       delayFirstCreateRoom = false;
     }
+  });
+
+  it("aborts a stalled Matrix provision without keeping a database transaction open", async () => {
+    createRoomCalls = 0;
+    hangCreateRoomUntilAbort = true;
+    timeoutSignalObserved = false;
+    process.env.MATRIX_PROVISION_TIMEOUT_MS = "100";
+    const matchToken = await issueContactMatchGrant(dealerA.id, timeoutTarget.id, shopA.id);
+    const peerKey = [dealerA.id, timeoutTarget.id].sort().join(":");
+    try {
+      const pending = request(app)
+        .post("/api/chat/rooms")
+        .set("Authorization", `Bearer ${dealerTokenA}`)
+        .send({
+          name: "Timed Out Direct Room",
+          kind: "direct",
+          targetUserId: timeoutTarget.id,
+          matchToken,
+        })
+        .then((response) => response);
+
+      // Wait until the request reaches the held provider call, then prove a
+      // separate DB operation completes while Matrix is still stalled.
+      for (let attempt = 0; createRoomCalls === 0 && attempt < 20; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(createRoomCalls).toBe(1);
+      await Promise.race([
+        db.execute(sql`SELECT 1`),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("DB probe blocked")), 250)),
+      ]);
+
+      const res = await pending;
+      expect(res.status).toBe(503);
+      expect(res.body.code).toBe("MATRIX_UNAVAILABLE");
+      expect(timeoutSignalObserved).toBe(true);
+
+      // Failed reservations are removed, so neither a ghost room nor a
+      // pair-level lock prevents the caller from retrying.
+      const rows = await db.select({ id: chatRoomsTable.id }).from(chatRoomsTable)
+        .where(and(eq(chatRoomsTable.shopId, shopA.id), eq(chatRoomsTable.peerKey, peerKey)));
+      expect(rows).toHaveLength(1);
+
+      // A retry is bounded but cannot issue a second createRoom call after an
+      // ambiguous timeout, because Matrix may have accepted the first request.
+      const retry = await request(app)
+        .post("/api/chat/rooms")
+        .set("Authorization", `Bearer ${dealerTokenA}`)
+        .send({
+          name: "Timed Out Direct Room Retry",
+          kind: "direct",
+          targetUserId: timeoutTarget.id,
+          matchToken,
+        });
+      expect(retry.status).toBe(503);
+      expect(createRoomCalls).toBe(1);
+
+      await db.delete(chatRoomsTable).where(eq(chatRoomsTable.id, rows[0].id));
+    } finally {
+      hangCreateRoomUntilAbort = false;
+      delete process.env.MATRIX_PROVISION_TIMEOUT_MS;
+    }
+  });
+
+  it("releases a reservation after a confirmed pre-create registration failure", async () => {
+    createRoomCalls = 0;
+    failNextRegistration = true;
+    const peerKey = [dealerA.id, registrationFailureTarget.id].sort().join(":");
+    const failedMatchToken = await issueContactMatchGrant(
+      dealerA.id,
+      registrationFailureTarget.id,
+      shopA.id,
+    );
+    const failed = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({
+        name: "Registration Failure Direct Room",
+        kind: "direct",
+        targetUserId: registrationFailureTarget.id,
+        matchToken: failedMatchToken,
+      });
+    expect(failed.status).toBe(503);
+    expect(createRoomCalls).toBe(0);
+    const afterFailure = await db.select({ id: chatRoomsTable.id }).from(chatRoomsTable)
+      .where(and(eq(chatRoomsTable.shopId, shopA.id), eq(chatRoomsTable.peerKey, peerKey)));
+    expect(afterFailure).toEqual([]);
+
+    const retryMatchToken = await issueContactMatchGrant(
+      dealerA.id,
+      registrationFailureTarget.id,
+      shopA.id,
+    );
+    const retry = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({
+        name: "Registration Retry Direct Room",
+        kind: "direct",
+        targetUserId: registrationFailureTarget.id,
+        matchToken: retryMatchToken,
+      });
+    expect(retry.status).toBe(200);
+    expect(retry.body.created).toBe(true);
+    expect(createRoomCalls).toBe(1);
+    registrationRetryRoomId = retry.body.room.id;
+  });
+
+  it("releases an ensure-phase timeout so a recovered provider can create the room", async () => {
+    createRoomCalls = 0;
+    registerCalls = 0;
+    hangRegistrationUntilAbort = true;
+    registrationTimeoutSignalObserved = false;
+    process.env.MATRIX_PROVISION_TIMEOUT_MS = "100";
+    const peerKey = [dealerA.id, registrationTimeoutTarget.id].sort().join(":");
+    const timedOutMatchToken = await issueContactMatchGrant(
+      dealerA.id,
+      registrationTimeoutTarget.id,
+      shopA.id,
+    );
+    try {
+      const pending = request(app)
+        .post("/api/chat/rooms")
+        .set("Authorization", `Bearer ${dealerTokenA}`)
+        .send({
+          name: "Registration Timeout Direct Room",
+          kind: "direct",
+          targetUserId: registrationTimeoutTarget.id,
+          matchToken: timedOutMatchToken,
+        })
+        .then((response) => response);
+      for (let attempt = 0; registerCalls === 0 && attempt < 20; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(registerCalls).toBe(1);
+      const timedOut = await pending;
+      expect(timedOut.status).toBe(503);
+      expect(registrationTimeoutSignalObserved).toBe(true);
+      const afterTimeout = await db.select({ id: chatRoomsTable.id }).from(chatRoomsTable)
+        .where(and(eq(chatRoomsTable.shopId, shopA.id), eq(chatRoomsTable.peerKey, peerKey)));
+      expect(afterTimeout).toEqual([]);
+    } finally {
+      hangRegistrationUntilAbort = false;
+      delete process.env.MATRIX_PROVISION_TIMEOUT_MS;
+    }
+
+    const retryMatchToken = await issueContactMatchGrant(
+      dealerA.id,
+      registrationTimeoutTarget.id,
+      shopA.id,
+    );
+    const retry = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({
+        name: "Registration Timeout Retry",
+        kind: "direct",
+        targetUserId: registrationTimeoutTarget.id,
+        matchToken: retryMatchToken,
+      });
+    expect(retry.status).toBe(200);
+    expect(retry.body.created).toBe(true);
+    registrationTimeoutRoomId = retry.body.room.id;
+  });
+
+  it("releases a target display-name timeout before Matrix room creation", async () => {
+    createRoomCalls = 0;
+    displayNameCalls = 0;
+    displayNameTimeoutSignalObserved = false;
+    hangDisplayNameOnCall = 2; // initiator profile succeeds; target profile stalls.
+    process.env.MATRIX_PROVISION_TIMEOUT_MS = "100";
+    const peerKey = [dealerA.id, displayNameTimeoutTarget.id].sort().join(":");
+    const timedOutMatchToken = await issueContactMatchGrant(
+      dealerA.id,
+      displayNameTimeoutTarget.id,
+      shopA.id,
+    );
+    try {
+      const timedOut = await request(app)
+        .post("/api/chat/rooms")
+        .set("Authorization", `Bearer ${dealerTokenA}`)
+        .send({
+          name: "Display Name Timeout Direct Room",
+          kind: "direct",
+          targetUserId: displayNameTimeoutTarget.id,
+          matchToken: timedOutMatchToken,
+        });
+      expect(timedOut.status).toBe(503);
+      expect(displayNameTimeoutSignalObserved).toBe(true);
+      expect(createRoomCalls).toBe(0);
+      const afterTimeout = await db.select({ id: chatRoomsTable.id }).from(chatRoomsTable)
+        .where(and(eq(chatRoomsTable.shopId, shopA.id), eq(chatRoomsTable.peerKey, peerKey)));
+      expect(afterTimeout).toEqual([]);
+    } finally {
+      hangDisplayNameOnCall = null;
+      delete process.env.MATRIX_PROVISION_TIMEOUT_MS;
+    }
+
+    const retryMatchToken = await issueContactMatchGrant(
+      dealerA.id,
+      displayNameTimeoutTarget.id,
+      shopA.id,
+    );
+    const retry = await request(app)
+      .post("/api/chat/rooms")
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({
+        name: "Display Name Timeout Retry",
+        kind: "direct",
+        targetUserId: displayNameTimeoutTarget.id,
+        matchToken: retryMatchToken,
+      });
+    expect(retry.status).toBe(200);
+    expect(retry.body.created).toBe(true);
+    displayNameTimeoutRoomId = retry.body.room.id;
   });
 
   it("customer can create kind=direct room when Matrix is configured (Matrix-mocked)", async () => {

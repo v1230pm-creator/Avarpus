@@ -47,6 +47,30 @@ import crypto from "node:crypto";
  */
 export const MATRIX_APPSERVICE_NAMESPACE_PREFIX = "appuser-";
 
+/**
+ * Hard deadline for a complete Matrix room-provisioning attempt.  This is an
+ * upper bound, rather than a retry interval: a provider outage must not leave
+ * API requests (or their database connections) waiting indefinitely.
+ *
+ * Operators may lower this through MATRIX_PROVISION_TIMEOUT_MS for their
+ * network, but it is clamped to 100ms–10s so configuration cannot accidentally
+ * remove the safety bound.
+ */
+const DEFAULT_MATRIX_PROVISION_TIMEOUT_MS = 5_000;
+const MIN_MATRIX_PROVISION_TIMEOUT_MS = 100;
+const MAX_MATRIX_PROVISION_TIMEOUT_MS = 10_000;
+
+export function matrixProvisionTimeoutMs(): number {
+  const configured = Number(process.env.MATRIX_PROVISION_TIMEOUT_MS);
+  if (!Number.isFinite(configured) || configured <= 0) {
+    return DEFAULT_MATRIX_PROVISION_TIMEOUT_MS;
+  }
+  return Math.min(
+    MAX_MATRIX_PROVISION_TIMEOUT_MS,
+    Math.max(MIN_MATRIX_PROVISION_TIMEOUT_MS, Math.floor(configured)),
+  );
+}
+
 // ── Credential checks ─────────────────────────────────────────────────────────
 
 /**
@@ -153,6 +177,7 @@ export function matrixLocalpartForApp(appUserId: string): string {
 export async function matrixEnsureVirtualUser(opts: {
   localpart: string;
   displayName?: string;
+  signal?: AbortSignal;
 }): Promise<string> {
   requireMatrixConfigured();
   const matrixUserId = `@${opts.localpart}:${matrixServerName()}`;
@@ -164,6 +189,7 @@ export async function matrixEnsureVirtualUser(opts: {
       type: "m.login.application_service",
       username: opts.localpart,
     }),
+    signal: opts.signal,
   });
 
   if (!resp.ok) {
@@ -197,10 +223,14 @@ export async function matrixEnsureVirtualUser(opts: {
           method: "PUT",
           headers: matrixHeaders(),
           body: JSON.stringify({ displayname: opts.displayName.slice(0, 100) }),
+          signal: opts.signal,
         },
       );
     } catch {
       // Ignore display-name errors — the user exists, which is what matters.
+      // An aborted provisioning deadline is not a benign profile error: the
+      // caller needs to know it happened before createRoom is attempted.
+      if (opts.signal?.aborted) throw new Error("Matrix display-name request aborted");
     }
   }
 
@@ -222,6 +252,7 @@ export async function matrixCreateDirectRoom(opts: {
   creatorUserId: string;
   /** Matrix user_id of the invited (target) virtual participant. */
   inviteUserId: string;
+  signal?: AbortSignal;
 }): Promise<string> {
   requireMatrixConfigured();
   const resp = await fetch(
@@ -238,6 +269,7 @@ export async function matrixCreateDirectRoom(opts: {
         invite: [opts.inviteUserId],
         initial_state: [],
       }),
+      signal: opts.signal,
     },
   );
   if (!resp.ok) {
@@ -258,6 +290,7 @@ export async function matrixCreateDirectRoom(opts: {
 export async function matrixJoinRoomAs(
   matrixRoomId: string,
   matrixUserId: string,
+  signal?: AbortSignal,
 ): Promise<void> {
   requireMatrixConfigured();
   const resp = await fetch(
@@ -271,6 +304,7 @@ export async function matrixJoinRoomAs(
       method: "POST",
       headers: matrixHeaders(),
       body: JSON.stringify({}),
+      signal,
     },
   );
   if (!resp.ok) {
@@ -289,6 +323,7 @@ export async function matrixJoinRoomAs(
 export async function matrixJoinedMembers(
   matrixRoomId: string,
   asUserId: string,
+  signal?: AbortSignal,
 ): Promise<string[]> {
   requireMatrixConfigured();
   const resp = await fetch(
@@ -301,6 +336,7 @@ export async function matrixJoinedMembers(
     {
       method: "GET",
       headers: matrixHeaders(),
+      signal,
     },
   );
   if (!resp.ok) {
@@ -339,47 +375,88 @@ export async function matrixProvisionDirectRoom(opts: {
   targetUserId: string;
 }> {
   requireMatrixConfigured();
+  const timeout = matrixProvisionTimeoutMs();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  let phase: "ensure" | "create" | "join" | "members" = "ensure";
 
-  const initiatorLocalpart = matrixLocalpartForApp(opts.initiator.appUserId);
-  const targetLocalpart = matrixLocalpartForApp(opts.target.appUserId);
+  try {
+    const initiatorLocalpart = matrixLocalpartForApp(opts.initiator.appUserId);
+    const targetLocalpart = matrixLocalpartForApp(opts.target.appUserId);
 
-  const initiatorUserId = await matrixEnsureVirtualUser({
-    localpart: initiatorLocalpart,
-    displayName: opts.initiator.displayName,
-  });
-  const targetUserId = await matrixEnsureVirtualUser({
-    localpart: targetLocalpart,
-    displayName: opts.target.displayName,
-  });
+    const initiatorUserId = await matrixEnsureVirtualUser({
+      localpart: initiatorLocalpart,
+      displayName: opts.initiator.displayName,
+      signal: controller.signal,
+    });
+    if (controller.signal.aborted) {
+      throw new Error("Matrix initiator ensure timed out");
+    }
+    const targetUserId = await matrixEnsureVirtualUser({
+      localpart: targetLocalpart,
+      displayName: opts.target.displayName,
+      signal: controller.signal,
+    });
+    if (controller.signal.aborted) {
+      throw new Error("Matrix target ensure timed out");
+    }
 
-  const matrixRoomId = await matrixCreateDirectRoom({
-    name: opts.name,
-    topic: opts.topic,
-    creatorUserId: initiatorUserId,
-    inviteUserId: targetUserId,
-  });
+    phase = "create";
+    const matrixRoomId = await matrixCreateDirectRoom({
+      name: opts.name,
+      topic: opts.topic,
+      creatorUserId: initiatorUserId,
+      inviteUserId: targetUserId,
+      signal: controller.signal,
+    });
 
-  await matrixJoinRoomAs(matrixRoomId, targetUserId);
+    phase = "join";
+    await matrixJoinRoomAs(matrixRoomId, targetUserId, controller.signal);
 
-  // Fail closed: the homeserver membership MUST be exactly the two virtual
-  // participants. Any other identity (admin/provisioning bot leak) aborts.
-  const members = await matrixJoinedMembers(matrixRoomId, initiatorUserId);
-  const expected = new Set([initiatorUserId, targetUserId]);
-  const actual = new Set(members);
-  const exactlyTwo =
-    actual.size === 2 &&
-    expected.size === 2 &&
-    [...expected].every((id) => actual.has(id));
-  if (!exactlyTwo) {
-    const err = new Error(
-      `Matrix room membership mismatch: expected exactly 2 members ` +
-        `[${initiatorUserId}, ${targetUserId}], got ${actual.size}`,
-    );
-    (err as NodeJS.ErrnoException).code = "MATRIX_MEMBERSHIP_MISMATCH";
-    throw err;
+    // Fail closed: the homeserver membership MUST be exactly the two virtual
+    // participants. Any other identity (admin/provisioning bot leak) aborts.
+    phase = "members";
+    const members = await matrixJoinedMembers(matrixRoomId, initiatorUserId, controller.signal);
+    const expected = new Set([initiatorUserId, targetUserId]);
+    const actual = new Set(members);
+    const exactlyTwo =
+      actual.size === 2 &&
+      expected.size === 2 &&
+      [...expected].every((id) => actual.has(id));
+    if (!exactlyTwo) {
+      const err = new Error(
+        `Matrix room membership mismatch: expected exactly 2 members ` +
+          `[${initiatorUserId}, ${targetUserId}], got ${actual.size}`,
+      );
+      (err as NodeJS.ErrnoException).code = "MATRIX_MEMBERSHIP_MISMATCH";
+      throw err;
+    }
+
+    return { matrixRoomId, initiatorUserId, targetUserId };
+  } catch (error) {
+    if (controller.signal.aborted) {
+      const err = new Error(`Matrix room provisioning timed out after ${timeout}ms`, {
+        cause: error,
+      });
+      (err as NodeJS.ErrnoException).code =
+        phase === "ensure" ? "MATRIX_ENSURE_TIMEOUT" : "MATRIX_TIMEOUT";
+      throw err;
+    }
+    const providerError = error as NodeJS.ErrnoException;
+    if (!providerError.code) {
+      providerError.code =
+        phase === "ensure"
+          ? "MATRIX_ENSURE_FAILED"
+          : phase === "create"
+            ? "MATRIX_CREATE_FAILED"
+            : phase === "join"
+              ? "MATRIX_JOIN_FAILED"
+              : "MATRIX_MEMBERS_FAILED";
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
   }
-
-  return { matrixRoomId, initiatorUserId, targetUserId };
 }
 
 /**

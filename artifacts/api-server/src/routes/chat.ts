@@ -11,10 +11,12 @@
  *
  * Room creation policy (fail-closed):
  *   - Matrix MUST be configured. If not → 503 MATRIX_UNAVAILABLE, zero DB writes.
- *   - Matrix provisioning is called first. If it fails → 503 MATRIX_UNAVAILABLE,
- *     zero DB writes. No null-providerRoomId rooms are ever created.
- *   - Idempotency: a clientRequestId that already maps to a room returns that
- *     room (which by definition already has a providerRoomId).
+ *   - A memberless reservation protects each participant pair before Matrix
+ *     work begins. It is never visible as a room. Ambiguous Matrix attempts
+ *     retain that reservation rather than risk a duplicate remote room.
+ *   - Matrix provisioning has a hard upper deadline (default 5 seconds,
+ *     clamped to 100ms–10s with MATRIX_PROVISION_TIMEOUT_MS). The provider
+ *     call runs outside a DB transaction so an outage cannot pin pool slots.
  *
  * Message delivery policy (fail-closed):
  *   - The Matrix send happens BEFORE the local DB write. If Matrix fails,
@@ -56,6 +58,7 @@ import {
   livekitMintToken,
   matrixConfigured,
   matrixProvisionDirectRoom,
+  matrixProvisionTimeoutMs,
   matrixSendMessage,
   matrixUserIdForApp,
   matrixTxnId,
@@ -65,13 +68,35 @@ import { generateToken, sha256 } from "../lib/authUtils";
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
-class MatrixProvisioningError extends Error {
-  constructor(readonly cause: unknown) {
-    super("Matrix room/participant provisioning failed");
-  }
-}
-
 class MatchGrantError extends Error {}
+
+const ROOM_PROVISION_POLL_MS = 25;
+
+/**
+ * Wait only for a reservation already owned by another request. Each poll is an
+ * independent query, so waiting for Matrix never holds a transaction or a pool
+ * connection. A ready room always has both members by the time it is returned.
+ */
+async function waitForProvisionedRoom(
+  roomId: string,
+  maxWaitMs = matrixProvisionTimeoutMs(),
+): Promise<typeof chatRoomsTable.$inferSelect | null> {
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() <= deadline) {
+    const [room] = await db
+      .select()
+      .from(chatRoomsTable)
+      .where(eq(chatRoomsTable.id, roomId))
+      .limit(1);
+    if (!room) return null;
+    if (room.providerRoomId) return room;
+
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    await new Promise<void>((resolve) => setTimeout(resolve, Math.min(ROOM_PROVISION_POLL_MS, remaining)));
+  }
+  return null;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -625,9 +650,36 @@ router.post(
           )
           .limit(1);
         if (!membership) {
+          // A retry from the request that owns an in-flight reservation is
+          // allowed to wait for its own room. The reservation has no members
+          // yet, so treating it as a normal room would incorrectly return 404.
+          if (!existing.providerRoomId && existing.createdById === me.id) {
+            const provisioned = await waitForProvisionedRoom(existing.id);
+            if (provisioned) {
+              res.json({ room: await formatRoomForUser(provisioned, me.id), created: false });
+            } else {
+              res.status(503).json({
+                message: "Chat provider is still unavailable. Room not created.",
+                code: "MATRIX_UNAVAILABLE",
+              });
+            }
+            return;
+          }
           // Do not disclose room/provider details to a same-shop user that
           // reused another participant's client request ID.
           res.status(404).json({ message: "Room not found" });
+          return;
+        }
+        if (!existing.providerRoomId) {
+          const provisioned = await waitForProvisionedRoom(existing.id);
+          if (!provisioned) {
+            res.status(503).json({
+              message: "Chat provider is still unavailable. Room not created.",
+              code: "MATRIX_UNAVAILABLE",
+            });
+            return;
+          }
+          res.json({ room: await formatRoomForUser(provisioned, me.id), created: false });
           return;
         }
         res.json({ room: await formatRoomForUser(existing, me.id), created: false });
@@ -765,6 +817,8 @@ router.post(
     const peerKey = computePeerKey(me.id, targetUserId);
 
     // ── Idempotency #2: peerKey (independent of clientRequestId) ────────────
+    // A completed room remains available even while Matrix is down: no new
+    // provider work is required to return an already-authorized local room.
     const [existingByPeer] = await db
       .select()
       .from(chatRoomsTable)
@@ -798,48 +852,56 @@ router.post(
               .limit(1)
           : Promise.resolve([{ id: "not-required" }]),
       ]);
-      if (members.length === 2 && boundGrant.length === 1) {
+      if (kind === "direct" && boundGrant.length !== 1) {
+        res.status(403).json({ message: "Direct chat authorization is invalid or expired." });
+        return;
+      }
+      if (existingByPeer.providerRoomId && members.length === 2) {
         res.json({ room: await formatRoomForUser(existingByPeer, me.id), created: false });
         return;
       }
-      if (kind === "direct") {
-        res.status(403).json({ message: "Direct chat authorization is invalid or expired." });
+      if (!existingByPeer.providerRoomId) {
+        const provisioned = await waitForProvisionedRoom(existingByPeer.id);
+        if (provisioned) {
+          res.json({ room: await formatRoomForUser(provisioned, me.id), created: false });
+        } else {
+          res.status(503).json({
+            message: "Chat provider is still unavailable. Room not created.",
+            code: "MATRIX_UNAVAILABLE",
+          });
+        }
         return;
       }
     }
 
-    // ── Provider provisioning (pure Application Service semantics) ──────────
-    // A room is NOT persisted until the provider room is created AND both
-    // virtual participants are ensured + joined AND the homeserver reports
-    // EXACTLY the two expected Matrix IDs as joined members. Any failure —
-    // including a membership mismatch (e.g. a leaked admin/provisioning
-    // identity) — yields 503 with zero DB writes.
-    //
-    // The initiating participant (the creator, `me`) creates the private/direct
-    // room via AS impersonation and invites exactly the target virtual user;
-    // the target joins via AS impersonation. No admin identity ever becomes a
-    // member. See matrixProvisionDirectRoom for the exact endpoints/ordering.
-    let room: typeof chatRoomsTable.$inferSelect;
-    let created: boolean;
-    try {
-      const result = await db.transaction(async (tx) => {
-        // This must be transaction-scoped (rather than process-local) so API
-        // instances serialize provisioning for the same participant pair.
-        await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtext(${`chat_room:${shopId}:${peerKey}`}))`,
-        );
+    if (!matrixConfigured()) {
+      res.status(503).json({
+        message: "Chat provider not available. Room not created.",
+        code: "MATRIX_UNAVAILABLE",
+      });
+      return;
+    }
 
-        // Recheck after acquiring the cross-instance lock. A competing request
-        // that created the room while this request waited must not provision a
-        // second Matrix room.
-        const [existingAfterLock] = await tx
+    // ── Durable pair reservation, then provider provisioning ─────────────────
+    // The partial unique peer-key index is the cross-instance mutex. We commit
+    // a memberless, null-provider reservation in a short transaction before
+    // calling Matrix. Thus concurrent callers reuse the same reservation while
+    // no database connection is retained during the provider wait.
+    let reservation: {
+      room: typeof chatRoomsTable.$inferSelect;
+      created: boolean;
+      targetName?: string;
+    };
+    try {
+      reservation = await db.transaction(async (tx) => {
+        const [existing] = await tx
           .select()
           .from(chatRoomsTable)
           .where(
             and(eq(chatRoomsTable.shopId, shopId), eq(chatRoomsTable.peerKey, peerKey)),
           )
           .limit(1);
-        if (existingAfterLock) {
+        if (existing) {
           if (kind === "direct") {
             const [boundGrant] = await tx
               .select({ id: chatContactMatchGrantsTable.id })
@@ -855,7 +917,7 @@ router.post(
               .limit(1);
             if (!boundGrant) throw new MatchGrantError();
           }
-          return { room: existingAfterLock, created: false };
+          return { room: existing, created: false };
         }
 
         if (kind === "direct") {
@@ -888,12 +950,6 @@ router.post(
           if (consumed.length !== 1) throw new MatchGrantError();
         }
 
-        if (!matrixConfigured()) {
-          throw new MatrixProvisioningError(
-            Object.assign(new Error("Chat provider not configured"), { code: "PROVIDER_UNAVAILABLE" }),
-          );
-        }
-
         const [targetUser] = await tx
           .select({ id: usersTable.id, name: usersTable.name })
           .from(usersTable)
@@ -910,18 +966,6 @@ router.post(
           throw new Error("Resolved chat target is no longer active");
         }
 
-        let provisioned: Awaited<ReturnType<typeof matrixProvisionDirectRoom>>;
-        try {
-          provisioned = await matrixProvisionDirectRoom({
-            name: name.trim(),
-            topic: `Shop chat: ${name.trim()}`,
-            initiator: { appUserId: me.id, displayName: me.name },
-            target: { appUserId: targetUser.id, displayName: targetUser.name },
-          });
-        } catch (err) {
-          throw new MatrixProvisioningError(err);
-        }
-
         const [newRoom] = await tx
           .insert(chatRoomsTable)
           .values({
@@ -930,7 +974,9 @@ router.post(
             name: name.trim().slice(0, 200),
             customerId: resolvedCustomerId,
             dealerId: resolvedDealerId,
-            providerRoomId: provisioned.matrixRoomId,
+            // This is only a reservation. It gains members and becomes visible
+            // atomically after Matrix confirms the exact two-person room.
+            providerRoomId: null,
             peerKey,
             clientRequestId:
               typeof clientRequestId === "string" && clientRequestId.trim()
@@ -940,14 +986,119 @@ router.post(
             createdByName: me.name,
           })
           .returning();
+        return { room: newRoom, created: true, targetName: targetUser.name };
+      });
+    } catch (err) {
+      // A concurrent transaction can consume the same direct proof just before
+      // it inserts the reservation. If that happened, resume the reservation
+      // instead of incorrectly rejecting the second caller.
+      const [raced] = await db
+        .select()
+        .from(chatRoomsTable)
+        .where(
+          and(eq(chatRoomsTable.shopId, shopId), eq(chatRoomsTable.peerKey, peerKey)),
+        )
+        .limit(1);
+      if (raced && kind === "direct") {
+        const [boundGrant] = await db
+          .select({ id: chatContactMatchGrantsTable.id })
+          .from(chatContactMatchGrantsTable)
+          .where(
+            and(
+              eq(chatContactMatchGrantsTable.tokenHash, sha256(matchToken.trim())),
+              eq(chatContactMatchGrantsTable.callerUserId, me.id),
+              eq(chatContactMatchGrantsTable.targetUserId, targetUserId),
+              eq(chatContactMatchGrantsTable.shopId, shopId),
+            ),
+          )
+          .limit(1);
+        if (boundGrant) {
+          reservation = { room: raced, created: false };
+        } else {
+          res.status(403).json({ message: "Direct chat authorization is invalid or expired." });
+          return;
+        }
+      } else if (err instanceof MatchGrantError) {
+        res.status(403).json({ message: "Direct chat authorization is invalid or expired." });
+        return;
+      } else if (raced) {
+        reservation = { room: raced, created: false };
+      } else {
+        throw err;
+      }
+    }
 
-        // Exactly two application members: creator + resolved target.
+    if (!reservation.created) {
+      const room = reservation.room.providerRoomId
+        ? reservation.room
+        : await waitForProvisionedRoom(reservation.room.id);
+      if (!room) {
+        res.status(503).json({
+          message: "Chat provider is still unavailable. Room not created.",
+          code: "MATRIX_UNAVAILABLE",
+        });
+        return;
+      }
+      res.json({ room: await formatRoomForUser(room, me.id), created: false });
+      return;
+    }
+
+    let provisioned: Awaited<ReturnType<typeof matrixProvisionDirectRoom>>;
+    try {
+      provisioned = await matrixProvisionDirectRoom({
+        name: name.trim(),
+        topic: `Shop chat: ${name.trim()}`,
+        initiator: { appUserId: me.id, displayName: me.name },
+        target: { appUserId: targetUserId, displayName: reservation.targetName ?? "" },
+      });
+    } catch (err) {
+      // A timeout or network error does not prove Matrix did not accept
+      // createRoom. Keep this invisible reservation as the pair-level fence:
+      // deleting it would let a retry create a second remote room. Safe
+      // provider-side reconciliation is intentionally deferred to the recovery
+      // follow-up, where it can use a Matrix idempotency/lookup mechanism.
+      const code = (err as NodeJS.ErrnoException).code ?? "";
+      if (code === "MATRIX_ENSURE_FAILED" || code === "MATRIX_ENSURE_TIMEOUT") {
+        // Virtual-user registration completes before createRoom, so an ensure
+        // failure or timeout cannot have created a room and can safely release
+        // the reservation.
+        await db
+          .delete(chatRoomsTable)
+          .where(and(eq(chatRoomsTable.id, reservation.room.id), isNull(chatRoomsTable.providerRoomId)));
+      }
+      console.error("[chat] Matrix room/participant provisioning failed:", (err as Error).message);
+      res.status(503).json({
+        message:
+          code === "PROVIDER_UNAVAILABLE"
+            ? "Chat provider not available. Room not created."
+            : "Failed to provision room and participants on chat provider. Room not created.",
+        code: "MATRIX_UNAVAILABLE",
+      });
+      return;
+    }
+
+    let room: typeof chatRoomsTable.$inferSelect;
+    try {
+      room = await db.transaction(async (tx) => {
+        const [finalized] = await tx
+          .update(chatRoomsTable)
+          .set({ providerRoomId: provisioned.matrixRoomId })
+          .where(
+            and(
+              eq(chatRoomsTable.id, reservation.room.id),
+              isNull(chatRoomsTable.providerRoomId),
+            ),
+          )
+          .returning();
+        if (!finalized) {
+          throw new Error("Chat room reservation was lost before finalization");
+        }
+
         await tx.insert(chatRoomMembersTable).values([
-          { roomId: newRoom.id, shopId, userId: me.id, role: "moderator" },
-          { roomId: newRoom.id, shopId, userId: targetUserId, role: "member" },
+          { roomId: finalized.id, shopId, userId: me.id, role: "moderator" },
+          { roomId: finalized.id, shopId, userId: targetUserId, role: "member" },
         ]);
 
-        // Record provider identities (idempotent upsert on (user, provider)).
         await tx
           .insert(chatProviderIdentitiesTable)
           .values([
@@ -957,45 +1108,21 @@ router.post(
           .onConflictDoNothing({
             target: [chatProviderIdentitiesTable.userId, chatProviderIdentitiesTable.provider],
           });
-
-        return { room: newRoom, created: true };
+        return finalized;
       });
-      room = result.room;
-      created = result.created;
     } catch (err) {
-      if (err instanceof MatchGrantError) {
-        res.status(403).json({ message: "Direct chat authorization is invalid or expired." });
-        return;
-      }
-      if (err instanceof MatrixProvisioningError) {
-        const code = (err.cause as NodeJS.ErrnoException).code ?? "";
-        console.error("[chat] Matrix room/participant provisioning failed:", (err.cause as Error).message);
-        res.status(503).json({
-          message:
-            code === "PROVIDER_UNAVAILABLE"
-              ? "Chat provider not available. Room not created."
-              : "Failed to provision room and participants on chat provider. Room not created.",
-          code: "MATRIX_UNAVAILABLE",
-        });
-        return;
-      }
-      // A unique constraint from a legacy/concurrent writer can still race the
-      // transaction; return the winner without exposing a server error.
-      const [raced] = await db
-        .select()
-        .from(chatRoomsTable)
-        .where(
-          and(eq(chatRoomsTable.shopId, shopId), eq(chatRoomsTable.peerKey, peerKey)),
-        )
-        .limit(1);
-      if (raced) {
-        res.json({ room: await formatRoomForUser(raced, me.id), created: false });
-        return;
-      }
-      throw err;
+      // Matrix may already have accepted this room. Retain the invisible
+      // reservation instead of allowing a retry to create a duplicate remote
+      // room before provider-side reconciliation can determine the outcome.
+      console.error("[chat] Failed to finalize Matrix room reservation:", (err as Error).message);
+      res.status(503).json({
+        message: "Chat room could not be finalized. Please try again.",
+        code: "MATRIX_UNAVAILABLE",
+      });
+      return;
     }
 
-    res.json({ room: await formatRoomForUser(room, me.id), created });
+    res.json({ room: await formatRoomForUser(room, me.id), created: true });
   }),
 );
 
