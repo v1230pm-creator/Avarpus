@@ -146,6 +146,17 @@ export const chatRoomsTable = pgTable(
     // sorted ascending and joined by ":". Guarantees at most one room per pair
     // per shop, independent of any UI-supplied request id.
     peerKey: text("peer_key"),
+    // Stable Matrix-side correlation key for a direct-room reservation. It
+    // produces an app-owned room alias, allowing a later process to resolve a
+    // room whose create response was lost instead of creating a second room.
+    provisionKey: text("provision_key"),
+    // A fresh fence token is written whenever a worker claims provisioning.
+    // Finalization compares this token so an older worker cannot overwrite a
+    // newer recovery attempt after its lease has expired.
+    provisionAttemptId: uuid("provision_attempt_id"),
+    // A bounded local claim lease. Its expiry is safe because provisionKey is
+    // also enforced by the Matrix room alias.
+    provisionLeaseUntil: timestamp("provision_lease_until", { withTimezone: true }),
     createdById: uuid("created_by_id"),
     createdByName: text("created_by_name"),
     isArchived: boolean("is_archived").notNull().default(false),
@@ -162,6 +173,9 @@ export const chatRoomsTable = pgTable(
     uniqueIndex("chat_rooms_shop_peer_key_unique")
       .on(t.shopId, t.peerKey)
       .where(sql`${t.peerKey} IS NOT NULL`),
+    uniqueIndex("chat_rooms_provision_key_unique")
+      .on(t.provisionKey)
+      .where(sql`${t.provisionKey} IS NOT NULL`),
   ],
 );
 

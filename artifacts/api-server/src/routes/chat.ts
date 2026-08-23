@@ -31,8 +31,9 @@
  */
 
 import { Readable } from "stream";
+import { randomUUID } from "node:crypto";
 import { Router, type IRouter, type Request } from "express";
-import { and, desc, eq, inArray, isNotNull, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -71,6 +72,15 @@ const objectStorageService = new ObjectStorageService();
 class MatchGrantError extends Error {}
 
 const ROOM_PROVISION_POLL_MS = 25;
+type ChatRoom = typeof chatRoomsTable.$inferSelect;
+
+function directRoomProvisionKey(shopId: string, peerKey: string): string {
+  return sha256(`matrix-direct-room:v1:${shopId}:${peerKey}`);
+}
+
+function provisionLeaseUntil(): Date {
+  return new Date(Date.now() + matrixProvisionTimeoutMs());
+}
 
 /**
  * Wait only for a reservation already owned by another request. Each poll is an
@@ -96,6 +106,153 @@ async function waitForProvisionedRoom(
     await new Promise<void>((resolve) => setTimeout(resolve, Math.min(ROOM_PROVISION_POLL_MS, remaining)));
   }
   return null;
+}
+
+async function directRoomParticipants(room: ChatRoom): Promise<{
+  initiator: { appUserId: string; displayName: string };
+  target: { appUserId: string; displayName: string };
+} | null> {
+  const participantIds = room.peerKey?.split(":") ?? [];
+  if (
+    participantIds.length !== 2 ||
+    new Set(participantIds).size !== 2 ||
+    !room.createdById ||
+    !participantIds.includes(room.createdById)
+  ) {
+    return null;
+  }
+  const users = await db
+    .select({ id: usersTable.id, name: usersTable.name })
+    .from(usersTable)
+    .where(inArray(usersTable.id, participantIds));
+  const byId = new Map(users.map((user) => [user.id, user]));
+  const initiator = byId.get(room.createdById);
+  const targetId = participantIds.find((id) => id !== room.createdById);
+  const target = targetId ? byId.get(targetId) : null;
+  if (!initiator || !target) return null;
+  return {
+    initiator: { appUserId: initiator.id, displayName: initiator.name },
+    target: { appUserId: target.id, displayName: target.name },
+  };
+}
+
+/**
+ * Provision an already-claimed reservation. Finalization is fenced by the
+ * current attempt ID, so a worker that outlives its lease cannot write over a
+ * subsequent recovery attempt.
+ */
+async function provisionClaimedDirectRoom(room: ChatRoom): Promise<ChatRoom | null> {
+  if (!room.provisionKey || !room.provisionAttemptId) return null;
+  const participants = await directRoomParticipants(room);
+  if (!participants) return null;
+
+  try {
+    const provisioned = await matrixProvisionDirectRoom({
+      name: room.name,
+      topic: `Shop chat: ${room.name}`,
+      provisionKey: room.provisionKey,
+      initiator: participants.initiator,
+      target: participants.target,
+    });
+    return await db.transaction(async (tx) => {
+      const [finalized] = await tx
+        .update(chatRoomsTable)
+        .set({
+          providerRoomId: provisioned.matrixRoomId,
+          provisionLeaseUntil: null,
+        })
+        .where(
+          and(
+            eq(chatRoomsTable.id, room.id),
+            eq(chatRoomsTable.provisionAttemptId, room.provisionAttemptId!),
+            isNull(chatRoomsTable.providerRoomId),
+          ),
+        )
+        .returning();
+      if (!finalized) {
+        return null;
+      }
+      await tx.insert(chatRoomMembersTable).values([
+        { roomId: finalized.id, shopId: finalized.shopId, userId: participants.initiator.appUserId, role: "moderator" },
+        { roomId: finalized.id, shopId: finalized.shopId, userId: participants.target.appUserId, role: "member" },
+      ]);
+      await tx
+        .insert(chatProviderIdentitiesTable)
+        .values([
+          {
+            userId: participants.initiator.appUserId,
+            shopId: finalized.shopId,
+            provider: "matrix",
+            providerUserId: provisioned.initiatorUserId,
+          },
+          {
+            userId: participants.target.appUserId,
+            shopId: finalized.shopId,
+            provider: "matrix",
+            providerUserId: provisioned.targetUserId,
+          },
+        ])
+        .onConflictDoNothing({
+          target: [chatProviderIdentitiesTable.userId, chatProviderIdentitiesTable.provider],
+        });
+      return finalized;
+    });
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code ?? "";
+    // Registration is the only stage that proves Matrix did not receive a
+    // create request. Other failures retain the keyed reservation for recovery.
+    if (code === "MATRIX_ENSURE_FAILED" || code === "MATRIX_ENSURE_TIMEOUT") {
+      await db
+        .delete(chatRoomsTable)
+        .where(
+          and(
+            eq(chatRoomsTable.id, room.id),
+            eq(chatRoomsTable.provisionAttemptId, room.provisionAttemptId),
+            isNull(chatRoomsTable.providerRoomId),
+          ),
+        );
+    }
+    console.error("[chat] Matrix room/participant provisioning failed:", (err as Error).message);
+    return null;
+  }
+}
+
+/**
+ * Resume a reservation left behind by another request or a crashed process.
+ * The local lease limits redundant calls; the Matrix alias derived from
+ * provisionKey makes an expired-lease takeover safe across processes.
+ */
+async function recoverReservedDirectRoom(room: ChatRoom): Promise<ChatRoom | null> {
+  if (room.providerRoomId) return room;
+  if (!room.provisionKey) return null; // Legacy ambiguous reservations stay fenced.
+
+  const leaseRemaining = room.provisionLeaseUntil
+    ? Math.max(0, room.provisionLeaseUntil.getTime() - Date.now())
+    : 0;
+  if (leaseRemaining > 0) {
+    const ready = await waitForProvisionedRoom(room.id, leaseRemaining);
+    if (ready) return ready;
+  }
+
+  const attemptId = randomUUID();
+  const [claimed] = await db
+    .update(chatRoomsTable)
+    .set({ provisionAttemptId: attemptId, provisionLeaseUntil: provisionLeaseUntil() })
+    .where(
+      and(
+        eq(chatRoomsTable.id, room.id),
+        isNull(chatRoomsTable.providerRoomId),
+        or(
+          isNull(chatRoomsTable.provisionLeaseUntil),
+          lt(chatRoomsTable.provisionLeaseUntil, new Date()),
+        ),
+      ),
+    )
+    .returning();
+  if (!claimed) {
+    return waitForProvisionedRoom(room.id, ROOM_PROVISION_POLL_MS * 2);
+  }
+  return provisionClaimedDirectRoom(claimed);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -654,7 +811,7 @@ router.post(
           // allowed to wait for its own room. The reservation has no members
           // yet, so treating it as a normal room would incorrectly return 404.
           if (!existing.providerRoomId && existing.createdById === me.id) {
-            const provisioned = await waitForProvisionedRoom(existing.id);
+            const provisioned = await recoverReservedDirectRoom(existing);
             if (provisioned) {
               res.json({ room: await formatRoomForUser(provisioned, me.id), created: false });
             } else {
@@ -671,7 +828,7 @@ router.post(
           return;
         }
         if (!existing.providerRoomId) {
-          const provisioned = await waitForProvisionedRoom(existing.id);
+          const provisioned = await recoverReservedDirectRoom(existing);
           if (!provisioned) {
             res.status(503).json({
               message: "Chat provider is still unavailable. Room not created.",
@@ -861,7 +1018,7 @@ router.post(
         return;
       }
       if (!existingByPeer.providerRoomId) {
-        const provisioned = await waitForProvisionedRoom(existingByPeer.id);
+        const provisioned = await recoverReservedDirectRoom(existingByPeer);
         if (provisioned) {
           res.json({ room: await formatRoomForUser(provisioned, me.id), created: false });
         } else {
@@ -978,6 +1135,9 @@ router.post(
             // atomically after Matrix confirms the exact two-person room.
             providerRoomId: null,
             peerKey,
+            provisionKey: directRoomProvisionKey(shopId, peerKey),
+            provisionAttemptId: randomUUID(),
+            provisionLeaseUntil: provisionLeaseUntil(),
             clientRequestId:
               typeof clientRequestId === "string" && clientRequestId.trim()
                 ? clientRequestId.trim()
@@ -1031,7 +1191,7 @@ router.post(
     if (!reservation.created) {
       const room = reservation.room.providerRoomId
         ? reservation.room
-        : await waitForProvisionedRoom(reservation.room.id);
+        : await recoverReservedDirectRoom(reservation.room);
       if (!room) {
         res.status(503).json({
           message: "Chat provider is still unavailable. Room not created.",
@@ -1043,80 +1203,10 @@ router.post(
       return;
     }
 
-    let provisioned: Awaited<ReturnType<typeof matrixProvisionDirectRoom>>;
-    try {
-      provisioned = await matrixProvisionDirectRoom({
-        name: name.trim(),
-        topic: `Shop chat: ${name.trim()}`,
-        initiator: { appUserId: me.id, displayName: me.name },
-        target: { appUserId: targetUserId, displayName: reservation.targetName ?? "" },
-      });
-    } catch (err) {
-      // A timeout or network error does not prove Matrix did not accept
-      // createRoom. Keep this invisible reservation as the pair-level fence:
-      // deleting it would let a retry create a second remote room. Safe
-      // provider-side reconciliation is intentionally deferred to the recovery
-      // follow-up, where it can use a Matrix idempotency/lookup mechanism.
-      const code = (err as NodeJS.ErrnoException).code ?? "";
-      if (code === "MATRIX_ENSURE_FAILED" || code === "MATRIX_ENSURE_TIMEOUT") {
-        // Virtual-user registration completes before createRoom, so an ensure
-        // failure or timeout cannot have created a room and can safely release
-        // the reservation.
-        await db
-          .delete(chatRoomsTable)
-          .where(and(eq(chatRoomsTable.id, reservation.room.id), isNull(chatRoomsTable.providerRoomId)));
-      }
-      console.error("[chat] Matrix room/participant provisioning failed:", (err as Error).message);
+    const room = await provisionClaimedDirectRoom(reservation.room);
+    if (!room) {
       res.status(503).json({
-        message:
-          code === "PROVIDER_UNAVAILABLE"
-            ? "Chat provider not available. Room not created."
-            : "Failed to provision room and participants on chat provider. Room not created.",
-        code: "MATRIX_UNAVAILABLE",
-      });
-      return;
-    }
-
-    let room: typeof chatRoomsTable.$inferSelect;
-    try {
-      room = await db.transaction(async (tx) => {
-        const [finalized] = await tx
-          .update(chatRoomsTable)
-          .set({ providerRoomId: provisioned.matrixRoomId })
-          .where(
-            and(
-              eq(chatRoomsTable.id, reservation.room.id),
-              isNull(chatRoomsTable.providerRoomId),
-            ),
-          )
-          .returning();
-        if (!finalized) {
-          throw new Error("Chat room reservation was lost before finalization");
-        }
-
-        await tx.insert(chatRoomMembersTable).values([
-          { roomId: finalized.id, shopId, userId: me.id, role: "moderator" },
-          { roomId: finalized.id, shopId, userId: targetUserId, role: "member" },
-        ]);
-
-        await tx
-          .insert(chatProviderIdentitiesTable)
-          .values([
-            { userId: me.id, shopId, provider: "matrix", providerUserId: provisioned.initiatorUserId },
-            { userId: targetUserId, shopId, provider: "matrix", providerUserId: provisioned.targetUserId },
-          ])
-          .onConflictDoNothing({
-            target: [chatProviderIdentitiesTable.userId, chatProviderIdentitiesTable.provider],
-          });
-        return finalized;
-      });
-    } catch (err) {
-      // Matrix may already have accepted this room. Retain the invisible
-      // reservation instead of allowing a retry to create a duplicate remote
-      // room before provider-side reconciliation can determine the outcome.
-      console.error("[chat] Failed to finalize Matrix room reservation:", (err as Error).message);
-      res.status(503).json({
-        message: "Chat room could not be finalized. Please try again.",
+        message: "Failed to provision room and participants on chat provider. Room not created.",
         code: "MATRIX_UNAVAILABLE",
       });
       return;

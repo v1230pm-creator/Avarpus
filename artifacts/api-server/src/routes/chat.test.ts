@@ -605,6 +605,7 @@ describe("Provider-mocked room creation + idempotent send", () => {
   let lastAuthHeader: string | null = null;
   let createRoomUserId: string | null = null;
   let createRoomInvites: string[] = [];
+  const roomsByAlias = new Map<string, string>();
   let joinUserId: string | null = null;
   // errcode to return from the /register branch (null = success 200).
   // Set to "M_USER_IN_USE" (with status 400) to exercise idempotent re-register.
@@ -672,13 +673,28 @@ describe("Provider-mocked room creation + idempotent send", () => {
       if (url.includes("/profile/") && url.includes("/displayname")) {
         return new Response(JSON.stringify({}), { status: 200 });
       }
+      if (url.includes("/_matrix/client/v3/directory/room/")) {
+        const alias = decodeURIComponent(url.split("/directory/room/")[1].split("?")[0]);
+        const roomId = roomsByAlias.get(alias);
+        return roomId
+          ? new Response(JSON.stringify({ room_id: roomId }), { status: 200 })
+          : new Response(JSON.stringify({ errcode: "M_NOT_FOUND" }), { status: 404 });
+      }
       if (url.includes("/createRoom")) {
         matrixCallCount.createRoom++;
         createRoomUserId = parseUserId(url);
+        const raw = typeof init?.body === "string" ? init.body : "{}";
         try {
-          const raw = typeof init?.body === "string" ? init.body : "{}";
           createRoomInvites = (JSON.parse(raw).invite as string[]) ?? [];
         } catch { createRoomInvites = []; }
+        const aliasLocalpart = (JSON.parse(raw) as { room_alias_name?: string }).room_alias_name;
+        if (aliasLocalpart) {
+          const alias = `#${aliasLocalpart}:${SERVER_NAME}`;
+          if (roomsByAlias.has(alias)) {
+            return new Response(JSON.stringify({ errcode: "M_ROOM_IN_USE" }), { status: 400 });
+          }
+          roomsByAlias.set(alias, AS_ROOM);
+        }
         return new Response(JSON.stringify({ room_id: AS_ROOM }), { status: 200 });
       }
       if (/\/rooms\/[^/]+\/join(\?|$)/.test(url)) {
@@ -1801,10 +1817,13 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
   let displayNameTimeoutSignalObserved = false;
   let timeoutSignalObserved = false;
   let joinedMemberIds: string[] = [];
+  const directRoomsByAlias = new Map<string, string>();
 
   const SERVER_NAME2 = "example.com";
   const AS_TOKEN2 = "test-as-token";
   const AS_ROOM2 = "!mockdirectroom:example.com";
+  const vId2 = (appUserId: string) =>
+    `@appuser-${appUserId.replace(/-/g, "")}:${SERVER_NAME2}`;
 
   beforeAll(async () => {
     process.env.MATRIX_BASE_URL = "https://matrix.example.com";
@@ -1943,13 +1962,32 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
       if (url.includes("/profile/") && url.includes("/displayname")) {
         return new Response(JSON.stringify({}), { status: 200 });
       }
+      if (url.includes("/_matrix/client/v3/directory/room/")) {
+        const alias = decodeURIComponent(url.split("/directory/room/")[1].split("?")[0]);
+        const roomId = directRoomsByAlias.get(alias);
+        return roomId
+          ? new Response(JSON.stringify({ room_id: roomId }), { status: 200 })
+          : new Response(JSON.stringify({ errcode: "M_NOT_FOUND" }), { status: 404 });
+      }
       if (url.includes("/createRoom")) {
         createRoomCalls++;
         const creator = new URL(url).searchParams.get("user_id");
-        const body = JSON.parse(String(init?.body ?? "{}")) as { invite?: string[] };
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          invite?: string[];
+          room_alias_name?: string;
+        };
         joinedMemberIds = [creator, body.invite?.[0]].filter(
           (id): id is string => Boolean(id),
         );
+        const alias = body.room_alias_name
+          ? `#${body.room_alias_name}:${SERVER_NAME2}`
+          : null;
+        if (alias && directRoomsByAlias.has(alias)) {
+          return new Response(JSON.stringify({ errcode: "M_ROOM_IN_USE" }), { status: 400 });
+        }
+        // Simulate Matrix accepting createRoom before a lost response/crash.
+        // The retry must resolve this alias instead of creating again.
+        if (alias) directRoomsByAlias.set(alias, AS_ROOM2);
         if (delayFirstCreateRoom && createRoomCalls === 1) {
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
@@ -2175,8 +2213,8 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
         .where(and(eq(chatRoomsTable.shopId, shopA.id), eq(chatRoomsTable.peerKey, peerKey)));
       expect(rows).toHaveLength(1);
 
-      // A retry is bounded but cannot issue a second createRoom call after an
-      // ambiguous timeout, because Matrix may have accepted the first request.
+       // Matrix accepted the aliased create before its response was lost. A
+       // retry resolves that same alias instead of issuing another createRoom.
       const retry = await request(app)
         .post("/api/chat/rooms")
         .set("Authorization", `Bearer ${dealerTokenA}`)
@@ -2186,13 +2224,75 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
           targetUserId: timeoutTarget.id,
           matchToken,
         });
-      expect(retry.status).toBe(503);
+       expect(retry.status).toBe(200);
+       expect(retry.body.created).toBe(false);
       expect(createRoomCalls).toBe(1);
 
       await db.delete(chatRoomsTable).where(eq(chatRoomsTable.id, rows[0].id));
     } finally {
       hangCreateRoomUntilAbort = false;
       delete process.env.MATRIX_PROVISION_TIMEOUT_MS;
+    }
+  });
+
+  it("recovers a crash-after-create reservation and concurrent retries converge on its Matrix alias", async () => {
+    const peerKey = [dealerA.id, timeoutTarget.id].sort().join(":");
+    const provisionKey = sha256(`matrix-direct-room:v1:${shopA.id}:${peerKey}`);
+    const alias = `#appchat-${provisionKey.slice(0, 40)}:${SERVER_NAME2}`;
+    const remoteRoomId = "!crash-recovered:example.com";
+    // This represents Matrix having accepted createRoom immediately before the
+    // original process died, while the database row remained memberless.
+    directRoomsByAlias.set(alias, remoteRoomId);
+    joinedMemberIds = [vId2(dealerA.id), vId2(timeoutTarget.id)];
+    createRoomCalls = 0;
+    const [crashedReservation] = await db.insert(chatRoomsTable).values({
+      shopId: shopA.id,
+      kind: "direct",
+      name: "Crash Recovery Direct Room",
+      providerRoomId: null,
+      peerKey,
+      provisionKey,
+      provisionAttemptId: "00000000-0000-4000-8000-000000000113",
+      provisionLeaseUntil: new Date(Date.now() - 1_000),
+      createdById: dealerA.id,
+      createdByName: "Dealer A",
+    }).returning();
+    const matchToken = await issueContactMatchGrant(dealerA.id, timeoutTarget.id, shopA.id);
+    const payload = {
+      name: "Crash Recovery Direct Room",
+      kind: "direct",
+      targetUserId: timeoutTarget.id,
+      matchToken,
+    };
+
+    try {
+      const [first, second] = await Promise.all([
+        request(app).post("/api/chat/rooms").set("Authorization", `Bearer ${dealerTokenA}`).send(payload),
+        request(app).post("/api/chat/rooms").set("Authorization", `Bearer ${dealerTokenA}`).send(payload),
+      ]);
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(first.body.room.id).toBe(crashedReservation.id);
+      expect(second.body.room.id).toBe(crashedReservation.id);
+      expect(first.body.room.providerRoomId).toBe(remoteRoomId);
+      expect(createRoomCalls).toBe(0);
+
+      const [recovered] = await db
+        .select()
+        .from(chatRoomsTable)
+        .where(eq(chatRoomsTable.id, crashedReservation.id));
+      expect(recovered.providerRoomId).toBe(remoteRoomId);
+      const members = await db
+        .select({ userId: chatRoomMembersTable.userId })
+        .from(chatRoomMembersTable)
+        .where(eq(chatRoomMembersTable.roomId, crashedReservation.id));
+      expect(members.map((member) => member.userId).sort()).toEqual(
+        [dealerA.id, timeoutTarget.id].sort(),
+      );
+    } finally {
+      await db.delete(chatRoomMembersTable).where(eq(chatRoomMembersTable.roomId, crashedReservation.id));
+      await db.delete(chatRoomsTable).where(eq(chatRoomsTable.id, crashedReservation.id));
+      directRoomsByAlias.delete(alias);
     }
   });
 

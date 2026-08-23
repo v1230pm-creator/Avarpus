@@ -14,10 +14,10 @@
  * Client-Server API `?user_id=` sender-impersonation query parameter.
  *
  * Operators MUST register this service with the homeserver via an appservice
- * registration YAML whose user namespace covers `@appuser-.*` (see
- * MATRIX_APPSERVICE_NAMESPACE_PREFIX below) and whose `as_token` matches
- * MATRIX_APP_SERVICE_TOKEN. The homeserver `server_name` MUST equal
- * MATRIX_SERVER_NAME.
+ * registration YAML whose user namespace covers `@appuser-.*` and whose room
+ * alias namespace covers `#appchat-.*` (see the prefixes below), and whose
+ * `as_token` matches MATRIX_APP_SERVICE_TOKEN. The homeserver `server_name`
+ * MUST equal MATRIX_SERVER_NAME.
  *
  * Environment variables:
  *   MATRIX_BASE_URL            — homeserver Client-Server API base,
@@ -46,6 +46,7 @@ import crypto from "node:crypto";
  * (`@appuser-.*:<server_name>`) claims the whole namespace.
  */
 export const MATRIX_APPSERVICE_NAMESPACE_PREFIX = "appuser-";
+export const MATRIX_DIRECT_ROOM_ALIAS_PREFIX = "appchat-";
 
 /**
  * Hard deadline for a complete Matrix room-provisioning attempt.  This is an
@@ -165,6 +166,50 @@ export function matrixLocalpartForApp(appUserId: string): string {
 }
 
 /**
+ * The deterministic alias localpart for a direct-room reservation. The
+ * provision key is a SHA-256 hex value generated and durably stored by the
+ * API before Matrix work begins. Truncation remains collision-resistant while
+ * keeping the alias comfortably inside Matrix localpart limits.
+ */
+export function matrixDirectRoomAliasLocalpart(provisionKey: string): string {
+  if (!/^[a-f0-9]{32,}$/i.test(provisionKey)) {
+    throw new Error("Invalid Matrix direct-room provision key");
+  }
+  return `${MATRIX_DIRECT_ROOM_ALIAS_PREFIX}${provisionKey.slice(0, 40).toLowerCase()}`;
+}
+
+export function matrixDirectRoomAlias(provisionKey: string): string {
+  return `#${matrixDirectRoomAliasLocalpart(provisionKey)}:${matrixServerName()}`;
+}
+
+/**
+ * Resolve an app-owned direct-room alias. A missing alias is a normal result;
+ * all other provider failures remain explicit so callers never guess at a
+ * room from mutable metadata such as its name or topic.
+ */
+export async function matrixResolveDirectRoomAlias(
+  provisionKey: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  requireMatrixConfigured();
+  const alias = matrixDirectRoomAlias(provisionKey);
+  const resp = await fetch(
+    matrixUrl(`/_matrix/client/v3/directory/room/${encodeURIComponent(alias)}`),
+    { method: "GET", headers: matrixHeaders(), signal },
+  );
+  if (resp.status === 404) return null;
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => "");
+    throw new Error(`Matrix room alias lookup failed: ${resp.status} ${body}`);
+  }
+  const data = (await resp.json()) as { room_id?: unknown };
+  if (typeof data.room_id !== "string" || !data.room_id) {
+    throw new Error("Matrix room alias lookup returned no room_id");
+  }
+  return data.room_id;
+}
+
+/**
  * Ensure a virtual user exists via the Client-Server AS registration flow
  * (`m.login.application_service`). Idempotent: a homeserver that already knows
  * the user returns HTTP 400 with errcode `M_USER_IN_USE`, which we treat as
@@ -252,6 +297,8 @@ export async function matrixCreateDirectRoom(opts: {
   creatorUserId: string;
   /** Matrix user_id of the invited (target) virtual participant. */
   inviteUserId: string;
+  /** App-owned deterministic alias localpart; makes create/recovery idempotent. */
+  roomAliasLocalpart: string;
   signal?: AbortSignal;
 }): Promise<string> {
   requireMatrixConfigured();
@@ -266,6 +313,7 @@ export async function matrixCreateDirectRoom(opts: {
         preset: "trusted_private_chat",
         visibility: "private",
         is_direct: true,
+        room_alias_name: opts.roomAliasLocalpart,
         invite: [opts.inviteUserId],
         initial_state: [],
       }),
@@ -274,6 +322,15 @@ export async function matrixCreateDirectRoom(opts: {
   );
   if (!resp.ok) {
     const body = await resp.text().catch(() => "");
+    // A concurrent/recovered creator may already have claimed the deterministic
+    // alias. Resolve that exact alias rather than attempting another create.
+    if (resp.status === 400 && body.includes("M_ROOM_IN_USE")) {
+      const existing = await matrixResolveDirectRoomAlias(
+        opts.roomAliasLocalpart.slice(MATRIX_DIRECT_ROOM_ALIAS_PREFIX.length),
+        opts.signal,
+      );
+      if (existing) return existing;
+    }
     throw new Error(`Matrix createRoom failed: ${resp.status} ${body}`);
   }
   const data = (await resp.json()) as { room_id: string };
@@ -367,6 +424,7 @@ export async function matrixJoinedMembers(
 export async function matrixProvisionDirectRoom(opts: {
   name: string;
   topic: string;
+  provisionKey: string;
   initiator: { appUserId: string; displayName: string };
   target: { appUserId: string; displayName: string };
 }): Promise<{
@@ -378,7 +436,7 @@ export async function matrixProvisionDirectRoom(opts: {
   const timeout = matrixProvisionTimeoutMs();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
-  let phase: "ensure" | "create" | "join" | "members" = "ensure";
+  let phase: "ensure" | "lookup" | "create" | "join" | "members" = "ensure";
 
   try {
     const initiatorLocalpart = matrixLocalpartForApp(opts.initiator.appUserId);
@@ -401,14 +459,20 @@ export async function matrixProvisionDirectRoom(opts: {
       throw new Error("Matrix target ensure timed out");
     }
 
-    phase = "create";
-    const matrixRoomId = await matrixCreateDirectRoom({
-      name: opts.name,
-      topic: opts.topic,
-      creatorUserId: initiatorUserId,
-      inviteUserId: targetUserId,
-      signal: controller.signal,
-    });
+    const roomAliasLocalpart = matrixDirectRoomAliasLocalpart(opts.provisionKey);
+    phase = "lookup";
+    let matrixRoomId = await matrixResolveDirectRoomAlias(opts.provisionKey, controller.signal);
+    if (!matrixRoomId) {
+      phase = "create";
+      matrixRoomId = await matrixCreateDirectRoom({
+        name: opts.name,
+        topic: opts.topic,
+        creatorUserId: initiatorUserId,
+        inviteUserId: targetUserId,
+        roomAliasLocalpart,
+        signal: controller.signal,
+      });
+    }
 
     phase = "join";
     await matrixJoinRoomAs(matrixRoomId, targetUserId, controller.signal);
@@ -447,7 +511,7 @@ export async function matrixProvisionDirectRoom(opts: {
       providerError.code =
         phase === "ensure"
           ? "MATRIX_ENSURE_FAILED"
-          : phase === "create"
+          : phase === "create" || phase === "lookup"
             ? "MATRIX_CREATE_FAILED"
             : phase === "join"
               ? "MATRIX_JOIN_FAILED"
