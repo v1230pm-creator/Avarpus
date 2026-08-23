@@ -9,6 +9,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useColorScheme,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -31,6 +32,7 @@ import {
   useRepairsList,
 } from '@workspace/api-client-react';
 import type { ChatContact, ChatRoom } from '@workspace/api-client-react';
+import { APP_BRAND, getAvarpusLogo } from '@/constants/branding';
 
 const PHONE_BATCH_SIZE = 50;
 
@@ -763,6 +765,7 @@ function RepairHomeItem({
 
 function RepairHomeScreen() {
   const colors = useColors();
+  const scheme = useColorScheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { canAccess } = useAuth();
@@ -845,11 +848,10 @@ function RepairHomeScreen() {
           <Feather name="menu" size={27} color={colors.foreground} />
         </TouchableOpacity>
 
-        <Image
-          source={require('@/assets/images/vmc-text.png')}
-          style={[styles.vmcLogo, { tintColor: colors.primary }]}
-          resizeMode="contain"
-        />
+        <View style={styles.brandLockup}>
+          <Image source={getAvarpusLogo(scheme)} style={styles.brandLogo} resizeMode="contain" />
+          <Text style={[styles.brandName, { color: colors.foreground }]}>{APP_BRAND}</Text>
+        </View>
 
         <View style={styles.headerActions}>
           <TouchableOpacity
@@ -1182,9 +1184,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 1,
   },
-  vmcLogo: {
-    width: 88,
-    height: 31,
+  brandLockup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  brandLogo: {
+    width: 38,
+    height: 38,
+  },
+  brandName: {
+    fontSize: 16,
+    fontFamily: 'Inter_700Bold',
   },
   searchRow: {
     flexDirection: 'row',

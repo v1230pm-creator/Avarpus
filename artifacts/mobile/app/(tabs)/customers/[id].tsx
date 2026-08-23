@@ -71,7 +71,7 @@ export default function CustomerDetailScreen() {
     try {
       await Share.share({
         message:
-          `Open VMC Electronic BMS, choose “Activate Account” on the sign-in screen, and enter this single-use token:\n\n` +
+          `Open Avarpus, choose “Activate Account” on the sign-in screen, and enter this single-use token:\n\n` +
           `${inviteResult.token}\n\nExpires: ${new Date(inviteResult.expiresAt).toLocaleString()}`,
         title: 'Customer Activation Token',
       });

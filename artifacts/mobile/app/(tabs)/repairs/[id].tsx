@@ -429,7 +429,7 @@ export default function RepairDetailScreen() {
       const html = `
         <html>
           <body style="font-family: sans-serif; padding: 24px; color: #111;">
-            <h2 style="text-align: center; margin-bottom: 4px;">VMC Electronics</h2>
+            <h2 style="text-align: center; margin-bottom: 4px;">Avarpus</h2>
             <p style="text-align: center; margin-top: 0;">Payment Receipt</p>
             <hr />
             <p><strong>Ticket:</strong> ${repair.repairId}</p>
@@ -893,7 +893,7 @@ export default function RepairDetailScreen() {
       const html = `
         <html>
           <body style="font-family: sans-serif; padding: 20px;">
-            <h1 style="text-align: center;">VMC Electronics - Job Card</h1>
+            <h1 style="text-align: center;">Avarpus - Job Card</h1>
             <hr />
             <div style="display: flex; justify-content: space-between;">
               <div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
@@ -11,12 +11,15 @@ import { useAuth } from '@/context/AuthContext';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
+import { getAvarpusLogo } from '@/constants/branding';
 
 export default function LoginScreen() {
   const { signedOutNotice, clearSignedOutNotice } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useColors();
+  const scheme = useColorScheme();
+  const isDark = scheme === 'dark';
 
   const [rememberMe, setRememberMe] = useState(false);
 
@@ -49,8 +52,8 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 280, backgroundColor: '#0F172A' }} />
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
+       <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 280, backgroundColor: isDark ? '#0F172A' : '#F7F3EC' }} />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 }]}
         showsVerticalScrollIndicator={false}
@@ -58,17 +61,11 @@ export default function LoginScreen() {
       >
         <View style={styles.header}>
           <Image
-            source={require('@/assets/images/vmc-text.png')}
+            source={getAvarpusLogo(scheme)}
             style={styles.logoImg}
             contentFit="contain"
           />
-          <Text style={[styles.electronicText, { color: '#94A3B8' }]}>ELECTRONIC</Text>
-          <Image
-            source={require('@/assets/images/vmc-hands.png')}
-            style={styles.handsImg}
-            contentFit="contain"
-          />
-          <Text style={[styles.tagline, { color: '#94A3B8' }]}>Business Management System</Text>
+          <Text style={[styles.tagline, { color: isDark ? '#94A3B8' : '#475569' }]}>Business Management System</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -134,10 +131,8 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   scroll: { paddingHorizontal: 20, gap: 32 },
-  header: { alignItems: 'center', gap: 4 },
-  logoImg: { width: 180, height: 44 },
-  electronicText: { fontSize: 12, letterSpacing: 4, fontFamily: 'Inter_500Medium' },
-  handsImg: { width: 160, height: 36, marginTop: 4 },
+  header: { alignItems: 'center', gap: 6 },
+  logoImg: { width: 132, height: 132 },
   tagline: { fontSize: 13, marginTop: 4, fontFamily: 'Inter_400Regular' },
   card: { borderRadius: 16, padding: 24, borderWidth: 1, gap: 20, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 16, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
   cardHeader: { gap: 4 },

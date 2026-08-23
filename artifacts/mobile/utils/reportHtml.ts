@@ -354,7 +354,7 @@ export function buildReportHtml(reportId: string, data: ReportData): BuiltReport
 </head>
 <body>
   <h1>${esc(t.title)}</h1>
-  <div class="meta">${esc(data.shopName ?? 'VMC Electronic BMS')} · Generated ${esc(generatedAt)}</div>
+   <div class="meta">${esc(data.shopName ?? 'Avarpus')} · Generated ${esc(generatedAt)}</div>
   <div class="summary">${t.summary.map((s) => `<div>${esc(s)}</div>`).join('')}</div>
   ${body}
 </body>

@@ -521,7 +521,7 @@ export default function AppUpdateScreen() {
           url,
           fileName: `vmc-update-${latest.buildNumber}-${latest.checksum.slice(0, 12)}.apk`,
           headers: token ? { Authorization: `Bearer ${token}` } : {},
-          title: `VMC Electronic BMS v${latest.version}`,
+          title: `Avarpus v${latest.version}`,
           description: `Downloading build ${latest.buildNumber}`,
           identity: `${latest.buildNumber}:${latest.checksum.toLowerCase()}`,
           metadataJson: JSON.stringify({ update: latest, startedAt }),
@@ -677,7 +677,7 @@ export default function AppUpdateScreen() {
     } catch {
       Alert.alert(
         'Permission needed',
-        'To install updates, allow this app to install unknown apps:\n\nSettings → Apps → Special app access → Install unknown apps → VMC Electronic BMS → Allow.',
+          'To install updates, allow this app to install unknown apps:\n\nSettings → Apps → Special app access → Install unknown apps → Avarpus → Allow.',
         [
           { text: 'Cancel', style: 'cancel' },
           {

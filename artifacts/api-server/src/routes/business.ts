@@ -2372,7 +2372,7 @@ router.post(
       return;
     }
     const { balance } = computeTotals(repair);
-    const businessName = me.businessName ?? "VMC Electronic";
+    const businessName = me.businessName ?? "Avarpus";
     await sendReadyEmail(email, {
       customerName: repair.customerName,
       brand: repair.brand,

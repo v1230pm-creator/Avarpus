@@ -153,7 +153,7 @@ export default function MoreScreen() {
 
         {/* Version info */}
         <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-          VMC Electronic BMS v{currentVersion} (Build {currentBuild})
+          Avarpus v{currentVersion} (Build {currentBuild})
         </Text>
 
         {/* Logout */}

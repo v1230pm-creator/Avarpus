@@ -1148,7 +1148,7 @@ export default function ChatScreen() {
           style={styles.disabledHeaderAction}
           accessibilityLabel="Open chat menu"
           onPress={() =>
-            Alert.alert('Chat options', 'VMC chat is for communication only.')
+            Alert.alert('Chat options', 'Avarpus chat is for communication only.')
           }
         >
           <Feather name="more-vertical" size={21} color={colors.foreground} />
@@ -1166,7 +1166,7 @@ export default function ChatScreen() {
           <Feather name="lock" size={13} color={colors.warning} />
           <View style={styles.chatSafetyCopy}>
             <Text style={[styles.chatSafetyTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
-              VMC private conversation
+              Avarpus private conversation
             </Text>
             <Text style={[styles.chatSafetyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
               Communication only.

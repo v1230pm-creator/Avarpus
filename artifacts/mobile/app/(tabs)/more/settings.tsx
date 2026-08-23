@@ -45,9 +45,9 @@ export default function SettingsScreen() {
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
-  const [companyName, setCompanyName] = useState('VMC Electronic');
+  const [companyName, setCompanyName] = useState('Avarpus');
   const [phone, setPhone] = useState('+91 98765 43210');
-  const [email, setEmail] = useState('info@vmcelectronic.com');
+  const [email, setEmail] = useState('support@avarpus.app');
   const [address, setAddress] = useState('123 Tech Street, Bengaluru, Karnataka 560001');
   const [gst, setGst] = useState('29ABCDE1234F1Z5');
   const [currency, setCurrency] = useState('INR');
@@ -199,7 +199,7 @@ export default function SettingsScreen() {
           <View style={styles.configRow}>
             <View>
               <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>App Version</Text>
-              <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>VMC Electronic BMS</Text>
+              <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Avarpus</Text>
             </View>
             <Text style={[styles.versionText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
               v{currentVersion} (Build {currentBuild})

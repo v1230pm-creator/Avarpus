@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Server, Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
+import { AvarpusLogo } from '@/components/AvarpusLogo';
 
 const loginSchema = z.object({
   identifier: z.string().min(1, 'Email or Mobile is required'),
@@ -59,10 +60,8 @@ export default function Login() {
     <div className="min-h-screen bg-background flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="h-16 w-16 bg-primary rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-primary/20">
-            <Server className="h-8 w-8 text-primary-foreground" />
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">VMC Release Console</h1>
+          <AvarpusLogo className="h-28 w-28 rounded-[1.75rem] shadow-lg mb-4" />
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Avarpus Release Console</h1>
           <p className="text-muted-foreground mt-2">Sign in to manage and ship over-the-air updates</p>
         </div>
         
@@ -88,7 +87,7 @@ export default function Login() {
                     <FormItem>
                       <FormLabel>Email or Mobile</FormLabel>
                       <FormControl>
-                        <Input placeholder="admin@vmc.com" {...field} />
+                        <Input placeholder="admin@avarpus.app" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

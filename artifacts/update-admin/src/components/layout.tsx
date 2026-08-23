@@ -7,11 +7,11 @@ import {
   PackageSearch,
   PlusCircle,
   Menu,
-  X,
-  Server
+  X
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { AvarpusLogo } from "@/components/AvarpusLogo"
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation()
@@ -39,8 +39,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 border-b bg-sidebar text-sidebar-foreground">
         <div className="flex items-center gap-2 font-bold tracking-tight">
-          <Server className="h-5 w-5 text-primary" />
-          <span>VMC Update Admin</span>
+          <AvarpusLogo className="h-9 w-9 rounded-lg" />
+          <span>Avarpus Update Admin</span>
         </div>
         <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} className="text-sidebar-foreground">
           {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -52,11 +52,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         "fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 flex flex-col",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="p-6 hidden md:flex items-center gap-3">
-          <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
-            <Server className="h-4 w-4 text-primary-foreground" />
-          </div>
-          <span className="font-bold text-lg tracking-tight">VMC Admin</span>
+          <div className="p-5 hidden md:flex items-center gap-3">
+           <AvarpusLogo className="h-11 w-11 rounded-xl" />
+           <span className="font-bold text-lg tracking-tight">Avarpus Admin</span>
         </div>
 
         <nav className="flex-1 px-4 py-4 space-y-1">

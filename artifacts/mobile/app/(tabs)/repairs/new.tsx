@@ -533,7 +533,7 @@ export default function NewRepairScreen() {
       };
 
       const r = createdRepair;
-      const shopName = user?.businessName || 'VMC Electronics';
+      const shopName = user?.businessName || 'Avarpus';
       const shopLines = [user?.shopAddress, user?.gstNumber ? `GSTIN: ${user.gstNumber}` : '', user?.mobile ? `Mobile: ${user.mobile}` : '']
         .filter(Boolean).map(l => `<div class="shopline">${esc(l!)}</div>`).join('');
 

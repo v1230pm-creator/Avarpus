@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { UserPlus, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AvarpusLogo } from '@/components/AvarpusLogo';
 
 type Step = 'details' | 'code' | 'done';
 
@@ -62,11 +63,9 @@ export default function Register() {
     <div className="min-h-screen bg-background flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="h-16 w-16 bg-primary rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-primary/20">
-            <UserPlus className="h-8 w-8 text-primary-foreground" />
-          </div>
+          <AvarpusLogo className="h-24 w-24 rounded-3xl shadow-lg mb-4" />
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Create Account</h1>
-          <p className="text-muted-foreground mt-2">Register for VMC Electronic BMS</p>
+          <p className="text-muted-foreground mt-2">Register for Avarpus</p>
         </div>
 
         <Card className="border-border/50 shadow-xl">
@@ -175,7 +174,7 @@ export default function Register() {
                   <CheckCircle2 className="h-4 w-4" />
                   <AlertDescription>
                     Account created successfully. Note: the Release Console itself is restricted to
-                    super admin accounts — use the VMC mobile app to sign in, or contact the
+                    super admin accounts — use the Avarpus mobile app to sign in, or contact the
                     administrator for console access.
                   </AlertDescription>
                 </Alert>

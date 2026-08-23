@@ -155,7 +155,7 @@ export default function ReportsScreen() {
         const periodLabel = collectionDays === 1 ? 'Today' : collectionDays ? `Last ${collectionDays} days` : 'All time';
         const html = `
           <html><body style="font-family: sans-serif; padding: 24px; color: #111;">
-            <h2 style="text-align:center;margin-bottom:2px;">${user?.businessName || 'VMC Electronics'}</h2>
+            <h2 style="text-align:center;margin-bottom:2px;">${user?.businessName || 'Avarpus'}</h2>
             <p style="text-align:center;margin-top:0;">Collection Report — ${periodLabel}</p>
             <hr />
             <h3>Totals by Payment Method</h3>
@@ -205,7 +205,7 @@ export default function ReportsScreen() {
         const totalRepaired = rows.reduce((s: number, d: any) => s + d.repaired, 0);
         const html = `
           <html><body style="font-family: sans-serif; padding: 24px; color: #111;">
-            <h2 style="text-align:center;margin-bottom:2px;">${user?.businessName || 'VMC Electronics'}</h2>
+            <h2 style="text-align:center;margin-bottom:2px;">${user?.businessName || 'Avarpus'}</h2>
             <p style="text-align:center;margin-top:0;">Daily Received vs Repaired — Last 30 days</p>
             <hr />
             <table style="width:100%;border-collapse:collapse;" border="1" cellpadding="6">

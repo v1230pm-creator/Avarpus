@@ -7,7 +7,7 @@ import { ReplitConnectors } from "@replit/connectors-sdk";
 // Sender address is driven by the MAIL_FROM env secret. Until a verified
 // domain is configured in Resend, fall back to Resend's shared onboarding
 // sender, which can only deliver to the Resend account owner's email.
-const FALLBACK_FROM = "VMC Electronic BMS <onboarding@resend.dev>";
+const FALLBACK_FROM = "Avarpus <onboarding@resend.dev>";
 
 export function getMailFrom(): string {
   return process.env["MAIL_FROM"] || FALLBACK_FROM;
@@ -30,9 +30,9 @@ export async function sendOtpEmail(
 ): Promise<void> {
   await sendEmail(
     to,
-    `${code} is your VMC Electronic verification code`,
+    `${code} is your Avarpus verification code`,
     buildHtml(purposeLabel, code),
-    `Your VMC Electronic BMS ${purposeLabel} code is: ${code}\n\nThis code expires in 10 minutes. If you did not request it, ignore this email.`,
+    `Your Avarpus ${purposeLabel} code is: ${code}\n\nThis code expires in 10 minutes. If you did not request it, ignore this email.`,
   );
 }
 
@@ -62,14 +62,14 @@ export async function sendStaffApprovedEmail(
 ): Promise<void> {
   await sendEmail(
     to,
-    "Your VMC Electronic BMS account was approved",
+    "Your Avarpus account was approved",
     buildStaffDecisionHtml(
       name,
       "Account approved",
       "#22C55E",
-      "Your registration has been approved. You can now sign in to VMC Electronic BMS with your email and password.",
+      "Your registration has been approved. You can now sign in to Avarpus with your email and password.",
     ),
-    `Hi ${name},\n\nYour registration has been approved. You can now sign in to VMC Electronic BMS with your email and password.\n\nThank you,\nVMC Electronic BMS`,
+    `Hi ${name},\n\nYour registration has been approved. You can now sign in to Avarpus with your email and password.\n\nThank you,\nAvarpus`,
   );
 }
 
@@ -79,14 +79,14 @@ export async function sendStaffRejectedEmail(
 ): Promise<void> {
   await sendEmail(
     to,
-    "Your VMC Electronic BMS registration was declined",
+    "Your Avarpus registration was declined",
     buildStaffDecisionHtml(
       name,
       "Registration declined",
       "#F87171",
       "Unfortunately, your registration was declined and the account has been removed. If you believe this is a mistake, please contact your shop administrator.",
     ),
-    `Hi ${name},\n\nUnfortunately, your registration was declined and the account has been removed. If you believe this is a mistake, please contact your shop administrator.\n\nVMC Electronic BMS`,
+    `Hi ${name},\n\nUnfortunately, your registration was declined and the account has been removed. If you believe this is a mistake, please contact your shop administrator.\n\nAvarpus`,
   );
 }
 
@@ -104,7 +104,7 @@ function buildStaffDecisionHtml(
     <tr><td align="center" style="padding:40px 16px;">
       <table width="480" cellpadding="0" cellspacing="0" style="background:#0F172A;border-radius:16px;border:1px solid #1E293B;">
         <tr><td style="padding:32px 40px 16px;text-align:center;">
-          <h1 style="margin:0 0 8px;font-size:22px;color:#F1F5F9;">VMC Electronic BMS</h1>
+          <h1 style="margin:0 0 8px;font-size:22px;color:#F1F5F9;">Avarpus</h1>
           <p style="margin:0;color:${headlineColor};font-size:15px;font-weight:600;">${headline}</p>
         </td></tr>
         <tr><td style="padding:8px 40px 32px;color:#CBD5E1;font-size:14px;line-height:1.6;">
@@ -148,13 +148,13 @@ function buildReadyHtml(
 function buildHtml(label: string, code: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>VMC Electronic OTP</title></head>
+<head><meta charset="UTF-8"><title>Avarpus OTP</title></head>
 <body style="margin:0;padding:0;font-family:sans-serif;background:#0D1528;color:#F1F5F9;">
   <table width="100%" cellpadding="0" cellspacing="0">
     <tr><td align="center" style="padding:40px 16px;">
       <table width="480" cellpadding="0" cellspacing="0" style="background:#0F172A;border-radius:16px;border:1px solid #1E293B;">
         <tr><td style="padding:32px 40px 24px;text-align:center;">
-          <h1 style="margin:0 0 8px;font-size:22px;color:#F1F5F9;">VMC Electronic BMS</h1>
+          <h1 style="margin:0 0 8px;font-size:22px;color:#F1F5F9;">Avarpus</h1>
           <p style="margin:0;color:#64748B;font-size:14px;">Verification Code — ${label}</p>
         </td></tr>
         <tr><td style="padding:8px 40px 24px;text-align:center;">

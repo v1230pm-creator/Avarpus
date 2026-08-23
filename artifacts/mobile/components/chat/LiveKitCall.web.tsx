@@ -27,7 +27,7 @@ export function LiveKitCall({ onHangup }: LiveKitCallProps) {
           Calls require the installed app
         </Text>
         <Text style={[styles.body, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-          Voice and video calls are available in the VMC Electronic BMS Android or iOS app.
+          Voice and video calls are available in the Avarpus Android or iOS app.
           They are not supported in the browser or Expo Go.
         </Text>
         <View style={[styles.e2eeRow, { backgroundColor: colors.backgroundSecondary }]}>

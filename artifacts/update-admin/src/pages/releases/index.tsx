@@ -32,7 +32,7 @@ export default function Releases() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Releases</h1>
-          <p className="text-muted-foreground mt-1">Manage all versions of the VMC Android app.</p>
+          <p className="text-muted-foreground mt-1">Manage all versions of the Avarpus Android app.</p>
         </div>
         <Button asChild>
           <Link href="/releases/new">

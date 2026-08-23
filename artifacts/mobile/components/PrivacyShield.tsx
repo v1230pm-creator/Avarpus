@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AppState, Image, StyleSheet, View, useColorScheme } from 'react-native';
 import colors from '@/constants/colors';
+import { getAvarpusLogo } from '@/constants/branding';
 
 /**
  * Covers the whole UI with a branded opaque overlay whenever the app is not
@@ -35,7 +36,7 @@ export function PrivacyShield() {
       importantForAccessibility="no-hide-descendants"
     >
       <Image
-        source={require('@/assets/images/vmc-logo.png')}
+        source={getAvarpusLogo(scheme)}
         style={styles.logo}
         resizeMode="contain"
       />

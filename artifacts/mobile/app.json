@@ -1,17 +1,21 @@
 {
   "expo": {
-    "name": "VMC Electronic BMS",
+    "name": "Avarpus",
     "slug": "vmcelectronicerp",
     "version": "1.0.3",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/avarpus-icon.png",
     "scheme": "vmcelectronicerp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/icon.png",
+      "image": "./assets/images/avarpus-splash-light.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#f7f3ec",
+      "dark": {
+        "image": "./assets/images/avarpus-splash-dark.png",
+        "backgroundColor": "#0f1d2d"
+      }
     },
     "ios": {
       "supportsTablet": false,
@@ -23,7 +27,7 @@
       "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES"]
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/avarpus-favicon.png"
     },
     "plugins": [
       [
@@ -38,13 +42,13 @@
       [
         "expo-contacts",
         {
-          "contactsPermission": "Allow VMC Electronic BMS to find registered contacts without uploading an app-wide directory."
+          "contactsPermission": "Allow Avarpus to find registered contacts without uploading an app-wide directory."
         }
       ],
       [
         "expo-audio",
         {
-          "microphonePermission": "Allow VMC Electronic BMS to record voice notes and use audio calls."
+          "microphonePermission": "Allow Avarpus to record voice notes and use audio calls."
         }
       ],
       "@livekit/react-native-expo-plugin",
@@ -52,7 +56,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow VMC Electronic BMS to scan repair QR codes and use video calls."
+          "cameraPermission": "Allow Avarpus to scan repair QR codes and use video calls."
         }
       ]
     ],

@@ -100,6 +100,15 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
 }
 
 function App() {
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-color-scheme: dark)');
+    const syncTheme = () => document.documentElement.classList.toggle('dark', query.matches);
+
+    syncTheme();
+    query.addEventListener('change', syncTheme);
+    return () => query.removeEventListener('change', syncTheme);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
