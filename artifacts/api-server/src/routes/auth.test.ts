@@ -507,6 +507,63 @@ describe("POST /api/auth/otp/verify", () => {
     await db.delete(usersTable).where(eq(usersTable.id, concurrentUser.id));
   });
 
+  it("does not start a second MSG91 verification while a delayed one owns the reservation", async () => {
+    const delayedMobile = `2${RUN}`;
+    const [delayedUser] = await db
+      .insert(usersTable)
+      .values({
+        name: "Delayed OTP Provider Test",
+        email: `delayed-otp-${RUN}@example.test`,
+        mobile: delayedMobile,
+        passwordHash: hashPassword(PASSWORD),
+        role: "dealer",
+        isActive: true,
+      })
+      .returning();
+
+    mockMsg91Verify.mockClear();
+    let providerStarted!: () => void;
+    const providerStartedPromise = new Promise<void>((resolve) => {
+      providerStarted = resolve;
+    });
+    let releaseProvider!: () => void;
+    const releaseProviderPromise = new Promise<void>((resolve) => {
+      releaseProvider = resolve;
+    });
+    mockMsg91Verify.mockImplementation(async (): Promise<Msg91Result> => {
+      providerStarted();
+      await releaseProviderPromise;
+      return { ok: false, reason: "MSG91 verify timed out" };
+    });
+
+    const firstAttempt = request(app)
+      .post("/api/auth/otp/verify")
+      .send({ mobile: delayedMobile, code: "000000" })
+      .then((res) => res);
+    await providerStartedPromise;
+
+    const retryWhilePending = await request(app)
+      .post("/api/auth/otp/verify")
+      .send({ mobile: delayedMobile, code: "000000" });
+
+    expect(retryWhilePending.status).toBe(429);
+    expect(retryWhilePending.body.message).toMatch(/verification already in progress/i);
+    expect(mockMsg91Verify).toHaveBeenCalledTimes(1);
+
+    releaseProvider();
+    expect((await firstAttempt).status).toBe(401);
+
+    await db
+      .delete(otpVerificationRateLimitsTable)
+      .where(
+        eq(
+          otpVerificationRateLimitsTable.keyHash,
+          otpVerificationRateLimitKeyHash(`otpverify:${delayedMobile}`),
+        ),
+      );
+    await db.delete(usersTable).where(eq(usersTable.id, delayedUser.id));
+  });
+
   it("does not issue a session when MSG91 call throws (provider error)", async () => {
     mockMsg91Verify.mockRejectedValueOnce(new Error("MSG91 network error"));
     const res = await request(app)
