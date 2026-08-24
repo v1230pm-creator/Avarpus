@@ -1,6 +1,6 @@
-# [Project name]
+# Avarpus
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Repair-shop management for customer intake, repairs, inventory, finance, and customer notifications.
 
 ## Run & Operate
 
@@ -10,18 +10,19 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
-- Optional env: `MAIL_FROM` — verified email sender for OTP emails (see "Email sender configuration" below)
+- Required for customer email: `MAIL_FROM` — verified Avarpus sender (see "Email sender configuration" below)
 
 ## Email sender configuration
 
-OTP emails are sent via the Resend integration. The sender address comes from the `MAIL_FROM` environment secret:
+OTP emails and customer notifications are sent via the Resend integration. The sender address comes from the `MAIL_FROM` workspace configuration:
 
-- If `MAIL_FROM` is not set, the server falls back to `VMC Electronic BMS <onboarding@resend.dev>` and logs a startup warning. With this fallback, Resend only delivers to the Resend account owner's own email address — real users will NOT receive OTPs.
-- To send to real users:
-  1. Verify your domain (e.g. `vmcelectronic.in`) in the Resend dashboard (Domains → Add Domain, then add the DNS records it shows).
-  2. Set the `MAIL_FROM` secret to a sender on that domain, e.g. `VMC Electronic BMS <noreply@vmcelectronic.in>`.
+- If `MAIL_FROM` is not set, the server falls back to `Avarpus <onboarding@resend.dev>` and logs a startup warning. With this fallback, Resend only delivers to the Resend account owner's own email address — real users will NOT receive OTPs.
+- The currently verified Resend domain is `vmcelectronic.com`. The configured sender is `Avarpus <noreply@vmcelectronic.com>`.
+- To change the domain or sender:
+  1. Verify the domain in Resend (Domains → Add Domain, then add the DNS records it shows).
+  2. Set `MAIL_FROM` to a sender on that verified domain, using the Avarpus display name; for example, `Avarpus <noreply@example.com>`.
   3. Restart the API server.
-- Changing the sender requires only updating the secret — no code deploy.
+- Changing the sender requires only updating the workspace configuration — no code deploy.
 
 ## Stack
 
