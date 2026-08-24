@@ -5,16 +5,24 @@ import request from "supertest";
 import { eq } from "drizzle-orm";
 import {
   db,
+  customersTable,
+  customerOtpCodesTable,
+  estimateApprovalsTable,
   financeEntriesTable,
   pool,
   purchasesTable,
+  repairsTable,
   sessionsTable,
   shopsTable,
   usersTable,
 } from "@workspace/db";
 
+const sendOtpEmailMock = vi.fn<
+  (to: string, code: string, purpose: string, tags?: Record<string, string>) => Promise<string | null>
+>(async () => "test-resend-email-id");
 vi.mock("../lib/mailer", () => ({
-  sendOtpEmail: vi.fn(async () => {}),
+  sendOtpEmail: (to: string, code: string, purpose: string, tags?: Record<string, string>) =>
+    sendOtpEmailMock(to, code, purpose, tags),
   getMailFrom: () => "test@example.com",
   warnIfMailFromUnset: () => {},
 }));
@@ -29,6 +37,8 @@ const MOBILE = `8${RUN}`;
 let userId: string;
 let shopId: string;
 let token: string;
+let repairId: string;
+let estimateApprovalId: string;
 
 const todayStr = () => new Date().toISOString().split("T")[0];
 const futureStr = () => {
@@ -57,9 +67,43 @@ beforeAll(async () => {
   shopId = shop.id;
   await db.update(usersTable).set({ shopId }).where(eq(usersTable.id, userId));
   token = await createSession(userId);
+
+  const [customer] = await db.insert(customersTable).values({
+    shopId,
+    name: "OTP Test Customer",
+    mobile: `7${RUN}`,
+    email: EMAIL,
+  }).returning();
+  const [repair] = await db.insert(repairsTable).values({
+    shopId,
+    repairId: `OTP-${RUN}`,
+    customerId: customer.id,
+    customerName: customer.name,
+    mobile: customer.mobile,
+    deviceType: "Phone",
+    brand: "Test",
+    model: "OTP",
+    problem: "Verification test",
+    receiveDate: todayStr(),
+    expectedDate: futureStr(),
+  }).returning();
+  repairId = repair.id;
+  const [approval] = await db.insert(estimateApprovalsTable).values({
+    shopId,
+    repairId,
+    oldAmount: 100,
+    newAmount: 150,
+    reason: "Verification test",
+    status: "pending",
+    previousStatus: "received",
+    requestedById: userId,
+    requestedByName: "Date Test Dealer",
+  }).returning();
+  estimateApprovalId = approval.id;
 });
 
 afterAll(async () => {
+  await db.delete(customerOtpCodesTable).where(eq(customerOtpCodesTable.shopId, shopId));
   await db.delete(purchasesTable).where(eq(purchasesTable.shopId, shopId));
   await db.delete(financeEntriesTable).where(eq(financeEntriesTable.shopId, shopId));
   await db.delete(sessionsTable).where(eq(sessionsTable.userId, userId));
@@ -160,5 +204,42 @@ describe("finance date validation", () => {
       .send({ date });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("INVALID_DATE");
+  });
+});
+
+describe("customer verification email routing tags", () => {
+  it("preserves the email kind and shop context for estimate and delivery OTPs", async () => {
+    sendOtpEmailMock.mockClear();
+
+    const estimateResponse = await request(app)
+      .post(`/api/estimate-approvals/${estimateApprovalId}/send-otp`)
+      .set(auth);
+    expect(estimateResponse.status).toBe(200);
+
+    const deliveryResponse = await request(app)
+      .post(`/api/repairs/${repairId}/delivery-otp/send`)
+      .set(auth);
+    expect(deliveryResponse.status).toBe(200);
+
+    expect(sendOtpEmailMock).toHaveBeenNthCalledWith(
+      1,
+      EMAIL,
+      expect.any(String),
+      "estimate approval",
+      {
+        avarpus_email_kind: "estimate_approval_verification",
+        avarpus_shop_id: shopId,
+      },
+    );
+    expect(sendOtpEmailMock).toHaveBeenNthCalledWith(
+      2,
+      EMAIL,
+      expect.any(String),
+      "delivery confirmation",
+      {
+        avarpus_email_kind: "delivery_confirmation_verification",
+        avarpus_shop_id: shopId,
+      },
+    );
   });
 });
