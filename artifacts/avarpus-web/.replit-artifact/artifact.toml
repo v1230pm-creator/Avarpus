@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/avarpus-web/"
+title = "Avarpus Web App"
+description = "A browser-first Avarpus business workspace for repairs, customers, inventory, payments, finance, reporting, staff, portals, and communication. It shares the existing Avarpus API and data with the mobile app while remaining a separate static web application."
+version = "1.0.0"
+id = "artifacts/avarpus-web"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/avarpus-web/" ]
+localPort = 19213
+
+[services.development]
+run = "pnpm --filter @workspace/avarpus-web run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/avarpus-web", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/avarpus-web/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19213"
+BASE_PATH = "/avarpus-web/"

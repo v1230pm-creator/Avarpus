@@ -105,7 +105,7 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-ALLOWED_ORIGINS = "https://3c2b05f7-3c61-425c-9ed4-67462616b38f-00-f8q4w8aat8g9-ujyonlba.sisko.replit.dev"
+ALLOWED_ORIGINS = "https://3c2b05f7-3c61-425c-9ed4-67462616b38f-00-f8q4w8aat8g9-ujyonlba.sisko.replit.dev,https://app.avarpus.com"
 MAIL_FROM = "Avarpus <noreply@vmcelectronic.com>"
 
 [userenv.production]

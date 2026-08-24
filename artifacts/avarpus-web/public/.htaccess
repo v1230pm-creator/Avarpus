@@ -1,0 +1,8 @@
+RewriteEngine On
+
+# Serve real files and directories normally; send React routes to the SPA.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+RewriteRule ^ index.html [L]

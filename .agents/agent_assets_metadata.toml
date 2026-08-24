@@ -8,3 +8,17 @@ type = "unspecified"
 title = "Android signing keystore (vmc-upload-key.jks)"
 description = "APK signing key — expo.dev credentials form me upload karein. Ise password ke saath sambhal kar rakhein."
 logical_id = "182ca479-0f1d-4fb9-b0b0-2652bfe0c5c1"
+
+[[outputs]]
+id = "jZ356sUmkrxR76J4crKb8"
+uri = "file://artifacts/avarpus-web/dist/avarpus-web-hostinger.zip"
+type = "unspecified"
+title = "Avarpus Web App — Hostinger package"
+description = "Verified static production bundle with the React route fallback and public API origin configured for https://api.avarpus.com."
+logical_id = "a2d62dd7-33ed-4be0-b0d5-83afd5a40926"
+content_hash = "sha256:e5c7fa95042b4026be265aa92c2f32efaf3b49289a69b1b7f591466b902037f3"
+size = 150544
+mtime_ms = 1787543748765
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:3c2b05f7-3c61-425c-9ed4-67462616b38f/a2d62dd7-33ed-4be0-b0d5-83afd5a40926/6a88d885-205b-4646-930b-6eb669f847e4"
+storage_version_token = "1787543878778373"
+content_type = "application/octet-stream"
