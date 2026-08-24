@@ -123,6 +123,15 @@ export default function PhoneScreen() {
             <Text style={[styles.checkboxText, { color: colors.foreground }]}>Keep me signed in on this device</Text>
           </TouchableOpacity>
           <Button title={otpLoading ? 'Sending code...' : 'Continue'} onPress={handleSendOtp} loading={otpLoading} fullWidth size="lg" />
+           <TouchableOpacity
+             onPress={() => router.push({ pathname: '/(auth)/sim-verify', params: { mobile } })}
+             style={styles.simLink}
+             accessibilityRole="link"
+             testID="open-sim-verify"
+           >
+             <Feather name="shield" size={15} color={colors.primary} />
+             <Text style={[styles.simLinkText, { color: colors.primary }]}>Verify securely with your SIM</Text>
+           </TouchableOpacity>
           <Text style={[styles.privacy, { color: colors.textMuted }]}>By continuing, you agree to receive a verification code by SMS.</Text>
           <View style={styles.accountLinks}>
             <TouchableOpacity onPress={() => router.push('/(auth)/register')} accessibilityRole="link">
@@ -158,6 +167,8 @@ const styles = StyleSheet.create({
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   checkboxText: { flex: 1, fontSize: 14, lineHeight: 20, fontFamily: 'Inter_400Regular' },
   privacy: { fontSize: 12, lineHeight: 18, fontFamily: 'Inter_400Regular', textAlign: 'center', marginTop: 4 },
+  simLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 32, marginTop: -4 },
+  simLinkText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   accountLinks: { alignItems: 'center', gap: 10, marginTop: 6 },
   accountText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
   alertBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 8, borderWidth: 1, marginBottom: 2 },

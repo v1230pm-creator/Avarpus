@@ -36,6 +36,7 @@ import type {
   ApprovalsList200,
   ApprovalsReject200,
   AuthChangePassword200,
+  AuthDevicesList200,
   AuthForgotVerify200,
   AuthLoginHistory200,
   AuthMe200,
@@ -80,6 +81,11 @@ import type {
   DealersUpdate200,
   DeliveryOtpVerify200,
   DeliveryOtpVerifyInput,
+  DeviceAuthenticateInput,
+  DeviceChallengeInput,
+  DeviceChallengeResult,
+  DeviceRegisterInput,
+  DeviceResult,
   ErrorEnvelope,
   EstimateApprovalCreateInput,
   EstimateApprovalDecideInput,
@@ -111,6 +117,10 @@ import type {
   OtpVerifyInput,
   PaymentsList200,
   PaymentsListParams,
+  PhoneVerificationStartInput,
+  PhoneVerificationStartResult,
+  PhoneVerificationStatusInput,
+  PhoneVerificationStatusResult,
   ProfileUpdateInput,
   PurchaseInput,
   PurchasesCreate200,
@@ -163,6 +173,8 @@ import type {
   RoleFeaturesInput,
   RoleFeaturesUpdate200,
   ServiceUnavailable,
+  SmsBridgePayload,
+  SmsVerificationResult,
   StaffActivate200,
   StaffCreate200,
   StaffCreateInput,
@@ -484,6 +496,581 @@ export const useAuthOtpVerify = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAuthOtpVerifyMutationOptions(options));
+    }
+
+export const getAuthPhoneVerificationStartUrl = () => {
+
+
+
+
+  return `/api/auth/phone-verification/start`
+}
+
+/**
+ * @summary Start a one-time SIM-originated phone verification
+ */
+export const authPhoneVerificationStart = async (phoneVerificationStartInput: PhoneVerificationStartInput, options?: Parameters<typeof customFetch>[1]): Promise<PhoneVerificationStartResult> => {
+
+  return customFetch<PhoneVerificationStartResult>(getAuthPhoneVerificationStartUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(phoneVerificationStartInput)
+  }
+);}
+
+
+
+
+
+export const getAuthPhoneVerificationStartMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authPhoneVerificationStart>>, TError,{data: BodyType<PhoneVerificationStartInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authPhoneVerificationStart>>, TError,{data: BodyType<PhoneVerificationStartInput>}, TContext> => {
+
+const mutationKey = ['authPhoneVerificationStart'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authPhoneVerificationStart>>, {data: BodyType<PhoneVerificationStartInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  authPhoneVerificationStart(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthPhoneVerificationStartMutationResult = NonNullable<Awaited<ReturnType<typeof authPhoneVerificationStart>>>
+    export type AuthPhoneVerificationStartMutationBody = BodyType<PhoneVerificationStartInput>
+    export type AuthPhoneVerificationStartMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Start a one-time SIM-originated phone verification
+ */
+export const useAuthPhoneVerificationStart = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authPhoneVerificationStart>>, TError,{data: BodyType<PhoneVerificationStartInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authPhoneVerificationStart>>,
+        TError,
+        {data: BodyType<PhoneVerificationStartInput>},
+        TContext
+      > => {
+      return useMutation(getAuthPhoneVerificationStartMutationOptions(options));
+    }
+
+export const getAuthPhoneVerificationStatusUrl = () => {
+
+
+
+
+  return `/api/auth/phone-verification/status`
+}
+
+/**
+ * @summary Poll the status of a SIM verification and redeem a completed session once
+ */
+export const authPhoneVerificationStatus = async (phoneVerificationStatusInput: PhoneVerificationStatusInput, options?: Parameters<typeof customFetch>[1]): Promise<PhoneVerificationStatusResult> => {
+
+  return customFetch<PhoneVerificationStatusResult>(getAuthPhoneVerificationStatusUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(phoneVerificationStatusInput)
+  }
+);}
+
+
+
+
+
+export const getAuthPhoneVerificationStatusMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authPhoneVerificationStatus>>, TError,{data: BodyType<PhoneVerificationStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authPhoneVerificationStatus>>, TError,{data: BodyType<PhoneVerificationStatusInput>}, TContext> => {
+
+const mutationKey = ['authPhoneVerificationStatus'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authPhoneVerificationStatus>>, {data: BodyType<PhoneVerificationStatusInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  authPhoneVerificationStatus(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthPhoneVerificationStatusMutationResult = NonNullable<Awaited<ReturnType<typeof authPhoneVerificationStatus>>>
+    export type AuthPhoneVerificationStatusMutationBody = BodyType<PhoneVerificationStatusInput>
+    export type AuthPhoneVerificationStatusMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Poll the status of a SIM verification and redeem a completed session once
+ */
+export const useAuthPhoneVerificationStatus = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authPhoneVerificationStatus>>, TError,{data: BodyType<PhoneVerificationStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authPhoneVerificationStatus>>,
+        TError,
+        {data: BodyType<PhoneVerificationStatusInput>},
+        TContext
+      > => {
+      return useMutation(getAuthPhoneVerificationStatusMutationOptions(options));
+    }
+
+export const getAuthSmsVerificationUrl = () => {
+
+
+
+
+  return `/api/auth/sms-verification`
+}
+
+/**
+ * This endpoint is for the SMS bridge only. It requires an HMAC signature; mobile clients must never call it as proof of verification.
+ * @summary Trusted signed callback from the controlled Avarpus SMS bridge
+ */
+export const authSmsVerification = async (smsBridgePayload: SmsBridgePayload, options?: Parameters<typeof customFetch>[1]): Promise<SmsVerificationResult> => {
+
+  return customFetch<SmsVerificationResult>(getAuthSmsVerificationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(smsBridgePayload)
+  }
+);}
+
+
+
+
+
+export const getAuthSmsVerificationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authSmsVerification>>, TError,{data: BodyType<SmsBridgePayload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authSmsVerification>>, TError,{data: BodyType<SmsBridgePayload>}, TContext> => {
+
+const mutationKey = ['authSmsVerification'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authSmsVerification>>, {data: BodyType<SmsBridgePayload>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  authSmsVerification(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthSmsVerificationMutationResult = NonNullable<Awaited<ReturnType<typeof authSmsVerification>>>
+    export type AuthSmsVerificationMutationBody = BodyType<SmsBridgePayload>
+    export type AuthSmsVerificationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Trusted signed callback from the controlled Avarpus SMS bridge
+ */
+export const useAuthSmsVerification = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authSmsVerification>>, TError,{data: BodyType<SmsBridgePayload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authSmsVerification>>,
+        TError,
+        {data: BodyType<SmsBridgePayload>},
+        TContext
+      > => {
+      return useMutation(getAuthSmsVerificationMutationOptions(options));
+    }
+
+export const getAuthDeviceRegisterUrl = () => {
+
+
+
+
+  return `/api/auth/devices/register`
+}
+
+/**
+ * @summary Register a device public key after SIM verification
+ */
+export const authDeviceRegister = async (deviceRegisterInput: DeviceRegisterInput, options?: Parameters<typeof customFetch>[1]): Promise<DeviceResult> => {
+
+  return customFetch<DeviceResult>(getAuthDeviceRegisterUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(deviceRegisterInput)
+  }
+);}
+
+
+
+
+
+export const getAuthDeviceRegisterMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authDeviceRegister>>, TError,{data: BodyType<DeviceRegisterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authDeviceRegister>>, TError,{data: BodyType<DeviceRegisterInput>}, TContext> => {
+
+const mutationKey = ['authDeviceRegister'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authDeviceRegister>>, {data: BodyType<DeviceRegisterInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  authDeviceRegister(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthDeviceRegisterMutationResult = NonNullable<Awaited<ReturnType<typeof authDeviceRegister>>>
+    export type AuthDeviceRegisterMutationBody = BodyType<DeviceRegisterInput>
+    export type AuthDeviceRegisterMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Register a device public key after SIM verification
+ */
+export const useAuthDeviceRegister = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authDeviceRegister>>, TError,{data: BodyType<DeviceRegisterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authDeviceRegister>>,
+        TError,
+        {data: BodyType<DeviceRegisterInput>},
+        TContext
+      > => {
+      return useMutation(getAuthDeviceRegisterMutationOptions(options));
+    }
+
+export const getAuthDevicesListUrl = () => {
+
+
+
+
+  return `/api/auth/devices`
+}
+
+/**
+ * @summary List the current account's active device keys
+ */
+export const authDevicesList = async ( options?: Parameters<typeof customFetch>[1]): Promise<AuthDevicesList200> => {
+
+  return customFetch<AuthDevicesList200>(getAuthDevicesListUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAuthDevicesListQueryKey = () => {
+    return [
+    `/api/auth/devices`
+    ] as const;
+    }
+
+
+export const getAuthDevicesListQueryOptions = <TData = Awaited<ReturnType<typeof authDevicesList>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof authDevicesList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAuthDevicesListQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof authDevicesList>>> = ({ signal }) => authDevicesList({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof authDevicesList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AuthDevicesListQueryResult = NonNullable<Awaited<ReturnType<typeof authDevicesList>>>
+export type AuthDevicesListQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the current account's active device keys
+ */
+
+export function useAuthDevicesList<TData = Awaited<ReturnType<typeof authDevicesList>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof authDevicesList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAuthDevicesListQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAuthDeviceRevokeUrl = (id: string,) => {
+
+
+
+
+  return `/api/auth/devices/${id}`
+}
+
+/**
+ * @summary Revoke a lost or stolen device key
+ */
+export const authDeviceRevoke = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
+
+  return customFetch<Message>(getAuthDeviceRevokeUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getAuthDeviceRevokeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authDeviceRevoke>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authDeviceRevoke>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['authDeviceRevoke'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authDeviceRevoke>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  authDeviceRevoke(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthDeviceRevokeMutationResult = NonNullable<Awaited<ReturnType<typeof authDeviceRevoke>>>
+
+    export type AuthDeviceRevokeMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Revoke a lost or stolen device key
+ */
+export const useAuthDeviceRevoke = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authDeviceRevoke>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authDeviceRevoke>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAuthDeviceRevokeMutationOptions(options));
+    }
+
+export const getAuthDeviceChallengeUrl = () => {
+
+
+
+
+  return `/api/auth/device/challenge`
+}
+
+/**
+ * @summary Create a short-lived challenge for a registered device key
+ */
+export const authDeviceChallenge = async (deviceChallengeInput: DeviceChallengeInput, options?: Parameters<typeof customFetch>[1]): Promise<DeviceChallengeResult> => {
+
+  return customFetch<DeviceChallengeResult>(getAuthDeviceChallengeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(deviceChallengeInput)
+  }
+);}
+
+
+
+
+
+export const getAuthDeviceChallengeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authDeviceChallenge>>, TError,{data: BodyType<DeviceChallengeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authDeviceChallenge>>, TError,{data: BodyType<DeviceChallengeInput>}, TContext> => {
+
+const mutationKey = ['authDeviceChallenge'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authDeviceChallenge>>, {data: BodyType<DeviceChallengeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  authDeviceChallenge(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthDeviceChallengeMutationResult = NonNullable<Awaited<ReturnType<typeof authDeviceChallenge>>>
+    export type AuthDeviceChallengeMutationBody = BodyType<DeviceChallengeInput>
+    export type AuthDeviceChallengeMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a short-lived challenge for a registered device key
+ */
+export const useAuthDeviceChallenge = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authDeviceChallenge>>, TError,{data: BodyType<DeviceChallengeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authDeviceChallenge>>,
+        TError,
+        {data: BodyType<DeviceChallengeInput>},
+        TContext
+      > => {
+      return useMutation(getAuthDeviceChallengeMutationOptions(options));
+    }
+
+export const getAuthDeviceAuthenticateUrl = () => {
+
+
+
+
+  return `/api/auth/device/authenticate`
+}
+
+/**
+ * @summary Authenticate with a registered device key signature
+ */
+export const authDeviceAuthenticate = async (deviceAuthenticateInput: DeviceAuthenticateInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthSession> => {
+
+  return customFetch<AuthSession>(getAuthDeviceAuthenticateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(deviceAuthenticateInput)
+  }
+);}
+
+
+
+
+
+export const getAuthDeviceAuthenticateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authDeviceAuthenticate>>, TError,{data: BodyType<DeviceAuthenticateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authDeviceAuthenticate>>, TError,{data: BodyType<DeviceAuthenticateInput>}, TContext> => {
+
+const mutationKey = ['authDeviceAuthenticate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authDeviceAuthenticate>>, {data: BodyType<DeviceAuthenticateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  authDeviceAuthenticate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthDeviceAuthenticateMutationResult = NonNullable<Awaited<ReturnType<typeof authDeviceAuthenticate>>>
+    export type AuthDeviceAuthenticateMutationBody = BodyType<DeviceAuthenticateInput>
+    export type AuthDeviceAuthenticateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Authenticate with a registered device key signature
+ */
+export const useAuthDeviceAuthenticate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authDeviceAuthenticate>>, TError,{data: BodyType<DeviceAuthenticateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authDeviceAuthenticate>>,
+        TError,
+        {data: BodyType<DeviceAuthenticateInput>},
+        TContext
+      > => {
+      return useMutation(getAuthDeviceAuthenticateMutationOptions(options));
     }
 
 export const getAuthRegisterStartUrl = () => {

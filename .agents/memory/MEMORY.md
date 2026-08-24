@@ -38,3 +38,4 @@
 - [Chats inbox scope](chats-inbox-scope.md) — Chats shows customer and exact-contact direct rooms only; keep repair, payment, delivery, and dealer content in their own areas.
 - [Chat provisioning recovery](chat-provisioning-recovery.md) — never reclaim a possibly live Matrix room reservation without provider-side create idempotency and fencing.
 - [Static web API bootstrapping](static-web-api-bootstrapping.md) — configure bearer API client before React Query hooks mount; external builds must require a public API origin.
+- [Wouter query navigation](wouter-query-navigation.md) — query-only login transitions need local React step state to rerender reliably.

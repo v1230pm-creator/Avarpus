@@ -99,6 +99,147 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthSession"
+  /auth/phone-verification/start:
+    post:
+      operationId: authPhoneVerificationStart
+      tags: [auth]
+      summary: Start a one-time SIM-originated phone verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhoneVerificationStartInput"
+      responses:
+        "200":
+          description: SMS challenge created. The raw challenge is returned only to the Android app so it can be placed in a user-confirmed SMS.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhoneVerificationStartResult"
+  /auth/phone-verification/status:
+    post:
+      operationId: authPhoneVerificationStatus
+      tags: [auth]
+      summary: Poll the status of a SIM verification and redeem a completed session once
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhoneVerificationStatusInput"
+      responses:
+        "200":
+          description: Current verification state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhoneVerificationStatusResult"
+  /auth/sms-verification:
+    post:
+      operationId: authSmsVerification
+      tags: [auth]
+      summary: Trusted signed callback from the controlled Avarpus SMS bridge
+      description: This endpoint is for the SMS bridge only. It requires an HMAC signature; mobile clients must never call it as proof of verification.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SmsBridgePayload"
+      responses:
+        "200":
+          description: SMS was validated and the verification state updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SmsVerificationResult"
+  /auth/devices/register:
+    post:
+      operationId: authDeviceRegister
+      tags: [auth]
+      summary: Register a device public key after SIM verification
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceRegisterInput"
+      responses:
+        "200":
+          description: Device registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceResult"
+  /auth/devices:
+    get:
+      operationId: authDevicesList
+      tags: [auth]
+      summary: List the current account's active device keys
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Active registered devices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices:
+                    type: array
+                    items: { $ref: "#/components/schemas/DeviceInfo" }
+                required: [devices]
+  /auth/devices/{id}:
+    delete:
+      operationId: authDeviceRevoke
+      tags: [auth]
+      summary: Revoke a lost or stolen device key
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Device revoked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Message" }
+  /auth/device/challenge:
+    post:
+      operationId: authDeviceChallenge
+      tags: [auth]
+      summary: Create a short-lived challenge for a registered device key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeviceChallengeInput" }
+      responses:
+        "200":
+          description: Device challenge
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeviceChallengeResult" }
+  /auth/device/authenticate:
+    post:
+      operationId: authDeviceAuthenticate
+      tags: [auth]
+      summary: Authenticate with a registered device key signature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeviceAuthenticateInput" }
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthSession" }
   /auth/register/start:
     post:
       operationId: authRegisterStart
@@ -2563,6 +2704,99 @@ paths:
 
 components:
   schemas:
+    PhoneVerificationStartInput:
+      type: object
+      properties:
+        mobile: { type: string }
+        deviceId: { type: string }
+        devicePublicKey: { type: string }
+      required: [mobile]
+    PhoneVerificationStartResult:
+      type: object
+      properties:
+        verificationId: { type: string }
+        challenge: { type: string }
+        statusToken: { type: string }
+        expiresAt: { type: string }
+        registered: { type: boolean }
+      required: [verificationId, challenge, statusToken, expiresAt, registered]
+    PhoneVerificationStatusInput:
+      type: object
+      properties:
+        verificationId: { type: string }
+        statusToken: { type: string }
+      required: [verificationId, statusToken]
+    PhoneVerificationStatusResult:
+      type: object
+      properties:
+        state: { type: string, enum: [pending, verified, failed] }
+        errorCode: { type: string }
+        session:
+          oneOf:
+            - $ref: "#/components/schemas/AuthSession"
+            - type: "null"
+      required: [state]
+    SmsBridgePayload:
+      type: object
+      properties:
+        senderNumber: { type: string }
+        message: { type: string }
+        receivedAt: { type: string }
+        gatewayMessageId: { type: string }
+        signature: { type: string }
+      required: [senderNumber, message, receivedAt, gatewayMessageId, signature]
+    SmsVerificationResult:
+      type: object
+      properties:
+        verified: { type: boolean }
+        userId: { type: string }
+        verificationId: { type: string }
+        errorCode: { type: string }
+      required: [verified]
+    DeviceRegisterInput:
+      type: object
+      properties:
+        deviceId: { type: string }
+        publicKey: { type: string }
+        algorithm: { type: string, enum: [RSA-SHA256] }
+      required: [deviceId, publicKey, algorithm]
+    DeviceInfo:
+      type: object
+      properties:
+        id: { type: string }
+        deviceId: { type: string }
+        algorithm: { type: string }
+        createdAt: { type: string }
+        lastUsedAt: { type: [string, "null"] }
+      required: [id, deviceId, algorithm, createdAt, lastUsedAt]
+    DeviceResult:
+      type: object
+      properties:
+        device: { $ref: "#/components/schemas/DeviceInfo" }
+      required: [device]
+    DeviceChallengeInput:
+      type: object
+      properties:
+        mobile: { type: string }
+        deviceId: { type: string }
+      required: [mobile, deviceId]
+    DeviceChallengeResult:
+      type: object
+      properties:
+        challengeId: { type: string }
+        challenge: { type: string }
+        expiresAt: { type: string }
+      required: [challengeId, challenge, expiresAt]
+    DeviceAuthenticateInput:
+      type: object
+      properties:
+        challengeId: { type: string }
+        challenge: { type: string }
+        deviceId: { type: string }
+        signature: { type: string }
+        rememberMe: { type: boolean }
+        device: { type: string }
+      required: [challengeId, challenge, deviceId, signature]
     ProfileUpdateInput:
       type: object
       properties:

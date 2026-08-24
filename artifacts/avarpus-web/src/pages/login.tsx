@@ -17,11 +17,17 @@ export function LoginPage() {
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const isPhoneStep = new URLSearchParams(window.location.search).get("step") === "phone";
+  // Wouter's location hook intentionally tracks the path, not query-string
+  // changes. Keep this step in React state so the same /login route updates
+  // immediately after users accept the terms.
+  const [isPhoneStep, setIsPhoneStep] = useState(
+    () => new URLSearchParams(window.location.search).get("step") === "phone",
+  );
   const hasAcceptedTerms = sessionStorage.getItem("avarpus_terms_accepted") === "true";
 
   useEffect(() => {
     if (isPhoneStep && !hasAcceptedTerms) {
+      setIsPhoneStep(false);
       setLocation("/login");
     }
   }, [hasAcceptedTerms, isPhoneStep, setLocation]);
@@ -33,6 +39,7 @@ export function LoginPage() {
       return;
     }
     sessionStorage.setItem("avarpus_terms_accepted", "true");
+    setIsPhoneStep(true);
     setLocation("/login?step=phone");
   };
 
@@ -67,7 +74,10 @@ export function LoginPage() {
             type="button"
             aria-label="Back to welcome"
             className="auth-back-button"
-            onClick={() => setLocation("/login")}
+            onClick={() => {
+              setIsPhoneStep(false);
+              setLocation("/login");
+            }}
           >
             <ChevronLeft className="size-5" />
           </button>
@@ -105,6 +115,10 @@ export function LoginPage() {
             <p id="mobile-help" className="auth-helper">
               Use the mobile number registered with your Avarpus account.
             </p>
+            <div className="auth-sim-notice" role="note">
+              <ShieldCheck className="size-4" />
+              <span>SIM-verified sign-in is available in the Avarpus Android app. Browsers cannot send a verification SMS from your SIM.</span>
+            </div>
             <Button className="auth-primary-button" type="submit" disabled={isSending || Boolean(apiConfigurationError)}>
               {isSending ? "Sending code..." : "Continue"}
               {!isSending && <ArrowRight className="size-4" />}

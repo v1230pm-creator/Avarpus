@@ -24,7 +24,7 @@ export default function WelcomeScreen() {
     }
     setError('');
     await AsyncStorage.setItem('avarpus_terms_accepted', 'true');
-    router.push('/(auth)/phone');
+    router.push('/(auth)/sim-verify');
   };
 
   return (

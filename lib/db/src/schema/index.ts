@@ -5,3 +5,4 @@ export * from "./roleFeatures";
 export * from "./notifications";
 export * from "./chat";
 export * from "./emailDelivery";
+export * from "./phoneVerification";

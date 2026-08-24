@@ -97,6 +97,173 @@ export const AuthOtpVerifyResponse = zod.object({
 
 
 /**
+ * @summary Start a one-time SIM-originated phone verification
+ */
+export const AuthPhoneVerificationStartBody = zod.object({
+  "mobile": zod.string(),
+  "deviceId": zod.string().optional(),
+  "devicePublicKey": zod.string().optional()
+})
+
+export const AuthPhoneVerificationStartResponse = zod.object({
+  "verificationId": zod.string(),
+  "challenge": zod.string(),
+  "statusToken": zod.string(),
+  "expiresAt": zod.string(),
+  "registered": zod.boolean()
+})
+
+
+/**
+ * @summary Poll the status of a SIM verification and redeem a completed session once
+ */
+export const AuthPhoneVerificationStatusBody = zod.object({
+  "verificationId": zod.string(),
+  "statusToken": zod.string()
+})
+
+export const AuthPhoneVerificationStatusResponse = zod.object({
+  "state": zod.enum(['pending', 'verified', 'failed']),
+  "errorCode": zod.string().optional(),
+  "session": zod.union([zod.object({
+  "token": zod.string(),
+  "user": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional()
+})
+}),zod.null()]).optional()
+})
+
+
+/**
+ * This endpoint is for the SMS bridge only. It requires an HMAC signature; mobile clients must never call it as proof of verification.
+ * @summary Trusted signed callback from the controlled Avarpus SMS bridge
+ */
+export const AuthSmsVerificationBody = zod.object({
+  "senderNumber": zod.string(),
+  "message": zod.string(),
+  "receivedAt": zod.string(),
+  "gatewayMessageId": zod.string(),
+  "signature": zod.string()
+})
+
+export const AuthSmsVerificationResponse = zod.object({
+  "verified": zod.boolean(),
+  "userId": zod.string().optional(),
+  "verificationId": zod.string().optional(),
+  "errorCode": zod.string().optional()
+})
+
+
+/**
+ * @summary Register a device public key after SIM verification
+ */
+export const AuthDeviceRegisterBody = zod.object({
+  "deviceId": zod.string(),
+  "publicKey": zod.string(),
+  "algorithm": zod.enum(['RSA-SHA256'])
+})
+
+export const AuthDeviceRegisterResponse = zod.object({
+  "device": zod.object({
+  "id": zod.string(),
+  "deviceId": zod.string(),
+  "algorithm": zod.string(),
+  "createdAt": zod.string(),
+  "lastUsedAt": zod.string().nullable()
+})
+})
+
+
+/**
+ * @summary List the current account's active device keys
+ */
+export const AuthDevicesListResponse = zod.object({
+  "devices": zod.array(zod.object({
+  "id": zod.string(),
+  "deviceId": zod.string(),
+  "algorithm": zod.string(),
+  "createdAt": zod.string(),
+  "lastUsedAt": zod.string().nullable()
+}))
+})
+
+
+/**
+ * @summary Revoke a lost or stolen device key
+ */
+export const AuthDeviceRevokeParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AuthDeviceRevokeResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Create a short-lived challenge for a registered device key
+ */
+export const AuthDeviceChallengeBody = zod.object({
+  "mobile": zod.string(),
+  "deviceId": zod.string()
+})
+
+export const AuthDeviceChallengeResponse = zod.object({
+  "challengeId": zod.string(),
+  "challenge": zod.string(),
+  "expiresAt": zod.string()
+})
+
+
+/**
+ * @summary Authenticate with a registered device key signature
+ */
+export const AuthDeviceAuthenticateBody = zod.object({
+  "challengeId": zod.string(),
+  "challenge": zod.string(),
+  "deviceId": zod.string(),
+  "signature": zod.string(),
+  "rememberMe": zod.boolean().optional(),
+  "device": zod.string().optional()
+})
+
+export const AuthDeviceAuthenticateResponse = zod.object({
+  "token": zod.string(),
+  "user": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional()
+})
+})
+
+
+/**
  * @summary Start registration and send email OTP
  */
 export const AuthRegisterStartBody = zod.object({

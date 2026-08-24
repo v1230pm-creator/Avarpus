@@ -253,6 +253,13 @@
       "when": 1787542914802,
       "tag": "0035_resend_webhook_events",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787632914803,
+      "tag": "0036_passwordless_phone_verification",
+      "breakpoints": true
     }
   ]
 }
