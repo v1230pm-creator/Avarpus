@@ -3,6 +3,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { resendWebhookHandler } from "./routes/resendWebhook";
 
 const app: Express = express();
 
@@ -36,6 +37,9 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
+// Resend signs the exact request bytes. This route must be mounted before the
+// global JSON parser so signature verification never sees re-serialized JSON.
+app.post("/api/webhooks/resend", express.raw({ type: "application/json", limit: "256kb" }), resendWebhookHandler);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

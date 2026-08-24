@@ -27,12 +27,14 @@ export async function sendOtpEmail(
   to: string,
   code: string,
   purposeLabel: string,
-): Promise<void> {
-  await sendEmail(
+  tags?: Record<string, string>,
+): Promise<string | null> {
+  return sendEmail(
     to,
     `${code} is your Avarpus verification code`,
     buildHtml(purposeLabel, code),
     `Your Avarpus ${purposeLabel} code is: ${code}\n\nThis code expires in 10 minutes. If you did not request it, ignore this email.`,
+    tags,
   );
 }
 
@@ -176,7 +178,8 @@ async function sendEmail(
   subject: string,
   html: string,
   text: string,
-): Promise<void> {
+  tags?: Record<string, string>,
+): Promise<string | null> {
   const connectors = new ReplitConnectors();
   const response = await connectors.proxy("resend", "/emails", {
     method: "POST",
@@ -187,6 +190,11 @@ async function sendEmail(
       subject,
       html,
       text,
+      ...(tags && Object.keys(tags).length > 0
+        ? {
+            tags: Object.entries(tags).map(([name, value]) => ({ name, value })),
+          }
+        : {}),
     }),
   });
 
@@ -194,4 +202,7 @@ async function sendEmail(
     const body = await response.text().catch(() => "(no body)");
     throw new Error(`Resend API error ${response.status}: ${body}`);
   }
+
+  const payload = (await response.json().catch(() => null)) as { id?: unknown } | null;
+  return typeof payload?.id === "string" && payload.id.trim() ? payload.id : null;
 }

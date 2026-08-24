@@ -13,11 +13,12 @@ import {
   usersTable,
 } from "@workspace/db";
 
-const sendOtpEmailMock = vi.fn<(to: string, code: string, purpose: string) => Promise<void>>(
-  async () => {},
+const sendOtpEmailMock = vi.fn<(to: string, code: string, purpose: string, tags?: Record<string, string>) => Promise<string | null>>(
+  async () => "test-resend-email-id",
 );
 vi.mock("../lib/mailer", () => ({
-  sendOtpEmail: (to: string, code: string, purpose: string) => sendOtpEmailMock(to, code, purpose),
+  sendOtpEmail: (to: string, code: string, purpose: string, tags?: Record<string, string>) =>
+    sendOtpEmailMock(to, code, purpose, tags),
   getMailFrom: () => "test@example.com",
   warnIfMailFromUnset: () => {},
 }));
@@ -94,7 +95,12 @@ describe("POST /api/auth/register/start", () => {
       .send(dealerPayload("start-ok", "71"));
     expect(res.status).toBe(200);
     expect(res.body.message).toContain(mail("start-ok"));
-    expect(sendOtpEmailMock).toHaveBeenCalledWith(mail("start-ok"), expect.any(String), "registration");
+    expect(sendOtpEmailMock).toHaveBeenCalledWith(
+      mail("start-ok"),
+      expect.any(String),
+      "registration",
+      { avarpus_email_kind: "registration_verification" },
+    );
   });
 
   it("accepts a valid staff registration against a known dealer mobile", async () => {
@@ -108,6 +114,15 @@ describe("POST /api/auth/register/start", () => {
     });
     expect(res.status).toBe(200);
     expect(res.body.message).toContain(mail("staff-start"));
+    expect(sendOtpEmailMock).toHaveBeenLastCalledWith(
+      mail("staff-start"),
+      expect.any(String),
+      "registration",
+      {
+        avarpus_email_kind: "registration_verification",
+        avarpus_shop_id: dealerShopId,
+      },
+    );
   });
 
   it("rejects a staff registration with an unknown dealer mobile (404)", async () => {

@@ -352,7 +352,15 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
     shopId: staffShopId,
   });
   try {
-    await sendOtpEmail(normEmail, code, "registration");
+    const resendEmailId = await sendOtpEmail(normEmail, code, "registration", {
+      avarpus_email_kind: "registration_verification",
+      ...(staffShopId ? { avarpus_shop_id: staffShopId } : {}),
+    });
+    // Resend echoes these tags in its signed delivery webhooks. The message ID
+    // is not exposed to the customer and is only used for safe event records.
+    if (!resendEmailId) {
+      req.log.warn("Registration verification email was accepted without a Resend message ID");
+    }
   } catch (err) {
     // Surface the exact Resend error in server logs
     console.error(

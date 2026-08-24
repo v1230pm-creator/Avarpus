@@ -2164,7 +2164,10 @@ router.post(
       codeHash: sha256(code),
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
-    await sendOtpEmail(email, code, "estimate approval");
+    await sendOtpEmail(email, code, "estimate approval", {
+      avarpus_email_kind: "estimate_approval_verification",
+      avarpus_shop_id: shopId,
+    });
     res.json({ message: "OTP sent to the customer's email." });
   }),
 );
@@ -2309,7 +2312,10 @@ router.post(
       codeHash: sha256(code),
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
-    await sendOtpEmail(email, code, "delivery confirmation");
+    await sendOtpEmail(email, code, "delivery confirmation", {
+      avarpus_email_kind: "delivery_confirmation_verification",
+      avarpus_shop_id: shopId,
+    });
     res.json({ message: "OTP sent to the customer's email." });
   }),
 );

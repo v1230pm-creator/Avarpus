@@ -11,6 +11,7 @@ Repair-shop management for customer intake, repairs, inventory, finance, and cus
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
 - Required for customer email: `MAIL_FROM` — verified Avarpus sender (see "Email sender configuration" below)
+- Required for Resend delivery monitoring: `RESEND_WEBHOOK_SECRET` — signing secret for the configured Resend webhook (see below)
 
 ## Email sender configuration
 
@@ -23,6 +24,18 @@ OTP emails and customer notifications are sent via the Resend integration. The s
   2. Set `MAIL_FROM` to a sender on that verified domain, using the Avarpus display name; for example, `Avarpus <noreply@example.com>`.
   3. Restart the API server.
 - Changing the sender requires only updating the workspace configuration — no code deploy.
+
+## Resend delivery monitoring
+
+Registration verification emails carry non-sensitive routing tags. Resend delivery events are accepted only at `POST /api/webhooks/resend` after Svix signature verification; raw event bodies, email subjects, and OTP codes are never stored.
+
+To enable monitoring:
+
+1. In Resend, create a webhook pointing to the published API URL followed by `/api/webhooks/resend`.
+2. Subscribe it to `email.delivered`, `email.bounced`, `email.complained`, `email.failed`, `email.suppressed`, and `email.delivery_delayed`.
+3. Save the webhook signing secret as the `RESEND_WEBHOOK_SECRET` workspace secret, then restart the API server.
+
+For a failed staff-registration verification email, active shop owners see an in-app notification with the recipient and safe delivery reason. Webhooks are deduplicated by their provider event ID so provider retries never create duplicate alerts.
 
 ## Stack
 
