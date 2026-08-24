@@ -6,6 +6,7 @@ import { logger } from "./lib/logger";
 import { seedUsersIfEmpty } from "./lib/seed";
 import { cleanupExpiredAuthData } from "./lib/authUtils";
 import { warnIfMailFromUnset } from "./lib/mailer";
+import { reconcileOtpRateLimitMigrationJournal } from "./lib/migrationJournalRecovery";
 
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // daily
 
@@ -38,7 +39,16 @@ if (Number.isNaN(port) || port <= 0) {
 // are available at dist/migrations/ after the build copies them.
 const migrationsFolder = path.resolve(__dirname, "migrations");
 
-migrate(db, { migrationsFolder })
+reconcileOtpRateLimitMigrationJournal(migrationsFolder)
+  .then((recovered) => {
+    if (recovered > 0) {
+      logger.warn(
+        { recovered },
+        "Recovered missing OTP rate-limit migration journal entries",
+      );
+    }
+    return migrate(db, { migrationsFolder });
+  })
   .then(() => {
     logger.info("Database migrations applied");
 
