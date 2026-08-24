@@ -2,84 +2,82 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useRouter } from 'expo-router';
-import { Image } from 'expo-image';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { authOtpRequest } from '@workspace/api-client-react';
-import { useAuth } from '@/context/AuthContext';
-import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
-import { getAvarpusLogo } from '@/constants/branding';
 
-export default function LoginScreen() {
-  const { signedOutNotice, clearSignedOutNotice } = useAuth();
+export default function WelcomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const scheme = useColorScheme();
   const isDark = scheme === 'dark';
-
-  const [rememberMe, setRememberMe] = useState(false);
-
-  const [mobile, setMobile] = useState('');
+  const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState('');
 
-  const [otpLoading, setOtpLoading] = useState(false);
-
-  const handleSendOtp = async () => {
-    if (!mobile.trim() || mobile.length < 10) {
-      setError('Please enter a valid 10-digit mobile number');
+  const handleContinue = async () => {
+    if (!accepted) {
+      setError('Please agree to the Terms and Conditions to continue.');
       return;
     }
     setError('');
-    setOtpLoading(true);
-    try {
-      clearSignedOutNotice();
-      await authOtpRequest({ mobile: mobile.trim() });
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      router.push({
-        pathname: '/(auth)/otp',
-        params: { mobile: mobile.trim(), rememberMe: rememberMe ? '1' : '0' },
-      });
-    } catch (err: any) {
-      setError(err?.data?.message ?? 'Could not send OTP. Please try again.');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setOtpLoading(false);
-    }
+    await AsyncStorage.setItem('avarpus_terms_accepted', 'true');
+    router.push('/(auth)/phone');
   };
 
   return (
-      <View style={[styles.root, { backgroundColor: colors.background }]}>
-       <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 280, backgroundColor: isDark ? '#0F172A' : '#F7F3EC' }} />
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <KeyboardAwareScrollViewCompat
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 }]}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 28, paddingBottom: insets.bottom + 28 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
-          <Image
-            source={getAvarpusLogo(scheme)}
-            style={styles.logoImg}
-            contentFit="contain"
-          />
-          <Text style={[styles.tagline, { color: isDark ? '#94A3B8' : '#475569' }]}>Business Management System</Text>
+        <View style={styles.topbar}>
+          <Text style={[styles.wordmark, { color: colors.primary }]}>AVARPUS</Text>
+          <Text style={[styles.step, { color: colors.textMuted }]}>1 of 2</Text>
         </View>
 
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: colors.foreground }]}>Welcome Back</Text>
-            <Text style={[styles.cardSub, { color: colors.textMuted }]}>Sign in securely with your registered mobile number.</Text>
+        <View style={styles.hero}>
+          <Text style={[styles.eyebrow, { color: colors.primary }]}>A calmer way to run your shop</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>Welcome to Avarpus</Text>
+          <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+            Your trusted workspace for repairs, customers, inventory, and the people who keep your business moving.
+          </Text>
+        </View>
+
+        <View style={styles.action}>
+          <View style={styles.trustLine}>
+            <Feather name="shield" size={20} color={colors.primary} />
+            <Text style={[styles.trustText, { color: colors.foreground }]}>Private, secure, and built for your business</Text>
           </View>
 
-          {!!signedOutNotice && !error && (
-            <View style={[styles.alertBox, { backgroundColor: colors.infoLight, borderColor: colors.infoLight }]}>
-              <Feather name="info" size={14} color={colors.info} />
-              <Text style={[styles.alertText, { color: colors.info }]}>{signedOutNotice}</Text>
+          <TouchableOpacity
+            onPress={() => router.push('/(auth)/terms')}
+            style={styles.termsLink}
+            activeOpacity={0.7}
+            accessibilityRole="link"
+          >
+            <Text style={[styles.termsText, { color: colors.textMuted }]}>Read the </Text>
+            <Text style={[styles.termsText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Terms and Conditions</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              setAccepted(!accepted);
+              setError('');
+            }}
+            style={styles.checkboxRow}
+            activeOpacity={0.7}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: accepted }}
+          >
+            <View style={[styles.checkbox, { borderColor: accepted ? colors.primary : colors.border, backgroundColor: accepted ? colors.primary : colors.input }]}>
+              {accepted && <Feather name="check" size={13} color="#FFFFFF" />}
             </View>
-          )}
+            <Text style={[styles.consentText, { color: colors.foreground }]}>I agree to the Terms and Conditions</Text>
+          </TouchableOpacity>
 
           {!!error && (
             <View style={[styles.alertBox, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
@@ -88,40 +86,12 @@ export default function LoginScreen() {
             </View>
           )}
 
-          <View style={styles.form}>
-              <Input
-                label="Mobile Number"
-                value={mobile}
-                onChangeText={(t) => setMobile(t.replace(/\D/g, '').slice(0, 10))}
-                placeholder="10-digit mobile number"
-                keyboardType="phone-pad"
-                leftText="+91"
-              />
-
-              <View style={styles.rememberRow}>
-                <TouchableOpacity onPress={() => setRememberMe(!rememberMe)} style={styles.checkboxRow} activeOpacity={0.7}>
-                  <View style={[styles.checkbox, { borderColor: colors.border, backgroundColor: rememberMe ? colors.primary : colors.input }]}>
-                    {rememberMe && <Feather name="check" size={12} color="#FFFFFF" />}
-                  </View>
-                  <Text style={[styles.rememberText, { color: colors.foreground }]}>Remember me</Text>
-                </TouchableOpacity>
-              </View>
-
-              <Button title="Send OTP" onPress={handleSendOtp} loading={otpLoading} fullWidth size="lg" />
-          </View>
+          <Button title="Continue" onPress={handleContinue} fullWidth size="lg" />
         </View>
 
-        <View style={styles.bottomSection}>
-          <TouchableOpacity onPress={() => router.push('/(auth)/register')} activeOpacity={0.7}>
-            <Text style={[styles.bottomText, { color: colors.textMuted }]}>
-              Don't have an account? <Text style={{ color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Create Account</Text>
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/(auth)/activate')} activeOpacity={0.7}>
-            <Text style={[styles.bottomText, { color: colors.textMuted }]}>
-              Received a customer invite? <Text style={{ color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Activate Account</Text>
-            </Text>
-          </TouchableOpacity>
+        <View style={styles.footer}>
+          <Text style={[styles.footerText, { color: colors.textMuted }]}>© {new Date().getFullYear()} Avarpus</Text>
+          <Text style={[styles.footerText, { color: colors.textMuted }]}>Business operations, made simple.</Text>
         </View>
       </KeyboardAwareScrollViewCompat>
     </View>
@@ -130,21 +100,24 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  scroll: { paddingHorizontal: 20, gap: 32 },
-  header: { alignItems: 'center', gap: 6 },
-  logoImg: { width: 132, height: 132 },
-  tagline: { fontSize: 13, marginTop: 4, fontFamily: 'Inter_400Regular' },
-  card: { borderRadius: 16, padding: 24, borderWidth: 1, gap: 20, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 16, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
-  cardHeader: { gap: 4 },
-  cardTitle: { fontSize: 24, fontFamily: 'Inter_700Bold' },
-  cardSub: { fontSize: 14, fontFamily: 'Inter_400Regular' },
+  scroll: { flexGrow: 1, paddingHorizontal: 24, gap: 30 },
+  topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  wordmark: { fontSize: 12, letterSpacing: 2.4, fontFamily: 'Inter_700Bold' },
+  step: { fontSize: 12, letterSpacing: 1, fontFamily: 'Inter_500Medium', textTransform: 'uppercase' },
+  hero: { flex: 1, justifyContent: 'center', paddingVertical: 24, gap: 12 },
+  eyebrow: { fontSize: 12, letterSpacing: 1.5, fontFamily: 'Inter_700Bold', textTransform: 'uppercase' },
+  title: { fontSize: 44, lineHeight: 48, letterSpacing: -1.5, fontFamily: 'Inter_700Bold' },
+  subtitle: { maxWidth: 520, fontSize: 16, lineHeight: 24, fontFamily: 'Inter_400Regular' },
+  action: { gap: 16 },
+  trustLine: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  trustText: { flex: 1, fontSize: 14, lineHeight: 20, fontFamily: 'Inter_600SemiBold' },
+  termsLink: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
+  termsText: { fontSize: 14, lineHeight: 20, fontFamily: 'Inter_400Regular' },
+  consentText: { flex: 1, fontSize: 14, lineHeight: 20, fontFamily: 'Inter_400Regular' },
   alertBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 8, borderWidth: 1 },
   alertText: { fontSize: 13, flex: 1, fontFamily: 'Inter_500Medium', lineHeight: 18 },
-  form: { gap: 16 },
-  rememberRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
   checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  rememberText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
-  bottomSection: { gap: 16, alignItems: 'center' },
-  bottomText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingTop: 4 },
+  footerText: { fontSize: 11, fontFamily: 'Inter_400Regular' },
 });

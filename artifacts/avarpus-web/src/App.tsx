@@ -12,6 +12,8 @@ import {
 } from 'wouter';
 import { ProtectedRoutes } from '@/routes';
 import { LoginPage } from '@/pages/login';
+import { TermsPage } from '@/pages/terms';
+import { OtpPage } from '@/pages/otp';
 
 const queryClient = new QueryClient();
 
@@ -20,6 +22,8 @@ function Router() {
     <RoutedErrorBoundary>
       <Switch>
         <Route path="/login" component={LoginPage} />
+        <Route path="/terms" component={TermsPage} />
+        <Route path="/verify" component={OtpPage} />
         <Route component={ProtectedRoutes} />
       </Switch>
     </RoutedErrorBoundary>
