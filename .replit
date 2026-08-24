@@ -109,3 +109,6 @@ ALLOWED_ORIGINS = "https://3c2b05f7-3c61-425c-9ed4-67462616b38f-00-f8q4w8aat8g9-
 MAIL_FROM = "Avarpus <noreply@vmcelectronic.com>"
 
 [userenv.production]
+
+[objectStorage]
+defaultBucketID = "replit-objstore-bdc44916-c203-4ff0-bb3d-753049591581"
