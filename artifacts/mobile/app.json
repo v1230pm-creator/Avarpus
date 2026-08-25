@@ -61,6 +61,11 @@
       ]
     ],
     "owner": "avarpus-team",
+    "extra": {
+      "eas": {
+        "projectId": "2faf87fd-bd32-4f83-8973-af020d1dc839"
+      }
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
