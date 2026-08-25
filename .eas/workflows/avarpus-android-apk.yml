@@ -1,7 +1,7 @@
 name: Avarpus Android APK
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 jobs:
   build_android:
