@@ -12,6 +12,21 @@ description: What to do when the GitHub connection's auth() returns unauthentica
 
 **How to apply:** After an API push, local and remote SHAs DIVERGE (same content, different commits). Before the next token-based `git push`, either `git fetch && git reset --hard origin/<branch>` (if no new local work) or push with `--force-with-lease` knowing content is identical. As of Aug 15 2026, local `vmc-electronic-bms` (f81bc9a) diverges from remote head 41011ba this way.
 
+## Empty repository bootstrap
+
+GitHub returns `409 Git Repository is empty` for low-level `/git/blobs` and
+`/git/trees` writes while a repository has no initial commit. First create the
+target branch with `PUT /contents/<an actual tracked file>`; then use the Git
+Data API for the complete tree and a normal non-force ref update.
+
+**Why:** An empty repo cannot accept a standalone blob even through the
+authenticated proxy, but a Contents API write creates the first real commit
+and unlocks the lower-level APIs.
+
+**How to apply:** Never leave a placeholder-only initial commit: immediately
+replace its tree with the full local tracked tree, then verify the remote commit
+tree SHA and every remote blob/mode/path against local `HEAD`.
+
 ## Broken ref pitfall (learned Aug 2026)
 A previous Git Data API push left `refs/heads/vmc-electronic-bms` pointing at a TREE object, not a commit. Symptom: `/branches`, `/commits`, `/git/ref/heads/...`, `/git/trees/{sha}`, `/git/commits/{sha}` all 404 (reachability checks), while `/contents?ref=branch` and blob POST still work — looks like a flaky proxy but isn't.
 **Fix:** push each file via `PUT /contents/{path}` with `branch` + current file `sha` — contents PUT creates real commits and repairs the ref automatically. Loop all files serially with sha-refetch retry on 409/422.
