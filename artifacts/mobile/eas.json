@@ -27,5 +27,8 @@
       },
       "node": "24.13.0"
     }
+  },
+  "submit": {
+    "production": {}
   }
 }
