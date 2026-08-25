@@ -507,7 +507,7 @@ router.post("/auth/device/authenticate", asyncHandler(async (req, res) => {
     res.status(401).json({ message: "Device verification failed or expired" });
     return;
   }
-  await recordLoginEvent(result.user.id, "otp", rememberMe === true, typeof deviceInfo === "string" ? deviceInfo : `Device key · ${deviceId.trim()}`);
+  await recordLoginEvent(result.user.id, "device_key", rememberMe === true, typeof deviceInfo === "string" ? deviceInfo : `Device key · ${deviceId.trim()}`);
   res.json({ token: result.token, user: publicUser(result.user) });
 }));
 

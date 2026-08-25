@@ -340,6 +340,11 @@ describe("device-key authorization security", () => {
       });
     expect(authenticated.status).toBe(200);
     expect(typeof authenticated.body.token).toBe("string");
+    const deviceLoginEvents = await db
+      .select({ method: loginEventsTable.method })
+      .from(loginEventsTable)
+      .where(eq(loginEventsTable.userId, userId));
+    expect(deviceLoginEvents.some((event) => event.method === "device_key")).toBe(true);
 
     const reused = await request(app)
       .post("/api/auth/device/authenticate")

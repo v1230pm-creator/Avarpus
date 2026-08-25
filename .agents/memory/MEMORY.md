@@ -39,3 +39,4 @@
 - [Chat provisioning recovery](chat-provisioning-recovery.md) — never reclaim a possibly live Matrix room reservation without provider-side create idempotency and fencing.
 - [Static web API bootstrapping](static-web-api-bootstrapping.md) — configure bearer API client before React Query hooks mount; external builds must require a public API origin.
 - [Wouter query navigation](wouter-query-navigation.md) — query-only login transitions need local React step state to rerender reliably.
+- [Local Expo native modules](local-expo-native-modules.md) — use autolinked modules under artifacts/mobile/modules; Expo Go must fail closed for sensitive native features.

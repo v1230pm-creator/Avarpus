@@ -56,7 +56,7 @@ export async function createSession(
 
 export async function recordLoginEvent(
   userId: string,
-  method: "password" | "otp",
+  method: "password" | "otp" | "device_key",
   rememberMe: boolean,
   deviceInfo?: string | null,
 ): Promise<void> {

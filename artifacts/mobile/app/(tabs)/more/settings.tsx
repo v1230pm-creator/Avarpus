@@ -355,7 +355,7 @@ export default function SettingsScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.historyMethod, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
-                  {e.method === 'otp' ? 'Mobile OTP' : 'Email & password'}
+                  {e.method === 'otp' ? 'Mobile OTP' : e.method === 'device_key' ? 'Device key' : 'Email & password'}
                   {e.deviceInfo ? `  ·  ${e.deviceInfo}` : ''}
                   {e.rememberMe ? '  ·  Remembered' : ''}
                 </Text>
