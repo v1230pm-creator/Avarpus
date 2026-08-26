@@ -2,6 +2,7 @@
 // Email delivery and MSG91 provider are mocked — no real network calls.
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
+import { readFileSync } from "node:fs";
 import { eq, or } from "drizzle-orm";
 import {
   db,
@@ -45,6 +46,10 @@ vi.mock("../lib/msg91", () => ({
 const { default: app } = await import("../app");
 const { hashPassword } = await import("../lib/authUtils");
 const { otpVerificationRateLimitKeyHash } = await import("../lib/rateLimit");
+const openApiSpec = readFileSync(
+  new URL("../../../../lib/api-spec/openapi.yaml", import.meta.url),
+  "utf8",
+);
 
 // Unique-per-run identifiers so parallel/repeated runs never collide.
 const RUN = Date.now().toString().slice(-9);
@@ -142,6 +147,54 @@ describe("retired password routes", () => {
     });
     expect(res.status).toBe(404);
     expect(res.body.token).toBeUndefined();
+  });
+});
+
+// ── OTP-only authentication contract ─────────────────────────────────────
+describe("OTP-only authentication contract", () => {
+  const retiredRoutes = [
+    ["post", "/api/auth/phone-verification/start"],
+    ["post", "/api/auth/phone-verification/status"],
+    ["post", "/api/auth/sms-verification"],
+    ["post", "/api/auth/devices/register"],
+    ["get", "/api/auth/devices"],
+    ["delete", "/api/auth/devices/device-id"],
+    ["post", "/api/auth/device/challenge"],
+    ["post", "/api/auth/device/authenticate"],
+  ] as const;
+
+  it.each(retiredRoutes)("does not expose %s %s", async (method, path) => {
+    const routeRequest =
+      method === "get"
+        ? request(app).get(path)
+        : method === "delete"
+          ? request(app).delete(path)
+          : request(app).post(path);
+    const res = await routeRequest.send({});
+    expect(res.status).toBe(404);
+    expect(res.body.token).toBeUndefined();
+  });
+
+  it("keeps mobile OTP request available and removes retired paths from OpenAPI", async () => {
+    const res = await request(app)
+      .post("/api/auth/otp/request")
+      .send({ mobile: `6${RUN}` });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/if this mobile/i);
+
+    for (const path of [
+      "/auth/phone-verification/start",
+      "/auth/phone-verification/status",
+      "/auth/sms-verification",
+      "/auth/devices/register",
+      "/auth/devices",
+      "/auth/device/challenge",
+      "/auth/device/authenticate",
+    ]) {
+      expect(openApiSpec).not.toContain(`  ${path}:`);
+    }
+    expect(openApiSpec).toContain("  /auth/otp/request:");
   });
 });
 
