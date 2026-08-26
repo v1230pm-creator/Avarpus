@@ -6,10 +6,12 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { sql } from "drizzle-orm";
 
 export const usersTable = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -64,12 +66,59 @@ export const sessionsTable = pgTable("sessions", {
   userId: uuid("user_id")
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
+  // Set only for sessions issued through a trusted Android device. It lets an
+  // explicit logout revoke the matching trust without retaining its raw ID.
+  trustedDeviceId: uuid("trusted_device_id").references(() => trustedDeviceTrustsTable.id, {
+    onDelete: "set null",
+  }),
   deviceInfo: text("device_info"), // e.g. "ios · iPhone 15" or a user-agent snippet
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
+
+// Android device recovery material. The identifier is SHA-256 hashed before
+// reaching this table; no hardware identifiers or raw Android ID are retained.
+// A hash is deliberately not globally unique: a recovery lookup fails closed
+// when it maps to anything other than one eligible user/device trust.
+export const trustedDeviceTrustsTable = pgTable(
+  "trusted_device_trusts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    androidIdHash: text("android_id_hash").notNull(),
+    deviceInfo: text("device_info"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    recoveryDeadline: timestamp("recovery_deadline", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    // A rotation revokes its immutable generation then inserts a new one.
+    // Exactly one unrevoked generation may exist for a user/device pair.
+    uniqueIndex("trusted_device_trusts_active_user_android_hash_idx")
+      .on(table.userId, table.androidIdHash)
+      .where(sql`${table.revokedAt} is null`),
+    index("trusted_device_trusts_hash_active_idx").on(table.androidIdHash, table.expiresAt),
+  ],
+);
+
+// Durable, privacy-preserving recovery throttles. keyHash is a SHA-256 hash
+// of a namespaced IP or device-hash key, never either raw input.
+export const trustedDeviceRecoveryRateLimitsTable = pgTable(
+  "trusted_device_recovery_rate_limits",
+  {
+    keyHash: text("key_hash").primaryKey(),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("trusted_device_recovery_rate_limits_expires_idx").on(table.expiresAt)],
+);
 
 // Record of each successful sign-in (for the "Login history" screen).
 export const loginEventsTable = pgTable("login_events", {
@@ -132,3 +181,4 @@ export type DbShop = typeof shopsTable.$inferSelect;
 export type DbSession = typeof sessionsTable.$inferSelect;
 export type DbOtpCode = typeof otpCodesTable.$inferSelect;
 export type DbLoginEvent = typeof loginEventsTable.$inferSelect;
+export type DbTrustedDeviceTrust = typeof trustedDeviceTrustsTable.$inferSelect;

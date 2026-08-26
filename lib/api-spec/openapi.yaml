@@ -81,6 +81,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthSession"
+  /auth/trusted-device/recover:
+    post:
+      operationId: authTrustedDeviceRecover
+      tags: [auth]
+      summary: Recover an Android trusted-device session without extending trust
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrustedDeviceRecoveryInput"
+      responses:
+        "200":
+          description: Recovered session, bounded by the original recovery deadline
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
   /auth/otp/provider-status:
     get:
       operationId: authOtpProviderStatus
@@ -419,7 +437,7 @@ paths:
     post:
       operationId: authLogout
       tags: [auth]
-      summary: Sign out and invalidate the session
+      summary: Sign out, invalidate the session, and revoke its trusted-device recovery when present
       responses:
         "200":
           description: Signed out
@@ -2663,8 +2681,21 @@ components:
         mobile: { type: string }
         code: { type: string }
         rememberMe: { type: boolean }
-        device: { type: string }
+        deviceInfo: { type: string, maxLength: 120 }
+        androidDeviceId:
+          type: string
+          pattern: "^[A-Fa-f0-9]{16}$"
+          description: Android Settings.Secure ANDROID_ID. Never stored or returned; only its SHA-256 hash is retained.
       required: [mobile, code]
+    TrustedDeviceRecoveryInput:
+      type: object
+      additionalProperties: false
+      properties:
+        androidDeviceId:
+          type: string
+          pattern: "^[A-Fa-f0-9]{16}$"
+          description: Android Settings.Secure ANDROID_ID. MAC addresses, IMEIs, serials, and SIM identifiers are not accepted.
+      required: [androidDeviceId]
     OtpProviderStatus:
       type: object
       properties:

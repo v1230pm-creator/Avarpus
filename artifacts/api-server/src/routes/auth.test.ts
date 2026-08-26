@@ -1,9 +1,9 @@
 // Integration tests for the auth routes, run against the real dev database.
 // Email delivery and Hanu OTP delivery are mocked — no real network calls.
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { readFileSync } from "node:fs";
-import { eq, or } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import {
   db,
   loginEventsTable,
@@ -11,6 +11,8 @@ import {
   otpVerificationRateLimitsTable,
   pool,
   sessionsTable,
+  trustedDeviceTrustsTable,
+  trustedDeviceRecoveryRateLimitsTable,
   usersTable,
 } from "@workspace/db";
 
@@ -50,7 +52,12 @@ vi.mock("../lib/hanuOtp", () => ({
 }));
 
 const { default: app } = await import("../app");
-const { createOtp, hashPassword } = await import("../lib/authUtils");
+const {
+  cleanupExpiredAuthData,
+  createOtp,
+  hashAndroidDeviceIdentifier,
+  hashPassword,
+} = await import("../lib/authUtils");
 const { otpVerificationRateLimitKeyHash } = await import("../lib/rateLimit");
 const openApiSpec = readFileSync(
   new URL("../../../../lib/api-spec/openapi.yaml", import.meta.url),
@@ -62,6 +69,7 @@ const RUN = Date.now().toString().slice(-9);
 const EMAIL = `authtest-${RUN}@example.test`;
 const MOBILE = `9${RUN}`; // 10 digits
 const PASSWORD = "Test1234!";
+const ANDROID_ID = `a${RUN.padStart(15, "0")}`;
 
 let userId: string;
 let inactiveUserId: string;
@@ -591,6 +599,322 @@ describe("POST /api/auth/otp/verify", () => {
       .send({ mobile: "not-a-number", code: "123456" });
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/valid Indian mobile/i);
+  });
+});
+
+// ── Android trusted-device recovery ────────────────────────────────────────
+describe("trusted Android device recovery", () => {
+  beforeEach(async () => {
+    // The limiter is deliberately durable across process restarts. Keep this
+    // integration group isolated despite reusing Supertest's IP and device IDs.
+    await db.delete(trustedDeviceRecoveryRateLimitsTable);
+  });
+
+  it("hashes OTP-enrolled identifiers and recovers without sliding the deadline", async () => {
+    const code = await createOtp(MOBILE, "login");
+    const enrolled = await request(app).post("/api/auth/otp/verify").send({
+      mobile: MOBILE,
+      code,
+      androidDeviceId: ANDROID_ID,
+      deviceInfo: "Android test device",
+    });
+    expect(enrolled.status).toBe(200);
+
+    const [trust] = await db
+      .select()
+      .from(trustedDeviceTrustsTable)
+      .where(eq(trustedDeviceTrustsTable.userId, userId));
+    expect(trust.androidIdHash).toBe(hashAndroidDeviceIdentifier(ANDROID_ID));
+    expect(trust.androidIdHash).not.toBe(ANDROID_ID);
+    expect(trust.expiresAt.getTime() - trust.createdAt.getTime()).toBeLessThanOrEqual(48 * 60 * 60 * 1000);
+    expect(trust.recoveryDeadline.getTime() - trust.createdAt.getTime()).toBeLessThanOrEqual(24 * 60 * 60 * 1000);
+
+    const recovered = await request(app)
+      .post("/api/auth/trusted-device/recover")
+      .send({ androidDeviceId: ANDROID_ID });
+    expect(recovered.status).toBe(200);
+    const [session] = await db
+      .select()
+      .from(sessionsTable)
+      .where(eq(sessionsTable.token, recovered.body.token));
+    expect(session.expiresAt.getTime()).toBe(trust.recoveryDeadline.getTime());
+
+    const [afterRecovery] = await db
+      .select()
+      .from(trustedDeviceTrustsTable)
+      .where(eq(trustedDeviceTrustsTable.id, trust.id));
+    expect(afterRecovery.recoveryDeadline.getTime()).toBe(trust.recoveryDeadline.getTime());
+  });
+
+  it("fails generically after expiry or explicit current-device logout", async () => {
+    const code = await createOtp(MOBILE, "login");
+    const enrolled = await request(app).post("/api/auth/otp/verify").send({
+      mobile: MOBILE,
+      code,
+      androidDeviceId: ANDROID_ID,
+    });
+    expect(enrolled.status).toBe(200);
+    const [enrolledSession] = await db
+      .select({ trustedDeviceId: sessionsTable.trustedDeviceId })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.token, enrolled.body.token));
+    expect(enrolledSession.trustedDeviceId).toBeTruthy();
+    const loggedOut = await request(app)
+      .post("/api/auth/logout")
+      .set("Authorization", `Bearer ${enrolled.body.token}`);
+    expect(loggedOut.status).toBe(200);
+    const revokedRecovery = await request(app)
+      .post("/api/auth/trusted-device/recover")
+      .send({ androidDeviceId: ANDROID_ID });
+    expect(revokedRecovery.status).toBe(401);
+    expect(revokedRecovery.body.message).toMatch(/recover this device/i);
+
+    await db
+      .update(trustedDeviceTrustsTable)
+      .set({ revokedAt: null, expiresAt: new Date(Date.now() - 1), recoveryDeadline: new Date(Date.now() - 1) })
+      .where(eq(trustedDeviceTrustsTable.id, enrolledSession.trustedDeviceId!));
+    const expiredRecovery = await request(app)
+      .post("/api/auth/trusted-device/recover")
+      .send({ androidDeviceId: ANDROID_ID });
+    expect(expiredRecovery.status).toBe(401);
+  });
+
+  it("rejects malformed identifiers and fails closed for inactive or ambiguous matches", async () => {
+    const malformed = await request(app)
+      .post("/api/auth/trusted-device/recover")
+      .send({ androidDeviceId: "356938035643809" }); // IMEI-shaped, not ANDROID_ID
+    expect(malformed.status).toBe(400);
+
+    const hash = hashAndroidDeviceIdentifier(ANDROID_ID);
+    const future = new Date(Date.now() + 60 * 60 * 1000);
+    await db.insert(trustedDeviceTrustsTable).values({
+      userId: inactiveUserId,
+      androidIdHash: hash,
+      expiresAt: future,
+      recoveryDeadline: future,
+    });
+    const inactive = await request(app)
+      .post("/api/auth/trusted-device/recover")
+      .send({ androidDeviceId: ANDROID_ID });
+    expect(inactive.status).toBe(401);
+
+    const [other] = await db.insert(usersTable).values({
+      name: "Ambiguous device user",
+      email: `ambiguous-${RUN}@example.test`,
+      mobile: `1${RUN}`,
+      passwordHash: hashPassword(PASSWORD),
+      role: "dealer",
+      isActive: true,
+    }).returning();
+    const [currentTrust] = await db
+      .select({ id: trustedDeviceTrustsTable.id })
+      .from(trustedDeviceTrustsTable)
+      .where(and(
+        eq(trustedDeviceTrustsTable.userId, userId),
+        eq(trustedDeviceTrustsTable.androidIdHash, hash),
+        isNull(trustedDeviceTrustsTable.revokedAt),
+      ))
+      .limit(1);
+    await db
+      .update(trustedDeviceTrustsTable)
+      .set({ revokedAt: null, expiresAt: future, recoveryDeadline: future })
+      .where(eq(trustedDeviceTrustsTable.id, currentTrust.id));
+    await db.insert(trustedDeviceTrustsTable).values({
+      userId: other.id,
+      androidIdHash: hash,
+      expiresAt: future,
+      recoveryDeadline: future,
+    });
+    const ambiguous = await request(app)
+      .post("/api/auth/trusted-device/recover")
+      .send({ androidDeviceId: ANDROID_ID });
+    expect(ambiguous.status).toBe(401);
+    await db.delete(usersTable).where(eq(usersTable.id, other.id));
+  });
+
+  it("cleans up expired trusted-device records", async () => {
+    const [expired] = await db.insert(trustedDeviceTrustsTable).values({
+      userId,
+      androidIdHash: hashAndroidDeviceIdentifier("b000000000000000"),
+      expiresAt: new Date(Date.now() - 1),
+      recoveryDeadline: new Date(Date.now() - 1),
+    }).returning();
+    await db.insert(trustedDeviceRecoveryRateLimitsTable).values({
+      keyHash: hashAndroidDeviceIdentifier(`rate-limit-${RUN}`),
+      attemptCount: 1,
+      windowStartedAt: new Date(Date.now() - 60_000),
+      expiresAt: new Date(Date.now() - 1),
+    });
+    const result = await cleanupExpiredAuthData();
+    expect(result.trustedDeviceTrusts).toBeGreaterThanOrEqual(1);
+    expect(result.trustedDeviceRecoveryRateLimits).toBeGreaterThanOrEqual(1);
+    const rows = await db.select().from(trustedDeviceTrustsTable)
+      .where(eq(trustedDeviceTrustsTable.id, expired.id));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("rotates immutable generations, invalidates stale sessions, and replaces recovery sessions", async () => {
+    const rotatingId = `c${RUN.padStart(15, "0")}`;
+    const firstCode = await createOtp(MOBILE, "login");
+    const first = await request(app).post("/api/auth/otp/verify").send({
+      mobile: MOBILE, code: firstCode, androidDeviceId: rotatingId,
+    });
+    const firstSession = await db.select().from(sessionsTable)
+      .where(eq(sessionsTable.token, first.body.token));
+    const secondCode = await createOtp(MOBILE, "login");
+    const second = await request(app).post("/api/auth/otp/verify").send({
+      mobile: MOBILE, code: secondCode, androidDeviceId: rotatingId,
+    });
+    expect(second.status).toBe(200);
+    const oldSession = await db.select().from(sessionsTable)
+      .where(eq(sessionsTable.token, first.body.token));
+    expect(oldSession).toHaveLength(0);
+    const generations = await db.select().from(trustedDeviceTrustsTable)
+      .where(eq(trustedDeviceTrustsTable.androidIdHash, hashAndroidDeviceIdentifier(rotatingId)));
+    expect(generations.filter((trust) => trust.revokedAt === null)).toHaveLength(1);
+    expect(generations.some((trust) => trust.id === firstSession[0].trustedDeviceId && trust.revokedAt)).toBe(true);
+
+    // The stale session is unusable and therefore cannot revoke the fresh generation.
+    expect((await request(app).post("/api/auth/logout")
+      .set("Authorization", `Bearer ${first.body.token}`)).status).toBe(401);
+    const recovery1 = await request(app).post("/api/auth/trusted-device/recover")
+      .send({ androidDeviceId: rotatingId });
+    const recovery2 = await request(app).post("/api/auth/trusted-device/recover")
+      .send({ androidDeviceId: rotatingId });
+    expect(recovery1.status).toBe(200);
+    expect(recovery2.status).toBe(200);
+    expect((await request(app).get("/api/auth/me")
+      .set("Authorization", `Bearer ${recovery1.body.token}`)).status).toBe(401);
+    expect((await request(app).get("/api/auth/me")
+      .set("Authorization", `Bearer ${recovery2.body.token}`)).status).toBe(200);
+  });
+
+  it("revokes trusted recovery for targeted sessions and revoke-others", async () => {
+    const targetId = `d${RUN.padStart(15, "0")}`;
+    const targetCode = await createOtp(MOBILE, "login");
+    const target = await request(app).post("/api/auth/otp/verify").send({
+      mobile: MOBILE, code: targetCode, androidDeviceId: targetId,
+    });
+    const [targetSession] = await db.select().from(sessionsTable)
+      .where(eq(sessionsTable.token, target.body.token));
+    expect((await request(app).delete(`/api/auth/sessions/${targetSession.id}`)
+      .set("Authorization", `Bearer ${target.body.token}`)).status).toBe(200);
+    expect((await request(app).post("/api/auth/trusted-device/recover")
+      .send({ androidDeviceId: targetId })).status).toBe(401);
+
+    const keeperCode = await createOtp(MOBILE, "login");
+    const keeper = await request(app).post("/api/auth/otp/verify").send({ mobile: MOBILE, code: keeperCode });
+    const otherId = `e${RUN.padStart(15, "0")}`;
+    const otherCode = await createOtp(MOBILE, "login");
+    await request(app).post("/api/auth/otp/verify").send({
+      mobile: MOBILE, code: otherCode, androidDeviceId: otherId,
+    });
+    expect((await request(app).post("/api/auth/sessions/revoke-others")
+      .set("Authorization", `Bearer ${keeper.body.token}`)).status).toBe(200);
+    expect((await request(app).post("/api/auth/trusted-device/recover")
+      .send({ androidDeviceId: otherId })).status).toBe(401);
+  });
+
+  it("serializes concurrent recovery and every explicit revocation path without server errors", async () => {
+    async function enroll(id: string) {
+      const code = await createOtp(MOBILE, "login");
+      const response = await request(app).post("/api/auth/otp/verify").send({
+        mobile: MOBILE, code, androidDeviceId: id,
+      });
+      const [session] = await db.select().from(sessionsTable)
+        .where(eq(sessionsTable.token, response.body.token));
+      return { token: response.body.token as string, sessionId: session.id };
+    }
+    async function assertRace(id: string, revoke: Promise<request.Response>) {
+      const [recovery, revoked] = await Promise.all([
+        request(app).post("/api/auth/trusted-device/recover").send({ androidDeviceId: id }),
+        revoke,
+      ]);
+      expect([recovery.status, revoked.status]).not.toContain(500);
+      if (revoked.status === 200) {
+        expect((await request(app).post("/api/auth/trusted-device/recover")
+          .send({ androidDeviceId: id })).status).toBe(401);
+      }
+    }
+
+    const logoutId = `f${RUN.padStart(15, "0")}`;
+    const logout = await enroll(logoutId);
+    await assertRace(logoutId, request(app).post("/api/auth/logout")
+      .set("Authorization", `Bearer ${logout.token}`));
+
+    const targetedId = `a${RUN.padStart(14, "0")}b`;
+    const targeted = await enroll(targetedId);
+    await assertRace(targetedId, request(app).delete(`/api/auth/sessions/${targeted.sessionId}`)
+      .set("Authorization", `Bearer ${targeted.token}`));
+
+    const keeperCode = await createOtp(MOBILE, "login");
+    const keeper = await request(app).post("/api/auth/otp/verify").send({ mobile: MOBILE, code: keeperCode });
+    const othersId = `b${RUN.padStart(14, "0")}c`;
+    await enroll(othersId);
+    await assertRace(othersId, request(app).post("/api/auth/sessions/revoke-others")
+      .set("Authorization", `Bearer ${keeper.body.token}`));
+  });
+
+  it("fails closed after concurrent second-user enrollment creates an ambiguous Android hash", async () => {
+    const sharedId = `9${RUN.padStart(15, "0")}`;
+    const firstCode = await createOtp(MOBILE, "login");
+    const firstEnrollment = await request(app).post("/api/auth/otp/verify").send({
+      mobile: MOBILE,
+      code: firstCode,
+      androidDeviceId: sharedId,
+    });
+    expect(firstEnrollment.status).toBe(200);
+
+    const [secondUser] = await db.insert(usersTable).values({
+      name: "Concurrent ambiguous device user",
+      email: `concurrent-ambiguous-${RUN}@example.test`,
+      mobile: `0${RUN}`,
+      passwordHash: hashPassword(PASSWORD),
+      role: "dealer",
+      isActive: true,
+    }).returning();
+
+    try {
+      const secondCode = await createOtp(secondUser.mobile, "login");
+      // The global device-hash advisory lock makes either ordering safe. The
+      // raced recovery may legitimately win before user B enrolls, or fail
+      // after B enrolls; neither ordering may produce a server error.
+      const [secondEnrollment, racedRecovery] = await Promise.all([
+        request(app).post("/api/auth/otp/verify").send({
+          mobile: secondUser.mobile,
+          code: secondCode,
+          androidDeviceId: sharedId,
+        }),
+        request(app).post("/api/auth/trusted-device/recover").send({
+          androidDeviceId: sharedId,
+        }),
+      ]);
+      expect(secondEnrollment.status).toBe(200);
+      expect(secondEnrollment.status).not.toBe(500);
+      expect(racedRecovery.status).not.toBe(500);
+      expect([200, 401]).toContain(racedRecovery.status);
+
+      const activeGenerations = await db
+        .select()
+        .from(trustedDeviceTrustsTable)
+        .where(and(
+          eq(trustedDeviceTrustsTable.androidIdHash, hashAndroidDeviceIdentifier(sharedId)),
+          isNull(trustedDeviceTrustsTable.revokedAt),
+        ));
+      expect(activeGenerations).toHaveLength(2);
+
+      // Once both commits are visible, exact-one matching must fail closed.
+      const ambiguousRecovery = await request(app)
+        .post("/api/auth/trusted-device/recover")
+        .send({ androidDeviceId: sharedId });
+      expect(ambiguousRecovery.status).toBe(401);
+      expect(ambiguousRecovery.body.token).toBeUndefined();
+    } finally {
+      await db.delete(sessionsTable).where(eq(sessionsTable.userId, secondUser.id));
+      await db.delete(loginEventsTable).where(eq(loginEventsTable.userId, secondUser.id));
+      await db.delete(otpCodesTable).where(eq(otpCodesTable.identifier, secondUser.mobile));
+      await db.delete(usersTable).where(eq(usersTable.id, secondUser.id));
+    }
   });
 });
 

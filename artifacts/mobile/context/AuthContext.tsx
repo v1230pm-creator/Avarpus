@@ -1,10 +1,23 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { authLogout, authMe, authOtpVerify, roleFeaturesGet, setUnauthorizedHandler } from '@workspace/api-client-react';
+import {
+  authLogout,
+  authMe,
+  authOtpVerify,
+  authTrustedDeviceRecover,
+  roleFeaturesGet,
+  setUnauthorizedHandler,
+} from '@workspace/api-client-react';
 import { User, UserRole, isCustomerRole } from '@/types';
 import { storage, KEYS } from '@/utils/storage';
 import { seedIfNeeded } from '@/utils/seedData';
+import {
+  canAttemptTrustedDeviceRecovery,
+  getTrustedAndroidDeviceId,
+} from '@/utils/trustedDevice';
+
+export type TrustedDeviceStatus = 'idle' | 'checking' | 'verified' | 'skipped';
 
 interface AuthContextType {
   user: User | null;
@@ -21,6 +34,8 @@ interface AuthContextType {
   /** Message explaining why the user was signed out (e.g. session revoked). */
   signedOutNotice: string | null;
   clearSignedOutNotice: () => void;
+  trustedDeviceStatus: TrustedDeviceStatus;
+  useOtpInstead: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -35,6 +50,8 @@ const AuthContext = createContext<AuthContextType>({
   refreshUser: async () => {},
   signedOutNotice: null,
   clearSignedOutNotice: () => {},
+  trustedDeviceStatus: 'idle',
+  useOtpInstead: () => {},
 });
 
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
@@ -98,6 +115,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [signedOutNotice, setSignedOutNotice] = useState<string | null>(null);
+  const [trustedDeviceStatus, setTrustedDeviceStatus] = useState<TrustedDeviceStatus>('idle');
+  const recoveryAttemptRef = useRef(0);
   // Effective per-role feature toggles from the server (null until loaded).
   const [features, setFeatures] = useState<Record<string, boolean> | null>(null);
 
@@ -112,29 +131,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setUnauthorizedHandler(() => {
       if (!userRef.current) return; // not signed in — nothing to do
+      recoveryAttemptRef.current += 1;
       userRef.current = null;
       setSignedOutNotice('You were signed out. Please sign in again.');
       setUser(null);
+      setIsLoading(false);
       // Fire-and-forget: local state is already cleared for the UI.
       storage.remove(KEYS.AUTH_TOKEN).catch(() => {});
       storage.remove(KEYS.CURRENT_USER).catch(() => {});
+      setTrustedDeviceStatus('idle');
     });
     return () => setUnauthorizedHandler(null);
   }, []);
 
   useEffect(() => {
+    const attempt = ++recoveryAttemptRef.current;
     (async () => {
       await seedIfNeeded();
       const token = await storage.get<string>(KEYS.AUTH_TOKEN);
+      let restoredSession = false;
       if (token) {
         try {
           const res = await authMe();
+          if (attempt !== recoveryAttemptRef.current) return;
           setUser(toUser(res.user));
+          restoredSession = true;
         } catch {
           // Session invalid or server unreachable — require sign-in
           await storage.remove(KEYS.AUTH_TOKEN);
         }
       }
+      if (!restoredSession && canAttemptTrustedDeviceRecovery()) {
+        setTrustedDeviceStatus('checking');
+        const androidDeviceId = await getTrustedAndroidDeviceId();
+        if (attempt !== recoveryAttemptRef.current) return;
+        if (androidDeviceId) {
+          try {
+            const session = await authTrustedDeviceRecover({ androidDeviceId });
+            if (attempt !== recoveryAttemptRef.current) return;
+            const applied = await applySession(
+              session,
+              () => attempt === recoveryAttemptRef.current,
+            );
+            if (!applied || attempt !== recoveryAttemptRef.current) return;
+            setSignedOutNotice(null);
+            setTrustedDeviceStatus('verified');
+          } catch {
+            if (attempt !== recoveryAttemptRef.current) return;
+            setTrustedDeviceStatus('idle');
+          }
+        } else {
+          setTrustedDeviceStatus('idle');
+        }
+      }
+      if (attempt !== recoveryAttemptRef.current) return;
       setIsLoading(false);
     })();
   }, []);
@@ -176,14 +226,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(timer);
   }, [user?.id]);
 
-  const applySession = async (session: { token: string; user: any }) => {
+  const applySession = async (
+    session: { token: string; user: any },
+    shouldApply: () => boolean = () => true,
+  ): Promise<boolean> => {
     await storage.set(KEYS.AUTH_TOKEN, session.token);
+    if (!shouldApply()) {
+      if ((await storage.get<string>(KEYS.AUTH_TOKEN)) === session.token) {
+        await storage.remove(KEYS.AUTH_TOKEN);
+      }
+      return false;
+    }
     // Strip any password field the server might have accidentally included
     // before persisting the user object to AsyncStorage.
     const { password: _omit, ...safeUser } = session.user ?? {};
     const u = toUser(safeUser);
     await storage.set(KEYS.CURRENT_USER, u);
+    if (!shouldApply()) {
+      if ((await storage.get<string>(KEYS.AUTH_TOKEN)) === session.token) {
+        await storage.remove(KEYS.AUTH_TOKEN);
+        await storage.remove(KEYS.CURRENT_USER);
+      }
+      return false;
+    }
     setUser(u);
+    return true;
   };
 
   const adoptSession = async (session: { token: string; user: any }) => {
@@ -193,9 +260,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithOtp = async (mobile: string, code: string, rememberMe = false) => {
     try {
-      const session = await authOtpVerify({ mobile, code, rememberMe, device: deviceDescription() });
+      const androidDeviceId = await getTrustedAndroidDeviceId();
+      const session = await authOtpVerify({
+        mobile,
+        code,
+        rememberMe,
+        deviceInfo: deviceDescription(),
+        ...(androidDeviceId ? { androidDeviceId } : {}),
+      });
       await applySession(session);
       setSignedOutNotice(null);
+      setTrustedDeviceStatus('idle');
       return { success: true };
     } catch (err) {
       return { success: false, error: apiErrorMessage(err, 'Verification failed. Please try again.') };
@@ -203,6 +278,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    recoveryAttemptRef.current += 1;
     try {
       await authLogout();
     } catch {
@@ -211,6 +287,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await storage.remove(KEYS.AUTH_TOKEN);
     await storage.remove(KEYS.CURRENT_USER);
     setUser(null);
+    setTrustedDeviceStatus('idle');
+    setIsLoading(false);
+  };
+
+  const useOtpInstead = () => {
+    recoveryAttemptRef.current += 1;
+    setTrustedDeviceStatus('skipped');
+    setIsLoading(false);
   };
 
   const canAccess = (feature: string): boolean => {
@@ -247,6 +331,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refreshUser,
         signedOutNotice,
         clearSignedOutNotice: () => setSignedOutNotice(null),
+        trustedDeviceStatus,
+        useOtpInstead,
       }}
     >
       {children}

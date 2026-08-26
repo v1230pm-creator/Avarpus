@@ -197,7 +197,21 @@ export interface OtpVerifyInput {
   mobile: string;
   code: string;
   rememberMe?: boolean;
-  device?: string;
+  /** @maxLength 120 */
+  deviceInfo?: string;
+  /**
+     * Android Settings.Secure ANDROID_ID. Never stored or returned; only its SHA-256 hash is retained.
+     * @pattern ^[A-Fa-f0-9]{16}$
+     */
+  androidDeviceId?: string;
+}
+
+export interface TrustedDeviceRecoveryInput {
+  /**
+     * Android Settings.Secure ANDROID_ID. MAC addresses, IMEIs, serials, and SIM identifiers are not accepted.
+     * @pattern ^[A-Fa-f0-9]{16}$
+     */
+  androidDeviceId: string;
 }
 
 export type OtpProviderStatusProvider = typeof OtpProviderStatusProvider[keyof typeof OtpProviderStatusProvider];

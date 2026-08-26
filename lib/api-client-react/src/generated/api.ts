@@ -167,6 +167,7 @@ import type {
   StaffUpdateInput,
   StockMovementsList200,
   StockMovementsListParams,
+  TrustedDeviceRecoveryInput,
   UploadUrlRequest,
   UploadUrlResponse
 } from './api.schemas';
@@ -409,6 +410,77 @@ export const useAuthOtpVerify = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAuthOtpVerifyMutationOptions(options));
+    }
+
+export const getAuthTrustedDeviceRecoverUrl = () => {
+
+
+
+
+  return `/api/auth/trusted-device/recover`
+}
+
+/**
+ * @summary Recover an Android trusted-device session without extending trust
+ */
+export const authTrustedDeviceRecover = async (trustedDeviceRecoveryInput: TrustedDeviceRecoveryInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthSession> => {
+
+  return customFetch<AuthSession>(getAuthTrustedDeviceRecoverUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(trustedDeviceRecoveryInput)
+  }
+);}
+
+
+
+
+
+export const getAuthTrustedDeviceRecoverMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authTrustedDeviceRecover>>, TError,{data: BodyType<TrustedDeviceRecoveryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authTrustedDeviceRecover>>, TError,{data: BodyType<TrustedDeviceRecoveryInput>}, TContext> => {
+
+const mutationKey = ['authTrustedDeviceRecover'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authTrustedDeviceRecover>>, {data: BodyType<TrustedDeviceRecoveryInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  authTrustedDeviceRecover(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthTrustedDeviceRecoverMutationResult = NonNullable<Awaited<ReturnType<typeof authTrustedDeviceRecover>>>
+    export type AuthTrustedDeviceRecoverMutationBody = BodyType<TrustedDeviceRecoveryInput>
+    export type AuthTrustedDeviceRecoverMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Recover an Android trusted-device session without extending trust
+ */
+export const useAuthTrustedDeviceRecover = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authTrustedDeviceRecover>>, TError,{data: BodyType<TrustedDeviceRecoveryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authTrustedDeviceRecover>>,
+        TError,
+        {data: BodyType<TrustedDeviceRecoveryInput>},
+        TContext
+      > => {
+      return useMutation(getAuthTrustedDeviceRecoverMutationOptions(options));
     }
 
 export const getAuthOtpProviderStatusUrl = () => {
@@ -1742,7 +1814,7 @@ export const getAuthLogoutUrl = () => {
 }
 
 /**
- * @summary Sign out and invalidate the session
+ * @summary Sign out, invalidate the session, and revoke its trusted-device recovery when present
  */
 export const authLogout = async ( options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
 
@@ -1791,7 +1863,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type AuthLogoutMutationError = ErrorType<unknown>
 
     /**
- * @summary Sign out and invalidate the session
+ * @summary Sign out, invalidate the session, and revoke its trusted-device recovery when present
  */
 export const useAuthLogout = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authLogout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}

@@ -35,14 +35,52 @@ export const AuthOtpResendResponse = zod.object({
 /**
  * @summary Verify a login OTP and sign in
  */
+export const authOtpVerifyBodyDeviceInfoMax = 120;
+
+export const authOtpVerifyBodyAndroidDeviceIdRegExp = new RegExp('^[A-Fa-f0-9]{16}$');
+
+
 export const AuthOtpVerifyBody = zod.object({
   "mobile": zod.string(),
   "code": zod.string(),
   "rememberMe": zod.boolean().optional(),
-  "device": zod.string().optional()
+  "deviceInfo": zod.string().max(authOtpVerifyBodyDeviceInfoMax).optional(),
+  "androidDeviceId": zod.string().regex(authOtpVerifyBodyAndroidDeviceIdRegExp).optional().describe('Android Settings.Secure ANDROID_ID. Never stored or returned; only its SHA-256 hash is retained.')
 })
 
 export const AuthOtpVerifyResponse = zod.object({
+  "token": zod.string(),
+  "user": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional()
+})
+})
+
+
+/**
+ * @summary Recover an Android trusted-device session without extending trust
+ */
+export const authTrustedDeviceRecoverBodyAndroidDeviceIdRegExp = new RegExp('^[A-Fa-f0-9]{16}$');
+
+
+export const AuthTrustedDeviceRecoverBody = zod.object({
+  "androidDeviceId": zod.string().regex(authTrustedDeviceRecoverBodyAndroidDeviceIdRegExp).describe('Android Settings.Secure ANDROID_ID. MAC addresses, IMEIs, serials, and SIM identifiers are not accepted.')
+})
+
+export const AuthTrustedDeviceRecoverResponse = zod.object({
   "token": zod.string(),
   "user": zod.object({
   "id": zod.string(),
@@ -454,7 +492,7 @@ export const AuthRevokeOtherSessionsResponse = zod.object({
 
 
 /**
- * @summary Sign out and invalidate the session
+ * @summary Sign out, invalidate the session, and revoke its trusted-device recovery when present
  */
 export const AuthLogoutResponse = zod.object({
   "message": zod.string()

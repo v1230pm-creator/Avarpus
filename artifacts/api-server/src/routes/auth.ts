@@ -14,6 +14,12 @@ import {
   revokeOtherSessions,
   revokeSessionById,
   publicUser,
+  enrollTrustedDevice,
+  checkTrustedDeviceRecoveryLimit,
+  hashAndroidDeviceIdentifier,
+  isValidAndroidDeviceIdentifier,
+  revokeTrustedDeviceForSession,
+  recoverTrustedDeviceSession,
 } from "../lib/authUtils";
 import type { Request } from "express";
 import { sendOtpEmail } from "../lib/mailer";
@@ -45,7 +51,7 @@ const STAFF_ROLES = ["reception", "technician", "store_manager", "accountant"] a
 // Best-effort device description captured at sign-in: prefer the client-sent
 // `device` field, fall back to the User-Agent header.
 function deviceInfoFrom(req: Request): string | null {
-  const device = (req.body ?? {}).device;
+  const device = (req.body ?? {}).deviceInfo ?? (req.body ?? {}).device;
   if (typeof device === "string" && device.trim()) {
     return device.trim().slice(0, 120);
   }
@@ -155,7 +161,7 @@ router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
 }));
 
 router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
-  const { mobile: rawMobile, code, rememberMe } = req.body ?? {};
+  const { mobile: rawMobile, code, rememberMe, androidDeviceId } = req.body ?? {};
   if (typeof rawMobile !== "string" || typeof code !== "string") {
     res.status(400).json({ message: "Mobile and code are required" });
     return;
@@ -164,6 +170,10 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
   const mobile = normaliseIndianMobile(rawMobile);
   if (!mobile) {
     res.status(400).json({ message: "A valid Indian mobile number is required" });
+    return;
+  }
+  if (androidDeviceId !== undefined && !isValidAndroidDeviceIdentifier(androidDeviceId)) {
+    res.status(400).json({ message: "A valid Android device identifier is required" });
     return;
   }
 
@@ -207,9 +217,51 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
   }
   const remember = rememberMe === true;
   const deviceInfo = deviceInfoFrom(req);
-  const token = await createSession(user.id, remember, deviceInfo);
+  let trustedDeviceId: string | null = null;
+  let expiresAt: Date | undefined;
+  // Device enrollment is opt-in: legacy OTP clients retain their existing
+  // session behavior. The raw Android ID is only held in this request scope.
+  if (androidDeviceId !== undefined) {
+    const enrolledAt = new Date();
+    const trust = await enrollTrustedDevice(
+      user.id,
+      hashAndroidDeviceIdentifier(androidDeviceId),
+      deviceInfo,
+      enrolledAt,
+    );
+    trustedDeviceId = trust.id;
+    expiresAt = trust.expiresAt;
+  }
+  const token = await createSession(user.id, remember, deviceInfo, { expiresAt, trustedDeviceId });
   await recordLoginEvent(user.id, "otp", remember, deviceInfo);
   res.json({ token, user: publicUser(user) });
+}));
+
+// Public but intentionally non-enumerating recovery. A valid Android ID maps
+// to exactly one active, unrevoked trust or the request fails generically.
+router.post("/auth/trusted-device/recover", asyncHandler(async (req, res) => {
+  const androidDeviceId = req.body?.androidDeviceId;
+  if (!isValidAndroidDeviceIdentifier(androidDeviceId)) {
+    res.status(400).json({ message: "A valid Android device identifier is required" });
+    return;
+  }
+  const androidIdHash = hashAndroidDeviceIdentifier(androidDeviceId);
+  const throttled = await checkTrustedDeviceRecoveryLimit(req.ip ?? "unknown", androidIdHash);
+  if (throttled.limited) {
+    res.status(429).json({
+      message: `Too many recovery attempts. Try again in ${retryAfterText(throttled.retryAfterMs)}.`,
+    });
+    return;
+  }
+  const match = await recoverTrustedDeviceSession(androidIdHash);
+  if (!match) {
+    res.status(401).json({ message: "Unable to recover this device. Sign in with OTP." });
+    return;
+  }
+  // Recovery never mutates the trust. The resulting session cannot outlive the
+  // fixed OTP-time recovery deadline (and is therefore also below 48 hours).
+  await recordLoginEvent(match.user.id, "trusted_device", false, match.trust.deviceInfo);
+  res.json({ token: match.token, user: publicUser(match.user) });
 }));
 
 // Configuration status is intentionally limited to super administrators and
@@ -480,6 +532,7 @@ router.post("/auth/sessions/revoke-others", requireAuth, asyncHandler(async (req
 }));
 
 router.post("/auth/logout", requireAuth, asyncHandler(async (req, res) => {
+  await revokeTrustedDeviceForSession(req.sessionToken!);
   await deleteSession(req.sessionToken!);
   res.json({ message: "Signed out" });
 }));
