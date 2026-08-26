@@ -10,7 +10,8 @@ import type { ChatMessageKind } from './chatMessageKind';
 export interface ChatMessage {
   id: string;
   roomId: string;
-  shopId: string;
+  /** @nullable */
+  shopId: string | null;
   senderId: string;
   senderName: string;
   kind: ChatMessageKind;

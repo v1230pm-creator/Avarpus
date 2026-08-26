@@ -274,6 +274,13 @@
       "when": 1787632914805,
       "tag": "0038_trusted_device_security",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1787632914806,
+      "tag": "0039_global_direct_chat",
+      "breakpoints": true
     }
   ]
 }

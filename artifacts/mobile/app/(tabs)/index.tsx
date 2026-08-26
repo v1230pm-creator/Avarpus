@@ -138,6 +138,7 @@ function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => vo
 function CustomerInboxScreen() {
   const colors = useColors();
   const router = useRouter();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const [showContactDiscovery, setShowContactDiscovery] = useState(false);
@@ -299,6 +300,19 @@ function CustomerInboxScreen() {
         >
           <Feather name="user-plus" size={22} color={colors.foreground} />
         </TouchableOpacity>
+        {user?.role === 'customer' && (
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/more')}
+            style={{
+              width: 40, height: 40, borderRadius: 20,
+              alignItems: 'center', justifyContent: 'center',
+            }}
+            accessibilityLabel="Open account menu"
+            testID="account-menu-control"
+          >
+            <Feather name="user" size={22} color={colors.foreground} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Search bar — only shown when provider is up */}

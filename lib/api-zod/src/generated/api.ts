@@ -3196,7 +3196,7 @@ export const ChatCapabilitiesResponse = zod.object({
 
 
 /**
- * @summary Match exact phone numbers to active users in the caller's shop
+ * @summary Match exact phone numbers to active users for global direct chat
  */
 export const chatContactsMatchBodyPhonesMax = 50;
 
@@ -3213,19 +3213,20 @@ export const ChatContactsMatchResponse = zod.object({
   "name": zod.string(),
   "mobile": zod.string(),
   "role": zod.string(),
-  "matchToken": zod.string().describe('Short-lived opaque proof bound to this caller, target, and shop.'),
+  "matchToken": zod.string().describe('Short-lived opaque proof bound to this caller and target for global direct chat.'),
   "profilePhoto": zod.string().optional()
 }))
 })
 
 
 /**
- * @summary List chat rooms the caller belongs to (shop-scoped)
+ * @summary List chat rooms the caller belongs to (business rooms are shop-scoped; global direct rooms are membership-only)
  */
 export const ChatRoomsListResponse = zod.object({
   "rooms": zod.array(zod.object({
   "id": zod.string(),
-  "shopId": zod.string(),
+  "shopId": zod.string().nullable(),
+  "scope": zod.enum(['shop', 'global_direct']),
   "kind": zod.enum(['customer', 'dealer', 'direct']),
   "name": zod.string(),
   "customerId": zod.string().optional(),
@@ -3242,7 +3243,7 @@ export const ChatRoomsListResponse = zod.object({
   "lastMessage": zod.object({
   "id": zod.string(),
   "roomId": zod.string(),
-  "shopId": zod.string(),
+  "shopId": zod.string().nullable(),
   "senderId": zod.string(),
   "senderName": zod.string(),
   "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
@@ -3268,12 +3269,13 @@ export const ChatRoomsCreateBody = zod.object({
   "targetUserId": zod.string().optional(),
   "matchToken": zod.string().optional().describe('Required with kind=direct; obtained from \/chat\/contacts\/match.'),
   "clientRequestId": zod.string().optional()
-}).describe('Create (or return existing) a one-to-one chat room. kind=customer requires customerId (must have exactly one active customer user link). kind=dealer requires dealerId (same shop) and resolves exactly one active dealer-portal target. kind=direct requires targetUserId and the matchToken returned by exact contact matching. support\/group kinds are out of scope (400).\n')
+}).describe('Create (or return existing) a one-to-one chat room. kind=customer requires customerId (must have exactly one active customer user link). kind=dealer requires dealerId (same shop) and resolves exactly one active dealer-portal target. kind=direct creates a global, membership-only room and requires targetUserId plus the exact-phone matchToken. support\/group kinds are out of scope (400).\n')
 
 export const ChatRoomsCreateResponse = zod.object({
   "room": zod.object({
   "id": zod.string(),
-  "shopId": zod.string(),
+  "shopId": zod.string().nullable(),
+  "scope": zod.enum(['shop', 'global_direct']),
   "kind": zod.enum(['customer', 'dealer', 'direct']),
   "name": zod.string(),
   "customerId": zod.string().optional(),
@@ -3290,7 +3292,7 @@ export const ChatRoomsCreateResponse = zod.object({
   "lastMessage": zod.object({
   "id": zod.string(),
   "roomId": zod.string(),
-  "shopId": zod.string(),
+  "shopId": zod.string().nullable(),
   "senderId": zod.string(),
   "senderName": zod.string(),
   "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
@@ -3316,7 +3318,8 @@ export const ChatRoomsGetParams = zod.object({
 export const ChatRoomsGetResponse = zod.object({
   "room": zod.object({
   "id": zod.string(),
-  "shopId": zod.string(),
+  "shopId": zod.string().nullable(),
+  "scope": zod.enum(['shop', 'global_direct']),
   "kind": zod.enum(['customer', 'dealer', 'direct']),
   "name": zod.string(),
   "customerId": zod.string().optional(),
@@ -3333,7 +3336,7 @@ export const ChatRoomsGetResponse = zod.object({
   "lastMessage": zod.object({
   "id": zod.string(),
   "roomId": zod.string(),
-  "shopId": zod.string(),
+  "shopId": zod.string().nullable(),
   "senderId": zod.string(),
   "senderName": zod.string(),
   "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
@@ -3364,7 +3367,7 @@ export const ChatMessagesListResponse = zod.object({
   "messages": zod.array(zod.object({
   "id": zod.string(),
   "roomId": zod.string(),
-  "shopId": zod.string(),
+  "shopId": zod.string().nullable(),
   "senderId": zod.string(),
   "senderName": zod.string(),
   "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
@@ -3402,7 +3405,7 @@ export const ChatMessagesSendResponse = zod.object({
   "message": zod.object({
   "id": zod.string(),
   "roomId": zod.string(),
-  "shopId": zod.string(),
+  "shopId": zod.string().nullable(),
   "senderId": zod.string(),
   "senderName": zod.string(),
   "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),

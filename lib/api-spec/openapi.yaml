@@ -2216,7 +2216,7 @@ paths:
     post:
       operationId: chatContactsMatch
       tags: [chat]
-      summary: Match exact phone numbers to active users in the caller's shop
+      summary: Match exact phone numbers to active users for global direct chat
       requestBody:
         required: true
         content:
@@ -2248,7 +2248,7 @@ paths:
     get:
       operationId: chatRoomsList
       tags: [chat]
-      summary: List chat rooms the caller belongs to (shop-scoped)
+      summary: List chat rooms the caller belongs to (business rooms are shop-scoped; global direct rooms are membership-only)
       responses:
         "200":
           description: Rooms
@@ -3494,14 +3494,15 @@ components:
         role: { type: string }
         matchToken:
           type: string
-          description: Short-lived opaque proof bound to this caller, target, and shop.
+          description: Short-lived opaque proof bound to this caller and target for global direct chat.
         profilePhoto: { type: string }
       required: [userId, name, mobile, role, matchToken]
     ChatRoom:
       type: object
       properties:
         id: { type: string }
-        shopId: { type: string }
+        shopId: { type: ["string", "null"] }
+        scope: { type: string, enum: [shop, global_direct] }
         kind: { type: string, enum: [customer, dealer, direct] }
         name: { type: string }
         customerId: { type: string }
@@ -3523,15 +3524,16 @@ components:
         unreadCount: { type: number }
         lastMessage:
           $ref: "#/components/schemas/ChatMessage"
-      required: [id, shopId, kind, name, isArchived, createdAt]
+      required: [id, shopId, scope, kind, name, isArchived, createdAt]
     ChatRoomCreateInput:
       type: object
       description: >
         Create (or return existing) a one-to-one chat room. kind=customer
         requires customerId (must have exactly one active customer user link).
         kind=dealer requires dealerId (same shop) and resolves exactly one active
-        dealer-portal target. kind=direct requires targetUserId and the matchToken
-        returned by exact contact matching. support/group kinds are out of scope (400).
+        dealer-portal target. kind=direct creates a global, membership-only room
+        and requires targetUserId plus the exact-phone matchToken. support/group
+        kinds are out of scope (400).
       properties:
         name: { type: string }
         kind: { type: string, enum: [customer, dealer, direct] }
@@ -3548,7 +3550,7 @@ components:
       properties:
         id: { type: string }
         roomId: { type: string }
-        shopId: { type: string }
+        shopId: { type: ["string", "null"] }
         senderId: { type: string }
         senderName: { type: string }
         kind: { type: string, enum: [text, image, file, audio, system] }

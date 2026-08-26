@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, useColorScheme, View } from 'react-native';
-import { Redirect } from 'expo-router';
+import { Redirect, useSegments } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { isDealerPortalRole, isCustomerRole } from '@/types';
 import { useColors } from '@/hooks/useColors';
@@ -147,6 +147,7 @@ export default function TabLayout() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const portal = isDealerPortalRole(user?.role);
   const customer = isCustomerRole(user?.role);
+  const segments = useSegments();
   const [lockCheck, setLockCheck] = useState<'pending' | 'locked' | 'open'>(
     isUnlocked() ? 'open' : 'pending',
   );
@@ -187,6 +188,19 @@ export default function TabLayout() {
   // was revoked and an API call came back 401), route back to sign-in.
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)" />;
+  }
+
+  // A tab being hidden is not a route authorization boundary. A standalone
+  // customer session may only enter its Chats inbox, chat-room descendants, or
+  // the compact account menu (profile and sign-out). Keep this at the tabs
+  // boundary so pasted/deep-linked staff and business routes fail closed too.
+  const customerRoute =
+    segments[1] === undefined ||
+    (segments[1] === 'customers' && segments[2] === 'chat') ||
+    (segments[1] === 'more' &&
+      (segments[2] === undefined || segments[2] === 'profile'));
+  if (customer && !customerRoute) {
+    return <Redirect href="/(tabs)" />;
   }
 
   if (lockCheck === 'pending') {

@@ -443,6 +443,21 @@ describe('Inbox — no fake data', () => {
     expect(push).toHaveBeenCalledWith('/(tabs)/customers/chat/room-priya?name=Priya');
   });
 
+  it('keeps customer account access visible from the Chats landing', () => {
+    const push = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ push, back: jest.fn(), replace: jest.fn() });
+    mockUseChatCapabilities.mockReturnValue({
+      data: { matrixAvailable: false, livekitAvailable: false, e2eeEnabled: false },
+      isLoading: false,
+      isError: false,
+    });
+
+    render(<HomeScreen />);
+    fireEvent.press(screen.getByTestId('account-menu-control'));
+
+    expect(push).toHaveBeenCalledWith('/(tabs)/more');
+  });
+
   it('explains denied contact permission without querying contacts', async () => {
     mockUseChatCapabilities.mockReturnValue({
       data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },

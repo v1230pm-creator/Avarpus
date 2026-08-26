@@ -432,14 +432,44 @@ describe("POST /api/auth/otp/verify", () => {
     expect(res.body.token).toBeUndefined();
   });
 
-  it("rejects for an unknown mobile even when the stored code is correct", async () => {
-    const code = await createOtp("5555555555", "login");
+  it("creates an active standalone customer for an unknown mobile after OTP verification", async () => {
+    const standaloneMobile = `5${RUN}`;
+    const code = await createOtp(standaloneMobile, "login");
     const res = await request(app)
       .post("/api/auth/otp/verify")
-      .send({ mobile: "5555555555", code });
-    expect(res.status).toBe(401);
-    expect(res.body.message).toMatch(/account not found or inactive/i);
-    expect(res.body.token).toBeUndefined();
+      .send({ mobile: standaloneMobile, code });
+    expect(res.status).toBe(200);
+    expect(res.body.user.role).toBe("customer");
+    expect(res.body.user.shopId).toBeUndefined();
+    const [created] = await db.select().from(usersTable)
+      .where(eq(usersTable.mobile, standaloneMobile));
+    expect(created.isActive).toBe(true);
+    expect(created.shopId).toBeNull();
+    expect(created.dealerId).toBeNull();
+    await db.delete(sessionsTable).where(eq(sessionsTable.userId, created.id));
+    await db.delete(usersTable).where(eq(usersTable.id, created.id));
+  });
+
+  it("uses the mobile unique index as a concurrency-safe standalone provisioning mutex", async () => {
+    const raceMobile = `1${RUN}`;
+    const inserts = await Promise.all(
+      Array.from({ length: 6 }, (_, index) =>
+        db.insert(usersTable).values({
+          name: "Customer",
+          email: `otp-race-${RUN}-${index}@standalone.local`,
+          mobile: raceMobile,
+          passwordHash: null,
+          role: "customer",
+          isActive: true,
+        }).onConflictDoNothing({ target: usersTable.mobile }).returning(),
+      ),
+    );
+    expect(inserts.flat()).toHaveLength(1);
+    const rows = await db.select().from(usersTable).where(eq(usersTable.mobile, raceMobile));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].role).toBe("customer");
+    expect(rows[0].shopId).toBeNull();
+    await db.delete(usersTable).where(eq(usersTable.id, rows[0].id));
   });
 
   it("accepts +91-prefixed mobile in verify", async () => {

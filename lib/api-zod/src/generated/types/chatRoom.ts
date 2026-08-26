@@ -7,10 +7,13 @@
  */
 import type { ChatMessage } from './chatMessage';
 import type { ChatRoomKind } from './chatRoomKind';
+import type { ChatRoomScope } from './chatRoomScope';
 
 export interface ChatRoom {
   id: string;
-  shopId: string;
+  /** @nullable */
+  shopId: string | null;
+  scope: ChatRoomScope;
   kind: ChatRoomKind;
   name: string;
   customerId?: string;

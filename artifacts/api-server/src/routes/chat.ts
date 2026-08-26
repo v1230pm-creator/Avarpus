@@ -74,8 +74,8 @@ class MatchGrantError extends Error {}
 const ROOM_PROVISION_POLL_MS = 25;
 type ChatRoom = typeof chatRoomsTable.$inferSelect;
 
-function directRoomProvisionKey(shopId: string, peerKey: string): string {
-  return sha256(`matrix-direct-room:v1:${shopId}:${peerKey}`);
+function directRoomProvisionKey(scope: "shop" | "global_direct", peerKey: string): string {
+  return sha256(`matrix-direct-room:v1:${scope}:${peerKey}`);
 }
 
 function provisionLeaseUntil(): Date {
@@ -296,9 +296,9 @@ async function authorizeRoom(
   roomId: string,
 ): Promise<typeof chatRoomsTable.$inferSelect | null> {
   const shopId = resolveShopId(user);
-  if (!shopId) return null;
 
-  // Room must exist, be in the caller's shop, AND the caller must be a member.
+  // Global direct rooms are membership-only. All business rooms additionally
+  // require the caller's shop, preventing global accounts from seeing business data.
   const [row] = await db
     .select({ room: chatRoomsTable })
     .from(chatRoomsTable)
@@ -309,7 +309,10 @@ async function authorizeRoom(
     .where(
       and(
         eq(chatRoomsTable.id, roomId),
-        eq(chatRoomsTable.shopId, shopId),
+        or(
+          eq(chatRoomsTable.scope, "global_direct"),
+          shopId ? and(eq(chatRoomsTable.scope, "shop"), eq(chatRoomsTable.shopId, shopId)) : sql`false`,
+        ),
         eq(chatRoomMembersTable.userId, user.id),
       ),
     )
@@ -348,7 +351,7 @@ router.post(
     const [customer] = await db
       .select({ id: customersTable.id, shopId: customersTable.shopId })
       .from(customersTable)
-      .where(and(eq(customersTable.id, customerId), eq(customersTable.shopId, shopId)))
+      .where(and(eq(customersTable.id, customerId), eq(customersTable.shopId, shopId!)))
       .limit(1);
     if (!customer) {
       res.status(404).json({ message: "Customer not found" });
@@ -372,7 +375,7 @@ router.post(
     const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
 
     await db.insert(customerInvitesTable).values({
-      shopId,
+      shopId: shopId!,
       customerId,
       tokenHash,
       issuedById: me.id,
@@ -524,11 +527,6 @@ router.get(
   asyncHandler(async (req, res) => {
     const me = (req as AuthedRequest).user;
     const shopId = resolveShopId(me);
-    if (!shopId) {
-      res.json({ rooms: [] });
-      return;
-    }
-
     // Membership is required for EVERY role: only rooms the caller is an
     // explicit member of are returned. No shop-wide staff bypass.
     const rows = await db
@@ -540,7 +538,10 @@ router.get(
       )
       .where(
         and(
-          eq(chatRoomsTable.shopId, shopId),
+          or(
+            eq(chatRoomsTable.scope, "global_direct"),
+            shopId ? and(eq(chatRoomsTable.scope, "shop"), eq(chatRoomsTable.shopId, shopId)) : sql`false`,
+          ),
           eq(chatRoomMembersTable.userId, me.id),
         ),
       )
@@ -575,10 +576,10 @@ function normalizeIndianMobile(raw: string): string | null {
 
 // ── Contact match endpoint ─────────────────────────────────────────────────────
 //
-// Privacy-safe, exact-match lookup of same-shop active users by normalized
+// Privacy-safe, exact-match lookup of active users by normalized
 // Indian phone number. Never exposes a browseable directory. Does NOT reveal
 // whether a number is unregistered — unmatched numbers are simply omitted.
-// Returns only active users in the caller's shop, excluding the caller themselves.
+// Returns only active users whose exact number was supplied, excluding self.
 // Accessible to ALL authenticated roles including customers (allowlisted in
 // customerPortal.ts).
 
@@ -654,11 +655,6 @@ router.post(
       return;
     }
 
-    if (!shopId) {
-      res.json({ contacts: [] });
-      return;
-    }
-
     // Accept a single phone string or a bounded array.
     const { phone, phones } = req.body ?? {};
 
@@ -695,7 +691,7 @@ router.post(
       return;
     }
 
-    // Query: active same-shop users whose normalized mobile is in the list,
+    // Query: active exact-phone users in the explicit global direct scope,
     // excluding the caller. Never expose unregistered numbers.
     const rows = await db
       .select({
@@ -707,7 +703,6 @@ router.post(
       .from(usersTable)
       .where(
         and(
-          eq(usersTable.shopId, shopId),
           eq(usersTable.isActive, true),
           inArray(usersTable.mobile, normalized),
         ),
@@ -724,7 +719,7 @@ router.post(
             tokenHash: sha256(rawToken),
             callerUserId: me.id,
             targetUserId: user.id,
-            shopId,
+            shopId: null,
             expiresAt: grantExpiresAt,
           })),
         );
@@ -751,10 +746,6 @@ router.post(
   asyncHandler(async (req, res) => {
     const me = (req as AuthedRequest).user;
     const shopId = resolveShopId(me);
-    if (!shopId) {
-      res.status(403).json({ message: "Your account is not linked to a shop" });
-      return;
-    }
 
     const {
       name,
@@ -782,6 +773,11 @@ router.post(
       });
       return;
     }
+    if (kind !== "direct" && !shopId) {
+      res.status(403).json({ message: "Your account is not linked to a shop" });
+      return;
+    }
+    const roomScope = kind === "direct" ? "global_direct" as const : "shop" as const;
 
     // ── Idempotency #1: clientRequestId ────────────────────────────────────
     if (typeof clientRequestId === "string" && clientRequestId.trim()) {
@@ -790,7 +786,7 @@ router.post(
         .from(chatRoomsTable)
         .where(
           and(
-            eq(chatRoomsTable.shopId, shopId),
+            eq(chatRoomsTable.scope, roomScope),
             eq(chatRoomsTable.clientRequestId, clientRequestId.trim()),
           ),
         )
@@ -877,7 +873,7 @@ router.post(
       const [cust] = await db
         .select({ id: customersTable.id })
         .from(customersTable)
-        .where(and(eq(customersTable.id, customerId), eq(customersTable.shopId, shopId)))
+        .where(and(eq(customersTable.id, customerId), eq(customersTable.shopId, shopId!)))
         .limit(1);
       if (!cust) {
         res.status(404).json({ message: "Customer not found" });
@@ -891,7 +887,7 @@ router.post(
         .where(
           and(
             eq(customerUsersTable.customerId, customerId),
-            eq(customerUsersTable.shopId, shopId),
+            eq(customerUsersTable.shopId, shopId!),
             eq(usersTable.isActive, true),
           ),
         );
@@ -915,7 +911,7 @@ router.post(
       const [dealer] = await db
         .select({ id: dealersTable.id })
         .from(dealersTable)
-        .where(and(eq(dealersTable.id, dealerId), eq(dealersTable.shopId, shopId)))
+        .where(and(eq(dealersTable.id, dealerId), eq(dealersTable.shopId, shopId!)))
         .limit(1);
       if (!dealer) {
         res.status(404).json({ message: "Dealer not found" });
@@ -932,7 +928,7 @@ router.post(
         .where(
           and(
             eq(usersTable.dealerId, dealerId),
-            eq(usersTable.shopId, shopId),
+            eq(usersTable.shopId, shopId!),
             eq(usersTable.isActive, true),
           ),
         );
@@ -980,7 +976,7 @@ router.post(
       .select()
       .from(chatRoomsTable)
       .where(
-        and(eq(chatRoomsTable.shopId, shopId), eq(chatRoomsTable.peerKey, peerKey)),
+        and(eq(chatRoomsTable.scope, roomScope), eq(chatRoomsTable.peerKey, peerKey)),
       )
       .limit(1);
     if (existingByPeer) {
@@ -1003,7 +999,7 @@ router.post(
                   eq(chatContactMatchGrantsTable.tokenHash, sha256(matchToken.trim())),
                   eq(chatContactMatchGrantsTable.callerUserId, me.id),
                   eq(chatContactMatchGrantsTable.targetUserId, targetUserId),
-                  eq(chatContactMatchGrantsTable.shopId, shopId),
+                  or(isNull(chatContactMatchGrantsTable.shopId), eq(chatContactMatchGrantsTable.shopId, shopId!)),
                 ),
               )
               .limit(1)
@@ -1055,7 +1051,7 @@ router.post(
           .select()
           .from(chatRoomsTable)
           .where(
-            and(eq(chatRoomsTable.shopId, shopId), eq(chatRoomsTable.peerKey, peerKey)),
+            and(eq(chatRoomsTable.scope, roomScope), eq(chatRoomsTable.peerKey, peerKey)),
           )
           .limit(1);
         if (existing) {
@@ -1068,7 +1064,7 @@ router.post(
                   eq(chatContactMatchGrantsTable.tokenHash, sha256(matchToken.trim())),
                   eq(chatContactMatchGrantsTable.callerUserId, me.id),
                   eq(chatContactMatchGrantsTable.targetUserId, targetUserId),
-                  eq(chatContactMatchGrantsTable.shopId, shopId),
+                  or(isNull(chatContactMatchGrantsTable.shopId), eq(chatContactMatchGrantsTable.shopId, shopId!)),
                 ),
               )
               .limit(1);
@@ -1087,7 +1083,7 @@ router.post(
                 eq(chatContactMatchGrantsTable.tokenHash, tokenHash),
                 eq(chatContactMatchGrantsTable.callerUserId, me.id),
                 eq(chatContactMatchGrantsTable.targetUserId, targetUserId),
-                eq(chatContactMatchGrantsTable.shopId, shopId),
+                or(isNull(chatContactMatchGrantsTable.shopId), eq(chatContactMatchGrantsTable.shopId, shopId!)),
                 isNull(chatContactMatchGrantsTable.consumedAt),
                 sql`${chatContactMatchGrantsTable.expiresAt} > ${new Date()}`,
               ),
@@ -1113,7 +1109,7 @@ router.post(
           .where(
             and(
               eq(usersTable.id, targetUserId),
-              eq(usersTable.shopId, shopId),
+               kind === "direct" ? sql`true` : eq(usersTable.shopId, shopId!),
               eq(usersTable.isActive, true),
             ),
           )
@@ -1126,7 +1122,8 @@ router.post(
         const [newRoom] = await tx
           .insert(chatRoomsTable)
           .values({
-            shopId,
+            shopId: kind === "direct" ? null : shopId!,
+            scope: roomScope,
             kind: kind as "customer" | "dealer" | "direct",
             name: name.trim().slice(0, 200),
             customerId: resolvedCustomerId,
@@ -1135,7 +1132,7 @@ router.post(
             // atomically after Matrix confirms the exact two-person room.
             providerRoomId: null,
             peerKey,
-            provisionKey: directRoomProvisionKey(shopId, peerKey),
+            provisionKey: directRoomProvisionKey(roomScope, peerKey),
             provisionAttemptId: randomUUID(),
             provisionLeaseUntil: provisionLeaseUntil(),
             clientRequestId:
@@ -1156,7 +1153,7 @@ router.post(
         .select()
         .from(chatRoomsTable)
         .where(
-          and(eq(chatRoomsTable.shopId, shopId), eq(chatRoomsTable.peerKey, peerKey)),
+          and(eq(chatRoomsTable.scope, roomScope), eq(chatRoomsTable.peerKey, peerKey)),
         )
         .limit(1);
       if (raced && kind === "direct") {
@@ -1168,7 +1165,7 @@ router.post(
               eq(chatContactMatchGrantsTable.tokenHash, sha256(matchToken.trim())),
               eq(chatContactMatchGrantsTable.callerUserId, me.id),
               eq(chatContactMatchGrantsTable.targetUserId, targetUserId),
-              eq(chatContactMatchGrantsTable.shopId, shopId),
+              or(isNull(chatContactMatchGrantsTable.shopId), eq(chatContactMatchGrantsTable.shopId, shopId!)),
             ),
           )
           .limit(1);
@@ -1263,7 +1260,6 @@ router.get(
 
     let whereClause = and(
       eq(chatMessagesTable.roomId, roomId),
-      eq(chatMessagesTable.shopId, room.shopId),
       isNull(chatMessagesTable.deletedAt),
     );
 
@@ -1389,7 +1385,7 @@ router.post(
         res.status(400).json({ message: "objectPath is required for image/file/audio messages" });
         return;
       }
-      const expectedPrefix = `uploads/${room.shopId}/chat/${roomId}/`;
+      const expectedPrefix = `uploads/${chatStorageScope(room)}/chat/${roomId}/`;
       const normalizedPath = objectPath.replace(/^\/objects\//, "");
       if (!normalizedPath.startsWith(expectedPrefix)) {
         res.status(400).json({ message: "Invalid objectPath for this room" });
@@ -1539,7 +1535,6 @@ router.post(
         and(
           eq(chatMessagesTable.id, messageId),
           eq(chatMessagesTable.roomId, roomId),
-          eq(chatMessagesTable.shopId, room.shopId),
           isNull(chatMessagesTable.deletedAt),
         ),
       )
@@ -1630,7 +1625,7 @@ router.post(
       return;
     }
 
-    const shopId = room.shopId;
+    const storageScope = chatStorageScope(room);
 
     // Sign directly under the chat sub-namespace so the signed URL key and the
     // returned objectPath refer to the exact same storage object.  No post-
@@ -1640,7 +1635,7 @@ router.post(
     // traversal; shopId and roomId are already UUID-validated above.
     const { uploadURL, objectPath } =
       await objectStorageService.getObjectEntityUploadURLWithPrefix(
-        `${shopId}/chat/${roomId}`,
+         `${storageScope}/chat/${roomId}`,
       );
 
     res.json({ uploadURL, objectPath });
@@ -1674,7 +1669,7 @@ router.post(
       return;
     }
 
-    const livekitRoomName = `shop-${room.shopId.slice(0, 8)}-room-${roomId.slice(0, 8)}`;
+    const livekitRoomName = `${room.scope === "global_direct" ? "global" : `shop-${room.shopId!.slice(0, 8)}`}-room-${roomId.slice(0, 8)}`;
     const token = livekitMintToken({
       roomName: livekitRoomName,
       participantIdentity: me.id,
@@ -1731,7 +1726,6 @@ router.get(
         and(
           eq(chatMessagesTable.id, messageId),
           eq(chatMessagesTable.roomId, roomId),
-          eq(chatMessagesTable.shopId, room.shopId),
           isNull(chatMessagesTable.deletedAt),
         ),
       )
@@ -1753,7 +1747,7 @@ router.get(
       res.status(404).json({ message: "Not found" });
       return;
     }
-    const expectedPrefix = `/objects/uploads/${room.shopId}/chat/${roomId}/`;
+    const expectedPrefix = `/objects/uploads/${chatStorageScope(room)}/chat/${roomId}/`;
     if (!msg.objectPath.startsWith(expectedPrefix)) {
       // Path doesn't match chat namespace — treat as not found
       res.status(404).json({ message: "Not found" });
@@ -1790,6 +1784,7 @@ function formatRoom(room: typeof chatRoomsTable.$inferSelect) {
   return {
     id: room.id,
     shopId: room.shopId,
+    scope: room.scope,
     kind: room.kind,
     name: room.name,
     customerId: room.customerId ?? undefined,
@@ -1801,6 +1796,10 @@ function formatRoom(room: typeof chatRoomsTable.$inferSelect) {
     createdByName: room.createdByName ?? undefined,
     createdAt: room.createdAt.toISOString(),
   };
+}
+
+function chatStorageScope(room: typeof chatRoomsTable.$inferSelect): string {
+  return room.scope === "global_direct" ? "global" : room.shopId!;
 }
 
 async function formatRoomForUser(

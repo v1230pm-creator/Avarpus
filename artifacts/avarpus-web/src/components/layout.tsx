@@ -45,6 +45,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, isLoading, logout, canAccess } = useAuth();
   const [location] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isCustomer = user?.role === "customer";
 
   if (isLoading) {
     return (
@@ -82,7 +83,11 @@ export function Layout({ children }: { children: ReactNode }) {
 
         <div className="flex-1 overflow-y-auto py-4">
           <nav className="space-y-1 px-3">
-            {NAV_ITEMS.filter(item => !item.feature || canAccess(item.feature)).map((item) => {
+            {NAV_ITEMS.filter(
+              item =>
+                (!isCustomer || item.href === "/chats" || item.href === "/settings") &&
+                (!item.feature || canAccess(item.feature)),
+            ).map((item) => {
               const active = location.startsWith(item.href);
               return (
                 <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}>
@@ -93,7 +98,7 @@ export function Layout({ children }: { children: ReactNode }) {
                       : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )}>
                     <item.icon className="h-4 w-4" />
-                    {item.label}
+                    {isCustomer && item.href === "/settings" ? "Profile" : item.label}
                   </div>
                 </Link>
               );

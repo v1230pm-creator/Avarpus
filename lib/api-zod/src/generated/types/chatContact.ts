@@ -11,7 +11,7 @@ export interface ChatContact {
   name: string;
   mobile: string;
   role: string;
-  /** Short-lived opaque proof bound to this caller, target, and shop. */
+  /** Short-lived opaque proof bound to this caller and target for global direct chat. */
   matchToken: string;
   profilePhoto?: string;
 }

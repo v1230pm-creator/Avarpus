@@ -8,7 +8,7 @@
 import type { ChatRoomCreateInputKind } from './chatRoomCreateInputKind';
 
 /**
- * Create (or return existing) a one-to-one chat room. kind=customer requires customerId (must have exactly one active customer user link). kind=dealer requires dealerId (same shop) and resolves exactly one active dealer-portal target. kind=direct requires targetUserId and the matchToken returned by exact contact matching. support/group kinds are out of scope (400).
+ * Create (or return existing) a one-to-one chat room. kind=customer requires customerId (must have exactly one active customer user link). kind=dealer requires dealerId (same shop) and resolves exactly one active dealer-portal target. kind=direct creates a global, membership-only room and requires targetUserId plus the exact-phone matchToken. support/group kinds are out of scope (400).
  */
 export interface ChatRoomCreateInput {
   name: string;

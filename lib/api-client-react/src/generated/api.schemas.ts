@@ -1130,10 +1130,18 @@ export interface ChatContact {
   name: string;
   mobile: string;
   role: string;
-  /** Short-lived opaque proof bound to this caller, target, and shop. */
+  /** Short-lived opaque proof bound to this caller and target for global direct chat. */
   matchToken: string;
   profilePhoto?: string;
 }
+
+export type ChatRoomScope = typeof ChatRoomScope[keyof typeof ChatRoomScope];
+
+
+export const ChatRoomScope = {
+  shop: 'shop',
+  global_direct: 'global_direct',
+} as const;
 
 export type ChatRoomKind = typeof ChatRoomKind[keyof typeof ChatRoomKind];
 
@@ -1158,7 +1166,8 @@ export const ChatMessageKind = {
 export interface ChatMessage {
   id: string;
   roomId: string;
-  shopId: string;
+  /** @nullable */
+  shopId: string | null;
   senderId: string;
   senderName: string;
   kind: ChatMessageKind;
@@ -1173,7 +1182,9 @@ export interface ChatMessage {
 
 export interface ChatRoom {
   id: string;
-  shopId: string;
+  /** @nullable */
+  shopId: string | null;
+  scope: ChatRoomScope;
   kind: ChatRoomKind;
   name: string;
   customerId?: string;
@@ -1203,7 +1214,7 @@ export const ChatRoomCreateInputKind = {
 } as const;
 
 /**
- * Create (or return existing) a one-to-one chat room. kind=customer requires customerId (must have exactly one active customer user link). kind=dealer requires dealerId (same shop) and resolves exactly one active dealer-portal target. kind=direct requires targetUserId and the matchToken returned by exact contact matching. support/group kinds are out of scope (400).
+ * Create (or return existing) a one-to-one chat room. kind=customer requires customerId (must have exactly one active customer user link). kind=dealer requires dealerId (same shop) and resolves exactly one active dealer-portal target. kind=direct creates a global, membership-only room and requires targetUserId plus the exact-phone matchToken. support/group kinds are out of scope (400).
  */
 export interface ChatRoomCreateInput {
   name: string;

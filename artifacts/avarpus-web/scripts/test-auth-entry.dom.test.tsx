@@ -182,7 +182,7 @@ describe("browser OTP verification", () => {
       mobile: "9876543210",
       code: "123456",
       rememberMe: true,
-      device: "Web Browser",
+      deviceInfo: "Web Browser",
     });
     expect(mocks.setSession).toHaveBeenCalledWith("test-session-token");
     expect(window.location.pathname).toBe("/dashboard");

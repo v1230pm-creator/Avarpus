@@ -189,14 +189,42 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
     return;
   }
 
-  const rows = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.mobile, mobile))
-    .limit(1);
-  const user = rows[0];
+  // OTP ownership is sufficient to bootstrap a standalone customer account.
+  // The mobile unique index is the cross-process mutex: concurrent approvals
+  // either return the already-created active user or exactly one inserts it.
+  // Existing records are never changed, notably inactive accounts stay denied.
+  const user = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.mobile, mobile))
+      .limit(1);
+    if (existing) return existing;
+    const [created] = await tx
+      .insert(usersTable)
+      .values({
+        name: "Customer",
+        // This internal address is never used for authentication. A random
+        // suffix avoids an attacker pre-claiming a predictable legacy-email
+        // value and blocking phone-only account creation.
+        email: `otp-customer-${generateToken().slice(0, 24)}@standalone.local`,
+        mobile,
+        passwordHash: null,
+        role: "customer",
+        isActive: true,
+      })
+      .onConflictDoNothing({ target: usersTable.mobile })
+      .returning();
+    if (created) return created;
+    const [raced] = await tx
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.mobile, mobile))
+      .limit(1);
+    return raced;
+  });
   if (!user || !user.isActive) {
-    // Provider approved the code but the account is not eligible (unknown or inactive).
+    // An existing inactive account cannot be reactivated by OTP verification.
     res.status(401).json({ message: "Account not found or inactive" });
     return;
   }

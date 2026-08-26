@@ -597,6 +597,75 @@ describe("Membership required for all roles (same-shop staff isolation)", () => 
   });
 });
 
+describe("Chat child rows inherit their parent room scope", () => {
+  it("rejects mismatched child shop IDs while allowing valid shop and global rows", async () => {
+    const [shopRoom] = await db.insert(chatRoomsTable).values({
+      shopId: shopA.id,
+      kind: "support",
+      name: "Child scope shop fixture",
+      createdById: dealerA.id,
+      createdByName: "Dealer A",
+    }).returning();
+    const [globalRoom] = await db.insert(chatRoomsTable).values({
+      shopId: null,
+      scope: "global_direct",
+      kind: "direct",
+      name: "Child scope global fixture",
+      createdById: dealerA.id,
+      createdByName: "Dealer A",
+    }).returning();
+    try {
+      // Valid shop-scoped children.
+      await db.insert(chatRoomMembersTable).values({
+        roomId: shopRoom.id, shopId: shopA.id, userId: dealerA.id,
+      });
+      const [shopMessage] = await db.insert(chatMessagesTable).values({
+        roomId: shopRoom.id, shopId: shopA.id, senderId: dealerA.id,
+        senderName: "Dealer A", kind: "text", body: "scope",
+      }).returning();
+      await db.insert(chatReadStateTable).values({
+        roomId: shopRoom.id, shopId: shopA.id, userId: dealerA.id,
+        lastReadMessageId: shopMessage.id,
+      });
+
+      await expect(db.insert(chatRoomMembersTable).values({
+        roomId: shopRoom.id, shopId: null, userId: dealerB.id,
+      })).rejects.toThrow(/Failed query/i);
+      await expect(db.insert(chatMessagesTable).values({
+        roomId: shopRoom.id, shopId: shopB.id, senderId: dealerB.id,
+        senderName: "Dealer B", kind: "text", body: "wrong",
+      })).rejects.toThrow(/Failed query/i);
+      await expect(db.insert(chatReadStateTable).values({
+        roomId: shopRoom.id, shopId: shopB.id, userId: dealerB.id,
+      })).rejects.toThrow(/Failed query/i);
+
+      // Valid global-direct children all carry NULL and non-null values fail.
+      await db.insert(chatRoomMembersTable).values({
+        roomId: globalRoom.id, shopId: null, userId: dealerA.id,
+      });
+      await db.insert(chatMessagesTable).values({
+        roomId: globalRoom.id, shopId: null, senderId: dealerA.id,
+        senderName: "Dealer A", kind: "text", body: "global",
+      });
+      await db.insert(chatReadStateTable).values({
+        roomId: globalRoom.id, shopId: null, userId: dealerA.id,
+      });
+      await expect(db.insert(chatRoomMembersTable).values({
+        roomId: globalRoom.id, shopId: shopA.id, userId: dealerB.id,
+      })).rejects.toThrow(/Failed query/i);
+      await expect(db.insert(chatMessagesTable).values({
+        roomId: globalRoom.id, shopId: shopA.id, senderId: dealerB.id,
+        senderName: "Dealer B", kind: "text", body: "wrong global",
+      })).rejects.toThrow(/Failed query/i);
+      await expect(db.insert(chatReadStateTable).values({
+        roomId: globalRoom.id, shopId: shopA.id, userId: dealerB.id,
+      })).rejects.toThrow(/Failed query/i);
+    } finally {
+      await db.delete(chatRoomsTable).where(inArray(chatRoomsTable.id, [shopRoom.id, globalRoom.id]));
+    }
+  });
+});
+
 // ── Provider-mocked: two-member creation, dedupe, idempotent send ─────────────
 
 describe("Provider-mocked room creation + idempotent send", () => {
@@ -1435,6 +1504,8 @@ describe("Contact match: privacy-safe exact lookup", () => {
   let staffInShopA: { id: string; mobile: string };
   let staffInShopB: { id: string; mobile: string };
   let inactiveInShopA: { id: string; mobile: string };
+  let standaloneUser: { id: string };
+  let standaloneToken: string;
 
   beforeAll(async () => {
     // Active staff in shopA
@@ -1450,7 +1521,7 @@ describe("Contact match: privacy-safe exact lookup", () => {
     }).returning();
     staffInShopA = { id: sA.id, mobile: mobileA };
 
-    // Active staff in shopB (cross-shop — must never appear for shopA callers)
+    // Active staff in shopB: exact-number global direct matching may return it.
     const mobileB = uniqMob();
     const [sB] = await db.insert(usersTable).values({
       name: "Staff Match B",
@@ -1475,12 +1546,26 @@ describe("Contact match: privacy-safe exact lookup", () => {
       isActive: false,
     }).returning();
     inactiveInShopA = { id: sI.id, mobile: mobileInactive };
+    const [standalone] = await db.insert(usersTable).values({
+      name: "Standalone exact-match caller",
+      email: email("standalone-match"),
+      mobile: uniqMob(),
+      passwordHash: hashPassword(PASSWORD),
+      role: "customer",
+      isActive: true,
+    }).returning();
+    standaloneUser = standalone;
+    standaloneToken = await createSession(standalone.id, false, "standalone match fixture");
   });
 
   afterAll(async () => {
     if (staffInShopA?.id) await db.delete(usersTable).where(eq(usersTable.id, staffInShopA.id));
     if (staffInShopB?.id) await db.delete(usersTable).where(eq(usersTable.id, staffInShopB.id));
     if (inactiveInShopA?.id) await db.delete(usersTable).where(eq(usersTable.id, inactiveInShopA.id));
+    if (standaloneUser?.id) {
+      await db.delete(sessionsTable).where(eq(sessionsTable.userId, standaloneUser.id));
+      await db.delete(usersTable).where(eq(usersTable.id, standaloneUser.id));
+    }
   });
 
   it("exact match by 10-digit number returns same-shop active user", async () => {
@@ -1498,14 +1583,27 @@ describe("Contact match: privacy-safe exact lookup", () => {
     expect(match.matchToken.length).toBeGreaterThan(20);
   });
 
-  it("cross-shop number not returned (shop isolation)", async () => {
+  it("exact cross-shop number returns an active user with a global match grant", async () => {
     const res = await request(app)
       .post("/api/chat/contacts/match")
       .set("Authorization", `Bearer ${dealerTokenA}`)
       .send({ phone: staffInShopB.mobile });
     expect(res.status).toBe(200);
     const ids = res.body.contacts.map((c: { userId: string }) => c.userId);
-    expect(ids).not.toContain(staffInShopB.id);
+    expect(ids).toContain(staffInShopB.id);
+    const match = res.body.contacts.find((c: { userId: string }) => c.userId === staffInShopB.id);
+    expect(typeof match.matchToken).toBe("string");
+  });
+
+  it("a standalone no-shop customer can exact-match an active cross-shop user", async () => {
+    const res = await request(app)
+      .post("/api/chat/contacts/match")
+      .set("Authorization", `Bearer ${standaloneToken}`)
+      .send({ phone: staffInShopB.mobile });
+    expect(res.status).toBe(200);
+    const match = res.body.contacts.find((c: { userId: string }) => c.userId === staffInShopB.id);
+    expect(match).toBeDefined();
+    expect(typeof match.matchToken).toBe("string");
   });
 
   it("inactive user in same shop is excluded", async () => {
@@ -1712,10 +1810,10 @@ describe("Direct room creation (kind=direct)", () => {
         await db.delete(usersTable).where(eq(usersTable.id, u.id));
       }
     }
-    // Clean up any direct rooms created in shopA
+    // Direct rooms are global and have no shop linkage.
     const directRooms = await db.select({ id: chatRoomsTable.id })
       .from(chatRoomsTable)
-      .where(and(eq(chatRoomsTable.shopId, shopA.id), eq(chatRoomsTable.kind, "direct")));
+      .where(and(eq(chatRoomsTable.scope, "global_direct"), eq(chatRoomsTable.kind, "direct")));
     for (const r of directRooms) {
       await db.delete(chatRoomMembersTable).where(eq(chatRoomMembersTable.roomId, r.id));
       await db.delete(chatRoomsTable).where(eq(chatRoomsTable.id, r.id));
@@ -2087,6 +2185,8 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
     expect(res.status).toBe(200);
     expect(res.body.created).toBe(true);
     expect(res.body.room.kind).toBe("direct");
+    expect(res.body.room.scope).toBe("global_direct");
+    expect(res.body.room.shopId).toBeNull();
     createdDirectRoomId = res.body.room.id;
 
     const members = await db.select().from(chatRoomMembersTable)
@@ -2094,6 +2194,7 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
     expect(members.length).toBe(2);
     const memberIds = members.map((m) => m.userId).sort();
     expect(memberIds).toEqual([dealerA.id, directTarget2.id].sort());
+    expect(members.every((member) => member.shopId === null)).toBe(true);
   });
 
   it("does not replay another member's clientRequestId to a same-shop nonmember", async () => {
@@ -2219,7 +2320,7 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
       // Failed reservations are removed, so neither a ghost room nor a
       // pair-level lock prevents the caller from retrying.
       const rows = await db.select({ id: chatRoomsTable.id }).from(chatRoomsTable)
-        .where(and(eq(chatRoomsTable.shopId, shopA.id), eq(chatRoomsTable.peerKey, peerKey)));
+        .where(and(eq(chatRoomsTable.scope, "global_direct"), eq(chatRoomsTable.peerKey, peerKey)));
       expect(rows).toHaveLength(1);
 
        // Matrix accepted the aliased create before its response was lost. A
@@ -2246,7 +2347,7 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
 
   it("recovers a crash-after-create reservation and concurrent retries converge on its Matrix alias", async () => {
     const peerKey = [dealerA.id, timeoutTarget.id].sort().join(":");
-    const provisionKey = sha256(`matrix-direct-room:v1:${shopA.id}:${peerKey}`);
+    const provisionKey = sha256(`matrix-direct-room:v1:global_direct:${peerKey}`);
     const alias = `#appchat-${provisionKey.slice(0, 40)}:${SERVER_NAME2}`;
     const remoteRoomId = "!crash-recovered:example.com";
     // This represents Matrix having accepted createRoom immediately before the
@@ -2255,7 +2356,8 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
     joinedMemberIds = [vId2(dealerA.id), vId2(timeoutTarget.id)];
     createRoomCalls = 0;
     const [crashedReservation] = await db.insert(chatRoomsTable).values({
-      shopId: shopA.id,
+      shopId: null,
+      scope: "global_direct",
       kind: "direct",
       name: "Crash Recovery Direct Room",
       providerRoomId: null,

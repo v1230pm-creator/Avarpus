@@ -7936,7 +7936,7 @@ export const getChatContactsMatchUrl = () => {
 }
 
 /**
- * @summary Match exact phone numbers to active users in the caller's shop
+ * @summary Match exact phone numbers to active users for global direct chat
  */
 export const chatContactsMatch = async (chatContactMatchInput: ChatContactMatchInput, options?: Parameters<typeof customFetch>[1]): Promise<ChatContactsMatch200> => {
 
@@ -7985,7 +7985,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ChatContactsMatchMutationError = ErrorType<Message>
 
     /**
- * @summary Match exact phone numbers to active users in the caller's shop
+ * @summary Match exact phone numbers to active users for global direct chat
  */
 export const useChatContactsMatch = <TError = ErrorType<Message>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatContactsMatch>>, TError,{data: BodyType<ChatContactMatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -8007,7 +8007,7 @@ export const getChatRoomsListUrl = () => {
 }
 
 /**
- * @summary List chat rooms the caller belongs to (shop-scoped)
+ * @summary List chat rooms the caller belongs to (business rooms are shop-scoped; global direct rooms are membership-only)
  */
 export const chatRoomsList = async ( options?: Parameters<typeof customFetch>[1]): Promise<ChatRoomsList200> => {
 
@@ -8054,7 +8054,7 @@ export type ChatRoomsListQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List chat rooms the caller belongs to (shop-scoped)
+ * @summary List chat rooms the caller belongs to (business rooms are shop-scoped; global direct rooms are membership-only)
  */
 
 export function useChatRoomsList<TData = Awaited<ReturnType<typeof chatRoomsList>>, TError = ErrorType<unknown>>(

@@ -66,8 +66,8 @@ export const customerInvitesTable = pgTable("customer_invites", {
     .defaultNow(),
 });
 
-// Short-lived proof that an authenticated caller found a specific same-shop
-// user through exact contact matching. Only a hash of the bearer token is kept.
+// Short-lived proof that an authenticated caller found a specific active user
+// through exact contact matching. Global-direct grants have a null shopId.
 export const chatContactMatchGrantsTable = pgTable(
   "chat_contact_match_grants",
   {
@@ -79,9 +79,7 @@ export const chatContactMatchGrantsTable = pgTable(
     targetUserId: uuid("target_user_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
-    shopId: uuid("shop_id")
-      .notNull()
-      .references(() => shopsTable.id, { onDelete: "cascade" }),
+    shopId: uuid("shop_id").references(() => shopsTable.id, { onDelete: "cascade" }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     consumedAt: timestamp("consumed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -117,18 +115,18 @@ export const chatContactMatchAttemptsTable = pgTable(
 );
 
 // ── Chat rooms ────────────────────────────────────────────────────────────────
-// Each room is scoped to a shop. `kind` distinguishes customer-facing rooms
-// from internal dealer/staff rooms. Customer rooms are linked to a customer;
-// dealer rooms may carry a dealerId for scoping.
+// Business rooms are scoped to a shop. `global_direct` is deliberately the
+// sole non-shop scope and is membership-only. `kind` distinguishes
+// customer-facing rooms from internal dealer/staff rooms.
 // `providerRoomId` holds the Matrix room ID once the room has been provisioned
 // on the Matrix server. It can be null if provisioning is deferred or unavailable.
 export const chatRoomsTable = pgTable(
   "chat_rooms",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    shopId: uuid("shop_id")
-      .notNull()
-      .references(() => shopsTable.id, { onDelete: "cascade" }),
+    // Global direct rooms intentionally have no business workspace.
+    shopId: uuid("shop_id").references(() => shopsTable.id, { onDelete: "cascade" }),
+    scope: text("scope").notNull().default("shop"), // shop | global_direct
     // "customer" — one-on-one or group room for a customer
     // "dealer"   — internal dealer/staff room
     // "support"  — general support channel
@@ -172,7 +170,10 @@ export const chatRoomsTable = pgTable(
     // One room per (shop, peerKey) — deterministic dedupe of one-to-one rooms.
     uniqueIndex("chat_rooms_shop_peer_key_unique")
       .on(t.shopId, t.peerKey)
-      .where(sql`${t.peerKey} IS NOT NULL`),
+      .where(sql`${t.scope} = 'shop' AND ${t.peerKey} IS NOT NULL`),
+    uniqueIndex("chat_rooms_global_direct_peer_key_unique")
+      .on(t.peerKey)
+      .where(sql`${t.scope} = 'global_direct' AND ${t.peerKey} IS NOT NULL`),
     uniqueIndex("chat_rooms_provision_key_unique")
       .on(t.provisionKey)
       .where(sql`${t.provisionKey} IS NOT NULL`),
@@ -188,9 +189,7 @@ export const chatRoomMembersTable = pgTable(
     roomId: uuid("room_id")
       .notNull()
       .references(() => chatRoomsTable.id, { onDelete: "cascade" }),
-    shopId: uuid("shop_id")
-      .notNull()
-      .references(() => shopsTable.id, { onDelete: "cascade" }),
+    shopId: uuid("shop_id").references(() => shopsTable.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
@@ -213,9 +212,7 @@ export const chatMessagesTable = pgTable(
     roomId: uuid("room_id")
       .notNull()
       .references(() => chatRoomsTable.id, { onDelete: "cascade" }),
-    shopId: uuid("shop_id")
-      .notNull()
-      .references(() => shopsTable.id, { onDelete: "cascade" }),
+    shopId: uuid("shop_id").references(() => shopsTable.id, { onDelete: "cascade" }),
     senderId: uuid("sender_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
@@ -255,9 +252,7 @@ export const chatReadStateTable = pgTable(
     roomId: uuid("room_id")
       .notNull()
       .references(() => chatRoomsTable.id, { onDelete: "cascade" }),
-    shopId: uuid("shop_id")
-      .notNull()
-      .references(() => shopsTable.id, { onDelete: "cascade" }),
+    shopId: uuid("shop_id").references(() => shopsTable.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
@@ -282,9 +277,7 @@ export const chatProviderIdentitiesTable = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
-    shopId: uuid("shop_id")
-      .notNull()
-      .references(() => shopsTable.id, { onDelete: "cascade" }),
+    shopId: uuid("shop_id").references(() => shopsTable.id, { onDelete: "cascade" }),
     // "matrix" — Matrix/Element Server Suite
     provider: text("provider").notNull().default("matrix"),
     // The provider-side user identifier, e.g. @localpart:server
