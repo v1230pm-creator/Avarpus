@@ -6,7 +6,7 @@ const ORIGINAL_TEMPLATE = process.env["HANU_OTP_TEMPLATE_ID"];
 
 beforeEach(() => {
   process.env["HANU_OTP_API_KEY"] = "test-hanu-key";
-  process.env["HANU_OTP_TEMPLATE_ID"] = "default";
+  delete process.env["HANU_OTP_TEMPLATE_ID"];
 });
 
 afterEach(() => {
@@ -35,7 +35,7 @@ describe("hanuSendOtp", () => {
     expect(calledUrl.searchParams.get("number")).toBe("9876543210");
     expect(calledUrl.searchParams.get("OTP")).toBe("123456");
     expect(calledUrl.searchParams.get("apikey")).toBe("test-hanu-key");
-    expect(calledUrl.searchParams.get("templatesid")).toBe("default");
+    expect(calledUrl.searchParams.has("templatesid")).toBe(false);
   });
 
   it.each([
@@ -75,19 +75,14 @@ describe("hanuSendOtp", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("fails without making a request when the Hanu template ID is missing", async () => {
-    delete process.env["HANU_OTP_TEMPLATE_ID"];
-    const fetchMock = vi.spyOn(globalThis, "fetch");
-    await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({
-      ok: false,
-      reason: "HANU_OTP_TEMPLATE_ID is not configured",
-    });
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(getHanuOtpStatus()).toMatchObject({
-      configured: false,
-      templateId: null,
-      apiKeyConfigured: true,
-    });
+  it("can include a template only when one is explicitly configured", async () => {
+    process.env["HANU_OTP_TEMPLATE_ID"] = "template-123";
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ status: "success" })),
+    );
+    await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({ ok: true });
+    const calledUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(calledUrl.searchParams.get("templatesid")).toBe("template-123");
   });
 
   it("does not allow an environment override to redirect credentials", async () => {
@@ -132,7 +127,7 @@ describe("getHanuOtpStatus", () => {
       provider: "Hanu OTP",
       configured: true,
       endpoint: "https://api.hanuotp.in/sms-otp.php",
-      templateId: "default",
+      templateId: null,
       apiKeyConfigured: true,
     });
     expect(JSON.stringify(status)).not.toContain("test-hanu-key");

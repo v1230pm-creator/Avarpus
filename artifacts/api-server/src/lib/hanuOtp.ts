@@ -41,7 +41,7 @@ export function getHanuOtpStatus(): HanuOtpStatus {
   const configuredTemplateId = templateId();
   return {
     provider: "Hanu OTP",
-    configured: Boolean(apiKey()) && Boolean(configuredTemplateId),
+    configured: Boolean(apiKey()),
     endpoint: HANU_OTP_ENDPOINT,
     templateId: configuredTemplateId,
     apiKeyConfigured: Boolean(apiKey()),
@@ -85,15 +85,14 @@ export async function hanuSendOtp(
   const key = apiKey();
   if (!key) return { ok: false, reason: "HANU_OTP_API_KEY is not configured" };
   const configuredTemplateId = templateId();
-  if (!configuredTemplateId) {
-    return { ok: false, reason: "HANU_OTP_TEMPLATE_ID is not configured" };
-  }
 
   const url = new URL(HANU_OTP_ENDPOINT);
   url.searchParams.set("number", local10);
   url.searchParams.set("OTP", code);
   url.searchParams.set("apikey", key);
-  url.searchParams.set("templatesid", configuredTemplateId);
+  if (configuredTemplateId) {
+    url.searchParams.set("templatesid", configuredTemplateId);
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
