@@ -12,7 +12,7 @@ import { isUnlocked, setUnlocked, shouldRelockAfterBackground } from '@/utils/ap
  *
  * It only flips the in-memory unlock flag; the (tabs) layout subscribes to
  * lock-state changes, re-reads the lock configuration fail-closed, and
- * redirects to the PIN/biometric screen when a lock is set up.
+ * redirects to the device-authentication screen when app lock is enabled.
  */
 export function BackgroundRelock({ children }: { children: React.ReactNode }) {
   const backgroundedAtRef = useRef<number | null>(null);

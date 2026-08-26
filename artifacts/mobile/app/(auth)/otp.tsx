@@ -9,6 +9,7 @@ import { authOtpResend } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
+import { completeUnlockSuccess } from '@/utils/appLock';
 
 export default function OTPScreen() {
   const colors = useColors();
@@ -63,8 +64,9 @@ export default function OTPScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
+    await completeUnlockSuccess();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.replace('/(auth)/biometric');
+    router.replace('/(tabs)');
   };
 
   const handleResend = async () => {

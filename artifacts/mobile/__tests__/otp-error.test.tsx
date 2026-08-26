@@ -38,6 +38,7 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 
 jest.mock('@/utils/seedData', () => ({ seedIfNeeded: jest.fn(async () => {}) }));
+jest.mock('@/utils/appLock', () => ({ completeUnlockSuccess: jest.fn(async () => {}) }));
 jest.mock('@/utils/storage', () => ({
   KEYS: { AUTH_TOKEN: 'auth_token', CURRENT_USER: 'current_user' },
   storage: {
@@ -124,7 +125,7 @@ describe('OTP screen error display', () => {
     });
     const { unmount } = await renderScreen();
     await fillOtpAndVerify();
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(auth)/biometric'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(tabs)'));
     expect(screen.queryByText(/failed|incorrect/i)).toBeNull();
     unmount();
   });

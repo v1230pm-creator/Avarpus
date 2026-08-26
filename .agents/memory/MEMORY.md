@@ -1,7 +1,7 @@
 - [VMC BMS Architecture](vmc-bms-arch.md) — Expo app now API-backed: auth AND business data (repairs/customers/inventory/purchases/finance) live server-side, shop-scoped; no on-device seed data.
 - [Drizzle journal drift](drizzle-journal-drift.md) — boot fails with "relation already exists" when DB drifts from the migration journal; backfill journal rows, don't drop tables.
-- [App lock enforcement](app-lock.md) — lock must be enforced at the tabs route boundary and fail closed; reviewers reject index-only redirects and any Skip path visible before lock config is confirmed.
-- [Lock-state mutations](lock-state-mutations.md) — reviewers require cancel-safe (token + in-flight ref) and failure-safe (biometric flag removed before PIN) lock changes; use disableAppLock().
+- [App lock enforcement](app-lock.md) — app lock is biometric/device-credential only, opt-in, guarded at the tabs boundary; OTP unlocks the current session before entering tabs.
+- [Lock-state mutations](lock-state-mutations.md) — settings toggles require OS authentication and must re-read persisted state after write failures.
 - [Stale api-client d.ts](api-client-dist-types.md) — mobile typecheck reads lib types from dist declarations; rebuild them after changing lib exports or you get phantom TS2305 errors.
 - [Role naming](role-naming.md) — the privileged role is `super_admin` everywhere; introducing an `admin` role breaks client permissions/labels.
 - [Registration & staff model](registration-model.md) — public signup is dealer-only (server-forced); staff only via RBAC /staff endpoints; demo seeding off by default.
@@ -14,7 +14,6 @@
 - [Returns & refunds](returns-refunds.md) — return cases have a strict server state machine; refunds are separate rows with a cumulative repair-level cap; closed cases frozen; FOR UPDATE + conditional claims everywhere.
 - [Expo package version pinning](expo-package-versions.md) — plain pnpm add grabs SDK-incompatible expo-* majors that crash at runtime; always npx expo install.
 - [Mobile Jest setup quirks](mobile-jest-setup.md) — pnpm-aware transformIgnorePatterns, global fake timers to avoid hangs, mock at API-client boundary not context.
-- [PIN hashing](pin-hashing.md) — PIN stored as salted iterated-SHA256 record; use hasStoredMpin/verifyMpin, never compare raw values; mock expo-crypto with node crypto in Jest.
 - [API validation steps](api-validation-steps.md) — isolation/balances/registration scripts run as validation steps; whole-command flock + api-server cwd, or concurrent builds clobber dist.
 - [brace-expansion override scoping](brace-expansion-override.md) — blanket CVE overrides of deep deps break RN codegen; scope per major; codegen CLI reproduces EAS failures locally.
 - [Android APK builds](android-apk-builds.md) — APK only via expo.dev GitHub builds (base dir artifacts/mobile); pnpm/Node/image pins in eas.json are load-bearing; user holds the keystore.
@@ -24,7 +23,6 @@
 - [Technician access scoping](technician-scoping.md) — assigned-only gating REMOVED; techs get full shop view; repair-mutating subroutes must carry requireFeature('repairs_update').
 - [GitHub push via API fallback](github-push-api-fallback.md) — when auth() gives no token, push via proxyFetch Git Data API; local/remote SHAs then diverge, reconcile before next token push.
 - [Testing pass lock](testing-pass-lock.md) — testingChecklist true=Pass is immutable; validate in tx with FOR UPDATE; omission keeps passes, drops fails; Pass→Fail = 409 TESTING_ITEM_LOCKED.
-- [PIN throttle review bar](pin-throttle-reviews.md) — reviewers require every unlock method to reset attempts, sync pre-submit guards on PIN pads, and serialized counter writes.
 - [Role feature toggles](role-feature-toggles.md) — owner-editable per-role Staff Permissions; new mutation endpoints in toggleable areas must add requireFeature; never gate shared GET collections.
 - [Route-level feature gates](route-level-feature-gates.md) — hidden tabs are not protection; sensitive mobile routes must deny access before their data hooks mount.
 - [Prod data import path](prod-data-import.md) — prod SQL is read-only; use the token-guarded import endpoint; jsonb columns reject JS arrays via node-postgres, stringify first.

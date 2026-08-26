@@ -10,7 +10,7 @@ const CHECK_INTERVAL_MS = 30 * 1000;
 /**
  * Wraps the authenticated area of the app. Tracks user touch activity and,
  * after the configured inactivity period, either locks the app to the
- * PIN/biometric screen (when a lock is set up) or signs the user out.
+ * device-authentication screen (when app lock is enabled) or signs the user out.
  */
 export function InactivityGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, logout } = useAuth();

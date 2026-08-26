@@ -235,9 +235,9 @@ export default function SettingsScreen() {
           <Card>
             <View style={styles.configRow}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>App lock (PIN &amp; biometric)</Text>
+                <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Biometric app lock</Text>
                 <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-                  Change your PIN, toggle biometric unlock, or turn off the lock.
+                  Enable device biometric or password authentication when reopening the app.
                 </Text>
               </View>
               <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
@@ -248,7 +248,7 @@ export default function SettingsScreen() {
         <Card>
           <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Auto-lock after inactivity</Text>
           <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            Locks the app (or signs you out if no PIN is set) after this period of inactivity.
+            Locks with device authentication when app lock is enabled, or signs you out when it is off.
           </Text>
           <View style={styles.timeoutRow}>
             {INACTIVITY_OPTIONS.map((min) => {

@@ -1,14 +1,14 @@
 ---
-name: Lock-state mutation review bar
-description: What completion reviewers require for any code that changes PIN/biometric lock state on device.
+name: Lock-state mutation safety
+description: Safety rules for enabling or disabling biometric/device-credential app lock.
 ---
 
-Reviewers reject lock/security-setting changes unless mutations are both cancel-safe and failure-safe.
+Enabling or disabling app lock must be confirmed through the operating system's authentication prompt. Canceling the OS prompt leaves the preference unchanged.
 
-**Why:** Task reviews rejected the security screen three times for: (1) a deferred setTimeout PIN submit that could still fire after Cancel, (2) cancel remaining possible while writes were in flight, (3) disable clearing the PIN before the biometric flag, so a mid-way failure left an unusable biometric-only lock.
+**Why:** The setting changes local access control. A stale UI assumption after a failed storage write can claim protection is on when it is not, or claim it is off while the next launch still locks.
 
 **How to apply:**
-- Guard deferred/async PIN submissions with an operation token + in-flight ref; invalidate on cancel/back/unmount and re-check the token before every write.
-- Block cancel/back while a submission is committing.
-- Order composite writes so a mid-way failure always leaves a *working* lock (remove biometric flag before clearing the PIN); `disableAppLock()` in the mobile app encodes this and has Jest tests.
-- On failure, re-read storage and surface actual state rather than assumed state.
+- Disable repeated toggle actions while authentication or storage writes are in flight.
+- Persist only after OS authentication succeeds.
+- On failure, re-read storage and show the actual state rather than an optimistic state.
+- Disabling app lock must leave the current authenticated session unlocked.

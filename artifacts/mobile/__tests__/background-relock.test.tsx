@@ -6,9 +6,6 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
 jest.mock('@/utils/secureStorage', () => ({
-  __esModule: true,
-  secureGetItem: jest.fn(async () => null),
-  secureSetItem: jest.fn(async () => {}),
   secureDeleteItem: jest.fn(async () => {}),
 }));
 
