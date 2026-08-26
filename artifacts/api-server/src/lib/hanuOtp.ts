@@ -4,7 +4,7 @@
 // The API key is read at call-time so it is never captured in module scope or
 // logged.
 
-const DEFAULT_ENDPOINT = "https://api.hanuotp.in/sms-otp.php";
+const HANU_OTP_ENDPOINT = "https://api.hanuotp.in/sms-otp.php";
 const FETCH_TIMEOUT_MS = 10_000;
 
 export function normaliseIndianMobile(raw: string): string | null {
@@ -13,10 +13,6 @@ export function normaliseIndianMobile(raw: string): string | null {
   if (/^91\d{10}$/.test(s)) return s.slice(2);
   if (/^\d{10}$/.test(s)) return s;
   return null;
-}
-
-function endpoint(): string {
-  return process.env["HANU_OTP_ENDPOINT"] || DEFAULT_ENDPOINT;
 }
 
 function apiKey(): string | null {
@@ -44,7 +40,7 @@ export function getHanuOtpStatus(): HanuOtpStatus {
   return {
     provider: "Hanu OTP",
     configured: Boolean(apiKey()),
-    endpoint: endpoint(),
+    endpoint: HANU_OTP_ENDPOINT,
     templateId: templateId(),
     apiKeyConfigured: Boolean(apiKey()),
   };
@@ -66,7 +62,6 @@ function safeResponseMessage(body: unknown): string {
 }
 
 function responseIsSuccessful(body: unknown): boolean {
-  if (typeof body === "string") return /\bsuccess\b|\bsent\b/i.test(body);
   if (!body || typeof body !== "object") return false;
   const data = body as Record<string, unknown>;
   return (
@@ -88,7 +83,7 @@ export async function hanuSendOtp(
   const key = apiKey();
   if (!key) return { ok: false, reason: "HANU_OTP_API_KEY is not configured" };
 
-  const url = new URL(endpoint());
+  const url = new URL(HANU_OTP_ENDPOINT);
   url.searchParams.set("number", local10);
   url.searchParams.set("OTP", code);
   url.searchParams.set("apikey", key);

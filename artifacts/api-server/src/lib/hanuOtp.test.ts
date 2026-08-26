@@ -2,12 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getHanuOtpStatus, hanuSendOtp } from "./hanuOtp";
 
 const ORIGINAL_API_KEY = process.env["HANU_OTP_API_KEY"];
-const ORIGINAL_ENDPOINT = process.env["HANU_OTP_ENDPOINT"];
 const ORIGINAL_TEMPLATE = process.env["HANU_OTP_TEMPLATE_ID"];
 
 beforeEach(() => {
   process.env["HANU_OTP_API_KEY"] = "test-hanu-key";
-  process.env["HANU_OTP_ENDPOINT"] = "https://api.hanuotp.in/sms-otp.php";
   process.env["HANU_OTP_TEMPLATE_ID"] = "default";
 });
 
@@ -16,8 +14,6 @@ afterEach(() => {
   vi.useRealTimers();
   if (ORIGINAL_API_KEY === undefined) delete process.env["HANU_OTP_API_KEY"];
   else process.env["HANU_OTP_API_KEY"] = ORIGINAL_API_KEY;
-  if (ORIGINAL_ENDPOINT === undefined) delete process.env["HANU_OTP_ENDPOINT"];
-  else process.env["HANU_OTP_ENDPOINT"] = ORIGINAL_ENDPOINT;
   if (ORIGINAL_TEMPLATE === undefined) delete process.env["HANU_OTP_TEMPLATE_ID"];
   else process.env["HANU_OTP_TEMPLATE_ID"] = ORIGINAL_TEMPLATE;
 });
@@ -42,9 +38,15 @@ describe("hanuSendOtp", () => {
     expect(calledUrl.searchParams.get("templatesid")).toBe("default");
   });
 
-  it("accepts Hanu plain-text success responses", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("OTP sent successfully"));
-    await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({ ok: true });
+  it.each([
+    "OTP sent successfully",
+    "OTP was not sent",
+    "Failed to send OTP",
+    "error: OTP sent status unavailable",
+  ])("fails closed for ambiguous plain-text response: %s", async (body) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(body));
+    const result = await hanuSendOtp("9876543210", "123456");
+    expect(result.ok).toBe(false);
   });
 
   it("returns a sanitised failure for Hanu errors and malformed responses", async () => {
@@ -71,6 +73,24 @@ describe("hanuSendOtp", () => {
       reason: "HANU_OTP_API_KEY is not configured",
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not allow an environment override to redirect credentials", async () => {
+    process.env["HANU_OTP_ENDPOINT"] = "https://user:password@api.hanuotp.in:444/sms-otp.php?token=secret";
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ status: "success" })),
+    );
+    await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({ ok: true });
+    const calledUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(calledUrl.origin + calledUrl.pathname).toBe("https://api.hanuotp.in/sms-otp.php");
+    expect(calledUrl.username).toBe("");
+    expect(calledUrl.password).toBe("");
+    expect(calledUrl.port).toBe("");
+    const status = getHanuOtpStatus();
+    expect(status.endpoint).toBe("https://api.hanuotp.in/sms-otp.php");
+    expect(JSON.stringify(status)).not.toContain("password");
+    expect(JSON.stringify(status)).not.toContain("secret");
+    delete process.env["HANU_OTP_ENDPOINT"];
   });
 
   it("aborts a stalled Hanu request after ten seconds", async () => {
