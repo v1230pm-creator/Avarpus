@@ -27,6 +27,7 @@ type HanuOtpResult = { ok: true } | { ok: false; reason: string };
 const mockHanuSend = vi.fn(
   async (_mobile: string, _code: string): Promise<HanuOtpResult> => ({ ok: true }),
 );
+let mockHanuConfigured = true;
 const mockNormalise = vi.fn((raw: string): string | null => {
   // Keep real normalisation logic so format tests work correctly.
   const s = raw.trim();
@@ -40,9 +41,9 @@ vi.mock("../lib/hanuOtp", () => ({
   hanuSendOtp: (mobile: string, code: string) => mockHanuSend(mobile, code),
   getHanuOtpStatus: () => ({
     provider: "Hanu OTP",
-    configured: true,
+    configured: mockHanuConfigured,
     endpoint: "https://api.hanuotp.in/sms-otp.php",
-    templateId: "default",
+    templateId: mockHanuConfigured ? "template-123" : null,
     apiKeyConfigured: true,
   }),
   normaliseIndianMobile: (raw: string) => mockNormalise(raw),
@@ -205,6 +206,20 @@ describe("OTP-only authentication contract", () => {
 
 // ── OTP request ───────────────────────────────────────────────────────────
 describe("POST /api/auth/otp/request", () => {
+  it("returns service unavailable instead of opening a dead verify flow when Hanu is not configured", async () => {
+    mockHanuConfigured = false;
+    try {
+      const res = await request(app)
+        .post("/api/auth/otp/request")
+        .send({ mobile: MOBILE });
+      expect(res.status).toBe(503);
+      expect(res.body.message).toMatch(/temporarily unavailable/i);
+      expect(mockHanuSend).not.toHaveBeenCalled();
+    } finally {
+      mockHanuConfigured = true;
+    }
+  });
+
   it("returns generic 200 and sends a locally generated code through Hanu OTP", async () => {
     mockHanuSend.mockClear();
     mockHanuSend.mockResolvedValueOnce({ ok: true });
@@ -213,8 +228,13 @@ describe("POST /api/auth/otp/request", () => {
       .send({ mobile: MOBILE });
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/if this mobile/i);
-    await vi.waitFor(() => expect(mockHanuSend).toHaveBeenCalled());
-    expect(mockHanuSend).toHaveBeenCalledWith(MOBILE, expect.stringMatching(/^\d{6}$/));
+    await vi.waitFor(() =>
+      expect(
+        mockHanuSend.mock.calls.some(
+          ([mobile, code]) => mobile === MOBILE && /^\d{6}$/.test(code),
+        ),
+      ).toBe(true),
+    );
   });
 
   it("returns the same generic 200 for an unknown mobile (no Hanu call)", async () => {
