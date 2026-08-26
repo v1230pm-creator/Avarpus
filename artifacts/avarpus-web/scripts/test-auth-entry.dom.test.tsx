@@ -1,21 +1,31 @@
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Router as WouterRouter } from "wouter";
 import App from "../src/App";
+import { OtpPage } from "../src/pages/otp";
 
 const mocks = vi.hoisted(() => ({
   authOtpRequest: vi.fn(),
+  authOtpResend: vi.fn(),
+  authOtpVerify: vi.fn(),
+  setSession: vi.fn(),
 }));
 
 vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
 
 vi.mock("@workspace/api-client-react", () => ({
   authOtpRequest: mocks.authOtpRequest,
+  authOtpResend: mocks.authOtpResend,
+  authOtpVerify: mocks.authOtpVerify,
 }));
 
 vi.mock("@/lib/auth", () => ({
   AuthProvider: ({ children }: { children: ReactNode }) => children,
-  useAuth: () => ({ apiConfigurationError: null }),
+  useAuth: () => ({
+    apiConfigurationError: null,
+    setSession: mocks.setSession,
+  }),
 }));
 
 let root: Root;
@@ -25,6 +35,9 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/login");
   sessionStorage.clear();
   mocks.authOtpRequest.mockReset();
+  mocks.authOtpResend.mockReset();
+  mocks.authOtpVerify.mockReset();
+  mocks.setSession.mockReset();
   root = createRoot(document.getElementById("root")!);
 });
 
@@ -93,5 +106,105 @@ describe("browser sign-in entry", () => {
     expect(mocks.authOtpRequest).toHaveBeenCalledWith({ mobile: "9876543210" });
     expect(window.location.pathname).toBe("/verify");
     expect(window.location.search).toBe("?mobile=9876543210");
+  });
+});
+
+
+describe("browser OTP verification", () => {
+  function renderOtpPage() {
+    root.render(
+      <WouterRouter>
+        <OtpPage />
+      </WouterRouter>,
+    );
+  }
+
+  function setInputValue(input: HTMLInputElement, value: string) {
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )?.set;
+    valueSetter?.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  it("renders the OTP action and reaches the authenticated destination after success", async () => {
+    mocks.authOtpVerify.mockResolvedValue({
+      token: "test-session-token",
+      user: {
+        id: "user-1",
+        name: "Test User",
+        email: "test@example.com",
+        mobile: "9876543210",
+        role: "dealer",
+        isActive: true,
+      },
+    });
+    window.history.replaceState({}, "", "/verify?mobile=9876543210");
+
+    await act(async () => {
+      renderOtpPage();
+    });
+
+    const form = document.querySelector<HTMLFormElement>("form.auth-form");
+    const codeInput = document.querySelector<HTMLInputElement>("#verification-code");
+    const verifyButton = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Verify & Continue"),
+    );
+
+    expect(window.location.pathname).toBe("/verify");
+    expect(form).not.toBeNull();
+    expect(codeInput?.inputMode).toBe("numeric");
+    expect(codeInput?.autocomplete).toBe("one-time-code");
+    expect(verifyButton).not.toBeNull();
+    expect(verifyButton?.disabled).toBe(true);
+
+    await act(async () => {
+      setInputValue(codeInput!, "12a3456");
+    });
+
+    expect(codeInput?.value).toBe("123456");
+    expect(verifyButton?.disabled).toBe(false);
+
+    await act(async () => {
+      verifyButton?.click();
+    });
+
+    expect(mocks.authOtpVerify).toHaveBeenCalledWith({
+      mobile: "9876543210",
+      code: "123456",
+      rememberMe: true,
+      device: "Web Browser",
+    });
+    expect(mocks.setSession).toHaveBeenCalledWith("test-session-token");
+    expect(window.location.pathname).toBe("/dashboard");
+  });
+
+  it("shows an actionable error when the verification code is rejected", async () => {
+    mocks.authOtpVerify.mockRejectedValue({
+      data: { message: "Invalid verification code. Please try again." },
+    });
+    window.history.replaceState({}, "", "/verify?mobile=9876543210");
+
+    await act(async () => {
+      renderOtpPage();
+    });
+
+    const codeInput = document.querySelector<HTMLInputElement>("#verification-code");
+    const verifyButton = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Verify & Continue"),
+    );
+
+    await act(async () => {
+      setInputValue(codeInput!, "000000");
+      verifyButton?.click();
+    });
+
+    expect(mocks.authOtpVerify).toHaveBeenCalledTimes(1);
+    expect(window.location.pathname).toBe("/verify");
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+      "Invalid verification code. Please try again.",
+    );
+    expect(mocks.setSession).not.toHaveBeenCalled();
   });
 });
