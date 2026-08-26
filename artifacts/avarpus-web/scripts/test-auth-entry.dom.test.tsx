@@ -111,6 +111,14 @@ describe("browser sign-in entry", () => {
 
 
 describe("browser OTP verification", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   function renderOtpPage() {
     root.render(
       <WouterRouter>
@@ -206,5 +214,64 @@ describe("browser OTP verification", () => {
       "Invalid verification code. Please try again.",
     );
     expect(mocks.setSession).not.toHaveBeenCalled();
+  });
+
+  it("keeps the verification screen available when resending fails after cooldown", async () => {
+    mocks.authOtpResend.mockRejectedValue({
+      data: { message: "Too many requests. Please wait and try again." },
+    });
+    window.history.replaceState({}, "", "/verify?mobile=9876543210");
+
+    await act(async () => {
+      renderOtpPage();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    const resendButton = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Resend code"),
+    );
+
+    expect(resendButton).not.toBeNull();
+    expect(resendButton?.disabled).toBe(false);
+    expect(resendButton?.textContent).toBe("Resend code");
+
+    await act(async () => {
+      resendButton?.click();
+    });
+
+    expect(mocks.authOtpResend).toHaveBeenCalledWith({ mobile: "9876543210" });
+    expect(window.location.pathname).toBe("/verify");
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+      "Too many requests. Please wait and try again.",
+    );
+    expect(document.querySelector("h1")?.textContent).toBe("Enter your verification code");
+  });
+
+  it("resets the resend cooldown after a successful resend", async () => {
+    mocks.authOtpResend.mockResolvedValue({});
+    window.history.replaceState({}, "", "/verify?mobile=9876543210");
+
+    await act(async () => {
+      renderOtpPage();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    const resendButton = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Resend code"),
+    );
+
+    expect(resendButton?.disabled).toBe(false);
+
+    await act(async () => {
+      resendButton?.click();
+    });
+
+    expect(mocks.authOtpResend).toHaveBeenCalledWith({ mobile: "9876543210" });
+    expect(resendButton?.disabled).toBe(true);
+    expect(resendButton?.textContent).toBe("Resend code in 60s");
   });
 });
