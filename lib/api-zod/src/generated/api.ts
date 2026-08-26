@@ -65,6 +65,18 @@ export const AuthOtpVerifyResponse = zod.object({
 
 
 /**
+ * @summary Get the configured OTP provider status (super_admin only)
+ */
+export const AuthOtpProviderStatusResponse = zod.object({
+  "provider": zod.enum(['Hanu OTP']),
+  "configured": zod.boolean(),
+  "endpoint": zod.string(),
+  "templateId": zod.string(),
+  "apiKeyConfigured": zod.boolean()
+})
+
+
+/**
  * @summary Start registration and send email OTP
  */
 export const AuthRegisterStartBody = zod.object({

@@ -26,13 +26,13 @@ import {
   verifyOtpWithDurableLimit,
 } from "../lib/rateLimit";
 import { requireAuth } from "../middlewares/requireAuth";
+import { requireRole } from "../middlewares/requireRole";
 import { asyncHandler } from "../lib/asyncHandler";
 import {
-  msg91SendOtp,
-  msg91VerifyOtp,
-  msg91RetryOtp,
+  getHanuOtpStatus,
+  hanuSendOtp,
   normaliseIndianMobile,
-} from "../lib/msg91";
+} from "../lib/hanuOtp";
 
 const router: IRouter = Router();
 
@@ -87,11 +87,15 @@ router.post("/auth/otp/request", asyncHandler(async (req, res) => {
   const genericMessage = "If this mobile number is registered, a verification code has been sent.";
   res.json({ message: genericMessage });
   if (user?.isActive) {
-    void msg91SendOtp(mobile)
-      .then((result) => {
-        if (!result.ok) req.log.warn("MSG91 OTP send failed");
-      })
-      .catch(() => req.log.error("Unexpected error calling MSG91 send"));
+    void (async () => {
+      try {
+        const code = await createOtp(mobile, "login");
+        const result = await hanuSendOtp(mobile, code);
+        if (!result.ok) req.log.warn("Hanu OTP send failed");
+      } catch {
+        req.log.error("Unexpected error calling Hanu OTP");
+      }
+    })();
   }
 }));
 
@@ -126,11 +130,15 @@ router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
     .limit(1);
   res.json({ message: genericMessage });
   if (rows[0]?.isActive) {
-    void msg91RetryOtp(mobile)
-      .then((result) => {
-        if (!result.ok) req.log.warn("MSG91 OTP retry failed");
-      })
-      .catch(() => req.log.error("Unexpected error calling MSG91 retry"));
+    void (async () => {
+      try {
+        const code = await createOtp(mobile, "login");
+        const result = await hanuSendOtp(mobile, code);
+        if (!result.ok) req.log.warn("Hanu OTP resend failed");
+      } catch {
+        req.log.error("Unexpected error calling Hanu OTP resend");
+      }
+    })();
   }
 }));
 
@@ -150,7 +158,7 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
   const attemptKey = `otpverify:${mobile}`;
   const attempt = await verifyOtpWithDurableLimit(
     attemptKey,
-    async () => (await msg91VerifyOtp(mobile, code)).ok,
+    async () => (await consumeOtp(mobile, "login", code)).ok,
   );
   if (attempt.status === "limited") {
     res.status(429).json({
@@ -165,7 +173,7 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
     return;
   }
   if (attempt.status === "provider_error") {
-    req.log.error("Unexpected error calling MSG91 verify");
+    req.log.error("Unexpected error verifying Hanu OTP");
   }
   if (attempt.status !== "approved") {
     // Use a generic message to avoid leaking whether provider rejected the code
@@ -191,6 +199,17 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
   await recordLoginEvent(user.id, "otp", remember, deviceInfo);
   res.json({ token, user: publicUser(user) });
 }));
+
+// Configuration status is intentionally limited to super administrators and
+// never returns the provider credential itself.
+router.get(
+  "/auth/otp/provider-status",
+  requireAuth,
+  requireRole("super_admin"),
+  (_req, res) => {
+    res.json(getHanuOtpStatus());
+  },
+);
 
 // ── Registration (email OTP verification) ────────────────────────────────
 // Public registration creates dealer (shop owner) accounts only. Staff must

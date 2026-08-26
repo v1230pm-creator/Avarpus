@@ -1,5 +1,5 @@
 // Integration tests for the auth routes, run against the real dev database.
-// Email delivery and MSG91 provider are mocked — no real network calls.
+// Email delivery and Hanu OTP delivery are mocked — no real network calls.
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { readFileSync } from "node:fs";
@@ -20,13 +20,13 @@ vi.mock("../lib/mailer", () => ({
   warnIfMailFromUnset: () => {},
 }));
 
-type Msg91Result = { ok: true } | { ok: false; reason: string };
+type HanuOtpResult = { ok: true } | { ok: false; reason: string };
 
-// Mock MSG91 provider — default to success so individual tests can override.
+// Mock Hanu OTP delivery — default to success so individual tests can override.
 // Typed as vi.Mock to allow mockResolvedValueOnce calls without type errors.
-const mockMsg91Send = vi.fn(async (_mobile: string): Promise<Msg91Result> => ({ ok: true }));
-const mockMsg91Verify = vi.fn(async (_mobile: string, _code: string): Promise<Msg91Result> => ({ ok: true }));
-const mockMsg91Retry = vi.fn(async (_mobile: string): Promise<Msg91Result> => ({ ok: true }));
+const mockHanuSend = vi.fn(
+  async (_mobile: string, _code: string): Promise<HanuOtpResult> => ({ ok: true }),
+);
 const mockNormalise = vi.fn((raw: string): string | null => {
   // Keep real normalisation logic so format tests work correctly.
   const s = raw.trim();
@@ -36,15 +36,20 @@ const mockNormalise = vi.fn((raw: string): string | null => {
   return null;
 });
 
-vi.mock("../lib/msg91", () => ({
-  msg91SendOtp: (mobile: string) => mockMsg91Send(mobile),
-  msg91VerifyOtp: (mobile: string, code: string) => mockMsg91Verify(mobile, code),
-  msg91RetryOtp: (mobile: string) => mockMsg91Retry(mobile),
+vi.mock("../lib/hanuOtp", () => ({
+  hanuSendOtp: (mobile: string, code: string) => mockHanuSend(mobile, code),
+  getHanuOtpStatus: () => ({
+    provider: "Hanu OTP",
+    configured: true,
+    endpoint: "https://api.hanuotp.in/sms-otp.php",
+    templateId: "default",
+    apiKeyConfigured: true,
+  }),
   normaliseIndianMobile: (raw: string) => mockNormalise(raw),
 }));
 
 const { default: app } = await import("../app");
-const { hashPassword } = await import("../lib/authUtils");
+const { createOtp, hashPassword } = await import("../lib/authUtils");
 const { otpVerificationRateLimitKeyHash } = await import("../lib/rateLimit");
 const openApiSpec = readFileSync(
   new URL("../../../../lib/api-spec/openapi.yaml", import.meta.url),
@@ -200,20 +205,20 @@ describe("OTP-only authentication contract", () => {
 
 // ── OTP request ───────────────────────────────────────────────────────────
 describe("POST /api/auth/otp/request", () => {
-  it("returns generic 200 and calls MSG91 send for an existing active user", async () => {
-    mockMsg91Send.mockClear();
-    mockMsg91Send.mockResolvedValueOnce({ ok: true });
+  it("returns generic 200 and sends a locally generated code through Hanu OTP", async () => {
+    mockHanuSend.mockClear();
+    mockHanuSend.mockResolvedValueOnce({ ok: true });
     const res = await request(app)
       .post("/api/auth/otp/request")
       .send({ mobile: MOBILE });
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/if this mobile/i);
-    await vi.waitFor(() => expect(mockMsg91Send).toHaveBeenCalledWith(MOBILE));
-    expect(mockMsg91Send).toHaveBeenCalledWith(MOBILE);
+    await vi.waitFor(() => expect(mockHanuSend).toHaveBeenCalled());
+    expect(mockHanuSend).toHaveBeenCalledWith(MOBILE, expect.stringMatching(/^\d{6}$/));
   });
 
-  it("returns the same generic 200 for an unknown mobile (no MSG91 call)", async () => {
-    mockMsg91Send.mockClear();
+  it("returns the same generic 200 for an unknown mobile (no Hanu call)", async () => {
+    mockHanuSend.mockClear();
     const res = await request(app)
       .post("/api/auth/otp/request")
       .send({ mobile: "1234567890" }); // not in DB
@@ -221,23 +226,23 @@ describe("POST /api/auth/otp/request", () => {
     expect(res.body.message).toMatch(/if this mobile/i);
     // Give the async fire-and-forget a tick to settle, then assert no call
     await new Promise((r) => setTimeout(r, 10));
-    expect(mockMsg91Send).not.toHaveBeenCalled();
+    expect(mockHanuSend).not.toHaveBeenCalled();
   });
 
-  it("returns generic 200 for an inactive user without calling MSG91", async () => {
+  it("returns generic 200 for an inactive user without calling Hanu", async () => {
     const INACTIVE_MOBILE = `8${RUN}`;
-    mockMsg91Send.mockClear();
+    mockHanuSend.mockClear();
     const res = await request(app)
       .post("/api/auth/otp/request")
       .send({ mobile: INACTIVE_MOBILE });
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/if this mobile/i);
     await new Promise((r) => setTimeout(r, 10));
-    expect(mockMsg91Send).not.toHaveBeenCalled();
+    expect(mockHanuSend).not.toHaveBeenCalled();
   });
 
   it("accepts +91-prefixed mobile and normalises to 10 digits for DB lookup", async () => {
-    mockMsg91Send.mockResolvedValueOnce({ ok: true });
+    mockHanuSend.mockResolvedValueOnce({ ok: true });
     const res = await request(app)
       .post("/api/auth/otp/request")
       .send({ mobile: `+91${MOBILE}` });
@@ -245,7 +250,7 @@ describe("POST /api/auth/otp/request", () => {
   });
 
   it("accepts 91-prefixed 12-digit mobile", async () => {
-    mockMsg91Send.mockResolvedValueOnce({ ok: true });
+    mockHanuSend.mockResolvedValueOnce({ ok: true });
     const res = await request(app)
       .post("/api/auth/otp/request")
       .send({ mobile: `91${MOBILE}` });
@@ -260,8 +265,8 @@ describe("POST /api/auth/otp/request", () => {
     expect(res.body.message).toMatch(/valid Indian mobile/i);
   });
 
-  it("still returns 200 when MSG91 send fails (provider failure never leaks)", async () => {
-    mockMsg91Send.mockResolvedValueOnce({ ok: false, reason: "MSG91 down" });
+  it("still returns 200 when Hanu send fails (provider failure never leaks)", async () => {
+    mockHanuSend.mockResolvedValueOnce({ ok: false, reason: "Hanu down" });
     const res = await request(app)
       .post("/api/auth/otp/request")
       .send({ mobile: PROVIDER_FAILURE_MOBILE });
@@ -272,30 +277,31 @@ describe("POST /api/auth/otp/request", () => {
 
 // ── OTP resend ────────────────────────────────────────────────────────────
 describe("POST /api/auth/otp/resend", () => {
-  it("returns generic 200 and calls MSG91 retry for an existing active user", async () => {
-    mockMsg91Retry.mockClear();
-    mockMsg91Retry.mockResolvedValueOnce({ ok: true });
+  it("returns generic 200 and sends a fresh local code through Hanu OTP", async () => {
+    mockHanuSend.mockClear();
+    mockHanuSend.mockResolvedValueOnce({ ok: true });
     const res = await request(app)
       .post("/api/auth/otp/resend")
       .send({ mobile: MOBILE });
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/if this mobile/i);
-    await vi.waitFor(() => expect(mockMsg91Retry).toHaveBeenCalledWith(MOBILE));
-    expect(mockMsg91Retry).toHaveBeenCalledWith(MOBILE);
+    await vi.waitFor(() => expect(mockHanuSend).toHaveBeenCalled());
+    expect(mockHanuSend).toHaveBeenCalledWith(MOBILE, expect.stringMatching(/^\d{6}$/));
   });
 
-  it("returns the same generic 200 for an unknown mobile (no MSG91 call)", async () => {
-    mockMsg91Retry.mockClear();
+  it("returns the same generic 200 for an unknown mobile (no Hanu call)", async () => {
+    mockHanuSend.mockClear();
+    const unknownMobile = "0987654321";
     const res = await request(app)
       .post("/api/auth/otp/resend")
-      .send({ mobile: "0987654321" }); // not in DB
+      .send({ mobile: unknownMobile }); // not in DB
     expect(res.status).toBe(200);
     await new Promise((r) => setTimeout(r, 10));
-    expect(mockMsg91Retry).not.toHaveBeenCalled();
+    expect(mockHanuSend.mock.calls.some(([mobile]) => mobile === unknownMobile)).toBe(false);
   });
 
-  it("still returns 200 when MSG91 retry fails", async () => {
-    mockMsg91Retry.mockResolvedValueOnce({ ok: false, reason: "expired session" });
+  it("still returns 200 when Hanu resend fails", async () => {
+    mockHanuSend.mockResolvedValueOnce({ ok: false, reason: "provider unavailable" });
     const res = await request(app)
       .post("/api/auth/otp/resend")
       .send({ mobile: MOBILE });
@@ -326,7 +332,7 @@ describe("POST /api/auth/otp/resend", () => {
       })
       .returning();
 
-    mockMsg91Retry.mockResolvedValue({ ok: true });
+    mockHanuSend.mockResolvedValue({ ok: true });
     let last: request.Response | undefined;
     // Resend limit is 2 per 15-min window; send 4 to guarantee hitting it.
     for (let i = 0; i < 4; i++) {
@@ -344,11 +350,11 @@ describe("POST /api/auth/otp/resend", () => {
 
 // ── OTP verify ────────────────────────────────────────────────────────────
 describe("POST /api/auth/otp/verify", () => {
-  it("issues a session when MSG91 approves the code for an active user", async () => {
-    mockMsg91Verify.mockResolvedValueOnce({ ok: true });
+  it("issues a session when the locally stored Hanu OTP is correct", async () => {
+    const code = await createOtp(MOBILE, "login");
     const res = await request(app)
       .post("/api/auth/otp/verify")
-      .send({ mobile: MOBILE, code: "123456" });
+      .send({ mobile: MOBILE, code });
     expect(res.status).toBe(200);
     expect(typeof res.body.token).toBe("string");
     expect(res.body.token.length).toBeGreaterThan(20);
@@ -356,46 +362,45 @@ describe("POST /api/auth/otp/verify", () => {
     expect(res.body.user.passwordHash).toBeUndefined();
   });
 
-  it("rejects when MSG91 says the code is wrong (no session issued)", async () => {
-    mockMsg91Verify.mockResolvedValueOnce({ ok: false, reason: "OTP not matched" });
+  it("rejects when the locally stored Hanu OTP is wrong (no session issued)", async () => {
+    const code = await createOtp(MOBILE, "login");
+    const wrongCode = code === "000000" ? "000001" : "000000";
     const res = await request(app)
       .post("/api/auth/otp/verify")
-      .send({ mobile: MOBILE, code: "000000" });
+      .send({ mobile: MOBILE, code: wrongCode });
     expect(res.status).toBe(401);
     expect(res.body.message).toMatch(/incorrect or expired/i);
     expect(res.body.token).toBeUndefined();
   });
 
-  it("rejects for an inactive user even when MSG91 approves", async () => {
+  it("rejects for an inactive user even when the stored code is correct", async () => {
     const INACTIVE_MOBILE = `8${RUN}`;
-    mockMsg91Verify.mockResolvedValueOnce({ ok: true });
+    const code = await createOtp(INACTIVE_MOBILE, "login");
     const res = await request(app)
       .post("/api/auth/otp/verify")
-      .send({ mobile: INACTIVE_MOBILE, code: "123456" });
+      .send({ mobile: INACTIVE_MOBILE, code });
     expect(res.status).toBe(401);
     expect(res.body.message).toMatch(/account not found or inactive/i);
     expect(res.body.token).toBeUndefined();
   });
 
-  it("rejects for an unknown mobile even when MSG91 approves", async () => {
-    mockMsg91Verify.mockResolvedValueOnce({ ok: true });
+  it("rejects for an unknown mobile even when the stored code is correct", async () => {
+    const code = await createOtp("5555555555", "login");
     const res = await request(app)
       .post("/api/auth/otp/verify")
-      .send({ mobile: "5555555555", code: "123456" });
+      .send({ mobile: "5555555555", code });
     expect(res.status).toBe(401);
     expect(res.body.message).toMatch(/account not found or inactive/i);
     expect(res.body.token).toBeUndefined();
   });
 
   it("accepts +91-prefixed mobile in verify", async () => {
-    mockMsg91Verify.mockClear();
-    mockMsg91Verify.mockResolvedValueOnce({ ok: true });
+    const code = await createOtp(MOBILE, "login");
     const res = await request(app)
       .post("/api/auth/otp/verify")
-      .send({ mobile: `+91${MOBILE}`, code: "123456" });
+      .send({ mobile: `+91${MOBILE}`, code });
     expect(res.status).toBe(200);
     expect(typeof res.body.token).toBe("string");
-    expect(mockMsg91Verify).toHaveBeenCalledWith(MOBILE, "123456");
   });
 
   it("locks out after repeated wrong codes (server-side throttle)", async () => {
@@ -413,12 +418,13 @@ describe("POST /api/auth/otp/verify", () => {
       })
       .returning();
 
-    mockMsg91Verify.mockResolvedValue({ ok: false, reason: "OTP not matched" });
+    const validCode = await createOtp(lockMobile, "login");
+    const wrongCode = validCode === "000000" ? "000001" : "000000";
     let last: request.Response | undefined;
     for (let i = 0; i < 7; i++) {
       last = await request(app)
         .post("/api/auth/otp/verify")
-        .send({ mobile: lockMobile, code: "000000" });
+        .send({ mobile: lockMobile, code: wrongCode });
       if (last.status === 429) break;
     }
     expect(last!.status).toBe(429);
@@ -446,15 +452,12 @@ describe("POST /api/auth/otp/verify", () => {
       expiresAt: new Date(now + 60_000),
     });
 
-    mockMsg91Verify.mockClear();
     const res = await request(app)
       .post("/api/auth/otp/verify")
       .send({ mobile: restartSafeMobile, code: "000000" });
 
     expect(res.status).toBe(429);
     expect(res.body.message).toMatch(/too many incorrect attempts/i);
-    expect(mockMsg91Verify).not.toHaveBeenCalled();
-
     await db
       .delete(otpVerificationRateLimitsTable)
       .where(
@@ -465,7 +468,7 @@ describe("POST /api/auth/otp/verify", () => {
       );
   });
 
-  it("allows one provider call for concurrent wrong-code requests, then locks out durably", async () => {
+  it("allows only one concurrent request to consume a correct OTP", async () => {
     const concurrentMobile = `3${RUN}`;
     const [concurrentUser] = await db
       .insert(usersTable)
@@ -479,59 +482,20 @@ describe("POST /api/auth/otp/verify", () => {
       })
       .returning();
 
-    mockMsg91Verify.mockClear();
-    let providerStarted!: () => void;
-    const providerStartedPromise = new Promise<void>((resolve) => {
-      providerStarted = resolve;
-    });
-    let releaseProvider!: () => void;
-    const providerReleasePromise = new Promise<void>((resolve) => {
-      releaseProvider = resolve;
-    });
-    mockMsg91Verify.mockImplementation(
-      async (): Promise<Msg91Result> => {
-        providerStarted();
-        await providerReleasePromise;
-        return { ok: false, reason: "OTP not matched" };
-      },
-    );
-    const firstAttempt = request(app)
-      .post("/api/auth/otp/verify")
-      .send({ mobile: concurrentMobile, code: "000000" })
-      .then((res) => res);
-    await providerStartedPromise;
-    const busyResponses = await Promise.all(
-      Array.from({ length: 5 }, () =>
+    const code = await createOtp(concurrentMobile, "login");
+    const responses = await Promise.all(
+      Array.from({ length: 6 }, () =>
         request(app)
           .post("/api/auth/otp/verify")
-          .send({ mobile: concurrentMobile, code: "000000" }),
+          .send({ mobile: concurrentMobile, code }),
       ),
     );
-    releaseProvider();
-    const responses = [await firstAttempt, ...busyResponses];
-
-    expect(responses.filter((res) => res.status === 401)).toHaveLength(1);
-    expect(responses.filter((res) => res.status === 429)).toHaveLength(5);
-    expect(mockMsg91Verify).toHaveBeenCalledTimes(1);
+    expect(responses.filter((res) => res.status === 200)).toHaveLength(1);
     expect(
-      responses.filter((res) => res.status === 429)
-        .every((res) => /verification already in progress/i.test(res.body.message)),
+      responses
+        .filter((res) => res.status !== 200)
+        .every((res) => res.status === 401 || res.status === 429),
     ).toBe(true);
-
-    // Four later attempts complete one at a time, producing the fifth durable
-    // failure. The next request is blocked without reaching MSG91.
-    for (let i = 0; i < 4; i++) {
-      const res = await request(app)
-        .post("/api/auth/otp/verify")
-        .send({ mobile: concurrentMobile, code: "000000" });
-      expect(res.status).toBe(401);
-    }
-    const locked = await request(app)
-      .post("/api/auth/otp/verify")
-      .send({ mobile: concurrentMobile, code: "000000" });
-    expect(locked.status).toBe(429);
-    expect(locked.body.message).toMatch(/too many incorrect attempts/i);
-    expect(mockMsg91Verify).toHaveBeenCalledTimes(5);
 
     await db
       .delete(otpVerificationRateLimitsTable)
@@ -544,7 +508,7 @@ describe("POST /api/auth/otp/verify", () => {
     await db.delete(usersTable).where(eq(usersTable.id, concurrentUser.id));
   });
 
-  it("does not start a second MSG91 verification while a delayed one owns the reservation", async () => {
+  it("does not allow a consumed Hanu OTP to be reused", async () => {
     const delayedMobile = `2${RUN}`;
     const [delayedUser] = await db
       .insert(usersTable)
@@ -558,37 +522,16 @@ describe("POST /api/auth/otp/verify", () => {
       })
       .returning();
 
-    mockMsg91Verify.mockClear();
-    let providerStarted!: () => void;
-    const providerStartedPromise = new Promise<void>((resolve) => {
-      providerStarted = resolve;
-    });
-    let releaseProvider!: () => void;
-    const releaseProviderPromise = new Promise<void>((resolve) => {
-      releaseProvider = resolve;
-    });
-    mockMsg91Verify.mockImplementation(async (): Promise<Msg91Result> => {
-      providerStarted();
-      await releaseProviderPromise;
-      return { ok: false, reason: "MSG91 verify timed out" };
-    });
-
-    const firstAttempt = request(app)
+    const code = await createOtp(delayedMobile, "login");
+    const firstAttempt = await request(app)
       .post("/api/auth/otp/verify")
-      .send({ mobile: delayedMobile, code: "000000" })
-      .then((res) => res);
-    await providerStartedPromise;
-
-    const retryWhilePending = await request(app)
+      .send({ mobile: delayedMobile, code });
+    const retry = await request(app)
       .post("/api/auth/otp/verify")
-      .send({ mobile: delayedMobile, code: "000000" });
-
-    expect(retryWhilePending.status).toBe(429);
-    expect(retryWhilePending.body.message).toMatch(/verification already in progress/i);
-    expect(mockMsg91Verify).toHaveBeenCalledTimes(1);
-
-    releaseProvider();
-    expect((await firstAttempt).status).toBe(401);
+      .send({ mobile: delayedMobile, code });
+    expect(firstAttempt.status).toBe(200);
+    expect(retry.status).toBe(401);
+    expect(retry.body.token).toBeUndefined();
 
     await db
       .delete(otpVerificationRateLimitsTable)
@@ -601,13 +544,12 @@ describe("POST /api/auth/otp/verify", () => {
     await db.delete(usersTable).where(eq(usersTable.id, delayedUser.id));
   });
 
-  it("does not issue a session when MSG91 call throws (provider error)", async () => {
-    mockMsg91Verify.mockRejectedValueOnce(new Error("MSG91 network error"));
+  it("does not issue a session when no local OTP record exists", async () => {
+    await db.delete(otpCodesTable).where(eq(otpCodesTable.identifier, MOBILE));
     const res = await request(app)
       .post("/api/auth/otp/verify")
       .send({ mobile: MOBILE, code: "123456" });
-    // Should not succeed; expect 500 (unhandled) or 401, not 200
-    expect(res.status).not.toBe(200);
+    expect(res.status).toBe(401);
     expect(res.body.token).toBeUndefined();
   });
 

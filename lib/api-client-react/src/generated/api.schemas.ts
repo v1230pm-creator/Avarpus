@@ -200,6 +200,21 @@ export interface OtpVerifyInput {
   device?: string;
 }
 
+export type OtpProviderStatusProvider = typeof OtpProviderStatusProvider[keyof typeof OtpProviderStatusProvider];
+
+
+export const OtpProviderStatusProvider = {
+  Hanu_OTP: 'Hanu OTP',
+} as const;
+
+export interface OtpProviderStatus {
+  provider: OtpProviderStatusProvider;
+  configured: boolean;
+  endpoint: string;
+  templateId: string;
+  apiKeyConfigured: boolean;
+}
+
 export interface RegisterStartInput {
   name: string;
   businessName: string;

@@ -1,4 +1,8 @@
-import { useAppUpdateStats, useListAppUpdates } from "@workspace/api-client-react";
+import {
+  useAppUpdateStats,
+  useAuthOtpProviderStatus,
+  useListAppUpdates,
+} from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +15,11 @@ import {
   Smartphone,
   PlusCircle,
   ArrowRight,
-  Loader2
+  Loader2,
+  MessageSquareText,
+  KeyRound,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -19,6 +27,11 @@ export default function Dashboard() {
   const { data: statsEnvelope, isLoading: statsLoading } = useAppUpdateStats();
   const stats = statsEnvelope?.stats;
   const { data: recentReleases, isLoading: releasesLoading } = useListAppUpdates();
+  const {
+    data: otpProvider,
+    isLoading: otpProviderLoading,
+    isError: otpProviderError,
+  } = useAuthOtpProviderStatus();
 
   if (statsLoading || releasesLoading) {
     return (
@@ -91,6 +104,64 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mb-8">
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquareText className="h-5 w-5 text-primary" />
+              Mobile OTP provider
+            </CardTitle>
+            <CardDescription className="mt-1">
+              Server-only delivery configuration used by mobile, web, and this release console.
+            </CardDescription>
+          </div>
+          {otpProviderLoading ? (
+            <Badge variant="outline">Checking</Badge>
+          ) : otpProvider?.configured ? (
+            <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">
+              <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+              Configured
+            </Badge>
+          ) : (
+            <Badge variant="destructive">
+              <AlertTriangle className="mr-1 h-3.5 w-3.5" />
+              Setup required
+            </Badge>
+          )}
+        </CardHeader>
+        <CardContent>
+          {otpProviderError ? (
+            <p className="text-sm text-destructive">
+              Provider status could not be loaded. Check the API server and your administrator session.
+            </p>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Provider</p>
+                <p className="mt-1 font-semibold">{otpProvider?.provider ?? "Hanu OTP"}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Template</p>
+                <p className="mt-1 font-mono text-sm">{otpProvider?.templateId ?? "default"}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">API credential</p>
+                <p className="mt-1 flex items-center gap-2 font-semibold">
+                  <KeyRound className="h-4 w-4 text-muted-foreground" />
+                  {otpProvider?.apiKeyConfigured ? "Stored securely" : "Not configured"}
+                </p>
+              </div>
+            </div>
+          )}
+          {!otpProviderLoading && !otpProvider?.configured && !otpProviderError && (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Add <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">HANU_OTP_API_KEY</code>{" "}
+              as a Replit Secret. The API key is never returned to this page or bundled into the apps.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="flex flex-col">

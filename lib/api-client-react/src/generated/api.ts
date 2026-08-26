@@ -102,6 +102,7 @@ import type {
   NotificationsList200,
   NotificationsMarkRead200,
   NotificationsReadInput,
+  OtpProviderStatus,
   OtpRequestInput,
   OtpVerifyInput,
   PaymentsList200,
@@ -409,6 +410,83 @@ export const useAuthOtpVerify = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getAuthOtpVerifyMutationOptions(options));
     }
+
+export const getAuthOtpProviderStatusUrl = () => {
+
+
+
+
+  return `/api/auth/otp/provider-status`
+}
+
+/**
+ * @summary Get the configured OTP provider status (super_admin only)
+ */
+export const authOtpProviderStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<OtpProviderStatus> => {
+
+  return customFetch<OtpProviderStatus>(getAuthOtpProviderStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAuthOtpProviderStatusQueryKey = () => {
+    return [
+    `/api/auth/otp/provider-status`
+    ] as const;
+    }
+
+
+export const getAuthOtpProviderStatusQueryOptions = <TData = Awaited<ReturnType<typeof authOtpProviderStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof authOtpProviderStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAuthOtpProviderStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof authOtpProviderStatus>>> = ({ signal }) => authOtpProviderStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof authOtpProviderStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AuthOtpProviderStatusQueryResult = NonNullable<Awaited<ReturnType<typeof authOtpProviderStatus>>>
+export type AuthOtpProviderStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the configured OTP provider status (super_admin only)
+ */
+
+export function useAuthOtpProviderStatus<TData = Awaited<ReturnType<typeof authOtpProviderStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof authOtpProviderStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAuthOtpProviderStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getAuthRegisterStartUrl = () => {
 

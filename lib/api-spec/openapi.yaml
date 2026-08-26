@@ -81,6 +81,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthSession"
+  /auth/otp/provider-status:
+    get:
+      operationId: authOtpProviderStatus
+      tags: [auth]
+      summary: Get the configured OTP provider status (super_admin only)
+      responses:
+        "200":
+          description: Hanu OTP provider status without credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpProviderStatus"
   /auth/register/start:
     post:
       operationId: authRegisterStart
@@ -2653,6 +2665,15 @@ components:
         rememberMe: { type: boolean }
         device: { type: string }
       required: [mobile, code]
+    OtpProviderStatus:
+      type: object
+      properties:
+        provider: { type: string, enum: [Hanu OTP] }
+        configured: { type: boolean }
+        endpoint: { type: string }
+        templateId: { type: string }
+        apiKeyConfigured: { type: boolean }
+      required: [provider, configured, endpoint, templateId, apiKeyConfigured]
     RegisterStartInput:
       type: object
       properties:

@@ -101,7 +101,7 @@ export const otpCodesTable = pgTable("otp_codes", {
     .defaultNow(),
 });
 
-// Short-lived, hashed state for MSG91 login verification throttling. This
+// Short-lived, hashed state for login OTP verification throttling. This
 // intentionally contains no OTP value or provider credential.
 export const otpVerificationRateLimitsTable = pgTable(
   "otp_verification_rate_limits",

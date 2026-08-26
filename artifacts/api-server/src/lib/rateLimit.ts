@@ -12,7 +12,7 @@ import { db, otpVerificationRateLimitsTable } from "@workspace/db";
 // 2. Fixed-window request throttle (OTP request): cap the number of requests
 //    per key within a window regardless of outcome, to prevent email flooding.
 //
-// Password and request/resend throttles below are process-local. MSG91 OTP
+// Password and request/resend throttles below are process-local. Login OTP
 // verification uses the durable, cross-instance reservation mechanism below.
 
 interface FailureEntry {
@@ -97,16 +97,16 @@ export function clearFailures(key: string): void {
 
 /**
  * Hash a rate-limit key before persisting it. The durable record only contains
- * the minimum lockout state, never an OTP code or MSG91 credential.
+ * the minimum lockout state, never an OTP code or provider credential.
  */
 export function otpVerificationRateLimitKeyHash(key: string): string {
   return crypto.createHash("sha256").update(`otp-verification-limit:v1:${key}`).digest("hex");
 }
 
 /**
- * Run one MSG91 verification attempt under a durable per-mobile reservation.
+ * Run one login OTP verification attempt under a durable per-mobile reservation.
  *
- * Both database transactions are short. The MSG91 request runs outside them,
+ * Both database transactions are short. OTP verification runs outside them,
  * so a slow provider cannot monopolize database connections. A random token
  * ensures that only the request that owns the reservation can finalize it.
  */
@@ -138,7 +138,7 @@ export async function verifyOtpWithDurableLimit(
   );
 }
 
-// MSG91 verification has a strict 10-second, abortable full-response timeout.
+// OTP verification reservations expire after a strict 10-second window.
 // Leave additional time for the final short DB transaction and clock skew.
 const PROVIDER_RESERVATION_MS = 30 * 1000;
 
