@@ -9,7 +9,7 @@ import * as zod from 'zod';
 
 
 /**
- * @summary Request a login OTP for a mobile number
+ * @summary Request an OTP for a mobile number
  */
 export const AuthOtpRequestBody = zod.object({
   "mobile": zod.string()
@@ -21,7 +21,7 @@ export const AuthOtpRequestResponse = zod.object({
 
 
 /**
- * @summary Resend a login OTP for a mobile number
+ * @summary Resend an OTP for a mobile number
  */
 export const AuthOtpResendBody = zod.object({
   "mobile": zod.string()

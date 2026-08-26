@@ -245,31 +245,40 @@ describe("POST /api/auth/otp/request", () => {
     );
   });
 
-  it("returns the same generic 200 for an unknown mobile (no Hanu call)", async () => {
+  it("returns generic 200 and sends an OTP for an unknown mobile", async () => {
     mockHanuSend.mockClear();
+    mockHanuSend.mockResolvedValueOnce({ ok: true });
     const res = await request(app)
       .post("/api/auth/otp/request")
       .send({ mobile: "1234567890" }); // not in DB
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/if this mobile/i);
-    // Give the async fire-and-forget a tick to settle, then assert no call
-    await new Promise((r) => setTimeout(r, 10));
-    expect(mockHanuSend).not.toHaveBeenCalled();
+    await vi.waitFor(() =>
+      expect(mockHanuSend).toHaveBeenCalledWith(
+        "1234567890",
+        expect.stringMatching(/^\d{6}$/),
+      ),
+    );
   });
 
-  it("returns generic 200 for an inactive user without calling Hanu", async () => {
+  it("returns generic 200 and sends an OTP for an inactive user", async () => {
     const INACTIVE_MOBILE = `8${RUN}`;
     mockHanuSend.mockClear();
+    mockHanuSend.mockResolvedValueOnce({ ok: true });
     const res = await request(app)
       .post("/api/auth/otp/request")
       .send({ mobile: INACTIVE_MOBILE });
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/if this mobile/i);
-    await new Promise((r) => setTimeout(r, 10));
-    expect(mockHanuSend).not.toHaveBeenCalled();
+    await vi.waitFor(() =>
+      expect(mockHanuSend).toHaveBeenCalledWith(
+        INACTIVE_MOBILE,
+        expect.stringMatching(/^\d{6}$/),
+      ),
+    );
   });
 
-  it("accepts +91-prefixed mobile and normalises to 10 digits for DB lookup", async () => {
+  it("accepts +91-prefixed mobile and normalises it to 10 digits", async () => {
     mockHanuSend.mockResolvedValueOnce({ ok: true });
     const res = await request(app)
       .post("/api/auth/otp/request")
@@ -323,15 +332,20 @@ describe("POST /api/auth/otp/resend", () => {
     expect(mockHanuSend).toHaveBeenCalledWith(MOBILE, expect.stringMatching(/^\d{6}$/));
   });
 
-  it("returns the same generic 200 for an unknown mobile (no Hanu call)", async () => {
+  it("returns generic 200 and sends a fresh OTP for an unknown mobile", async () => {
     mockHanuSend.mockClear();
+    mockHanuSend.mockResolvedValueOnce({ ok: true });
     const unknownMobile = "0987654321";
     const res = await request(app)
       .post("/api/auth/otp/resend")
       .send({ mobile: unknownMobile }); // not in DB
     expect(res.status).toBe(200);
-    await new Promise((r) => setTimeout(r, 10));
-    expect(mockHanuSend.mock.calls.some(([mobile]) => mobile === unknownMobile)).toBe(false);
+    await vi.waitFor(() =>
+      expect(mockHanuSend).toHaveBeenCalledWith(
+        unknownMobile,
+        expect.stringMatching(/^\d{6}$/),
+      ),
+    );
   });
 
   it("still returns 200 when Hanu resend fails", async () => {

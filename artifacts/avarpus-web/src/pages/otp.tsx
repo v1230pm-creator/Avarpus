@@ -50,7 +50,7 @@ export function OtpPage() {
     }
     setIsVerifying(true);
     try {
-      const session = await authOtpVerify({ mobile, code, rememberMe: true, device: "Web Browser" });
+      const session = await authOtpVerify({ mobile, code, rememberMe: true, deviceInfo: "Web Browser" });
       setSession(session.token);
       setLocation("/dashboard");
     } catch (err) {

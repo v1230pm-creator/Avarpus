@@ -85,7 +85,7 @@ export function LoginPage() {
             />
           </div>
           <p id="mobile-help" className="auth-helper">
-            Use the mobile number registered with your Avarpus account.
+            Any valid Indian mobile number can receive an OTP. Existing users can sign in; new dealers can create an account below.
           </p>
           <div className="auth-trust-line">
             <ShieldCheck className="size-5" />

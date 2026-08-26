@@ -88,27 +88,20 @@ router.post("/auth/otp/request", asyncHandler(async (req, res) => {
     });
     return;
   }
-  const rows = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.mobile, mobile))
-    .limit(1);
-  const user = rows[0];
-  // Generic response — identical for known/unknown/inactive mobiles to prevent
-  // account enumeration.
-  const genericMessage = "If this mobile number is registered, a verification code has been sent.";
+  // Keep the response generic while sending to every valid number. This lets
+  // new users verify that they control a mobile number without revealing
+  // account state or making account creation part of login.
+  const genericMessage = "If this mobile number is valid, a verification code has been sent.";
   res.json({ message: genericMessage });
-  if (user?.isActive) {
-    void (async () => {
-      try {
-        const code = await createOtp(mobile, "login");
-        const result = await hanuSendOtp(mobile, code);
-        if (!result.ok) req.log.warn("Hanu OTP send failed");
-      } catch {
-        req.log.error("Unexpected error calling Hanu OTP");
-      }
-    })();
-  }
+  void (async () => {
+    try {
+      const code = await createOtp(mobile, "login");
+      const result = await hanuSendOtp(mobile, code);
+      if (!result.ok) req.log.warn("Hanu OTP send failed");
+    } catch {
+      req.log.error("Unexpected error calling Hanu OTP");
+    }
+  })();
 }));
 
 // ── Mobile OTP resend ─────────────────────────────────────────────────────
@@ -139,25 +132,17 @@ router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
     });
     return;
   }
-  const genericMessage = "If this mobile number is registered, a new code has been sent.";
-  // Only call retry for existing active users; same generic response regardless.
-  const rows = await db
-    .select({ isActive: usersTable.isActive })
-    .from(usersTable)
-    .where(eq(usersTable.mobile, mobile))
-    .limit(1);
+  const genericMessage = "If this mobile number is valid, a new code has been sent.";
   res.json({ message: genericMessage });
-  if (rows[0]?.isActive) {
-    void (async () => {
-      try {
-        const code = await createOtp(mobile, "login");
-        const result = await hanuSendOtp(mobile, code);
-        if (!result.ok) req.log.warn("Hanu OTP resend failed");
-      } catch {
-        req.log.error("Unexpected error calling Hanu OTP resend");
-      }
-    })();
-  }
+  void (async () => {
+    try {
+      const code = await createOtp(mobile, "login");
+      const result = await hanuSendOtp(mobile, code);
+      if (!result.ok) req.log.warn("Hanu OTP resend failed");
+    } catch {
+      req.log.error("Unexpected error calling Hanu OTP resend");
+    }
+  })();
 }));
 
 router.post("/auth/otp/verify", asyncHandler(async (req, res) => {

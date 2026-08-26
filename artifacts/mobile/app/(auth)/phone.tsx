@@ -109,7 +109,7 @@ export default function PhoneScreen() {
             autoFocus
             accessibilityLabel="Mobile number"
           />
-          <Text style={[styles.helper, { color: colors.textMuted }]}>Use the mobile number registered with your Avarpus account.</Text>
+          <Text style={[styles.helper, { color: colors.textMuted }]}>Any valid Indian mobile number can receive an OTP. Existing users can sign in; new dealers can create an account below.</Text>
           <TouchableOpacity
             onPress={() => setRememberMe((value) => !value)}
             style={styles.checkboxRow}

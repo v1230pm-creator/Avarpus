@@ -208,7 +208,7 @@ export const getAuthOtpRequestUrl = () => {
 }
 
 /**
- * @summary Request a login OTP for a mobile number
+ * @summary Request an OTP for a mobile number
  */
 export const authOtpRequest = async (otpRequestInput: OtpRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthOtpRequest200> => {
 
@@ -257,7 +257,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type AuthOtpRequestMutationError = ErrorType<unknown>
 
     /**
- * @summary Request a login OTP for a mobile number
+ * @summary Request an OTP for a mobile number
  */
 export const useAuthOtpRequest = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authOtpRequest>>, TError,{data: BodyType<OtpRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -279,7 +279,7 @@ export const getAuthOtpResendUrl = () => {
 }
 
 /**
- * @summary Resend a login OTP for a mobile number
+ * @summary Resend an OTP for a mobile number
  */
 export const authOtpResend = async (otpRequestInput: OtpRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthOtpResend200> => {
 
@@ -328,7 +328,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type AuthOtpResendMutationError = ErrorType<unknown>
 
     /**
- * @summary Resend a login OTP for a mobile number
+ * @summary Resend an OTP for a mobile number
  */
 export const useAuthOtpResend = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authOtpResend>>, TError,{data: BodyType<OtpRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}

@@ -25,7 +25,7 @@ paths:
     post:
       operationId: authOtpRequest
       tags: [auth]
-      summary: Request a login OTP for a mobile number
+      summary: Request an OTP for a mobile number
       requestBody:
         required: true
         content:
@@ -46,7 +46,7 @@ paths:
     post:
       operationId: authOtpResend
       tags: [auth]
-      summary: Resend a login OTP for a mobile number
+      summary: Resend an OTP for a mobile number
       requestBody:
         required: true
         content:
