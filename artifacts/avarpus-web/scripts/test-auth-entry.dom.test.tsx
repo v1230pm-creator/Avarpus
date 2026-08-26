@@ -216,6 +216,50 @@ describe("browser OTP verification", () => {
     expect(mocks.setSession).not.toHaveBeenCalled();
   });
 
+  it("explains an expired code and keeps resend available after cooldown", async () => {
+    mocks.authOtpVerify.mockRejectedValue({
+      data: { message: "Incorrect or expired code. Please try again." },
+    });
+    mocks.authOtpResend.mockResolvedValue({});
+    window.history.replaceState({}, "", "/verify?mobile=9876543210");
+
+    await act(async () => {
+      renderOtpPage();
+    });
+
+    const codeInput = document.querySelector<HTMLInputElement>("#verification-code");
+    const verifyButton = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Verify & Continue"),
+    );
+
+    await act(async () => {
+      setInputValue(codeInput!, "123456");
+      verifyButton?.click();
+    });
+
+    const alert = document.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain("verification code may have expired");
+    expect(alert?.textContent).toContain("Resend code");
+    expect(window.location.pathname).toBe("/verify");
+    expect(mocks.setSession).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    const resendButton = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Resend code"),
+    );
+    expect(resendButton?.disabled).toBe(false);
+
+    await act(async () => {
+      resendButton?.click();
+    });
+
+    expect(mocks.authOtpResend).toHaveBeenCalledWith({ mobile: "9876543210" });
+    expect(window.location.pathname).toBe("/verify");
+  });
+
   it("keeps the verification screen available when resending fails after cooldown", async () => {
     mocks.authOtpResend.mockRejectedValue({
       data: { message: "Too many requests. Please wait and try again." },

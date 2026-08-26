@@ -10,6 +10,17 @@ function errorMessage(error: any, fallback: string) {
   return error?.data?.message || error?.message || fallback;
 }
 
+function verificationErrorMessage(error: any) {
+  const message = errorMessage(error, "Verification failed. Please try again.");
+  const errorCode = error?.data?.code || error?.code;
+
+  if (errorCode === "OTP_EXPIRED" || /expired/i.test(message)) {
+    return "This verification code may have expired. Wait for the resend timer to finish, then choose “Resend code” to request a fresh code.";
+  }
+
+  return message;
+}
+
 export function OtpPage() {
   const [, setLocation] = useLocation();
   const { setSession, apiConfigurationError } = useAuth();
@@ -43,7 +54,7 @@ export function OtpPage() {
       setSession(session.token);
       setLocation("/dashboard");
     } catch (err) {
-      setError(errorMessage(err, "Verification failed. Please try again."));
+      setError(verificationErrorMessage(err));
     } finally {
       setIsVerifying(false);
     }
