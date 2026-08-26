@@ -71,7 +71,7 @@ export const AuthOtpProviderStatusResponse = zod.object({
   "provider": zod.enum(['Hanu OTP']),
   "configured": zod.boolean(),
   "endpoint": zod.string(),
-  "templateId": zod.string(),
+  "templateId": zod.string().nullable(),
   "apiKeyConfigured": zod.boolean()
 })
 

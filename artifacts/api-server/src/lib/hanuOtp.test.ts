@@ -75,6 +75,21 @@ describe("hanuSendOtp", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("fails without making a request when the Hanu template ID is missing", async () => {
+    delete process.env["HANU_OTP_TEMPLATE_ID"];
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({
+      ok: false,
+      reason: "HANU_OTP_TEMPLATE_ID is not configured",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(getHanuOtpStatus()).toMatchObject({
+      configured: false,
+      templateId: null,
+      apiKeyConfigured: true,
+    });
+  });
+
   it("does not allow an environment override to redirect credentials", async () => {
     process.env["HANU_OTP_ENDPOINT"] = "https://user:password@api.hanuotp.in:444/sms-otp.php?token=secret";
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(

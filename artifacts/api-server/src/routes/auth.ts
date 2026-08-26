@@ -66,6 +66,12 @@ router.post("/auth/otp/request", asyncHandler(async (req, res) => {
     res.status(400).json({ message: "A valid Indian mobile number is required" });
     return;
   }
+  if (!getHanuOtpStatus().configured) {
+    res.status(503).json({
+      message: "SMS verification is temporarily unavailable. Please try again later.",
+    });
+    return;
+  }
   // Throttle OTP requests per mobile number and per IP to prevent SMS flooding.
   const perMobile = checkWindowLimit(`otpreq:mobile:${mobile}`, 3, 15 * 60 * 1000);
   const perIp = checkWindowLimit(`otpreq:ip:${req.ip ?? "unknown"}`, 10, 15 * 60 * 1000);
@@ -109,6 +115,12 @@ router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
   const mobile = normaliseIndianMobile(rawMobile);
   if (!mobile) {
     res.status(400).json({ message: "A valid Indian mobile number is required" });
+    return;
+  }
+  if (!getHanuOtpStatus().configured) {
+    res.status(503).json({
+      message: "SMS verification is temporarily unavailable. Please try again later.",
+    });
     return;
   }
   // Stricter throttle for resend: 2 resends per 15-minute window per mobile.

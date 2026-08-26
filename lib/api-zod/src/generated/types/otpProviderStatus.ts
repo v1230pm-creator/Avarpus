@@ -11,6 +11,7 @@ export interface OtpProviderStatus {
   provider: OtpProviderStatusProvider;
   configured: boolean;
   endpoint: string;
-  templateId: string;
+  /** @nullable */
+  templateId: string | null;
   apiKeyConfigured: boolean;
 }
