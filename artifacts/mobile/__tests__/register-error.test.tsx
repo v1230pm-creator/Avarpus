@@ -79,7 +79,7 @@ async function renderScreen() {
   return utils;
 }
 
-/** Fills a valid dealer form and presses "Send OTP & Continue". */
+/** Fills the current dealer form and presses "Send OTP & Continue". */
 async function fillDealerFormAndSubmit() {
   const type = (placeholder: string, value: string) =>
     fireEvent.changeText(screen.getByPlaceholderText(placeholder), value);
@@ -88,8 +88,6 @@ async function fillDealerFormAndSubmit() {
     type('Owner full name', 'Test Owner');
     type('name@company.com', 'owner@example.test');
     type('10-digit mobile', '9876543210');
-    type('8+ chars, A-z, 0-9', 'Test1234');
-    type('Re-enter password', 'Test1234');
     type('Full shop address', '12 Market Road');
   });
   await act(async () => {
