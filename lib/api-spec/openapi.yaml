@@ -2671,7 +2671,7 @@ components:
         provider: { type: string, enum: [Hanu OTP] }
         configured: { type: boolean }
         endpoint: { type: string }
-        templateId: { type: [string, "null"] }
+        templateId: { type: string, description: "Hanu template ID; default selects Hanu's built-in no-DLT OTP template." }
         apiKeyConfigured: { type: boolean }
       required: [provider, configured, endpoint, templateId, apiKeyConfigured]
     RegisterStartInput:

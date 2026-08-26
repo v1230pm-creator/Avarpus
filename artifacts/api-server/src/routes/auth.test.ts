@@ -43,7 +43,7 @@ vi.mock("../lib/hanuOtp", () => ({
     provider: "Hanu OTP",
     configured: mockHanuConfigured,
     endpoint: "https://api.hanuotp.in/sms-otp.php",
-    templateId: mockHanuConfigured ? "template-123" : null,
+    templateId: mockHanuConfigured ? "default" : null,
     apiKeyConfigured: true,
   }),
   normaliseIndianMobile: (raw: string) => mockNormalise(raw),
@@ -292,6 +292,12 @@ describe("POST /api/auth/otp/request", () => {
       .send({ mobile: PROVIDER_FAILURE_MOBILE });
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/if this mobile/i);
+    await vi.waitFor(() =>
+      expect(mockHanuSend).toHaveBeenCalledWith(
+        PROVIDER_FAILURE_MOBILE,
+        expect.stringMatching(/^\d{6}$/),
+      ),
+    );
   });
 });
 

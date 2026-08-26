@@ -35,7 +35,7 @@ describe("hanuSendOtp", () => {
     expect(calledUrl.searchParams.get("number")).toBe("9876543210");
     expect(calledUrl.searchParams.get("OTP")).toBe("123456");
     expect(calledUrl.searchParams.get("apikey")).toBe("test-hanu-key");
-    expect(calledUrl.searchParams.has("templatesid")).toBe(false);
+    expect(calledUrl.searchParams.get("templatesid")).toBe("default");
   });
 
   it.each([
@@ -75,7 +75,7 @@ describe("hanuSendOtp", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("can include a template only when one is explicitly configured", async () => {
+  it("uses an explicitly configured template instead of the provider default", async () => {
     process.env["HANU_OTP_TEMPLATE_ID"] = "template-123";
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ status: "success" })),
@@ -127,7 +127,7 @@ describe("getHanuOtpStatus", () => {
       provider: "Hanu OTP",
       configured: true,
       endpoint: "https://api.hanuotp.in/sms-otp.php",
-      templateId: null,
+      templateId: "default",
       apiKeyConfigured: true,
     });
     expect(JSON.stringify(status)).not.toContain("test-hanu-key");

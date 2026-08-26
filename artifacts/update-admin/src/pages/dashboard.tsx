@@ -142,8 +142,8 @@ export default function Dashboard() {
                 <p className="mt-1 font-semibold">{otpProvider?.provider ?? "Hanu OTP"}</p>
               </div>
               <div className="rounded-lg border bg-muted/30 p-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Template (optional)</p>
-                <p className="mt-1 font-mono text-sm">{otpProvider?.templateId || "Provider default"}</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Hanu OTP template</p>
+                <p className="mt-1 font-mono text-sm">{otpProvider?.templateId || "Not available"}</p>
               </div>
               <div className="rounded-lg border bg-muted/30 p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">API credential</p>
@@ -157,7 +157,8 @@ export default function Dashboard() {
           {!otpProviderLoading && !otpProvider?.apiKeyConfigured && !otpProviderError && (
             <p className="mt-4 text-sm text-muted-foreground">
               Add <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">HANU_OTP_API_KEY</code>{" "}
-              as a Replit Secret. A template ID is optional; the API key is never returned to this page or bundled into the apps.
+              as a Replit Secret. Hanu's <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">default</code>{" "}
+              template is used unless a specific Hanu template ID is configured; the API key is never returned to this page or bundled into the apps.
             </p>
           )}
         </CardContent>

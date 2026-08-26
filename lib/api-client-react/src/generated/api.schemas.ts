@@ -211,8 +211,8 @@ export interface OtpProviderStatus {
   provider: OtpProviderStatusProvider;
   configured: boolean;
   endpoint: string;
-  /** @nullable */
-  templateId: string | null;
+  /** Hanu template ID; default selects Hanu's built-in no-DLT OTP template. */
+  templateId: string;
   apiKeyConfigured: boolean;
 }
 

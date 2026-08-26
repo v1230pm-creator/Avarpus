@@ -5,6 +5,7 @@
 // logged.
 
 const HANU_OTP_ENDPOINT = "https://api.hanuotp.in/sms-otp.php";
+const HANU_DEFAULT_TEMPLATE_ID = "default";
 const FETCH_TIMEOUT_MS = 10_000;
 
 export function normaliseIndianMobile(raw: string): string | null {
@@ -22,7 +23,7 @@ function apiKey(): string | null {
 
 function templateId(): string | null {
   const value = process.env["HANU_OTP_TEMPLATE_ID"]?.trim();
-  return value || null;
+  return value || HANU_DEFAULT_TEMPLATE_ID;
 }
 
 export type HanuOtpResult =
@@ -90,9 +91,9 @@ export async function hanuSendOtp(
   url.searchParams.set("number", local10);
   url.searchParams.set("OTP", code);
   url.searchParams.set("apikey", key);
-  if (configuredTemplateId) {
-    url.searchParams.set("templatesid", configuredTemplateId);
-  }
+  // Hanu requires this parameter even for its no-DLT OTP route. The
+  // provider-documented "default" value selects Hanu's built-in OTP template.
+  url.searchParams.set("templatesid", configuredTemplateId ?? HANU_DEFAULT_TEMPLATE_ID);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
