@@ -10,7 +10,6 @@ import * as Haptics from 'expo-haptics';
 import { authRegisterStart, authRegisterVerify } from '@workspace/api-client-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 
 type Step = 'form' | 'email_otp' | 'success';
@@ -66,22 +65,15 @@ const otpStyles = StyleSheet.create({
 export default function RegisterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { adoptSession } = useAuth();
   const colors = useColors();
 
   const [step, setStep] = useState<Step>('form');
-  const [accountType, setAccountType] = useState<'dealer' | 'staff'>('dealer');
-  const [staffRole, setStaffRole] = useState('technician');
-  const [dealerMobile, setDealerMobile] = useState('');
-  const [pendingApproval, setPendingApproval] = useState(false);
 
   // Form fields
   const [businessName, setBusinessName] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [gstNumber, setGstNumber] = useState('');
   const [shopAddress, setShopAddress] = useState('');
   const [profilePhoto, setProfilePhoto] = useState('');
@@ -118,36 +110,19 @@ export default function RegisterScreen() {
     name: name.trim(),
     email: email.trim().toLowerCase(),
     mobile: mobile.trim(),
-    password,
-    ...(accountType === 'dealer'
-      ? {
-          businessName: businessName.trim(),
-          gstNumber: gstNumber.trim() || undefined,
-          shopAddress: shopAddress.trim(),
-        }
-      : {
-          role: staffRole as any,
-          dealerMobile: dealerMobile.trim(),
-        }),
+    businessName: businessName.trim(),
+    gstNumber: gstNumber.trim() || undefined,
+    shopAddress: shopAddress.trim(),
   });
 
   const handleFormNext = async () => {
     const e: Record<string, string> = {};
-    if (accountType === 'dealer' && !businessName.trim()) e.businessName = 'Business name is required';
-    if (!name.trim()) e.name = accountType === 'dealer' ? 'Owner name is required' : 'Your name is required';
+    if (!businessName.trim()) e.businessName = 'Business name is required';
+    if (!name.trim()) e.name = 'Owner name is required';
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) e.email = 'Valid email is required';
     if (!mobile.trim() || mobile.length !== 10) e.mobile = 'Valid 10-digit mobile required';
-    if (!password || password.length < 8) e.password = 'Min. 8 characters';
-    else if (!/[A-Z]/.test(password)) e.password = 'Include an uppercase letter';
-    else if (!/[a-z]/.test(password)) e.password = 'Include a lowercase letter';
-    else if (!/[0-9]/.test(password)) e.password = 'Include a number';
-    if (password !== confirmPassword) e.confirmPassword = 'Passwords do not match';
-    if (accountType === 'dealer') {
-      if (!shopAddress.trim()) e.shopAddress = 'Shop address is required';
-      if (gstNumber.trim() && gstNumber.trim().length !== 15) e.gstNumber = 'GST number must be 15 characters';
-    } else {
-      if (!dealerMobile.trim() || dealerMobile.trim().length !== 10) e.dealerMobile = "Enter shop owner's 10-digit mobile";
-    }
+    if (!shopAddress.trim()) e.shopAddress = 'Shop address is required';
+    if (gstNumber.trim() && gstNumber.trim().length !== 15) e.gstNumber = 'GST number must be 15 characters';
     setErrors(e);
     if (Object.keys(e).length > 0) return;
 
@@ -197,12 +172,6 @@ export default function RegisterScreen() {
     setEmailLoading(true);
     try {
       const result = await authRegisterVerify({ email: email.trim().toLowerCase(), code: entered });
-      if (result.token && result.user) {
-        await adoptSession(result as any);
-        setPendingApproval(false);
-      } else {
-        setPendingApproval(true);
-      }
     } catch (err: any) {
       setEmailError(err?.data?.message ?? 'Verification failed. Please try again.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -245,76 +214,23 @@ export default function RegisterScreen() {
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={[gs.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-              {accountType === 'dealer' ? 'Create Dealer Account' : 'Join as Staff'}
+              Create Dealer Account
             </Text>
             <Text style={[gs.subtitle, { color: colors.textMuted, fontFamily: 'Inter_400Regular' }]}>
-              {accountType === 'dealer' ? 'Register your shop / business' : "Register to join your shop's team"}
+              Register your shop / business
             </Text>
           </View>
         </View>
 
         {step === 'form' && (
           <View style={[gs.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={gs.roleRow}>
-              {[
-                { key: 'dealer', icon: 'briefcase', label: 'Shop Owner' },
-                { key: 'staff', icon: 'users', label: 'Staff Member' },
-              ].map((opt) => (
-                <TouchableOpacity
-                  key={opt.key}
-                  style={[gs.roleBtn, { borderColor: colors.border, backgroundColor: accountType === opt.key ? colors.primary + '15' : colors.input }, accountType === opt.key && { borderColor: colors.primary }]}
-                  onPress={() => { setAccountType(opt.key as any); setErrors({}); }}
-                  activeOpacity={0.8}
-                >
-                  <Feather name={opt.icon as any} size={15} color={accountType === opt.key ? colors.primary : colors.textMuted} />
-                  <Text style={[gs.roleText, { color: accountType === opt.key ? colors.primary : colors.textMuted, fontFamily: 'Inter_600SemiBold' }]}>
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {accountType === 'dealer' && (
-              <Input label="Business Name" value={businessName} onChangeText={setBusinessName} placeholder="Your shop / business name" leftIcon="briefcase" error={errors.businessName} />
-            )}
-            <Input label={accountType === 'dealer' ? 'Owner Name' : 'Full Name'} value={name} onChangeText={setName} placeholder={accountType === 'dealer' ? 'Owner full name' : 'Your full name'} leftIcon="user" error={errors.name} />
+            <Input label="Business Name" value={businessName} onChangeText={setBusinessName} placeholder="Your shop / business name" leftIcon="briefcase" error={errors.businessName} />
+            <Input label="Owner Name" value={name} onChangeText={setName} placeholder="Owner full name" leftIcon="user" error={errors.name} />
             <Input label="Email Address" value={email} onChangeText={setEmail} placeholder="name@company.com" keyboardType="email-address" autoCapitalize="none" leftIcon="mail" error={errors.email} />
             <Input label="Mobile Number" value={mobile} onChangeText={(t) => setMobile(t.replace(/\D/g, '').slice(0, 10))} placeholder="10-digit mobile" keyboardType="phone-pad" leftIcon="phone" error={errors.mobile} />
-            <Input label="Password" value={password} onChangeText={setPassword} placeholder="8+ chars, A-z, 0-9" isPassword leftIcon="lock" error={errors.password} />
-            <Input label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Re-enter password" isPassword leftIcon="lock" error={errors.confirmPassword} />
 
-            {accountType === 'dealer' ? (
-              <>
-                <Input label="GST Number (Optional)" value={gstNumber} onChangeText={(t) => setGstNumber(t.toUpperCase().slice(0, 15))} placeholder="15-character GSTIN" autoCapitalize="characters" leftIcon="file-text" error={errors.gstNumber} />
-                <Input label="Shop Address" value={shopAddress} onChangeText={setShopAddress} placeholder="Full shop address" leftIcon="map-pin" multiline error={errors.shopAddress} />
-              </>
-            ) : (
-              <>
-                <View>
-                  <Text style={[gs.fieldLabel, { color: colors.textMuted, fontFamily: 'Inter_500Medium' }]}>Your Role</Text>
-                  <View style={gs.staffRoleWrap}>
-                    {[
-                      { key: 'reception', label: 'Reception' },
-                      { key: 'technician', label: 'Technician' },
-                      { key: 'store_manager', label: 'Store Manager' },
-                      { key: 'accountant', label: 'Accountant' },
-                    ].map((r) => (
-                      <TouchableOpacity
-                        key={r.key}
-                        style={[gs.staffRoleChip, { borderColor: colors.border, backgroundColor: staffRole === r.key ? colors.primary + '15' : colors.input }, staffRole === r.key && { borderColor: colors.primary }]}
-                        onPress={() => setStaffRole(r.key)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[{ color: staffRole === r.key ? colors.primary : colors.textMuted, fontFamily: 'Inter_500Medium', fontSize: 13 }]}>
-                          {r.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-                <Input label="Shop Owner's Mobile Number" value={dealerMobile} onChangeText={(t) => setDealerMobile(t.replace(/\D/g, '').slice(0, 10))} placeholder="Owner's 10-digit mobile" keyboardType="phone-pad" leftIcon="briefcase" error={errors.dealerMobile} />
-              </>
-            )}
+            <Input label="GST Number (Optional)" value={gstNumber} onChangeText={(t) => setGstNumber(t.toUpperCase().slice(0, 15))} placeholder="15-character GSTIN" autoCapitalize="characters" leftIcon="file-text" error={errors.gstNumber} />
+            <Input label="Shop Address" value={shopAddress} onChangeText={setShopAddress} placeholder="Full shop address" leftIcon="map-pin" multiline error={errors.shopAddress} />
 
             <View style={gs.photoRow}>
               <TouchableOpacity style={[gs.photoBox, { borderColor: colors.border, backgroundColor: colors.input }]} onPress={() => pickImage(setProfilePhoto)} activeOpacity={0.8}>
@@ -330,9 +246,7 @@ export default function RegisterScreen() {
             <View style={[gs.infoBox, { backgroundColor: colors.infoLight, borderColor: colors.infoLight }]}>
               <Feather name="info" size={14} color={colors.info} />
               <Text style={[gs.infoText, { color: colors.info, fontFamily: 'Inter_400Regular' }]}>
-                {accountType === 'dealer'
-                  ? "We'll send a 6-digit OTP to your email to verify your identity. Your account is created as the shop owner (Dealer) — you can add staff later."
-                  : "We'll send a 6-digit OTP to your email. After verification, your account will be PENDING until your shop owner approves it."}
+                We'll send a 6-digit OTP to your email to verify your identity. Your account is created as the shop owner (Dealer) — you can add staff later.
               </Text>
             </View>
 
@@ -374,30 +288,23 @@ export default function RegisterScreen() {
         {step === 'success' && (
           <View style={[gs.successCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={gs.successIcon}>
-              <View style={[gs.successIconGrad, { backgroundColor: pendingApproval ? colors.warning : colors.success }]}>
-                <Feather name={pendingApproval ? 'clock' : 'check'} size={36} color="#FFFFFF" />
+              <View style={[gs.successIconGrad, { backgroundColor: colors.success }]}>
+                <Feather name="check" size={36} color="#FFFFFF" />
               </View>
             </View>
             <Text style={[gs.successTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-              {pendingApproval ? 'Account Pending' : 'Welcome, Dealer!'}
+              Account created
             </Text>
             <Text style={[gs.successSub, { color: colors.textMuted, fontFamily: 'Inter_400Regular' }]}>
-              {pendingApproval
-                ? 'Your registration was submitted. Your shop owner must approve your account from the Staff screen before you can sign in.'
-                : 'Your dealer account and shop workspace are ready. You can add staff anytime from Staff Management.'}
+              Your dealer account and shop workspace are ready. Sign in with a mobile verification code to continue.
             </Text>
 
             <View style={gs.successSteps}>
-              {(pendingApproval
-                ? [
-                    { icon: 'mail', color: colors.primary, label: 'Email verified' },
-                    { icon: 'clock', color: colors.warning, label: 'Waiting for owner approval' },
-                  ]
-                : [
-                    { icon: 'mail', color: colors.primary, label: 'Email verified' },
-                    { icon: 'briefcase', color: colors.primary, label: 'Shop workspace created' },
-                  ]
-              ).map((item, i) => (
+              {[
+                { icon: 'mail', color: colors.primary, label: 'Email verified' },
+                { icon: 'briefcase', color: colors.primary, label: 'Shop workspace created' },
+                { icon: 'smartphone', color: colors.success, label: 'Mobile OTP sign-in ready' },
+              ].map((item, i) => (
                 <View key={i} style={gs.successStep}>
                   <View style={[gs.successStepDot, { backgroundColor: item.color + '22' }]}>
                     <Feather name={item.icon as any} size={14} color={item.color} />
@@ -407,7 +314,7 @@ export default function RegisterScreen() {
               ))}
             </View>
 
-            <Button title={pendingApproval ? 'Back to Sign In' : 'Go to Home'} onPress={() => (pendingApproval ? router.replace('/(auth)') : router.replace('/(tabs)'))} fullWidth size="lg" />
+            <Button title="Sign in with mobile OTP" onPress={() => router.replace('/(auth)/phone')} fullWidth size="lg" />
           </View>
         )}
 
@@ -433,12 +340,6 @@ const gs = StyleSheet.create({
   card: { borderRadius: 16, borderWidth: 1, padding: 20, gap: 16 },
   infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 10, padding: 12, borderWidth: 1 },
   infoText: { fontSize: 13, flex: 1, lineHeight: 18 },
-  roleRow: { flexDirection: 'row', gap: 10 },
-  roleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, borderRadius: 10, borderWidth: 1.5 },
-  roleText: { fontSize: 14 },
-  fieldLabel: { fontSize: 13, marginBottom: 8 },
-  staffRoleWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  staffRoleChip: { paddingHorizontal: 12, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   photoRow: { flexDirection: 'row', gap: 10 },
   photoBox: { flex: 1, height: 90, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 6, overflow: 'hidden' },
   photoImg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 24 },

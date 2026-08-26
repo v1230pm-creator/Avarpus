@@ -69,9 +69,9 @@ export async function sendStaffApprovedEmail(
       name,
       "Account approved",
       "#22C55E",
-      "Your registration has been approved. You can now sign in to Avarpus with your email and password.",
+      "Your registration has been approved. You can now sign in to Avarpus with a mobile verification code.",
     ),
-    `Hi ${name},\n\nYour registration has been approved. You can now sign in to Avarpus with your email and password.\n\nThank you,\nAvarpus`,
+    `Hi ${name},\n\nYour registration has been approved. You can now sign in to Avarpus with a mobile verification code.\n\nThank you,\nAvarpus`,
   );
 }
 

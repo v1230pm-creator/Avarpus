@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'wouter';
-import { useAuthLogin } from '@workspace/api-client-react';
+import { useLocation } from 'wouter';
+import { authOtpRequest, authOtpVerify } from '@workspace/api-client-react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,47 +13,65 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { AvarpusLogo } from '@/components/AvarpusLogo';
 
-const loginSchema = z.object({
-  identifier: z.string().min(1, 'Email or Mobile is required'),
-  password: z.string().min(1, 'Password is required'),
+const mobileSchema = z.object({
+  mobile: z.string().regex(/^\d{10}$/, 'Enter a valid 10-digit mobile number'),
 });
 
-type LoginForm = z.infer<typeof loginSchema>;
+type MobileForm = z.infer<typeof mobileSchema>;
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  
-  const login = useAuthLogin();
-  
-  const form = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      identifier: '',
-      password: '',
-    },
+  const [step, setStep] = useState<'mobile' | 'otp'>('mobile');
+  const [mobile, setMobile] = useState('');
+  const [code, setCode] = useState('');
+  const [pending, setPending] = useState(false);
+
+  const form = useForm<MobileForm>({
+    resolver: zodResolver(mobileSchema),
+    defaultValues: { mobile: '' },
   });
 
-  const onSubmit = (data: LoginForm) => {
+  const requestOtp = async (data: MobileForm) => {
     setErrorMsg(null);
-    login.mutate({
-      data: {
-        emailOrMobile: data.identifier,
-        password: data.password,
+    setPending(true);
+    try {
+      await authOtpRequest({ mobile: data.mobile });
+      setMobile(data.mobile);
+      setStep('otp');
+    } catch (err: any) {
+      setErrorMsg(err?.data?.message ?? err?.message ?? 'Could not send a verification code.');
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const verifyOtp = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setErrorMsg(null);
+    if (!/^\d{6}$/.test(code)) {
+      setErrorMsg('Enter the 6-digit verification code.');
+      return;
+    }
+    setPending(true);
+    try {
+      const session = await authOtpVerify({
+        mobile,
+        code,
+        rememberMe: true,
+        device: 'Avarpus Release Console',
+      });
+      if (session.user.role !== 'super_admin') {
+        setErrorMsg('Access denied. Only super administrators can access the release console.');
+        return;
       }
-    }, {
-      onSuccess: (res) => {
-        if (res.user.role !== 'super_admin') {
-          setErrorMsg('Access denied. Only super administrators can access the release console.');
-          return;
-        }
-        localStorage.setItem('auth_token', res.token);
-        setLocation('/');
-      },
-      onError: (err: any) => {
-        setErrorMsg(err.message || 'Invalid credentials');
-      }
-    });
+      localStorage.setItem('auth_token', session.token);
+      setLocation('/');
+    } catch (err: any) {
+      setErrorMsg(err?.data?.message ?? err?.message ?? 'Invalid or expired verification code.');
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
@@ -67,8 +85,12 @@ export default function Login() {
         
         <Card className="border-border/50 shadow-xl">
           <CardHeader>
-            <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>Enter your super admin credentials</CardDescription>
+            <CardTitle>Secure Sign In</CardTitle>
+            <CardDescription>
+              {step === 'mobile'
+                ? 'Enter the mobile number registered to your super admin account.'
+                : `Enter the verification code sent to ${mobile}.`}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {errorMsg && (
@@ -78,57 +100,56 @@ export default function Login() {
               </Alert>
             )}
             
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="identifier"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email or Mobile</FormLabel>
-                      <FormControl>
-                        <Input placeholder="admin@avarpus.app" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <Button 
-                  type="submit" 
-                  className="w-full mt-6" 
-                  size="lg"
-                  disabled={login.isPending}
-                >
-                  {login.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Authenticating
-                    </>
-                  ) : (
-                    'Enter Console'
-                  )}
+            {step === 'mobile' ? (
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(requestOtp)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="mobile"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Mobile number</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="9876543210"
+                            inputMode="numeric"
+                            autoComplete="tel"
+                            {...field}
+                            onChange={(event) => field.onChange(event.target.value.replace(/\D/g, '').slice(0, 10))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" className="w-full mt-6" size="lg" disabled={pending}>
+                    {pending ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Sending code</> : 'Send verification code'}
+                  </Button>
+                </form>
+              </Form>
+            ) : (
+              <form onSubmit={verifyOtp} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="otp">Verification code</Label>
+                  <Input
+                    id="otp"
+                    value={code}
+                    onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="123456"
+                    maxLength={6}
+                    autoFocus
+                  />
+                </div>
+                <Button type="submit" className="w-full mt-6" size="lg" disabled={pending}>
+                  {pending ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Verifying</> : 'Enter console'}
+                </Button>
+                <Button type="button" variant="outline" className="w-full" disabled={pending} onClick={() => setStep('mobile')}>
+                  Use a different mobile number
                 </Button>
               </form>
-            </Form>
-
-            <div className="flex items-center justify-between mt-6 text-sm">
-              <Link href="/forgot" className="text-primary hover:underline">Forgot password?</Link>
-              <Link href="/register" className="text-primary hover:underline">Create account</Link>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>

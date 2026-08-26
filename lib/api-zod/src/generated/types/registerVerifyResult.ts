@@ -8,8 +8,6 @@
 import type { AuthUser } from './authUser';
 
 export interface RegisterVerifyResult {
-  token?: string;
-  user?: AuthUser;
-  pending?: boolean;
-  message?: string;
+  user: AuthUser;
+  message: string;
 }

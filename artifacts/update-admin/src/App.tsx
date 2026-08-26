@@ -6,8 +6,6 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Layout } from '@/components/layout';
 import Login from '@/pages/login';
-import Register from '@/pages/register';
-import Forgot from '@/pages/forgot';
 import Dashboard from '@/pages/dashboard';
 import Releases from '@/pages/releases';
 import ReleaseEditor from '@/pages/releases/edit';
@@ -71,8 +69,6 @@ function Router() {
     <RoutedErrorBoundary>
       <Switch>
         <Route path="/login" component={Login} />
-        <Route path="/register" component={Register} />
-        <Route path="/forgot" component={Forgot} />
         
         {/* Protected Routes */}
         <Route path="/">

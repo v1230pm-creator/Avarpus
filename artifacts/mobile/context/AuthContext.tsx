@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { authLogin, authLogout, authMe, authOtpVerify, roleFeaturesGet, setUnauthorizedHandler } from '@workspace/api-client-react';
+import { authLogout, authMe, authOtpVerify, roleFeaturesGet, setUnauthorizedHandler } from '@workspace/api-client-react';
 import { User, UserRole, isCustomerRole } from '@/types';
 import { storage, KEYS } from '@/utils/storage';
 import { seedIfNeeded } from '@/utils/seedData';
@@ -10,7 +10,6 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (emailOrMobile: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
   loginWithOtp: (mobile: string, code: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   /** Adopt a session returned by an auth API call (e.g. registration). */
@@ -28,7 +27,6 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   isAuthenticated: false,
   isLoading: true,
-  login: async () => ({ success: false }),
   loginWithOtp: async () => ({ success: false }),
   logout: async () => {},
   adoptSession: async () => {},
@@ -193,17 +191,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSignedOutNotice(null);
   };
 
-  const login = async (emailOrMobile: string, password: string, rememberMe = false) => {
-    try {
-      const session = await authLogin({ emailOrMobile, password, rememberMe, device: deviceDescription() });
-      await applySession(session);
-      setSignedOutNotice(null);
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: apiErrorMessage(err, 'Unable to sign in. Please try again.') };
-    }
-  };
-
   const loginWithOtp = async (mobile: string, code: string, rememberMe = false) => {
     try {
       const session = await authOtpVerify({ mobile, code, rememberMe, device: deviceDescription() });
@@ -252,7 +239,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         isAuthenticated: !!user,
         isLoading,
-        login,
         loginWithOtp,
         logout,
         adoptSession,

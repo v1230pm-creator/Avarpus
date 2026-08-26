@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { useData } from '@/context/DataContext';
+import { useAuth } from '@/context/AuthContext';
 import {
   DEFAULT_INACTIVITY_MINUTES,
   INACTIVITY_OPTIONS,
@@ -40,6 +41,7 @@ export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const currentVersion = getAppVersion();
   const currentBuild = getAppBuildNumber();
 
@@ -214,6 +216,21 @@ export default function SettingsScreen() {
           <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Security &amp; Session</Text>
         </View>
 
+        <Card>
+          <View style={styles.configRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Backup email identity</Text>
+              <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                {user?.email ?? 'No backup email is saved for this account.'}
+              </Text>
+              <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                Kept only for account recovery and to protect your existing account data. Sign-in uses mobile OTP.
+              </Text>
+            </View>
+            <Feather name="mail" size={20} color={colors.primary} />
+          </View>
+        </Card>
+
         <TouchableOpacity onPress={() => router.push('/(tabs)/more/security')} activeOpacity={0.8}>
           <Card>
             <View style={styles.configRow}>
@@ -355,7 +372,7 @@ export default function SettingsScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.historyMethod, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
-                  {e.method === 'otp' ? 'Mobile OTP' : e.method === 'device_key' ? 'Device key' : 'Email & password'}
+                  {e.method === 'otp' ? 'Mobile OTP' : e.method === 'device_key' ? 'Device key' : 'Archived sign-in method'}
                   {e.deviceInfo ? `  ·  ${e.deviceInfo}` : ''}
                   {e.rememberMe ? '  ·  Remembered' : ''}
                 </Text>

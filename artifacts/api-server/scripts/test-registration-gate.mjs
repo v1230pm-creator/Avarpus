@@ -2,10 +2,9 @@
 // Usage: pnpm run build && node scripts/test-registration-gate.mjs
 //
 // Current contract (see src/routes/auth.ts): public registration is limited
-// to dealer or staff roles. Admin/super_admin can NEVER be requested — there
-// is no access code that unlocks them. Staff must reference an existing
-// dealer shop by the owner's mobile. Verify consumes the OTP and forcibly
-// provisions the role stored server-side in the OTP payload.
+// to dealer roles. Staff, admin, and super_admin can never be requested
+// publicly. Verify consumes the email OTP, provisions a dealer workspace,
+// and never issues an authenticated session.
 import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { createHash, randomBytes } from "node:crypto";
@@ -28,7 +27,6 @@ function payload(extra = {}) {
     businessName: "Test Biz",
     email: `gate-test-${n}@example.com`,
     mobile: String(9000000000 + n),
-    password: "Passw0rdX",
     shopAddress: "1 Test St",
     ...extra,
   };
@@ -60,7 +58,7 @@ async function withServer(env, fn) {
     let up = false;
     for (let i = 0; i < 30 && !up; i++) {
       await sleep(1000);
-      up = await fetch(`${BASE}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+      up = await fetch(`${BASE}/auth/otp/request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mobile: "0000000000" }) })
         .then((r) => r.status > 0)
         .catch(() => false);
     }
@@ -117,12 +115,12 @@ await withServer({}, async () => {
   r = await post(payload({ role: "dealer", businessName: "" }));
   check("dealer without businessName -> 400", r.status === 400, r);
 
-  console.log("== staff registration requires a real dealer shop ==");
+  console.log("== staff registration is not public ==");
   r = await post(payload({ role: "reception" }));
-  check("staff without dealerMobile -> 400", r.status === 400, r);
+  check("staff role -> 403", r.status === 403, r);
 
   r = await post(payload({ role: "reception", dealerMobile: "0000000001" }));
-  check("staff with unknown dealerMobile -> 404", r.status === 404, r);
+  check("staff role with dealer mobile -> 403", r.status === 403, r);
 
   console.log("== /register/verify never provisions elevated roles ==");
   // Even if an OTP payload were tampered to claim role=super_admin, dealer
@@ -135,17 +133,16 @@ await withServer({}, async () => {
     businessName: "Tampered Biz",
     email,
     mobile,
-    passwordHash: "x",
     gstNumber: null,
     shopAddress: "1 Test St",
     role: "super_admin",
-    shopId: null,
   });
   try {
     const v = await verifyOtp(email, "123456");
     check("tampered-role verify -> 200 (dealer provisioning)", v.status === 200, v);
     check("created user is a dealer, not super_admin", userRole(email) === "dealer", { role: userRole(email) });
     check("API response role is dealer", v.json?.user?.role === "dealer", v.json?.user);
+    check("verify never issues a session", v.json?.token === undefined, v.json);
   } finally {
     execFileSync("psql", [process.env.DATABASE_URL, "-c", `DELETE FROM users WHERE email='${email}'`]);
     execFileSync("psql", [process.env.DATABASE_URL, "-c", `DELETE FROM otp_codes WHERE identifier='${email}'`]);

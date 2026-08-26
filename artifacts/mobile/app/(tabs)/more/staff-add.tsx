@@ -53,7 +53,6 @@ export default function AddStaffScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
-  const [password, setPassword] = useState('');
   const [designation, setDesignation] = useState('');
   const [role, setRole] = useState<StaffRole>('reception');
   const [dealerId, setDealerId] = useState<string | null>(null);
@@ -72,10 +71,6 @@ export default function AddStaffScreen() {
     if (!name.trim()) e.name = 'Name is required';
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) e.email = 'Valid email is required';
     if (!mobile.trim() || mobile.length !== 10) e.mobile = 'Valid 10-digit mobile required';
-    if (!password || password.length < 8) e.password = 'Min. 8 characters';
-    else if (!/[A-Z]/.test(password)) e.password = 'Include an uppercase letter';
-    else if (!/[a-z]/.test(password)) e.password = 'Include a lowercase letter';
-    else if (!/[0-9]/.test(password)) e.password = 'Include a number';
     if (isPortalRole && !dealerId) e.dealer = 'Select the dealer this login belongs to';
     setErrors(e);
     if (Object.keys(e).length > 0) return;
@@ -86,7 +81,6 @@ export default function AddStaffScreen() {
         name: name.trim(),
         email: email.trim().toLowerCase(),
         mobile: mobile.trim(),
-        password,
         role,
         designation: designation.trim() || undefined,
         dealerId: isPortalRole ? dealerId ?? undefined : undefined,
@@ -203,8 +197,6 @@ export default function AddStaffScreen() {
               onChangeText={(t) => setMobile(t.replace(/\D/g, '').slice(0, 10))}
               placeholder="10-digit mobile" keyboardType="phone-pad"
               leftIcon="phone" error={errors.mobile} />
-            <Input label="Password" value={password} onChangeText={setPassword}
-              placeholder="8+ chars, A-z, 0-9" isPassword leftIcon="lock" error={errors.password} />
             <Input label="Designation (Optional)" value={designation} onChangeText={setDesignation}
               placeholder="e.g. Senior Technician" leftIcon="tag" error={errors.designation} />
           </View>
@@ -214,7 +206,7 @@ export default function AddStaffScreen() {
           <View style={[styles.infoBox, { backgroundColor: colors.primary + '0F', borderColor: colors.primary + '22', borderRadius: 16 }]}>
             <Feather name="info" size={14} color={colors.primary} />
             <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-              The staff member signs in with this email/mobile and password. Their access is limited by the role you assign.
+              The staff member signs in with their registered mobile and a verification code. Their access is limited by the role you assign.
             </Text>
           </View>
 

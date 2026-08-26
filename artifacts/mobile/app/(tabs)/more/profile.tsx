@@ -9,13 +9,10 @@ import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
 import { FlatCard, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
-import { authMeUpdate, authChangePassword } from '@workspace/api-client-react';
+import { authMeUpdate } from '@workspace/api-client-react';
 
 // ── My Profile ──────────────────────────────────────────────────────────────
-// Self-service account screen for every signed-in user: edit name/mobile and
-// change the account password (current password required; other devices are
-// signed out on change). Password RESET for a forgotten password lives on the
-// login screen ("Forgot Password?").
+// Self-service account screen for every signed-in user: edit name and mobile.
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -27,13 +24,7 @@ export default function ProfileScreen() {
   const [mobile, setMobile] = useState(user?.mobile ?? '');
   const [savingProfile, setSavingProfile] = useState(false);
 
-  const [currentPw, setCurrentPw] = useState('');
-  const [newPw, setNewPw] = useState('');
-  const [confirmPw, setConfirmPw] = useState('');
-  const [showPw, setShowPw] = useState(false);
-  const [savingPw, setSavingPw] = useState(false);
-
-  const anims = useStaggerAnim(3);
+  const anims = useStaggerAnim(1);
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
   const notify = (title: string, msg: string) => {
@@ -54,25 +45,6 @@ export default function ProfileScreen() {
       notify('Error', e?.response?.data?.message || 'Could not update profile');
     } finally {
       setSavingProfile(false);
-    }
-  };
-
-  const changePassword = async () => {
-    if (!currentPw || !newPw) return notify('Error', 'Enter your current and new password');
-    if (newPw !== confirmPw) return notify('Error', 'New passwords do not match');
-    if (newPw.length < 8 || !/[A-Z]/.test(newPw) || !/[a-z]/.test(newPw) || !/[0-9]/.test(newPw)) {
-      return notify('Error', 'Password must be 8+ characters with uppercase, lowercase and a number');
-    }
-    setSavingPw(true);
-    try {
-      await authChangePassword({ currentPassword: currentPw, newPassword: newPw });
-      setCurrentPw(''); setNewPw(''); setConfirmPw('');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      notify('Password changed', 'Other devices have been signed out.');
-    } catch (e: any) {
-      notify('Error', e?.response?.data?.message || 'Could not change password');
-    } finally {
-      setSavingPw(false);
     }
   };
 
@@ -109,32 +81,6 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </FlatCard>
 
-          <FlatCard animValue={anims[1]} style={styles.card}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Change Password</Text>
-            <Text style={[styles.sectionHint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-              8+ characters with uppercase, lowercase and a number. Other devices are signed out after the change.
-            </Text>
-            <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>CURRENT PASSWORD</Text>
-            <TextInput value={currentPw} onChangeText={setCurrentPw} style={inputStyle} secureTextEntry={!showPw} placeholder="Current password" placeholderTextColor={colors.mutedForeground} autoCapitalize="none" />
-            <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>NEW PASSWORD</Text>
-            <TextInput value={newPw} onChangeText={setNewPw} style={inputStyle} secureTextEntry={!showPw} placeholder="New password" placeholderTextColor={colors.mutedForeground} autoCapitalize="none" />
-            <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>CONFIRM NEW PASSWORD</Text>
-            <TextInput value={confirmPw} onChangeText={setConfirmPw} style={inputStyle} secureTextEntry={!showPw} placeholder="Repeat new password" placeholderTextColor={colors.mutedForeground} autoCapitalize="none" />
-            <TouchableOpacity onPress={() => setShowPw(!showPw)} style={styles.showRow} activeOpacity={0.7}>
-              <Feather name={showPw ? 'eye-off' : 'eye'} size={16} color={colors.mutedForeground} />
-              <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: 'Inter_500Medium' }}>{showPw ? 'Hide' : 'Show'} passwords</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={changePassword} disabled={savingPw} activeOpacity={0.85} style={[styles.button, { backgroundColor: colors.primary, opacity: savingPw ? 0.6 : 1 }]}>
-              {savingPw ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={styles.buttonText}>Change Password</Text>}
-            </TouchableOpacity>
-          </FlatCard>
-
-          <FlatCard animValue={anims[2]} style={styles.card}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Forgot your password?</Text>
-            <Text style={[styles.sectionHint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-              If you can't remember your current password, sign out and use "Forgot Password?" on the login screen — an OTP is sent to your registered email.
-            </Text>
-          </FlatCard>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -153,7 +99,4 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: Platform.OS === 'web' ? 12 : 10, fontSize: 15, fontFamily: 'Inter_500Medium' },
   button: { marginTop: 18, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
   buttonText: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  sectionTitle: { fontSize: 16, marginBottom: 6 },
-  sectionHint: { fontSize: 13, lineHeight: 18 },
-  showRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
 });

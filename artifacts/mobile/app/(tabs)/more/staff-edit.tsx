@@ -46,7 +46,6 @@ export default function EditStaffScreen() {
   const [name, setName] = useState(params.name ?? '');
   const [mobile, setMobile] = useState(params.mobile ?? '');
   const [designation, setDesignation] = useState(params.designation ?? '');
-  const [password, setPassword] = useState('');
   const [role, setRole] = useState<StaffRole>(
     (STAFF_ROLES as readonly string[]).includes(params.role ?? '')
       ? (params.role as StaffRole)
@@ -62,12 +61,6 @@ export default function EditStaffScreen() {
     const e: Record<string, string> = {};
     if (!name.trim()) e.name = 'Name is required';
     if (!mobile.trim() || mobile.length !== 10) e.mobile = 'Valid 10-digit mobile required';
-    if (password) {
-      if (password.length < 8) e.password = 'Min. 8 characters';
-      else if (!/[A-Z]/.test(password)) e.password = 'Include an uppercase letter';
-      else if (!/[a-z]/.test(password)) e.password = 'Include a lowercase letter';
-      else if (!/[0-9]/.test(password)) e.password = 'Include a number';
-    }
     setErrors(e);
     if (Object.keys(e).length > 0) return;
 
@@ -78,7 +71,6 @@ export default function EditStaffScreen() {
         mobile: mobile.trim(),
         role,
         designation: designation.trim(),
-        ...(password ? { password } : {}),
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
@@ -153,8 +145,6 @@ export default function EditStaffScreen() {
               leftIcon="phone" error={errors.mobile} />
             <Input label="Designation (Optional)" value={designation} onChangeText={setDesignation}
               placeholder="e.g. Senior Technician" leftIcon="tag" error={errors.designation} />
-            <Input label="New Password (Optional)" value={password} onChangeText={setPassword}
-              placeholder="Leave blank to keep current" isPassword leftIcon="lock" error={errors.password} />
           </View>
         </FadeInView>
 
@@ -162,7 +152,7 @@ export default function EditStaffScreen() {
           <View style={[styles.infoBox, { backgroundColor: colors.primary + '0F', borderColor: colors.primary + '22', borderRadius: 16 }]}>
             <Feather name="info" size={14} color={colors.primary} />
             <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-              Email cannot be changed — it is the staff member's login ID. Setting a new password signs them in with it on their next login.
+              Email cannot be changed — it is kept as a recovery identity. Staff sign in with their registered mobile and a verification code.
             </Text>
           </View>
 

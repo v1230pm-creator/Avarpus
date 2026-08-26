@@ -9,38 +9,6 @@ import * as zod from 'zod';
 
 
 /**
- * @summary Sign in with email/mobile and password
- */
-export const AuthLoginBody = zod.object({
-  "emailOrMobile": zod.string(),
-  "password": zod.string(),
-  "rememberMe": zod.boolean().optional(),
-  "device": zod.string().optional()
-})
-
-export const AuthLoginResponse = zod.object({
-  "token": zod.string(),
-  "user": zod.object({
-  "id": zod.string(),
-  "name": zod.string(),
-  "email": zod.string(),
-  "mobile": zod.string(),
-  "role": zod.string(),
-  "isActive": zod.boolean(),
-  "designation": zod.string().optional(),
-  "joinDate": zod.string().optional(),
-  "businessName": zod.string().optional(),
-  "gstNumber": zod.string().optional(),
-  "shopAddress": zod.string().optional(),
-  "profilePhoto": zod.string().optional(),
-  "companyLogo": zod.string().optional(),
-  "shopId": zod.string().optional(),
-  "dealerId": zod.string().optional()
-})
-})
-
-
-/**
  * @summary Request a login OTP for a mobile number
  */
 export const AuthOtpRequestBody = zod.object({
@@ -97,185 +65,15 @@ export const AuthOtpVerifyResponse = zod.object({
 
 
 /**
- * @summary Start a one-time SIM-originated phone verification
- */
-export const AuthPhoneVerificationStartBody = zod.object({
-  "mobile": zod.string(),
-  "deviceId": zod.string().optional(),
-  "devicePublicKey": zod.string().optional()
-})
-
-export const AuthPhoneVerificationStartResponse = zod.object({
-  "verificationId": zod.string(),
-  "challenge": zod.string(),
-  "statusToken": zod.string(),
-  "expiresAt": zod.string(),
-  "registered": zod.boolean()
-})
-
-
-/**
- * @summary Poll the status of a SIM verification and redeem a completed session once
- */
-export const AuthPhoneVerificationStatusBody = zod.object({
-  "verificationId": zod.string(),
-  "statusToken": zod.string()
-})
-
-export const AuthPhoneVerificationStatusResponse = zod.object({
-  "state": zod.enum(['pending', 'verified', 'failed']),
-  "errorCode": zod.string().optional(),
-  "session": zod.union([zod.object({
-  "token": zod.string(),
-  "user": zod.object({
-  "id": zod.string(),
-  "name": zod.string(),
-  "email": zod.string(),
-  "mobile": zod.string(),
-  "role": zod.string(),
-  "isActive": zod.boolean(),
-  "designation": zod.string().optional(),
-  "joinDate": zod.string().optional(),
-  "businessName": zod.string().optional(),
-  "gstNumber": zod.string().optional(),
-  "shopAddress": zod.string().optional(),
-  "profilePhoto": zod.string().optional(),
-  "companyLogo": zod.string().optional(),
-  "shopId": zod.string().optional(),
-  "dealerId": zod.string().optional()
-})
-}),zod.null()]).optional()
-})
-
-
-/**
- * This endpoint is for the SMS bridge only. It requires an HMAC signature; mobile clients must never call it as proof of verification.
- * @summary Trusted signed callback from the controlled Avarpus SMS bridge
- */
-export const AuthSmsVerificationBody = zod.object({
-  "senderNumber": zod.string(),
-  "message": zod.string(),
-  "receivedAt": zod.string(),
-  "gatewayMessageId": zod.string(),
-  "signature": zod.string()
-})
-
-export const AuthSmsVerificationResponse = zod.object({
-  "verified": zod.boolean(),
-  "userId": zod.string().optional(),
-  "verificationId": zod.string().optional(),
-  "errorCode": zod.string().optional()
-})
-
-
-/**
- * @summary Register a device public key after SIM verification
- */
-export const AuthDeviceRegisterBody = zod.object({
-  "deviceId": zod.string(),
-  "publicKey": zod.string(),
-  "algorithm": zod.enum(['RSA-SHA256'])
-})
-
-export const AuthDeviceRegisterResponse = zod.object({
-  "device": zod.object({
-  "id": zod.string(),
-  "deviceId": zod.string(),
-  "algorithm": zod.string(),
-  "createdAt": zod.string(),
-  "lastUsedAt": zod.string().nullable()
-})
-})
-
-
-/**
- * @summary List the current account's active device keys
- */
-export const AuthDevicesListResponse = zod.object({
-  "devices": zod.array(zod.object({
-  "id": zod.string(),
-  "deviceId": zod.string(),
-  "algorithm": zod.string(),
-  "createdAt": zod.string(),
-  "lastUsedAt": zod.string().nullable()
-}))
-})
-
-
-/**
- * @summary Revoke a lost or stolen device key
- */
-export const AuthDeviceRevokeParams = zod.object({
-  "id": zod.coerce.string()
-})
-
-export const AuthDeviceRevokeResponse = zod.object({
-  "message": zod.string()
-})
-
-
-/**
- * @summary Create a short-lived challenge for a registered device key
- */
-export const AuthDeviceChallengeBody = zod.object({
-  "mobile": zod.string(),
-  "deviceId": zod.string()
-})
-
-export const AuthDeviceChallengeResponse = zod.object({
-  "challengeId": zod.string(),
-  "challenge": zod.string(),
-  "expiresAt": zod.string()
-})
-
-
-/**
- * @summary Authenticate with a registered device key signature
- */
-export const AuthDeviceAuthenticateBody = zod.object({
-  "challengeId": zod.string(),
-  "challenge": zod.string(),
-  "deviceId": zod.string(),
-  "signature": zod.string(),
-  "rememberMe": zod.boolean().optional(),
-  "device": zod.string().optional()
-})
-
-export const AuthDeviceAuthenticateResponse = zod.object({
-  "token": zod.string(),
-  "user": zod.object({
-  "id": zod.string(),
-  "name": zod.string(),
-  "email": zod.string(),
-  "mobile": zod.string(),
-  "role": zod.string(),
-  "isActive": zod.boolean(),
-  "designation": zod.string().optional(),
-  "joinDate": zod.string().optional(),
-  "businessName": zod.string().optional(),
-  "gstNumber": zod.string().optional(),
-  "shopAddress": zod.string().optional(),
-  "profilePhoto": zod.string().optional(),
-  "companyLogo": zod.string().optional(),
-  "shopId": zod.string().optional(),
-  "dealerId": zod.string().optional()
-})
-})
-
-
-/**
  * @summary Start registration and send email OTP
  */
 export const AuthRegisterStartBody = zod.object({
   "name": zod.string(),
-  "businessName": zod.string().optional(),
+  "businessName": zod.string(),
   "email": zod.string(),
   "mobile": zod.string(),
-  "password": zod.string(),
   "gstNumber": zod.string().optional(),
-  "shopAddress": zod.string().optional(),
-  "role": zod.enum(['dealer', 'reception', 'technician', 'store_manager', 'accountant']).optional(),
-  "dealerMobile": zod.string().optional()
+  "shopAddress": zod.string()
 })
 
 export const AuthRegisterStartResponse = zod.object({
@@ -292,7 +90,6 @@ export const AuthRegisterVerifyBody = zod.object({
 })
 
 export const AuthRegisterVerifyResponse = zod.object({
-  "token": zod.string().optional(),
   "user": zod.object({
   "id": zod.string(),
   "name": zod.string(),
@@ -309,47 +106,7 @@ export const AuthRegisterVerifyResponse = zod.object({
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
   "dealerId": zod.string().optional()
-}).optional(),
-  "pending": zod.boolean().optional(),
-  "message": zod.string().optional()
-})
-
-
-/**
- * @summary Request a password reset OTP
- */
-export const AuthForgotRequestBody = zod.object({
-  "email": zod.string()
-})
-
-export const AuthForgotRequestResponse = zod.object({
-  "message": zod.string()
-})
-
-
-/**
- * @summary Verify a password reset OTP
- */
-export const AuthForgotVerifyBody = zod.object({
-  "email": zod.string(),
-  "code": zod.string()
-})
-
-export const AuthForgotVerifyResponse = zod.object({
-  "resetToken": zod.string()
-})
-
-
-/**
- * @summary Reset password with a reset token
- */
-export const AuthForgotResetBody = zod.object({
-  "email": zod.string(),
-  "resetToken": zod.string(),
-  "newPassword": zod.string()
-})
-
-export const AuthForgotResetResponse = zod.object({
+}),
   "message": zod.string()
 })
 
@@ -404,19 +161,6 @@ export const AuthMeUpdateResponse = zod.object({
   "shopId": zod.string().optional(),
   "dealerId": zod.string().optional()
 })
-})
-
-
-/**
- * @summary Change own password (requires current password)
- */
-export const AuthChangePasswordBody = zod.object({
-  "currentPassword": zod.string(),
-  "newPassword": zod.string()
-})
-
-export const AuthChangePasswordResponse = zod.object({
-  "message": zod.string()
 })
 
 
@@ -480,7 +224,6 @@ export const StaffCreateBody = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "mobile": zod.string(),
-  "password": zod.string(),
   "role": zod.enum(['reception', 'technician', 'store_manager', 'accountant', 'dealer_owner', 'dealer_staff']),
   "designation": zod.string().optional(),
   "dealerId": zod.string().optional()
@@ -614,8 +357,7 @@ export const StaffUpdateBody = zod.object({
   "name": zod.string().optional(),
   "mobile": zod.string().optional(),
   "role": zod.enum(['reception', 'technician', 'store_manager', 'accountant', 'dealer_owner', 'dealer_staff']).optional(),
-  "designation": zod.string().optional(),
-  "password": zod.string().optional()
+  "designation": zod.string().optional()
 })
 
 export const StaffUpdateResponse = zod.object({
@@ -3372,7 +3114,7 @@ export const AuthActivateInviteBody = zod.object({
 })
 
 export const AuthActivateInviteResponse = zod.object({
-  "token": zod.string(),
+  "message": zod.string(),
   "user": zod.object({
   "id": zod.string(),
   "name": zod.string(),

@@ -7,7 +7,7 @@ import {
   userFeatureSettingsTable,
   type DbUser,
 } from "@workspace/db";
-import { hashPassword, publicUser } from "../lib/authUtils";
+import { generateToken, hashPassword, publicUser } from "../lib/authUtils";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireRole } from "../middlewares/requireRole";
 import { asyncHandler } from "../lib/asyncHandler";
@@ -35,16 +35,6 @@ const STAFF_ROLES = ["reception", "technician", "store_manager", "accountant"] a
 const DEALER_PORTAL_ROLES = ["dealer_owner", "dealer_staff"] as const;
 
 const MANAGEABLE_ROLES = [...STAFF_ROLES, ...DEALER_PORTAL_ROLES] as const;
-
-function validPassword(p: unknown): p is string {
-  return (
-    typeof p === "string" &&
-    p.length >= 8 &&
-    /[A-Z]/.test(p) &&
-    /[a-z]/.test(p) &&
-    /[0-9]/.test(p)
-  );
-}
 
 type AuthedRequest = Request & { user: DbUser };
 
@@ -90,7 +80,7 @@ router.post(
       });
       return;
     }
-    const { name, email, mobile, password, role, designation, dealerId } = req.body ?? {};
+    const { name, email, mobile, role, designation, dealerId } = req.body ?? {};
     if (
       typeof role !== "string" ||
       !(MANAGEABLE_ROLES as readonly string[]).includes(role)
@@ -126,12 +116,6 @@ router.post(
       res.status(400).json({ message: "Missing or invalid staff details" });
       return;
     }
-    if (!validPassword(password)) {
-      res.status(400).json({
-        message: "Password must be 8+ characters with uppercase, lowercase and a number",
-      });
-      return;
-    }
     const normEmail = email.trim().toLowerCase();
     const existing = await db
       .select({ id: usersTable.id })
@@ -146,7 +130,9 @@ router.post(
       name: name.trim(),
       email: normEmail,
       mobile,
-      passwordHash: hashPassword(password),
+      // Legacy column retained for existing data compatibility; staff access
+      // is always established with the mobile OTP flow.
+      passwordHash: hashPassword(generateToken()),
       role,
       shopId: me.shopId,
       dealerId: linkedDealerId,
@@ -339,13 +325,12 @@ router.patch(
       res.status(403).json({ message: "This account cannot be edited here" });
       return;
     }
-    const { name, mobile, role, designation, password } = req.body ?? {};
+    const { name, mobile, role, designation } = req.body ?? {};
     const set: Partial<{
       name: string;
       mobile: string;
       role: string;
       designation: string | null;
-      passwordHash: string;
     }> = {};
     if (name !== undefined) {
       if (typeof name !== "string" || !name.trim()) {
@@ -393,15 +378,6 @@ router.patch(
         return;
       }
       set.designation = designation.trim() || null;
-    }
-    if (password !== undefined && password !== "") {
-      if (!validPassword(password)) {
-        res.status(400).json({
-          message: "Password must be 8+ characters with uppercase, lowercase and a number",
-        });
-        return;
-      }
-      set.passwordHash = hashPassword(password);
     }
     if (Object.keys(set).length === 0) {
       res.json({ user: publicUser(check.target) });

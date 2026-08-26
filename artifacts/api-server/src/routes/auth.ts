@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, eq, or } from "drizzle-orm";
-import { db, otpCodesTable, shopsTable, usersTable } from "@workspace/db";
+import { db, shopsTable, usersTable } from "@workspace/db";
 import {
   consumeOtp,
   createOtp,
@@ -11,12 +11,9 @@ import {
   hashPassword,
   listActiveSessions,
   recordLoginEvent,
-  revokeAllSessions,
   revokeOtherSessions,
   revokeSessionById,
   publicUser,
-  sha256,
-  verifyPassword,
 } from "../lib/authUtils";
 import type { Request } from "express";
 import { sendOtpEmail } from "../lib/mailer";
@@ -45,16 +42,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // can never be requested here.
 const STAFF_ROLES = ["reception", "technician", "store_manager", "accountant"] as const;
 
-function validPassword(p: unknown): p is string {
-  return (
-    typeof p === "string" &&
-    p.length >= 8 &&
-    /[A-Z]/.test(p) &&
-    /[a-z]/.test(p) &&
-    /[0-9]/.test(p)
-  );
-}
-
 // Best-effort device description captured at sign-in: prefer the client-sent
 // `device` field, fall back to the User-Agent header.
 function deviceInfoFrom(req: Request): string | null {
@@ -65,51 +52,6 @@ function deviceInfoFrom(req: Request): string | null {
   const ua = req.headers["user-agent"];
   return typeof ua === "string" && ua.trim() ? ua.trim().slice(0, 120) : null;
 }
-
-// ── Email + password login ────────────────────────────────────────────────
-router.post("/auth/login", asyncHandler(async (req, res) => {
-  const { emailOrMobile, password, rememberMe } = req.body ?? {};
-  if (typeof emailOrMobile !== "string" || typeof password !== "string") {
-    res.status(400).json({ message: "Email/mobile and password are required" });
-    return;
-  }
-  const identifier = emailOrMobile.trim().toLowerCase();
-  // Throttle repeated failures per account identifier and per client IP.
-  const accountKey = `login:acct:${identifier}`;
-  const ipKey = `login:ip:${req.ip ?? "unknown"}`;
-  const lockout = [checkFailureLockout(accountKey), checkFailureLockout(ipKey)]
-    .find((s) => s.limited);
-  if (lockout) {
-    res.status(429).json({
-      message: `Too many failed attempts. Try again in ${retryAfterText(lockout.retryAfterMs)}.`,
-    });
-    return;
-  }
-  const rows = await db
-    .select()
-    .from(usersTable)
-    .where(
-      or(eq(usersTable.email, identifier), eq(usersTable.mobile, emailOrMobile.trim())),
-    )
-    .limit(1);
-  const user = rows[0];
-  if (!user || !verifyPassword(password, user.passwordHash)) {
-    recordFailure(accountKey);
-    recordFailure(ipKey);
-    res.status(401).json({ message: "Invalid credentials" });
-    return;
-  }
-  clearFailures(accountKey);
-  if (!user.isActive) {
-    res.status(403).json({ message: "Account pending admin approval" });
-    return;
-  }
-  const remember = rememberMe === true;
-  const deviceInfo = deviceInfoFrom(req);
-  const token = await createSession(user.id, remember, deviceInfo);
-  await recordLoginEvent(user.id, "password", remember, deviceInfo);
-  res.json({ token, user: publicUser(user) });
-}));
 
 // ── Mobile OTP login ──────────────────────────────────────────────────────
 router.post("/auth/otp/request", asyncHandler(async (req, res) => {
@@ -251,31 +193,19 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
 }));
 
 // ── Registration (email OTP verification) ────────────────────────────────
-// Public registration creates DEALER (shop owner) accounts ONLY. Staff,
-// admin and super-admin accounts can never be created publicly — staff are
-// created by an authenticated dealer via the /staff endpoints.
+// Public registration creates dealer (shop owner) accounts only. Staff must
+// be provisioned by an authenticated dealer through the staff endpoints.
 router.post("/auth/register/start", asyncHandler(async (req, res) => {
   const {
     name,
     businessName,
     email,
     mobile,
-    password,
     gstNumber,
     shopAddress,
-    role,
-    dealerMobile,
   } = req.body ?? {};
-  // Public registration creates either a DEALER (shop owner) account, or a
-  // STAFF account that joins an existing dealer's shop in a PENDING
-  // (isActive: false) state until the dealer/super_admin approves it.
-  // Admin/super_admin roles can never be requested here.
-  const isStaffRegistration =
-    typeof role === "string" && (STAFF_ROLES as readonly string[]).includes(role);
-  if (role !== undefined && role !== "dealer" && !isStaffRegistration) {
-    res.status(403).json({
-      message: "Registration is limited to dealer or staff roles (reception, technician, store manager, accountant).",
-    });
+  if (req.body?.role !== undefined && req.body.role !== "dealer") {
+    res.status(403).json({ message: "Public registration is limited to dealer accounts." });
     return;
   }
   if (
@@ -286,40 +216,16 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
     res.status(400).json({ message: "Missing or invalid registration details" });
     return;
   }
-  if (!isStaffRegistration && (
+  if (
     typeof businessName !== "string" || !businessName.trim() ||
     typeof shopAddress !== "string" || !shopAddress.trim()
-  )) {
+  ) {
     res.status(400).json({ message: "Missing or invalid registration details" });
-    return;
-  }
-  if (!validPassword(password)) {
-    res.status(400).json({
-      message: "Password must be 8+ characters with uppercase, lowercase and a number",
-    });
     return;
   }
   if (typeof gstNumber === "string" && gstNumber.trim() && gstNumber.trim().length !== 15) {
     res.status(400).json({ message: "GST number must be 15 characters" });
     return;
-  }
-  // Staff must identify the shop they are joining by the owner's registered mobile.
-  let staffShopId: string | null = null;
-  if (isStaffRegistration) {
-    if (typeof dealerMobile !== "string" || !/^\d{10}$/.test(dealerMobile)) {
-      res.status(400).json({ message: "Enter your shop owner's 10-digit registered mobile number" });
-      return;
-    }
-    const dealers = await db
-      .select({ shopId: usersTable.shopId })
-      .from(usersTable)
-      .where(and(eq(usersTable.mobile, dealerMobile), eq(usersTable.role, "dealer")))
-      .limit(1);
-    if (!dealers[0]?.shopId) {
-      res.status(404).json({ message: "No shop found for that owner mobile number. Check with your shop owner." });
-      return;
-    }
-    staffShopId = dealers[0].shopId;
   }
   const normEmail = email.trim().toLowerCase();
   const existing = await db
@@ -340,21 +246,18 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
     return;
   }
   const code = await createOtp(normEmail, "register", {
-    kind: isStaffRegistration ? "staff" : "dealer",
+    kind: "dealer",
     name: name.trim(),
-    businessName: isStaffRegistration ? null : (businessName as string).trim(),
+    businessName: businessName.trim(),
     email: normEmail,
     mobile,
-    passwordHash: hashPassword(password),
     gstNumber: typeof gstNumber === "string" && gstNumber.trim() ? gstNumber.trim() : null,
-    shopAddress: isStaffRegistration ? null : (shopAddress as string).trim(),
-    role: isStaffRegistration ? (role as string) : "dealer",
-    shopId: staffShopId,
+    shopAddress: shopAddress.trim(),
+    role: "dealer",
   });
   try {
     const resendEmailId = await sendOtpEmail(normEmail, code, "registration", {
       avarpus_email_kind: "registration_verification",
-      ...(staffShopId ? { avarpus_shop_id: staffShopId } : {}),
     });
     // Resend echoes these tags in its signed delivery webhooks. The message ID
     // is not exposed to the customer and is only used for safe event records.
@@ -388,16 +291,12 @@ router.post("/auth/register/verify", asyncHandler(async (req, res) => {
     return;
   }
   const p = result.payload as {
-    kind?: "dealer" | "staff";
     name: string;
     businessName: string | null;
     email: string;
     mobile: string;
-    passwordHash: string;
     gstNumber: string | null;
     shopAddress: string | null;
-    role?: string;
-    shopId?: string | null;
   };
   // Re-check uniqueness right before insert
   const existing = await db
@@ -409,44 +308,9 @@ router.post("/auth/register/verify", asyncHandler(async (req, res) => {
     res.status(409).json({ message: "Account with this email or mobile already exists" });
     return;
   }
-  // ── Staff path: create a PENDING account in the dealer's shop ──────────
-  // The account stays isActive: false (cannot sign in) until the dealer or
-  // super_admin approves it from the Staff screen. No session is issued.
-  if (p.kind === "staff") {
-    const role = typeof p.role === "string" && (STAFF_ROLES as readonly string[]).includes(p.role)
-      ? p.role
-      : null;
-    if (!role || !p.shopId) {
-      res.status(400).json({ message: "Invalid staff registration request" });
-      return;
-    }
-    // Ensure the shop still exists (dealer could have been removed meanwhile)
-    const shops = await db
-      .select({ id: shopsTable.id })
-      .from(shopsTable)
-      .where(eq(shopsTable.id, p.shopId))
-      .limit(1);
-    if (shops.length === 0) {
-      res.status(404).json({ message: "The shop you tried to join no longer exists" });
-      return;
-    }
-    const [created] = await db.insert(usersTable).values({
-      name: p.name,
-      email: p.email,
-      mobile: p.mobile,
-      passwordHash: p.passwordHash,
-      role,
-      shopId: p.shopId,
-      isActive: false, // pending approval by dealer/super_admin
-      joinDate: new Date().toISOString().split("T")[0],
-    }).returning();
-    res.json({
-      pending: true,
-      message: "Registration submitted. Your account is pending approval by your shop owner.",
-      user: publicUser(created),
-    });
-    return;
-  }
+  // Legacy password records remain for existing data compatibility; account
+  // access is solely by mobile OTP.
+  const legacyPasswordHash = hashPassword(generateToken());
   // Role is ALWAYS dealer for public registration — never taken from input.
   // User + shop provisioning happen in ONE transaction so a partial failure
   // can never leave an active dealer without a shop/workspace.
@@ -455,7 +319,7 @@ router.post("/auth/register/verify", asyncHandler(async (req, res) => {
       name: p.name,
       email: p.email,
       mobile: p.mobile,
-      passwordHash: p.passwordHash,
+      passwordHash: legacyPasswordHash,
       role: "dealer",
       isActive: true, // dealers are active immediately (email is verified)
       designation: "Owner",
@@ -484,98 +348,10 @@ router.post("/auth/register/verify", asyncHandler(async (req, res) => {
       .returning();
     return u;
   });
-  // Sign the dealer in immediately so the app can land on the dashboard.
-  const deviceInfo = deviceInfoFrom(req);
-  const token = await createSession(updated.id, false, deviceInfo);
-  await recordLoginEvent(updated.id, "password", false, deviceInfo);
-  res.json({ token, user: publicUser(updated) });
-}));
-
-// ── Forgot password ───────────────────────────────────────────────────────
-router.post("/auth/forgot/request", asyncHandler(async (req, res) => {
-  const { email } = req.body ?? {};
-  if (typeof email !== "string" || !EMAIL_RE.test(email.trim())) {
-    res.status(400).json({ message: "A valid email address is required" });
-    return;
-  }
-  const normEmail = email.trim().toLowerCase();
-  const genericMessage =
-    "If an account exists with this email, a verification code has been sent.";
-  const rows = await db
-    .select({ id: usersTable.id })
-    .from(usersTable)
-    .where(eq(usersTable.email, normEmail))
-    .limit(1);
-  if (rows.length === 0) {
-    res.json({ message: genericMessage });
-    return;
-  }
-  try {
-    const code = await createOtp(normEmail, "reset", null);
-    await sendOtpEmail(normEmail, code, "password reset");
-  } catch (err) {
-    console.error("Forgot-password email delivery failed:", err instanceof Error ? err.message : err);
-  }
-  res.json({ message: genericMessage });
-}));
-
-router.post("/auth/forgot/verify", asyncHandler(async (req, res) => {
-  const { email, code } = req.body ?? {};
-  if (typeof email !== "string" || typeof code !== "string") {
-    res.status(400).json({ message: "Email and code are required" });
-    return;
-  }
-  const normEmail = email.trim().toLowerCase();
-  const result = await consumeOtp(normEmail, "reset", code);
-  if (!result.ok) {
-    res.status(401).json({ message: result.error });
-    return;
-  }
-  // Issue a short-lived reset token bound to the email
-  const resetToken = generateToken();
-  await createOtpToken(normEmail, resetToken);
-  res.json({ resetToken });
-}));
-
-async function createOtpToken(email: string, token: string): Promise<void> {
-  await db.insert(otpCodesTable).values({
-    identifier: email,
-    purpose: "reset_token",
-    codeHash: sha256(token),
-    expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+  res.json({
+    message: "Email verified. Sign in with mobile OTP to open your account.",
+    user: publicUser(updated),
   });
-}
-
-router.post("/auth/forgot/reset", asyncHandler(async (req, res) => {
-  const { email, resetToken, newPassword } = req.body ?? {};
-  if (
-    typeof email !== "string" ||
-    typeof resetToken !== "string" ||
-    typeof newPassword !== "string"
-  ) {
-    res.status(400).json({ message: "Email, reset token and new password are required" });
-    return;
-  }
-  if (!validPassword(newPassword)) {
-    res.status(400).json({
-      message: "Password must be 8+ characters with uppercase, lowercase and a number",
-    });
-    return;
-  }
-  const normEmail = email.trim().toLowerCase();
-  const result = await consumeOtp(normEmail, "reset_token", resetToken);
-  if (!result.ok) {
-    res.status(401).json({ message: "Reset session expired. Start over." });
-    return;
-  }
-  const updated = await db
-    .update(usersTable)
-    .set({ passwordHash: hashPassword(newPassword) })
-    .where(eq(usersTable.email, normEmail))
-    .returning({ id: usersTable.id });
-  // Revoke every existing session so a stolen session can't outlive the reset.
-  if (updated[0]) await revokeAllSessions(updated[0].id);
-  res.json({ message: "Password updated. Sign in with your new password." });
 }));
 
 // ── Session ───────────────────────────────────────────────────────────────
@@ -623,41 +399,6 @@ router.patch("/auth/me", requireAuth, asyncHandler(async (req, res) => {
     .where(eq(usersTable.id, me.id))
     .returning();
   res.json({ user: publicUser(updated) });
-}));
-
-// ── Self-service password change (current password required) ─────────────
-router.post("/auth/change-password", requireAuth, asyncHandler(async (req, res) => {
-  const me = req.user!;
-  const { currentPassword, newPassword } = req.body ?? {};
-  if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
-    res.status(400).json({ message: "Current and new password are required" });
-    return;
-  }
-  const lock = checkFailureLockout(`chpw:${me.id}`);
-  if (lock.limited) {
-    res.status(429).json({ message: `Too many attempts. Try again in ${retryAfterText(lock.retryAfterMs)}.` });
-    return;
-  }
-  if (!me.passwordHash || !verifyPassword(currentPassword, me.passwordHash)) {
-    await recordFailure(`chpw:${me.id}`);
-    res.status(401).json({ message: "Current password is incorrect" });
-    return;
-  }
-  if (!validPassword(newPassword)) {
-    res.status(400).json({
-      message: "Password must be 8+ characters with uppercase, lowercase and a number",
-    });
-    return;
-  }
-  await clearFailures(`chpw:${me.id}`);
-  await db
-    .update(usersTable)
-    .set({ passwordHash: hashPassword(newPassword) })
-    .where(eq(usersTable.id, me.id));
-  // Sign out every OTHER device — a stolen session must not survive the
-  // change; the device that changed the password stays signed in.
-  await revokeOtherSessions(me.id, req.sessionToken!);
-  res.json({ message: "Password changed. Other devices have been signed out." });
 }));
 
 router.get("/auth/login-history", requireAuth, asyncHandler(async (req, res) => {

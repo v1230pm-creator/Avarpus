@@ -5,7 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AuthUser } from './authUser';
 
-export type AuthForgotVerify200 = {
-  resetToken: string;
+export type AuthActivateInvite200 = {
+  message: string;
+  user: AuthUser;
 };

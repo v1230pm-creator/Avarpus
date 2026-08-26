@@ -12,11 +12,10 @@ const UUID = "[0-9a-fA-F-]{36}";
 // Explicit allowlist. Method wildcard "*" means all HTTP methods.
 const ALLOWED: Array<{ method: string | "*"; re: RegExp }> = [
   // ── Auth self-service ────────────────────────────────────────────────────
-  // Profile, sessions, logout, change-password — but NOT registration
+  // Profile, sessions, and logout — but NOT registration
   // endpoints that could create additional accounts.
   { method: "GET",    re: /^\/auth\/me$/ },
   { method: "PATCH",  re: /^\/auth\/me$/ },
-  { method: "POST",   re: /^\/auth\/change-password$/ },
   { method: "POST",   re: /^\/auth\/logout$/ },
   { method: "GET",    re: /^\/auth\/sessions$/ },
   { method: "DELETE", re: new RegExp(`^\\/auth\\/sessions\\/${UUID}$`) },

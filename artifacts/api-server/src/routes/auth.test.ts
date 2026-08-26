@@ -124,40 +124,24 @@ afterAll(async () => {
   await pool.end();
 });
 
-// ── Email + password login ────────────────────────────────────────────────
-describe("POST /api/auth/login", () => {
-  it("succeeds with correct credentials and returns token + user", async () => {
-    const res = await request(app)
-      .post("/api/auth/login")
-      .send({ emailOrMobile: EMAIL, password: PASSWORD });
-    expect(res.status).toBe(200);
-    expect(typeof res.body.token).toBe("string");
-    expect(res.body.token.length).toBeGreaterThan(20);
-    expect(res.body.user.email).toBe(EMAIL);
-    // Password hash must never leak
-    expect(res.body.user.passwordHash).toBeUndefined();
-  });
-
-  it("rejects a wrong password with a clear message", async () => {
-    const res = await request(app)
-      .post("/api/auth/login")
-      .send({ emailOrMobile: EMAIL, password: "WrongPass1" });
-    expect(res.status).toBe(401);
-    expect(res.body.message).toBe("Invalid credentials");
-  });
-
-  it("rejects an unknown user with the same generic message", async () => {
-    const res = await request(app)
-      .post("/api/auth/login")
-      .send({ emailOrMobile: `nobody-${RUN}@example.test`, password: "Whatever1" });
-    expect(res.status).toBe(401);
-    expect(res.body.message).toBe("Invalid credentials");
-  });
-
-  it("rejects missing fields with 400 and a message", async () => {
-    const res = await request(app).post("/api/auth/login").send({});
-    expect(res.status).toBe(400);
-    expect(typeof res.body.message).toBe("string");
+// ── Retired password routes ───────────────────────────────────────────────
+describe("retired password routes", () => {
+  it.each([
+    "/api/auth/login",
+    "/api/auth/forgot/request",
+    "/api/auth/forgot/verify",
+    "/api/auth/forgot/reset",
+    "/api/auth/change-password",
+  ])("does not expose %s", async (path) => {
+    const res = await request(app).post(path).send({
+      emailOrMobile: EMAIL,
+      email: EMAIL,
+      password: PASSWORD,
+      currentPassword: PASSWORD,
+      newPassword: "Another123",
+    });
+    expect(res.status).toBe(404);
+    expect(res.body.token).toBeUndefined();
   });
 });
 
@@ -589,81 +573,3 @@ describe("POST /api/auth/otp/verify", () => {
   });
 });
 
-// ── Forgot password flow ──────────────────────────────────────────────────
-describe("forgot password flow", () => {
-  it("verifies a reset code, resets the password, and rejects reset-token reuse", async () => {
-    const { createOtp } = await import("../lib/authUtils");
-    const code = await createOtp(EMAIL, "reset", null);
-
-    const verify = await request(app)
-      .post("/api/auth/forgot/verify")
-      .send({ email: EMAIL, code });
-    expect(verify.status).toBe(200);
-    const resetToken: string = verify.body.resetToken;
-    expect(typeof resetToken).toBe("string");
-
-    const newPassword = "NewPass123";
-    const reset = await request(app)
-      .post("/api/auth/forgot/reset")
-      .send({ email: EMAIL, resetToken, newPassword });
-    expect(reset.status).toBe(200);
-
-    // New password works
-    const login = await request(app)
-      .post("/api/auth/login")
-      .send({ emailOrMobile: EMAIL, password: newPassword });
-    expect(login.status).toBe(200);
-
-    // Reusing the same reset token must fail
-    const reuse = await request(app)
-      .post("/api/auth/forgot/reset")
-      .send({ email: EMAIL, resetToken, newPassword: "Another123" });
-    expect(reuse.status).toBe(401);
-    expect(reuse.body.message).toMatch(/reset session expired/i);
-
-    // ...and the password was NOT changed by the reused token
-    const stillWorks = await request(app)
-      .post("/api/auth/login")
-      .send({ emailOrMobile: EMAIL, password: newPassword });
-    expect(stillWorks.status).toBe(200);
-  });
-
-  it("rejects a reused OTP code on forgot/verify", async () => {
-    const { createOtp } = await import("../lib/authUtils");
-    const code = await createOtp(EMAIL, "reset", null);
-    const first = await request(app)
-      .post("/api/auth/forgot/verify")
-      .send({ email: EMAIL, code });
-    expect(first.status).toBe(200);
-    const second = await request(app)
-      .post("/api/auth/forgot/verify")
-      .send({ email: EMAIL, code });
-    expect(second.status).toBe(401);
-    expect(second.body.message).toMatch(/expired or not found/i);
-  });
-
-  it("rejects a weak new password with a descriptive message", async () => {
-    const res = await request(app)
-      .post("/api/auth/forgot/reset")
-      .send({ email: EMAIL, resetToken: "irrelevant", newPassword: "short" });
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/8\+ characters/);
-  });
-});
-
-// Runs LAST: repeated failures lock the account and the client IP,
-// which would poison earlier login tests if run first.
-describe("login rate limiting", () => {
-  it("returns 429 with a retry-after message after repeated failures", async () => {
-    const target = `locked-${RUN}@example.test`;
-    let last: request.Response | undefined;
-    for (let i = 0; i < 7; i++) {
-      last = await request(app)
-        .post("/api/auth/login")
-        .send({ emailOrMobile: target, password: "BadPass1" });
-      if (last.status === 429) break;
-    }
-    expect(last!.status).toBe(429);
-    expect(last!.body.message).toMatch(/too many failed attempts.*try again in/i);
-  });
-});

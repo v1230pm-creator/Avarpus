@@ -26,7 +26,7 @@ interface MenuItem {
 }
 
 const MENU_ITEMS: MenuItem[] = [
-  { id: 'my-profile', label: 'My Profile', icon: 'user', route: '/(tabs)/more/profile', color: '#4DA3FF', description: 'Name, mobile and password', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'] },
+  { id: 'my-profile', label: 'My Profile', icon: 'user', route: '/(tabs)/more/profile', color: '#4DA3FF', description: 'Name and mobile number', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'] },
   { id: 'notifications', label: 'Notifications', icon: 'bell', route: '/(tabs)/more/notifications', color: '#F59E0B', description: 'Repairs, payments and approvals', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician'] },
   { id: 'activity', label: 'Activity Log', icon: 'activity', route: '/(tabs)/more/activity', color: '#34D399', description: 'View system events', roles: ['super_admin', 'dealer'] },
   { id: 'finance', label: 'Finance', icon: 'bar-chart-2', route: '/(tabs)/more/finance', color: '#34D399', description: 'Income, expense, cash book', roles: ['super_admin', 'dealer'], feature: 'finance' },

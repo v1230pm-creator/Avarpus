@@ -498,11 +498,11 @@ router.post(
       return created;
     });
 
-    const { createSession, publicUser, recordLoginEvent } = await import("../lib/authUtils");
-    const sessionToken = await createSession(newUser.id, false, null);
-    await recordLoginEvent(newUser.id, "otp", false, null);
-
-    res.json({ token: sessionToken, user: publicUser(newUser) });
+    const { publicUser } = await import("../lib/authUtils");
+    res.json({
+      message: "Account activated. Sign in with a mobile OTP to continue.",
+      user: publicUser(newUser),
+    });
   }),
 );
 

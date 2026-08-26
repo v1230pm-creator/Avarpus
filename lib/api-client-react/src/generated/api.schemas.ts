@@ -5,132 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface PhoneVerificationStartInput {
-  mobile: string;
-  deviceId?: string;
-  devicePublicKey?: string;
-}
-
-export interface PhoneVerificationStartResult {
-  verificationId: string;
-  challenge: string;
-  statusToken: string;
-  expiresAt: string;
-  registered: boolean;
-}
-
-export interface PhoneVerificationStatusInput {
-  verificationId: string;
-  statusToken: string;
-}
-
-export type PhoneVerificationStatusResultState = typeof PhoneVerificationStatusResultState[keyof typeof PhoneVerificationStatusResultState];
-
-
-export const PhoneVerificationStatusResultState = {
-  pending: 'pending',
-  verified: 'verified',
-  failed: 'failed',
-} as const;
-
-export interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
-  mobile: string;
-  role: string;
-  isActive: boolean;
-  designation?: string;
-  joinDate?: string;
-  businessName?: string;
-  gstNumber?: string;
-  shopAddress?: string;
-  profilePhoto?: string;
-  companyLogo?: string;
-  shopId?: string;
-  dealerId?: string;
-}
-
-export interface AuthSession {
-  token: string;
-  user: AuthUser;
-}
-
-export interface PhoneVerificationStatusResult {
-  state: PhoneVerificationStatusResultState;
-  errorCode?: string;
-  session?: AuthSession | null;
-}
-
-export interface SmsBridgePayload {
-  senderNumber: string;
-  message: string;
-  receivedAt: string;
-  gatewayMessageId: string;
-  signature: string;
-}
-
-export interface SmsVerificationResult {
-  verified: boolean;
-  userId?: string;
-  verificationId?: string;
-  errorCode?: string;
-}
-
-export type DeviceRegisterInputAlgorithm = typeof DeviceRegisterInputAlgorithm[keyof typeof DeviceRegisterInputAlgorithm];
-
-
-export const DeviceRegisterInputAlgorithm = {
-  'RSA-SHA256': 'RSA-SHA256',
-} as const;
-
-export interface DeviceRegisterInput {
-  deviceId: string;
-  publicKey: string;
-  algorithm: DeviceRegisterInputAlgorithm;
-}
-
-export interface DeviceInfo {
-  id: string;
-  deviceId: string;
-  algorithm: string;
-  createdAt: string;
-  /** @nullable */
-  lastUsedAt: string | null;
-}
-
-export interface DeviceResult {
-  device: DeviceInfo;
-}
-
-export interface DeviceChallengeInput {
-  mobile: string;
-  deviceId: string;
-}
-
-export interface DeviceChallengeResult {
-  challengeId: string;
-  challenge: string;
-  expiresAt: string;
-}
-
-export interface DeviceAuthenticateInput {
-  challengeId: string;
-  challenge: string;
-  deviceId: string;
-  signature: string;
-  rememberMe?: boolean;
-  device?: string;
-}
-
 export interface ProfileUpdateInput {
   name?: string;
   mobile?: string;
-}
-
-export interface ChangePasswordInput {
-  currentPassword: string;
-  newPassword: string;
 }
 
 export interface NotificationsReadInput {
@@ -157,6 +34,24 @@ export interface IndividualFeatureChanges {[key: string]: boolean | null}
 
 export interface IndividualFeaturesInput {
   features: IndividualFeatureChanges;
+}
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  mobile: string;
+  role: string;
+  isActive: boolean;
+  designation?: string;
+  joinDate?: string;
+  businessName?: string;
+  gstNumber?: string;
+  shopAddress?: string;
+  profilePhoto?: string;
+  companyLogo?: string;
+  shopId?: string;
+  dealerId?: string;
 }
 
 export interface IndividualPermissions {
@@ -294,23 +189,6 @@ export interface Activity {
   createdAt: string;
 }
 
-export interface LoginInput {
-  emailOrMobile: string;
-  password: string;
-  rememberMe?: boolean;
-  device?: string;
-}
-
-export interface ForgotRequestInput {
-  email: string;
-}
-
-export interface ForgotResetInput {
-  email: string;
-  resetToken: string;
-  newPassword: string;
-}
-
 export interface OtpRequestInput {
   mobile: string;
 }
@@ -322,27 +200,13 @@ export interface OtpVerifyInput {
   device?: string;
 }
 
-export type RegisterStartInputRole = typeof RegisterStartInputRole[keyof typeof RegisterStartInputRole];
-
-
-export const RegisterStartInputRole = {
-  dealer: 'dealer',
-  reception: 'reception',
-  technician: 'technician',
-  store_manager: 'store_manager',
-  accountant: 'accountant',
-} as const;
-
 export interface RegisterStartInput {
   name: string;
-  businessName?: string;
+  businessName: string;
   email: string;
   mobile: string;
-  password: string;
   gstNumber?: string;
-  shopAddress?: string;
-  role?: RegisterStartInputRole;
-  dealerMobile?: string;
+  shopAddress: string;
 }
 
 export interface RegisterVerifyInput {
@@ -386,7 +250,6 @@ export interface StaffCreateInput {
   name: string;
   email: string;
   mobile: string;
-  password: string;
   role: StaffCreateInputRole;
   designation?: string;
   dealerId?: string;
@@ -409,14 +272,16 @@ export interface StaffUpdateInput {
   mobile?: string;
   role?: StaffUpdateInputRole;
   designation?: string;
-  password?: string;
 }
 
 export interface RegisterVerifyResult {
-  token?: string;
-  user?: AuthUser;
-  pending?: boolean;
-  message?: string;
+  user: AuthUser;
+  message: string;
+}
+
+export interface AuthSession {
+  token: string;
+  user: AuthUser;
 }
 
 export interface Dealer {
@@ -1382,24 +1247,12 @@ export type AuthOtpResend200 = {
   message: string;
 };
 
-export type AuthDevicesList200 = {
-  devices: DeviceInfo[];
-};
-
-export type AuthForgotVerify200 = {
-  resetToken: string;
-};
-
 export type AuthMe200 = {
   user: AuthUser;
 };
 
 export type AuthMeUpdate200 = {
   user: AuthUser;
-};
-
-export type AuthChangePassword200 = {
-  message: string;
 };
 
 export type NotificationsList200 = {
@@ -1810,6 +1663,11 @@ export type RoleFeaturesUpdate200Matrix = {[key: string]: {[key: string]: boolea
 
 export type RoleFeaturesUpdate200 = {
   matrix: RoleFeaturesUpdate200Matrix;
+};
+
+export type AuthActivateInvite200 = {
+  message: string;
+  user: AuthUser;
 };
 
 export type ChatContactsMatch200 = {

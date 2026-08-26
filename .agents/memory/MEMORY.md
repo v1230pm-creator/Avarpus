@@ -40,3 +40,4 @@
 - [Static web API bootstrapping](static-web-api-bootstrapping.md) — configure bearer API client before React Query hooks mount; external builds must require a public API origin.
 - [Wouter query navigation](wouter-query-navigation.md) — query-only login transitions need local React step state to rerender reliably.
 - [Local Expo native modules](local-expo-native-modules.md) — use autolinked modules under artifacts/mobile/modules; Expo Go must fail closed for sensitive native features.
+- [OTP-only account access](otp-only-account-access.md) — mobile OTP is the sole primary sign-in path; saved email is recovery-only, while retired SIM/device data stays non-destructively archived.

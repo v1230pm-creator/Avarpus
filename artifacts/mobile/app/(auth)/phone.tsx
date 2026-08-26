@@ -6,27 +6,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import {
-  authDeviceAuthenticate,
-  authDeviceChallenge,
-  authOtpRequest,
-} from '@workspace/api-client-react';
+import { authOtpRequest } from '@workspace/api-client-react';
 import { useAuth } from '@/context/AuthContext';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
-import { hasNativeDeviceKeySupport, signWithDeviceKey } from '@/utils/deviceKey';
-import { getSimVerificationDeviceId } from '@/utils/simVerification';
 
 export default function PhoneScreen() {
-  const { signedOutNotice, clearSignedOutNotice, adoptSession } = useAuth();
+  const { signedOutNotice, clearSignedOutNotice } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const [mobile, setMobile] = useState('');
   const [error, setError] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
-  const [deviceKeyLoading, setDeviceKeyLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [termsReady, setTermsReady] = useState(false);
 
@@ -60,44 +53,6 @@ export default function PhoneScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setOtpLoading(false);
-    }
-  };
-
-  const handleDeviceKeyLogin = async () => {
-    if (mobile.length !== 10) {
-      setError('Enter the mobile number linked to this device key.');
-      return;
-    }
-    setError('');
-    setDeviceKeyLoading(true);
-    try {
-      const deviceId = await getSimVerificationDeviceId();
-      const challenge = await authDeviceChallenge({ mobile, deviceId });
-      const signature = await signWithDeviceKey(challenge.challenge, deviceId);
-      if (!signature) {
-        throw new Error('This build does not support Android Keystore device keys.');
-      }
-      const session = await authDeviceAuthenticate({
-        challengeId: challenge.challengeId,
-        challenge: challenge.challenge,
-        deviceId,
-        signature,
-        rememberMe,
-        device: 'Android device key',
-      });
-      await adoptSession(session);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(tabs)');
-    } catch (err: any) {
-      const message = err?.data?.message ?? err?.message;
-      setError(
-        message === 'Device is not registered'
-          ? 'This device has not been enrolled yet. Verify your SIM first.'
-          : message || 'Unable to sign in with this device key. Please verify your SIM instead.',
-      );
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setDeviceKeyLoading(false);
     }
   };
 
@@ -167,35 +122,7 @@ export default function PhoneScreen() {
             </View>
             <Text style={[styles.checkboxText, { color: colors.foreground }]}>Keep me signed in on this device</Text>
           </TouchableOpacity>
-          <Button title={otpLoading ? 'Sending code...' : 'Continue'} onPress={handleSendOtp} loading={otpLoading} fullWidth size="lg" />
-           <TouchableOpacity
-             onPress={() => router.push({ pathname: '/(auth)/sim-verify', params: { mobile } })}
-             style={styles.simLink}
-             accessibilityRole="link"
-             testID="open-sim-verify"
-           >
-             <Feather name="shield" size={15} color={colors.primary} />
-             <Text style={[styles.simLinkText, { color: colors.primary }]}>Verify securely with your SIM</Text>
-           </TouchableOpacity>
-           {hasNativeDeviceKeySupport() && (
-             <TouchableOpacity
-               onPress={handleDeviceKeyLogin}
-               style={styles.deviceKeyLink}
-               disabled={deviceKeyLoading || otpLoading}
-               accessibilityRole="button"
-               accessibilityLabel="Sign in with device key"
-               testID="device-key-login"
-             >
-               {deviceKeyLoading ? (
-                 <ActivityIndicator size="small" color={colors.primary} />
-               ) : (
-                 <Feather name="key" size={15} color={colors.primary} />
-               )}
-               <Text style={[styles.simLinkText, { color: colors.primary }]}>
-                 {deviceKeyLoading ? 'Verifying secure device…' : 'Sign in with device key'}
-               </Text>
-             </TouchableOpacity>
-           )}
+           <Button title={otpLoading ? 'Sending code...' : 'Continue'} onPress={handleSendOtp} loading={otpLoading} fullWidth size="lg" />
           <Text style={[styles.privacy, { color: colors.textMuted }]}>By continuing, you agree to receive a verification code by SMS.</Text>
           <View style={styles.accountLinks}>
             <TouchableOpacity onPress={() => router.push('/(auth)/register')} accessibilityRole="link">
@@ -231,9 +158,6 @@ const styles = StyleSheet.create({
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   checkboxText: { flex: 1, fontSize: 14, lineHeight: 20, fontFamily: 'Inter_400Regular' },
   privacy: { fontSize: 12, lineHeight: 18, fontFamily: 'Inter_400Regular', textAlign: 'center', marginTop: 4 },
-  simLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 32, marginTop: -4 },
-  deviceKeyLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 32, marginTop: -6 },
-  simLinkText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   accountLinks: { alignItems: 'center', gap: 10, marginTop: 6 },
   accountText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
   alertBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 8, borderWidth: 1, marginBottom: 2 },

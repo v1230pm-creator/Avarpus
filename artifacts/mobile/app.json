@@ -24,7 +24,7 @@
     "android": {
       "package": "com.vmcelectronicerp.app",
       "versionCode": 16,
-      "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES", "android.permission.SEND_SMS"]
+      "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES"]
     },
     "web": {
       "favicon": "./assets/images/avarpus-favicon.png"

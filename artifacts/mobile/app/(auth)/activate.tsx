@@ -4,7 +4,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useAuthActivateInvite } from '@workspace/api-client-react';
-import { useAuth } from '@/context/AuthContext';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -13,7 +12,6 @@ import { useColors } from '@/hooks/useColors';
 export default function ActivateScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { adoptSession } = useAuth();
   const colors = useColors();
 
   const params = useLocalSearchParams<{ token?: string }>();
@@ -31,9 +29,8 @@ export default function ActivateScreen() {
     activateMutation.mutate(
       { data: { token: token.trim(), name: name.trim() } },
       {
-        onSuccess: async (session) => {
-          await adoptSession(session);
-          router.replace('/(tabs)');
+        onSuccess: () => {
+          router.replace('/(auth)/phone');
         },
         onError: (err: any) => {
           setError(err?.data?.message ?? err?.message ?? 'Activation failed. The token may be invalid or expired.');
@@ -56,7 +53,7 @@ export default function ActivateScreen() {
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Activate Account</Text>
           <Text style={[styles.subtitle, { color: colors.textMuted, fontFamily: 'Inter_400Regular' }]}>
-            Enter the single-use activation token you received. Future sign-ins use a mobile OTP.
+            Enter the single-use activation token you received. You will then sign in with a mobile OTP.
           </Text>
         </View>
 
@@ -86,7 +83,7 @@ export default function ActivateScreen() {
             autoCapitalize="words"
           />
           <Button 
-            title="Activate Account" 
+            title="Activate & Continue" 
             onPress={handleActivate} 
             loading={activateMutation.isPending} 
             fullWidth 

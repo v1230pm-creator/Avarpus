@@ -107,12 +107,14 @@ let roomAWithProvider: { id: string };
 
 const PASSWORD = "Test1234!";
 
-async function signIn(emailOrMobile: string, password: string): Promise<string> {
-  const res = await request(app)
-    .post("/api/auth/login")
-    .send({ emailOrMobile, password });
-  if (res.status !== 200) throw new Error(`Login failed for ${emailOrMobile}: ${JSON.stringify(res.body)}`);
-  return res.body.token as string;
+async function signIn(emailOrMobile: string, _password: string): Promise<string> {
+  const [user] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.email, emailOrMobile))
+    .limit(1);
+  if (!user) throw new Error(`Test user not found: ${emailOrMobile}`);
+  return createSession(user.id, false, "test fixture");
 }
 
 beforeAll(async () => {
@@ -230,13 +232,19 @@ describe("Customer invite: single-use and expiry", () => {
     expect(rawToken).not.toBe(sha256(rawToken));
   });
 
-  it("can activate the invite (creates customer account + session)", async () => {
+  it("can activate the invite without creating a session", async () => {
     const res = await request(app)
       .post("/api/auth/activate-invite")
       .send({ token: rawToken, name: "Customer Test", password: PASSWORD });
     expect(res.status).toBe(200);
     expect(res.body.user.role).toBe("customer");
-    customerTokenA = res.body.token;
+    expect(res.body.token).toBeUndefined();
+    const sessions = await db
+      .select()
+      .from(sessionsTable)
+      .where(eq(sessionsTable.userId, res.body.user.id));
+    expect(sessions).toHaveLength(0);
+    customerTokenA = await createSession(res.body.user.id, false, "test fixture");
     customerUserA = { id: res.body.user.id };
   });
 
@@ -1209,7 +1217,8 @@ describe("Chat media download: access control", () => {
       .post("/api/auth/activate-invite")
       .send({ token: freshToken, name: "Fresh", password: PASSWORD });
     expect(activateRes.status).toBe(200);
-    const freshCustomerToken: string = activateRes.body.token;
+    expect(activateRes.body.token).toBeUndefined();
+    const freshCustomerToken = await createSession(activateRes.body.user.id, false, "test fixture");
 
     // freshCustomer is NOT a member of roomA
     const res = await request(app)

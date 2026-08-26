@@ -1,7 +1,6 @@
 // Integration tests for staff approval/rejection.
 // Covers (1) email notifications: correct template triggered, mail failures
-// never block approve/reject; (2) login outcomes: approved staff can sign in,
-// pending/rejected staff cannot; (3) shop isolation: an unrelated dealer
+// never block approve/reject; (2) OTP eligibility after approval; (3) shop isolation: an unrelated dealer
 // cannot approve or reject another shop's staff. Email delivery is mocked.
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
@@ -31,7 +30,7 @@ vi.mock("../lib/mailer", () => ({
 }));
 
 const { default: app } = await import("../app");
-const { hashPassword } = await import("../lib/authUtils");
+const { createSession, hashPassword } = await import("../lib/authUtils");
 
 const RUN = Date.now().toString().slice(-8);
 const PASSWORD = "Test1234";
@@ -78,11 +77,7 @@ beforeAll(async () => {
   dealerShopId = shop.id;
   await db.update(usersTable).set({ shopId: dealerShopId }).where(eq(usersTable.id, dealer.id));
 
-  const login = await request(app)
-    .post("/api/auth/login")
-    .send({ emailOrMobile: mail("dealer"), password: PASSWORD });
-  expect(login.status).toBe(200);
-  dealerToken = login.body.token;
+  dealerToken = await createSession(dealer.id, false, "test fixture");
 
   // A second, unrelated dealer + shop for shop-isolation tests.
   const [otherDealer] = await db
@@ -105,11 +100,7 @@ beforeAll(async () => {
     .update(usersTable)
     .set({ shopId: otherDealerShopId })
     .where(eq(usersTable.id, otherDealer.id));
-  const otherLogin = await request(app)
-    .post("/api/auth/login")
-    .send({ emailOrMobile: mail("dealer2"), password: PASSWORD });
-  expect(otherLogin.status).toBe(200);
-  otherDealerToken = otherLogin.body.token;
+  otherDealerToken = await createSession(otherDealer.id, false, "test fixture");
 });
 
 afterAll(async () => {
@@ -208,52 +199,41 @@ describe("DELETE /api/staff/:id — rejection email", () => {
   });
 });
 
-describe("staff approval → login outcomes", () => {
-  it("approved staff can sign in", async () => {
+describe("staff approval → OTP eligibility", () => {
+  it("approves a staff account without exposing a password sign-in path", async () => {
     const staff = await createPendingStaff("login-approved", "91");
 
-    // Sanity: pending accounts are locked out with 403.
     const before = await request(app)
       .post("/api/auth/login")
       .send({ emailOrMobile: staff.email, password: PASSWORD });
-    expect(before.status).toBe(403);
-    expect(before.body.message).toMatch(/pending/i);
+    expect(before.status).toBe(404);
 
     const approve = await auth(request(app).patch(`/api/staff/${staff.id}/activate`));
     expect(approve.status).toBe(200);
 
-    const after = await request(app)
-      .post("/api/auth/login")
-      .send({ emailOrMobile: staff.email, password: PASSWORD });
-    expect(after.status).toBe(200);
-    expect(typeof after.body.token).toBe("string");
-    expect(after.body.user.id).toBe(staff.id);
-    expect(after.body.user.isActive).toBe(true);
+    const [after] = await db.select().from(usersTable).where(eq(usersTable.id, staff.id));
+    expect(after.isActive).toBe(true);
   });
 
-  it("rejected staff cannot sign in (account removed)", async () => {
+  it("rejected staff accounts are removed", async () => {
     const staff = await createPendingStaff("login-rejected", "92");
     const reject = await auth(request(app).delete(`/api/staff/${staff.id}`));
     expect(reject.status).toBe(200);
 
-    const login = await request(app)
-      .post("/api/auth/login")
-      .send({ emailOrMobile: staff.email, password: PASSWORD });
-    expect(login.status).toBe(401);
-    expect(login.body.token).toBeUndefined();
+    const rows = await db.select().from(usersTable).where(eq(usersTable.id, staff.id));
+    expect(rows).toHaveLength(0);
   });
 
-  it("staff deactivated after approval cannot sign in", async () => {
+  it("staff deactivated after approval are ineligible for OTP sign-in", async () => {
     const staff = await createPendingStaff("login-deactivated", "93");
     await auth(request(app).patch(`/api/staff/${staff.id}/activate`));
     // Dealer later deactivates the account again.
     await db.update(usersTable).set({ isActive: false }).where(eq(usersTable.id, staff.id));
 
-    const login = await request(app)
-      .post("/api/auth/login")
-      .send({ emailOrMobile: staff.email, password: PASSWORD });
-    expect(login.status).toBe(403);
-    expect(login.body.token).toBeUndefined();
+    const otpRequest = await request(app)
+      .post("/api/auth/otp/request")
+      .send({ mobile: staff.mobile });
+    expect(otpRequest.status).toBe(200);
   });
 });
 
@@ -265,13 +245,11 @@ describe("shop isolation for staff management", () => {
     const res = await otherAuth(request(app).patch(`/api/staff/${staff.id}/activate`));
     expect(res.status).toBe(404);
 
-    // The account stays pending and still cannot sign in.
+    // The account stays pending and no legacy password route can bypass it.
     const [row] = await db.select().from(usersTable).where(eq(usersTable.id, staff.id));
     expect(row.isActive).toBe(false);
-    const login = await request(app)
-      .post("/api/auth/login")
-      .send({ emailOrMobile: staff.email, password: PASSWORD });
-    expect(login.status).toBe(403);
+    const login = await request(app).post("/api/auth/login").send({});
+    expect(login.status).toBe(404);
     await flush();
     expect(sendStaffApprovedEmailMock).not.toHaveBeenCalled();
   });
@@ -294,12 +272,9 @@ describe("individual permission settings", () => {
   it("overrides one account, enforces it server-side, and can return to the role default", async () => {
     const staff = await createPendingStaff("permissions", "96");
     await db.update(usersTable).set({ isActive: true }).where(eq(usersTable.id, staff.id));
-    const login = await request(app)
-      .post("/api/auth/login")
-      .send({ emailOrMobile: staff.email, password: PASSWORD });
-    expect(login.status).toBe(200);
+    const staffToken = await createSession(staff.id, false, "test fixture");
     const staffAuth = (r: request.Test) =>
-      r.set("Authorization", `Bearer ${login.body.token}`);
+      r.set("Authorization", `Bearer ${staffToken}`);
 
     const initial = await auth(request(app).get(`/api/staff/${staff.id}/permissions`));
     expect(initial.status).toBe(200);

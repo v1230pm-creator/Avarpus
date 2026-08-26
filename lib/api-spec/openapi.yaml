@@ -21,24 +21,6 @@ tags:
   - name: chat
     description: Real-time chat rooms, messages, read receipts and call tokens.
 paths:
-  /auth/login:
-    post:
-      operationId: authLogin
-      tags: [auth]
-      summary: Sign in with email/mobile and password
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LoginInput"
-      responses:
-        "200":
-          description: Signed in
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthSession"
   /auth/otp/request:
     post:
       operationId: authOtpRequest
@@ -99,147 +81,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthSession"
-  /auth/phone-verification/start:
-    post:
-      operationId: authPhoneVerificationStart
-      tags: [auth]
-      summary: Start a one-time SIM-originated phone verification
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PhoneVerificationStartInput"
-      responses:
-        "200":
-          description: SMS challenge created. The raw challenge is returned only to the Android app so it can be placed in a user-confirmed SMS.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PhoneVerificationStartResult"
-  /auth/phone-verification/status:
-    post:
-      operationId: authPhoneVerificationStatus
-      tags: [auth]
-      summary: Poll the status of a SIM verification and redeem a completed session once
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PhoneVerificationStatusInput"
-      responses:
-        "200":
-          description: Current verification state
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PhoneVerificationStatusResult"
-  /auth/sms-verification:
-    post:
-      operationId: authSmsVerification
-      tags: [auth]
-      summary: Trusted signed callback from the controlled Avarpus SMS bridge
-      description: This endpoint is for the SMS bridge only. It requires an HMAC signature; mobile clients must never call it as proof of verification.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SmsBridgePayload"
-      responses:
-        "200":
-          description: SMS was validated and the verification state updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SmsVerificationResult"
-  /auth/devices/register:
-    post:
-      operationId: authDeviceRegister
-      tags: [auth]
-      summary: Register a device public key after SIM verification
-      security: [{ bearerAuth: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/DeviceRegisterInput"
-      responses:
-        "200":
-          description: Device registered
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DeviceResult"
-  /auth/devices:
-    get:
-      operationId: authDevicesList
-      tags: [auth]
-      summary: List the current account's active device keys
-      security: [{ bearerAuth: [] }]
-      responses:
-        "200":
-          description: Active registered devices
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  devices:
-                    type: array
-                    items: { $ref: "#/components/schemas/DeviceInfo" }
-                required: [devices]
-  /auth/devices/{id}:
-    delete:
-      operationId: authDeviceRevoke
-      tags: [auth]
-      summary: Revoke a lost or stolen device key
-      security: [{ bearerAuth: [] }]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string }
-      responses:
-        "200":
-          description: Device revoked
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Message" }
-  /auth/device/challenge:
-    post:
-      operationId: authDeviceChallenge
-      tags: [auth]
-      summary: Create a short-lived challenge for a registered device key
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/DeviceChallengeInput" }
-      responses:
-        "200":
-          description: Device challenge
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/DeviceChallengeResult" }
-  /auth/device/authenticate:
-    post:
-      operationId: authDeviceAuthenticate
-      tags: [auth]
-      summary: Authenticate with a registered device key signature
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/DeviceAuthenticateInput" }
-      responses:
-        "200":
-          description: Signed in
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/AuthSession" }
   /auth/register/start:
     post:
       operationId: authRegisterStart
@@ -272,69 +113,12 @@ paths:
       responses:
         "200":
           description: >
-            Dealer accounts are created and signed in (token + user).
-            Staff accounts are created pending approval (pending + message, no token).
+            Dealer account created after email verification. Sign in is always
+            completed separately with the registered mobile OTP.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/RegisterVerifyResult"
-  /auth/forgot/request:
-    post:
-      operationId: authForgotRequest
-      tags: [auth]
-      summary: Request a password reset OTP
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ForgotRequestInput"
-      responses:
-        "200":
-          description: Request accepted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Message"
-  /auth/forgot/verify:
-    post:
-      operationId: authForgotVerify
-      tags: [auth]
-      summary: Verify a password reset OTP
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RegisterVerifyInput"
-      responses:
-        "200":
-          description: Verified
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  resetToken: { type: string }
-                required: [resetToken]
-  /auth/forgot/reset:
-    post:
-      operationId: authForgotReset
-      tags: [auth]
-      summary: Reset password with a reset token
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ForgotResetInput"
-      responses:
-        "200":
-          description: Password updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Message"
   /auth/me:
     get:
       operationId: authMe
@@ -372,27 +156,6 @@ paths:
                   user:
                     $ref: "#/components/schemas/AuthUser"
                 required: [user]
-  /auth/change-password:
-    post:
-      operationId: authChangePassword
-      tags: [auth]
-      summary: Change own password (requires current password)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ChangePasswordInput"
-      responses:
-        "200":
-          description: Password changed
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message: { type: string }
-                required: [message]
   /notifications:
     get:
       operationId: notificationsList
@@ -2394,11 +2157,16 @@ paths:
               $ref: "#/components/schemas/ActivateInviteInput"
       responses:
         "200":
-          description: Account activated and signed in
+          description: Account activated. Sign in separately with mobile OTP.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthSession"
+                type: object
+                properties:
+                  message: { type: string }
+                  user:
+                    $ref: "#/components/schemas/AuthUser"
+                required: [message, user]
 
   # ── Chat capabilities ────────────────────────────────────────────────────────
   /chat/capabilities:
@@ -2704,110 +2472,11 @@ paths:
 
 components:
   schemas:
-    PhoneVerificationStartInput:
-      type: object
-      properties:
-        mobile: { type: string }
-        deviceId: { type: string }
-        devicePublicKey: { type: string }
-      required: [mobile]
-    PhoneVerificationStartResult:
-      type: object
-      properties:
-        verificationId: { type: string }
-        challenge: { type: string }
-        statusToken: { type: string }
-        expiresAt: { type: string }
-        registered: { type: boolean }
-      required: [verificationId, challenge, statusToken, expiresAt, registered]
-    PhoneVerificationStatusInput:
-      type: object
-      properties:
-        verificationId: { type: string }
-        statusToken: { type: string }
-      required: [verificationId, statusToken]
-    PhoneVerificationStatusResult:
-      type: object
-      properties:
-        state: { type: string, enum: [pending, verified, failed] }
-        errorCode: { type: string }
-        session:
-          oneOf:
-            - $ref: "#/components/schemas/AuthSession"
-            - type: "null"
-      required: [state]
-    SmsBridgePayload:
-      type: object
-      properties:
-        senderNumber: { type: string }
-        message: { type: string }
-        receivedAt: { type: string }
-        gatewayMessageId: { type: string }
-        signature: { type: string }
-      required: [senderNumber, message, receivedAt, gatewayMessageId, signature]
-    SmsVerificationResult:
-      type: object
-      properties:
-        verified: { type: boolean }
-        userId: { type: string }
-        verificationId: { type: string }
-        errorCode: { type: string }
-      required: [verified]
-    DeviceRegisterInput:
-      type: object
-      properties:
-        deviceId: { type: string }
-        publicKey: { type: string }
-        algorithm: { type: string, enum: [RSA-SHA256] }
-      required: [deviceId, publicKey, algorithm]
-    DeviceInfo:
-      type: object
-      properties:
-        id: { type: string }
-        deviceId: { type: string }
-        algorithm: { type: string }
-        createdAt: { type: string }
-        lastUsedAt: { type: [string, "null"] }
-      required: [id, deviceId, algorithm, createdAt, lastUsedAt]
-    DeviceResult:
-      type: object
-      properties:
-        device: { $ref: "#/components/schemas/DeviceInfo" }
-      required: [device]
-    DeviceChallengeInput:
-      type: object
-      properties:
-        mobile: { type: string }
-        deviceId: { type: string }
-      required: [mobile, deviceId]
-    DeviceChallengeResult:
-      type: object
-      properties:
-        challengeId: { type: string }
-        challenge: { type: string }
-        expiresAt: { type: string }
-      required: [challengeId, challenge, expiresAt]
-    DeviceAuthenticateInput:
-      type: object
-      properties:
-        challengeId: { type: string }
-        challenge: { type: string }
-        deviceId: { type: string }
-        signature: { type: string }
-        rememberMe: { type: boolean }
-        device: { type: string }
-      required: [challengeId, challenge, deviceId, signature]
     ProfileUpdateInput:
       type: object
       properties:
         name: { type: string }
         mobile: { type: string }
-    ChangePasswordInput:
-      type: object
-      properties:
-        currentPassword: { type: string }
-        newPassword: { type: string }
-      required: [currentPassword, newPassword]
     NotificationsReadInput:
       type: object
       properties:
@@ -2971,26 +2640,6 @@ components:
         details: { type: object, nullable: true, additionalProperties: true }
         createdAt: { type: string }
       required: [id, type, action, userName, userRole, createdAt]
-    LoginInput:
-      type: object
-      properties:
-        emailOrMobile: { type: string }
-        password: { type: string }
-        rememberMe: { type: boolean }
-        device: { type: string }
-      required: [emailOrMobile, password]
-    ForgotRequestInput:
-      type: object
-      properties:
-        email: { type: string }
-      required: [email]
-    ForgotResetInput:
-      type: object
-      properties:
-        email: { type: string }
-        resetToken: { type: string }
-        newPassword: { type: string }
-      required: [email, resetToken, newPassword]
     OtpRequestInput:
       type: object
       properties:
@@ -3011,14 +2660,9 @@ components:
         businessName: { type: string }
         email: { type: string }
         mobile: { type: string }
-        password: { type: string }
         gstNumber: { type: string }
         shopAddress: { type: string }
-        role:
-          type: string
-          enum: [dealer, reception, technician, store_manager, accountant]
-        dealerMobile: { type: string }
-      required: [name, email, mobile, password]
+      required: [name, businessName, email, mobile, shopAddress]
     RegisterVerifyInput:
       type: object
       properties:
@@ -3073,11 +2717,10 @@ components:
         name: { type: string }
         email: { type: string }
         mobile: { type: string }
-        password: { type: string }
         role: { type: string, enum: [reception, technician, store_manager, accountant, dealer_owner, dealer_staff] }
         designation: { type: string }
         dealerId: { type: string }
-      required: [name, email, mobile, password, role]
+      required: [name, email, mobile, role]
     StaffUpdateInput:
       type: object
       properties:
@@ -3085,15 +2728,13 @@ components:
         mobile: { type: string }
         role: { type: string, enum: [reception, technician, store_manager, accountant, dealer_owner, dealer_staff] }
         designation: { type: string }
-        password: { type: string }
     RegisterVerifyResult:
       type: object
       properties:
-        token: { type: string }
         user:
           $ref: "#/components/schemas/AuthUser"
-        pending: { type: boolean }
         message: { type: string }
+      required: [user, message]
     AuthSession:
       type: object
       properties:

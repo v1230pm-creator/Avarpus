@@ -12,5 +12,4 @@ export interface StaffUpdateInput {
   mobile?: string;
   role?: StaffUpdateInputRole;
   designation?: string;
-  password?: string;
 }
