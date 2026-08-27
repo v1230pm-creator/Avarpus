@@ -25,6 +25,10 @@ export interface ChatRoom {
   profilePhoto?: string;
   /** Deterministic sorted pair of participant user IDs for one-to-one rooms. */
   peerKey?: string;
+  /** True when either member has blocked the other. */
+  isBlocked?: boolean;
+  /** True when the current caller created the active block. */
+  blockedByMe?: boolean;
   isArchived: boolean;
   createdById?: string;
   createdByName?: string;

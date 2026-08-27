@@ -19,6 +19,7 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -43,6 +44,10 @@ import {
   useChatRoomsCreate,
   useChatRoomsGet,
   getChatRoomsGetQueryKey,
+  getChatRoomsListQueryKey,
+  useChatRoomsBlock,
+  useChatRoomsUnblock,
+  useChatReportsCreate,
   useChatMessagesList,
   getChatMessagesListQueryKey,
   useChatMessagesSend,
@@ -50,7 +55,11 @@ import {
   useChatUploadUrl,
   getChatMessageMediaUrl,
 } from '@workspace/api-client-react';
-import type { ChatMessage, ChatRoomCreateInputKind } from '@workspace/api-client-react';
+import type {
+  ChatMessage,
+  ChatReportReason,
+  ChatRoomCreateInputKind,
+} from '@workspace/api-client-react';
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -493,6 +502,7 @@ export default function ChatScreen() {
   const router = useRouter();
   const colors = useColors();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const params = useLocalSearchParams<{
     id: string;
@@ -650,8 +660,126 @@ export default function ChatScreen() {
   });
   const room = roomData?.room;
   const roomName = room?.name ?? name;
+  const isBlocked = room?.isBlocked === true;
+  const blockedByMe = room?.blockedByMe === true;
   const callEnabled =
-    voiceAvailable && !!resolvedRoomId && Platform.OS !== 'web';
+    voiceAvailable && !!resolvedRoomId && Platform.OS !== 'web' && !isBlocked;
+  const blockMutation = useChatRoomsBlock();
+  const unblockMutation = useChatRoomsUnblock();
+  const reportMutation = useChatReportsCreate();
+  const pendingReportRef = useRef<{ reason: ChatReportReason; id: string } | null>(
+    null,
+  );
+
+  const refreshRoomSafetyState = useCallback(async () => {
+    if (!resolvedRoomId) return;
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: getChatRoomsGetQueryKey(resolvedRoomId),
+      }),
+      queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() }),
+    ]);
+  }, [queryClient, resolvedRoomId]);
+
+  const submitReport = useCallback(
+    (reason: ChatReportReason) => {
+      if (!resolvedRoomId) return;
+      const clientRequestId =
+        pendingReportRef.current?.reason === reason
+          ? pendingReportRef.current.id
+          : makeClientRequestId('report');
+      pendingReportRef.current = { reason, id: clientRequestId };
+      reportMutation.mutate(
+        {
+          roomId: resolvedRoomId,
+          data: { reason, clientRequestId },
+        },
+        {
+          onSuccess: () => {
+            if (pendingReportRef.current?.id === clientRequestId) {
+              pendingReportRef.current = null;
+            }
+            Alert.alert('Report submitted', 'Thank you. The report has been saved for review.');
+          },
+          onError: (err: any) => {
+            Alert.alert(
+              'Could not submit report',
+              err?.data?.message ?? err?.message ?? 'Please try again.',
+            );
+          },
+        },
+      );
+    },
+    [reportMutation, resolvedRoomId],
+  );
+
+  const openReportReasons = useCallback(() => {
+    Alert.alert('Report conversation', 'Choose the main reason for your report.', [
+      { text: 'Spam', onPress: () => submitReport('spam') },
+      { text: 'Harassment', onPress: () => submitReport('harassment') },
+      { text: 'Scam', onPress: () => submitReport('scam') },
+      { text: 'Inappropriate content', onPress: () => submitReport('inappropriate') },
+      { text: 'Other', onPress: () => submitReport('other') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [submitReport]);
+
+  const toggleBlock = useCallback(() => {
+    if (!resolvedRoomId) return;
+    const mutation = blockedByMe ? unblockMutation : blockMutation;
+    const action = blockedByMe ? 'Unblock' : 'Block';
+    Alert.alert(
+      `${action} ${roomName}?`,
+      blockedByMe
+        ? 'They will be able to message and call you again.'
+        : 'Neither of you will be able to send messages or start calls. Existing history stays readable.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: action,
+          style: blockedByMe ? 'default' : 'destructive',
+          onPress: () =>
+            mutation.mutate(
+              { roomId: resolvedRoomId },
+              {
+                onSuccess: refreshRoomSafetyState,
+                onError: (err: any) =>
+                  Alert.alert(
+                    `${action} failed`,
+                    err?.data?.message ?? err?.message ?? 'Please try again.',
+                  ),
+              },
+            ),
+        },
+      ],
+    );
+  }, [
+    blockMutation,
+    blockedByMe,
+    refreshRoomSafetyState,
+    resolvedRoomId,
+    roomName,
+    unblockMutation,
+  ]);
+
+  const openChatMenu = useCallback(() => {
+    if (room?.scope !== 'global_direct') {
+      Alert.alert('Chat options', 'Avarpus chat is for communication only.');
+      return;
+    }
+    const options: any[] = [
+      { text: 'Report', onPress: openReportReasons },
+    ];
+    if (!isBlocked || blockedByMe) {
+      options.push({
+        text: blockedByMe ? 'Unblock' : 'Block',
+        style: blockedByMe ? 'default' : 'destructive',
+        onPress: toggleBlock,
+      });
+    }
+    options.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert('Chat options', undefined, options);
+  }, [blockedByMe, isBlocked, openReportReasons, room?.scope, toggleBlock]);
 
   // ── Messages ────────────────────────────────────────────────────────────
   const {
@@ -690,7 +818,7 @@ export default function ChatScreen() {
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim();
-    if (!trimmed || !resolvedRoomId) return;
+    if (!trimmed || !resolvedRoomId || isBlocked) return;
     const clientRequestId =
       pendingSendRef.current?.body === trimmed
         ? pendingSendRef.current.clientRequestId
@@ -728,7 +856,7 @@ export default function ChatScreen() {
         },
       },
     );
-  }, [text, resolvedRoomId, user, sendMutation, msgsRefetch]);
+  }, [text, resolvedRoomId, isBlocked, user, sendMutation, msgsRefetch]);
 
   // ── Upload URL mutation ─────────────────────────────────────────────────
   const uploadUrlMutation = useChatUploadUrl();
@@ -1061,6 +1189,7 @@ export default function ChatScreen() {
   // ── Derived flags ───────────────────────────────────────────────────────
   const attachEnabled =
     providerAvailable &&
+    !isBlocked &&
     !!resolvedRoomId &&
     uploadProgress === null &&
     !isSendingUpload &&
@@ -1068,6 +1197,7 @@ export default function ChatScreen() {
 
   const micEnabled =
     providerAvailable &&
+    !isBlocked &&
     !!resolvedRoomId &&
     uploadProgress === null &&
     !isSendingUpload &&
@@ -1147,9 +1277,7 @@ export default function ChatScreen() {
         <TouchableOpacity
           style={styles.disabledHeaderAction}
           accessibilityLabel="Open chat menu"
-          onPress={() =>
-            Alert.alert('Chat options', 'Avarpus chat is for communication only.')
-          }
+          onPress={openChatMenu}
         >
           <Feather name="more-vertical" size={21} color={colors.foreground} />
         </TouchableOpacity>
@@ -1334,6 +1462,25 @@ export default function ChatScreen() {
         )}
       </View>
 
+      {isBlocked && (
+        <View
+          style={[
+            styles.errorBar,
+            {
+              backgroundColor: colors.destructive + '12',
+              borderTopColor: colors.destructive + '30',
+            },
+          ]}
+        >
+          <Feather name="slash" size={14} color={colors.destructive} />
+          <Text style={[styles.errorText, { color: colors.destructive }]}>
+            {blockedByMe
+              ? 'You blocked this contact. Existing messages remain available.'
+              : 'This contact blocked the conversation. Existing messages remain available.'}
+          </Text>
+        </View>
+      )}
+
       {/* Recording overlay (replaces composer while recording) */}
       {isRecording && (
         <View
@@ -1477,7 +1624,7 @@ export default function ChatScreen() {
               placeholderTextColor={colors.mutedForeground}
               value={text}
               onChangeText={setText}
-              editable={providerAvailable && !!resolvedRoomId}
+              editable={providerAvailable && !!resolvedRoomId && !isBlocked}
               multiline
               returnKeyType="send"
               onSubmitEditing={handleSend}
@@ -1511,12 +1658,12 @@ export default function ChatScreen() {
 
           <TouchableOpacity
             onPress={text.trim() ? handleSend : handleMicPress}
-            disabled={text.trim() ? !resolvedRoomId || !providerAvailable : !micEnabled}
+            disabled={text.trim() ? !resolvedRoomId || !providerAvailable || isBlocked : !micEnabled}
             style={[
               styles.sendBtn,
               {
                 backgroundColor:
-                  text.trim() && resolvedRoomId && providerAvailable
+                  text.trim() && resolvedRoomId && providerAvailable && !isBlocked
                     ? colors.primary
                     : micEnabled
                     ? colors.success

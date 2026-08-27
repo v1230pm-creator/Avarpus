@@ -8,7 +8,7 @@
  * - Invite activation guard
  */
 import React from 'react';
-import { Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -96,6 +96,9 @@ const mockUseChatMessagesList = jest.fn();
 const mockUseChatMessagesSend = jest.fn();
 const mockUseChatMarkRead = jest.fn();
 const mockUseChatUploadUrl = jest.fn();
+const mockUseChatRoomsBlock = jest.fn();
+const mockUseChatRoomsUnblock = jest.fn();
+const mockUseChatReportsCreate = jest.fn();
 const mockUseRepairsList = jest.fn();
 
 jest.mock('@workspace/api-client-react', () => ({
@@ -108,6 +111,9 @@ jest.mock('@workspace/api-client-react', () => ({
   useChatMessagesSend: (...args: any[]) => mockUseChatMessagesSend(...args),
   useChatMarkRead: (...args: any[]) => mockUseChatMarkRead(...args),
   useChatUploadUrl: (...args: any[]) => mockUseChatUploadUrl(...args),
+  useChatRoomsBlock: (...args: any[]) => mockUseChatRoomsBlock(...args),
+  useChatRoomsUnblock: (...args: any[]) => mockUseChatRoomsUnblock(...args),
+  useChatReportsCreate: (...args: any[]) => mockUseChatReportsCreate(...args),
   useRepairsList: (...args: any[]) => mockUseRepairsList(...args),
   // Query key helpers
   getChatRoomsListQueryKey: () => ['/api/chat/rooms'],
@@ -117,6 +123,13 @@ jest.mock('@workspace/api-client-react', () => ({
   // Media URL — private per-message endpoint, not generic storage
   getChatMessageMediaUrl: (roomId: string, messageId: string) =>
     `/api/chat/rooms/${roomId}/messages/${messageId}/media`,
+}));
+
+jest.mock('@tanstack/react-query', () => ({
+  ...jest.requireActual('@tanstack/react-query'),
+  useQueryClient: () => ({
+    invalidateQueries: jest.fn().mockResolvedValue(undefined),
+  }),
 }));
 
 const mockRequestContactsPermissionsAsync = jest.fn();
@@ -265,6 +278,9 @@ beforeEach(() => {
   mockUseChatMessagesSend.mockReturnValue({ mutate: jest.fn(), isPending: false });
   mockUseChatMarkRead.mockReturnValue({ mutate: jest.fn() });
   mockUseChatUploadUrl.mockReturnValue({ mutate: jest.fn(), isPending: false });
+  mockUseChatRoomsBlock.mockReturnValue({ mutate: jest.fn(), isPending: false });
+  mockUseChatRoomsUnblock.mockReturnValue({ mutate: jest.fn(), isPending: false });
+  mockUseChatReportsCreate.mockReturnValue({ mutate: jest.fn(), isPending: false });
   mockUseRepairsList.mockReturnValue({
     data: { repairs: [], total: 0 },
     isLoading: false,
@@ -742,6 +758,106 @@ describe('Chat screen — provider disabled', () => {
 
     expect(push).toHaveBeenCalledWith(
       '/(tabs)/customers/chat/call/room-1?mode=audio&name=Alice%20%26%20Bob',
+    );
+  });
+});
+
+describe('Chat screen — global direct safety controls', () => {
+  beforeEach(() => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'room-1', name: 'Alice' });
+    mockUseChatCapabilities.mockReturnValue({
+      data: { matrixAvailable: true, livekitAvailable: true, e2eeEnabled: false },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseChatMessagesList.mockReturnValue({
+      data: { messages: [], hasMore: false },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+  });
+
+  it('keeps history visible while disabling calls and composing for a blocked room', () => {
+    mockUseChatRoomsGet.mockReturnValue({
+      data: {
+        room: {
+          id: 'room-1',
+          name: 'Alice',
+          kind: 'direct',
+          scope: 'global_direct',
+          shopId: null,
+          isBlocked: true,
+          blockedByMe: true,
+          isArchived: false,
+          createdAt: '2026-01-01T10:00:00Z',
+        },
+      },
+    });
+
+    render(<ChatRoomScreen />);
+
+    expect(
+      screen.getByText('You blocked this contact. Existing messages remain available.'),
+    ).toBeTruthy();
+    expect(screen.getByText('No messages yet. Send the first one!')).toBeTruthy();
+    expect(screen.getByLabelText('Voice calls unavailable')).toBeTruthy();
+    expect(screen.getByPlaceholderText('Message…').props.editable).toBe(false);
+  });
+
+  it('offers report and unblock actions from the direct-room menu', () => {
+    const unblockMutate = jest.fn();
+    const reportMutate = jest.fn();
+    mockUseChatRoomsUnblock.mockReturnValue({ mutate: unblockMutate, isPending: false });
+    mockUseChatReportsCreate.mockReturnValue({ mutate: reportMutate, isPending: false });
+    mockUseChatRoomsGet.mockReturnValue({
+      data: {
+        room: {
+          id: 'room-1',
+          name: 'Alice',
+          kind: 'direct',
+          scope: 'global_direct',
+          shopId: null,
+          isBlocked: true,
+          blockedByMe: true,
+          isArchived: false,
+          createdAt: '2026-01-01T10:00:00Z',
+        },
+      },
+    });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+
+    render(<ChatRoomScreen />);
+    fireEvent.press(screen.getByLabelText('Open chat menu'));
+
+    const menuButtons = alertSpy.mock.calls[0][2] ?? [];
+    expect(menuButtons.map((button: any) => button.text)).toEqual(
+      expect.arrayContaining(['Report', 'Unblock', 'Cancel']),
+    );
+    menuButtons.find((button: any) => button.text === 'Report')?.onPress?.();
+    const firstReasonButtons =
+      alertSpy.mock.calls.find((call) => call[0] === 'Report conversation')?.[2] ?? [];
+    firstReasonButtons.find((button: any) => button.text === 'Spam')?.onPress?.();
+    const firstReportId = reportMutate.mock.calls[0][0].data.clientRequestId;
+    reportMutate.mock.calls[0][1].onError(new Error('ambiguous network failure'));
+
+    fireEvent.press(screen.getByLabelText('Open chat menu'));
+    const latestMenu =
+      [...alertSpy.mock.calls].reverse().find((call) => call[0] === 'Chat options')?.[2] ?? [];
+    latestMenu.find((button: any) => button.text === 'Report')?.onPress?.();
+    const latestReasons =
+      [...alertSpy.mock.calls].reverse().find((call) => call[0] === 'Report conversation')?.[2] ?? [];
+    latestReasons.find((button: any) => button.text === 'Spam')?.onPress?.();
+    expect(reportMutate.mock.calls[1][0].data.clientRequestId).toBe(firstReportId);
+
+    menuButtons.find((button: any) => button.text === 'Unblock')?.onPress?.();
+    const confirmationButtons =
+      [...alertSpy.mock.calls].reverse().find((call) => call[0] === 'Unblock Alice?')?.[2] ?? [];
+    confirmationButtons.find((button: any) => button.text === 'Unblock')?.onPress?.();
+
+    expect(unblockMutate).toHaveBeenCalledWith(
+      { roomId: 'room-1' },
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
     );
   });
 });

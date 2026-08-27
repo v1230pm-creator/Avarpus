@@ -1199,12 +1199,53 @@ export interface ChatRoom {
   profilePhoto?: string;
   /** Deterministic sorted pair of participant user IDs for one-to-one rooms. */
   peerKey?: string;
+  /** True when either member has blocked the other. */
+  isBlocked?: boolean;
+  /** True when the current caller created the active block. */
+  blockedByMe?: boolean;
   isArchived: boolean;
   createdById?: string;
   createdByName?: string;
   createdAt: string;
   unreadCount?: number;
   lastMessage?: ChatMessage;
+}
+
+export interface ChatBlockResult {
+  isBlocked: boolean;
+  blockedByMe: boolean;
+}
+
+export type ChatReportReason = typeof ChatReportReason[keyof typeof ChatReportReason];
+
+
+export const ChatReportReason = {
+  spam: 'spam',
+  harassment: 'harassment',
+  scam: 'scam',
+  inappropriate: 'inappropriate',
+  other: 'other',
+} as const;
+
+export interface ChatReportInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  clientRequestId: string;
+  reason: ChatReportReason;
+  /** Optional message in this room that provides context. */
+  messageId?: string;
+  /** @maxLength 1000 */
+  details?: string;
+}
+
+export interface ChatReport {
+  id: string;
+  roomId: string;
+  messageId?: string;
+  reason: ChatReportReason;
+  createdAt: string;
 }
 
 export type ChatRoomCreateInputKind = typeof ChatRoomCreateInputKind[keyof typeof ChatRoomCreateInputKind];
@@ -1729,6 +1770,10 @@ export type ChatRoomsCreate200 = {
 
 export type ChatRoomsGet200 = {
   room: ChatRoom;
+};
+
+export type ChatReportsCreate200 = {
+  report: ChatReport;
 };
 
 export type ChatMessagesListParams = {

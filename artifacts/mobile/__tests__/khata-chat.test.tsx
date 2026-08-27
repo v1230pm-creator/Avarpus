@@ -64,6 +64,10 @@ jest.mock('@workspace/api-client-react', () => ({
   useChatMessagesSend: () => ({ mutate: jest.fn(), isPending: false }),
   useChatMarkRead: () => ({ mutate: jest.fn() }),
   useChatUploadUrl: () => ({ mutate: jest.fn(), isPending: false }),
+  useChatRoomsBlock: () => ({ mutate: jest.fn(), isPending: false }),
+  useChatRoomsUnblock: () => ({ mutate: jest.fn(), isPending: false }),
+  useChatReportsCreate: () => ({ mutate: jest.fn(), isPending: false }),
+  getChatRoomsListQueryKey: () => ['/api/chat/rooms'],
   useReturnsList: () => ({ data: undefined }),
   useRefundsList: () => ({ data: undefined }),
   useCustomerSummary: () => ({ data: undefined }),
@@ -73,6 +77,13 @@ jest.mock('@workspace/api-client-react', () => ({
   getChatMessagesListQueryKey: (roomId: string) => [`/api/chat/rooms/${roomId}/messages`],
   getChatMessageMediaUrl: (roomId: string, messageId: string) =>
     `/api/chat/rooms/${roomId}/messages/${messageId}/media`,
+}));
+
+jest.mock('@tanstack/react-query', () => ({
+  ...jest.requireActual('@tanstack/react-query'),
+  useQueryClient: () => ({
+    invalidateQueries: jest.fn().mockResolvedValue(undefined),
+  }),
 }));
 
 // Additional mocks required by the updated ChatScreen

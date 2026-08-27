@@ -41,6 +41,8 @@ import {
   chatReadStateTable,
   chatContactMatchGrantsTable,
   chatContactMatchAttemptsTable,
+  chatBlocksTable,
+  chatReportsTable,
   sessionsTable,
 } from "@workspace/db";
 
@@ -1757,6 +1759,315 @@ describe("Contact match: privacy-safe exact lookup", () => {
     }
   });
 });
+
+// ── Global direct-room block and report controls ─────────────────────────────
+
+describe("Global direct-room safety controls", () => {
+  it("does not surface a global pair block on a shop-scoped direct room", async () => {
+    const [peer] = await db
+      .insert(usersTable)
+      .values({
+        name: "Shop Direct Block Scope Peer",
+        email: email("shopdirectblockscope"),
+        mobile: uniqMob(),
+        passwordHash: hashPassword(PASSWORD),
+        role: "reception",
+        shopId: shopA.id,
+        isActive: true,
+      })
+      .returning();
+    const globalPeerKey = [dealerA.id, peer.id].sort().join(":");
+    const [globalRoom] = await db
+      .insert(chatRoomsTable)
+      .values({
+        scope: "global_direct",
+        shopId: null,
+        kind: "direct",
+        name: "Global safety scope fixture",
+        peerKey: globalPeerKey,
+        providerRoomId: "!globalsafetyscope:matrix.example.com",
+        createdById: dealerA.id,
+        createdByName: "Chat Dealer A",
+      })
+      .returning();
+    const [shopRoom] = await db
+      .insert(chatRoomsTable)
+      .values({
+        scope: "shop",
+        shopId: shopA.id,
+        kind: "direct",
+        name: "Shop direct scope fixture",
+        providerRoomId: "!shopsafetyscope:matrix.example.com",
+        createdById: dealerA.id,
+        createdByName: "Chat Dealer A",
+      })
+      .returning();
+
+    try {
+      await db.insert(chatRoomMembersTable).values([
+        { roomId: globalRoom.id, shopId: null, userId: dealerA.id, role: "moderator" },
+        { roomId: globalRoom.id, shopId: null, userId: peer.id, role: "member" },
+        { roomId: shopRoom.id, shopId: shopA.id, userId: dealerA.id, role: "moderator" },
+        { roomId: shopRoom.id, shopId: shopA.id, userId: peer.id, role: "member" },
+      ]);
+
+      const blocked = await request(app)
+        .post(`/api/chat/rooms/${globalRoom.id}/block`)
+        .set("Authorization", `Bearer ${dealerTokenA}`)
+        .send();
+      expect(blocked.status).toBe(200);
+
+      const shopRoomResponse = await request(app)
+        .get(`/api/chat/rooms/${shopRoom.id}`)
+        .set("Authorization", `Bearer ${dealerTokenA}`);
+      expect(shopRoomResponse.status).toBe(200);
+      expect(shopRoomResponse.body.room.isBlocked).toBe(false);
+      expect(shopRoomResponse.body.room.blockedByMe).toBe(false);
+    } finally {
+      await db.delete(chatBlocksTable).where(eq(chatBlocksTable.blockedUserId, peer.id));
+      await db
+        .delete(chatRoomsTable)
+        .where(inArray(chatRoomsTable.id, [globalRoom.id, shopRoom.id]));
+      await db.delete(usersTable).where(eq(usersTable.id, peer.id));
+    }
+  });
+
+  it("blocks contact discovery, room creation, messages and calls while preserving history and reports", async () => {
+    const peerKey = [dealerA.id, dealerB.id].sort().join(":");
+    const [room] = await db
+      .insert(chatRoomsTable)
+      .values({
+        scope: "global_direct",
+        shopId: null,
+        kind: "direct",
+        name: "Safety controls room",
+        peerKey,
+        providerRoomId: "!safety:matrix.example.com",
+        createdById: dealerA.id,
+        createdByName: "Chat Dealer A",
+      })
+      .returning();
+
+    try {
+      await db.insert(chatRoomMembersTable).values([
+        { roomId: room.id, shopId: null, userId: dealerA.id, role: "moderator" },
+        { roomId: room.id, shopId: null, userId: dealerB.id, role: "member" },
+      ]);
+      const [historyMessage] = await db
+        .insert(chatMessagesTable)
+        .values({
+          roomId: room.id,
+          shopId: null,
+          senderId: dealerB.id,
+          senderName: "Chat Dealer B",
+          kind: "text",
+          body: "Existing history remains readable",
+          clientRequestId: `safety-history-${RUN}`,
+        })
+        .returning();
+
+      const blocked = await request(app)
+        .post(`/api/chat/rooms/${room.id}/block`)
+        .set("Authorization", `Bearer ${dealerTokenA}`)
+        .send();
+      expect(blocked.status).toBe(200);
+      expect(blocked.body).toEqual({ isBlocked: true, blockedByMe: true });
+
+      const roomForBlocker = await request(app)
+        .get(`/api/chat/rooms/${room.id}`)
+        .set("Authorization", `Bearer ${dealerTokenA}`);
+      expect(roomForBlocker.status).toBe(200);
+      expect(roomForBlocker.body.room.isBlocked).toBe(true);
+      expect(roomForBlocker.body.room.blockedByMe).toBe(true);
+
+      const roomForPeer = await request(app)
+        .get(`/api/chat/rooms/${room.id}`)
+        .set("Authorization", `Bearer ${dealerTokenB}`);
+      expect(roomForPeer.status).toBe(200);
+      expect(roomForPeer.body.room.isBlocked).toBe(true);
+      expect(roomForPeer.body.room.blockedByMe).toBe(false);
+
+      const history = await request(app)
+        .get(`/api/chat/rooms/${room.id}/messages`)
+        .set("Authorization", `Bearer ${dealerTokenB}`);
+      expect(history.status).toBe(200);
+      expect(history.body.messages.map((message: { id: string }) => message.id)).toContain(
+        historyMessage.id,
+      );
+
+      const blockedSend = await request(app)
+        .post(`/api/chat/rooms/${room.id}/messages`)
+        .set("Authorization", `Bearer ${dealerTokenB}`)
+        .send({
+          kind: "text",
+          body: "Must not send",
+          clientRequestId: `safety-blocked-send-${RUN}`,
+        });
+      expect(blockedSend.status).toBe(403);
+      expect(blockedSend.body.code).toBe("CHAT_BLOCKED");
+
+      const blockedCall = await request(app)
+        .post(`/api/chat/rooms/${room.id}/call-token`)
+        .set("Authorization", `Bearer ${dealerTokenB}`)
+        .send();
+      expect(blockedCall.status).toBe(403);
+      expect(blockedCall.body.code).toBe("CHAT_BLOCKED");
+
+      await db
+        .delete(chatContactMatchAttemptsTable)
+        .where(inArray(chatContactMatchAttemptsTable.userId, [dealerA.id, dealerB.id]));
+      const [dealerBProfile] = await db
+        .select({ mobile: usersTable.mobile })
+        .from(usersTable)
+        .where(eq(usersTable.id, dealerB.id));
+      const contactMatch = await request(app)
+        .post("/api/chat/contacts/match")
+        .set("Authorization", `Bearer ${dealerTokenA}`)
+        .send({ phone: dealerBProfile.mobile });
+      expect(contactMatch.status).toBe(200);
+      expect(contactMatch.body.contacts).toEqual([]);
+
+      const blockedRoomGrant = await issueContactMatchGrant(dealerB.id, dealerA.id, shopB.id);
+      const blockedRoomCreate = await request(app)
+        .post("/api/chat/rooms")
+        .set("Authorization", `Bearer ${dealerTokenB}`)
+        .send({
+          name: "Blocked replay",
+          kind: "direct",
+          targetUserId: dealerA.id,
+          matchToken: blockedRoomGrant,
+        });
+      expect(blockedRoomCreate.status).toBe(403);
+      expect(blockedRoomCreate.body.code).toBe("CHAT_BLOCKED");
+
+      const report = await request(app)
+        .post(`/api/chat/rooms/${room.id}/reports`)
+        .set("Authorization", `Bearer ${dealerTokenB}`)
+        .send({
+          clientRequestId: `safety-report-${RUN}`,
+          reason: "harassment",
+          messageId: historyMessage.id,
+          details: "Relevant context",
+        });
+      expect(report.status).toBe(200);
+      expect(report.body.report).toMatchObject({
+        roomId: room.id,
+        messageId: historyMessage.id,
+        reason: "harassment",
+      });
+      const [storedReport] = await db
+        .select()
+        .from(chatReportsTable)
+        .where(eq(chatReportsTable.id, report.body.report.id));
+      expect(storedReport.reporterUserId).toBe(dealerB.id);
+      expect(storedReport.reportedUserId).toBe(dealerA.id);
+
+      const retryReport = await request(app)
+        .post(`/api/chat/rooms/${room.id}/reports`)
+        .set("Authorization", `Bearer ${dealerTokenB}`)
+        .send({
+          clientRequestId: `safety-report-${RUN}`,
+          reason: "harassment",
+          messageId: historyMessage.id,
+          details: "Relevant context",
+        });
+      expect(retryReport.status).toBe(200);
+      expect(retryReport.body.report.id).toBe(report.body.report.id);
+
+      const overlongDetails = await request(app)
+        .post(`/api/chat/rooms/${room.id}/reports`)
+        .set("Authorization", `Bearer ${dealerTokenB}`)
+        .send({
+          clientRequestId: `safety-report-overlong-${RUN}`,
+          reason: "other",
+          details: "x".repeat(1001),
+        });
+      expect(overlongDetails.status).toBe(400);
+
+      const wrongRoomMessage = await request(app)
+        .post(`/api/chat/rooms/${room.id}/reports`)
+        .set("Authorization", `Bearer ${dealerTokenB}`)
+        .send({
+          clientRequestId: `safety-report-wrong-message-${RUN}`,
+          reason: "other",
+          messageId: (
+            await db
+              .insert(chatMessagesTable)
+              .values({
+                roomId: roomA.id,
+                shopId: shopA.id,
+                senderId: dealerA.id,
+                senderName: "Chat Dealer A",
+                kind: "text",
+                body: "Different room",
+                clientRequestId: `safety-other-room-${RUN}`,
+              })
+              .returning()
+          )[0].id,
+        });
+      expect(wrongRoomMessage.status).toBe(400);
+
+      if (customerTokenA) {
+        const unauthorizedReport = await request(app)
+          .post(`/api/chat/rooms/${room.id}/reports`)
+          .set("Authorization", `Bearer ${customerTokenA}`)
+          .send({
+            clientRequestId: `safety-report-unauthorized-${RUN}`,
+            reason: "spam",
+          });
+        expect(unauthorizedReport.status).toBe(404);
+      }
+
+      for (let index = 0; index < 4; index += 1) {
+        const additional = await request(app)
+          .post(`/api/chat/rooms/${room.id}/reports`)
+          .set("Authorization", `Bearer ${dealerTokenB}`)
+          .send({
+            clientRequestId: `safety-report-${index}-${RUN}`,
+            reason: "spam",
+          });
+        expect(additional.status).toBe(200);
+      }
+      const rateLimited = await request(app)
+        .post(`/api/chat/rooms/${room.id}/reports`)
+        .set("Authorization", `Bearer ${dealerTokenB}`)
+        .send({
+          clientRequestId: `safety-report-rate-limited-${RUN}`,
+          reason: "spam",
+        });
+      expect(rateLimited.status).toBe(429);
+      expect(rateLimited.body.code).toBe("CHAT_REPORT_RATE_LIMITED");
+
+      const peerCannotRemoveBlock = await request(app)
+        .delete(`/api/chat/rooms/${room.id}/block`)
+        .set("Authorization", `Bearer ${dealerTokenB}`);
+      expect(peerCannotRemoveBlock.status).toBe(200);
+      expect(peerCannotRemoveBlock.body).toEqual({ isBlocked: true, blockedByMe: false });
+
+      const unblocked = await request(app)
+        .delete(`/api/chat/rooms/${room.id}/block`)
+        .set("Authorization", `Bearer ${dealerTokenA}`);
+      expect(unblocked.status).toBe(200);
+      expect(unblocked.body).toEqual({ isBlocked: false, blockedByMe: false });
+    } finally {
+      await db
+        .delete(chatContactMatchAttemptsTable)
+        .where(inArray(chatContactMatchAttemptsTable.userId, [dealerA.id, dealerB.id]));
+      await db
+        .delete(chatBlocksTable)
+        .where(blockedPairConditionForTest(dealerA.id, dealerB.id));
+      await db.delete(chatRoomsTable).where(eq(chatRoomsTable.id, room.id));
+    }
+  });
+});
+
+function blockedPairConditionForTest(userA: string, userB: string) {
+  return sql`(
+    (${chatBlocksTable.blockerUserId} = ${userA} AND ${chatBlocksTable.blockedUserId} = ${userB})
+    OR
+    (${chatBlocksTable.blockerUserId} = ${userB} AND ${chatBlocksTable.blockedUserId} = ${userA})
+  )`;
+}
 
 // ── Direct room creation (kind=direct) ───────────────────────────────────────
 

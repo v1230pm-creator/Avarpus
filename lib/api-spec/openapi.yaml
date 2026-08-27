@@ -2328,6 +2328,92 @@ paths:
                     $ref: "#/components/schemas/ChatRoom"
                 required: [room]
 
+  /chat/rooms/{roomId}/block:
+    post:
+      operationId: chatRoomsBlock
+      tags: [chat]
+      summary: Block the other member of a global direct room
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Block state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatBlockResult"
+        "404":
+          description: Room not found or not a global direct room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+    delete:
+      operationId: chatRoomsUnblock
+      tags: [chat]
+      summary: Remove the caller's block on the other member of a global direct room
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Block state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatBlockResult"
+        "404":
+          description: Room not found or not a global direct room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /chat/rooms/{roomId}/reports:
+    post:
+      operationId: chatReportsCreate
+      tags: [chat]
+      summary: Report the other member of a global direct room
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatReportInput"
+      responses:
+        "200":
+          description: Report accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report:
+                    $ref: "#/components/schemas/ChatReport"
+                required: [report]
+        "400":
+          description: Invalid reason, details, or message reference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "404":
+          description: Room not found or not a global direct room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
   # ── Chat messages ────────────────────────────────────────────────────────────
   /chat/rooms/{roomId}/messages:
     get:
@@ -3521,6 +3607,12 @@ components:
         peerKey:
           type: string
           description: Deterministic sorted pair of participant user IDs for one-to-one rooms.
+        isBlocked:
+          type: boolean
+          description: True when either member has blocked the other.
+        blockedByMe:
+          type: boolean
+          description: True when the current caller created the active block.
         isArchived: { type: boolean }
         createdById: { type: string }
         createdByName: { type: string }
@@ -3529,6 +3621,41 @@ components:
         lastMessage:
           $ref: "#/components/schemas/ChatMessage"
       required: [id, shopId, scope, kind, name, isArchived, createdAt]
+    ChatBlockResult:
+      type: object
+      properties:
+        isBlocked: { type: boolean }
+        blockedByMe: { type: boolean }
+      required: [isBlocked, blockedByMe]
+    ChatReportReason:
+      type: string
+      enum: [spam, harassment, scam, inappropriate, other]
+    ChatReportInput:
+      type: object
+      properties:
+        clientRequestId:
+          type: string
+          minLength: 1
+          maxLength: 200
+        reason:
+          $ref: "#/components/schemas/ChatReportReason"
+        messageId:
+          type: string
+          description: Optional message in this room that provides context.
+        details:
+          type: string
+          maxLength: 1000
+      required: [clientRequestId, reason]
+    ChatReport:
+      type: object
+      properties:
+        id: { type: string }
+        roomId: { type: string }
+        messageId: { type: string }
+        reason:
+          $ref: "#/components/schemas/ChatReportReason"
+        createdAt: { type: string, format: date-time }
+      required: [id, roomId, reason, createdAt]
     ChatRoomCreateInput:
       type: object
       description: >

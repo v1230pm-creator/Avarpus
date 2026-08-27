@@ -201,6 +201,27 @@ export const chatRoomMembersTable = pgTable(
   ],
 );
 
+// ── Global direct-chat blocks ────────────────────────────────────────────────
+// Blocks are directional: only the user who created a block may remove it.
+// Route logic treats either direction as a blocked pair.
+export const chatBlocksTable = pgTable(
+  "chat_blocks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    blockerUserId: uuid("blocker_user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    blockedUserId: uuid("blocked_user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("chat_blocks_blocker_blocked_unique").on(t.blockerUserId, t.blockedUserId),
+    index("chat_blocks_blocked_user_idx").on(t.blockedUserId),
+  ],
+);
+
 // ── Chat messages ─────────────────────────────────────────────────────────────
 // Server-side record of messages sent through the system. Messages are never
 // stored with provider-side IDs as the source of truth — this table IS the
@@ -239,6 +260,41 @@ export const chatMessagesTable = pgTable(
     uniqueIndex("chat_messages_room_sender_client_req_unique")
       .on(t.roomId, t.senderId, t.clientRequestId)
       .where(sql`${t.clientRequestId} IS NOT NULL`),
+  ],
+);
+
+// ── Abuse reports ────────────────────────────────────────────────────────────
+// Reports retain only the references needed for moderation. The reported peer
+// is derived server-side from a member-only global direct room.
+export const chatReportsTable = pgTable(
+  "chat_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    reporterUserId: uuid("reporter_user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    reportedUserId: uuid("reported_user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => chatRoomsTable.id, { onDelete: "cascade" }),
+    messageId: uuid("message_id").references(() => chatMessagesTable.id, {
+      onDelete: "set null",
+    }),
+    clientRequestId: text("client_request_id").notNull(),
+    reason: text("reason").notNull(),
+    details: text("details"),
+    status: text("status").notNull().default("open"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("chat_reports_reporter_client_req_unique").on(
+      t.reporterUserId,
+      t.clientRequestId,
+    ),
+    index("chat_reports_room_created_idx").on(t.roomId, t.createdAt),
+    index("chat_reports_status_created_idx").on(t.status, t.createdAt),
   ],
 );
 
@@ -303,6 +359,8 @@ export type DbChatContactMatchGrant = typeof chatContactMatchGrantsTable.$inferS
 export type DbChatContactMatchAttempt = typeof chatContactMatchAttemptsTable.$inferSelect;
 export type DbChatRoom = typeof chatRoomsTable.$inferSelect;
 export type DbChatRoomMember = typeof chatRoomMembersTable.$inferSelect;
+export type DbChatBlock = typeof chatBlocksTable.$inferSelect;
 export type DbChatMessage = typeof chatMessagesTable.$inferSelect;
+export type DbChatReport = typeof chatReportsTable.$inferSelect;
 export type DbChatReadState = typeof chatReadStateTable.$inferSelect;
 export type DbChatProviderIdentity = typeof chatProviderIdentitiesTable.$inferSelect;

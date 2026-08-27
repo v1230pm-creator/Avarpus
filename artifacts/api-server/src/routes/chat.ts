@@ -33,7 +33,7 @@
 import { Readable } from "stream";
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter, type Request } from "express";
-import { and, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -44,6 +44,8 @@ import {
   chatRoomsTable,
   chatRoomMembersTable,
   chatMessagesTable,
+  chatBlocksTable,
+  chatReportsTable,
   chatReadStateTable,
   chatProviderIdentitiesTable,
   chatContactMatchGrantsTable,
@@ -70,6 +72,7 @@ const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
 class MatchGrantError extends Error {}
+class BlockedPairError extends Error {}
 
 const ROOM_PROVISION_POLL_MS = 25;
 type ChatRoom = typeof chatRoomsTable.$inferSelect;
@@ -319,6 +322,50 @@ async function authorizeRoom(
     .limit(1);
 
   return row?.room ?? null;
+}
+
+function blockedPairCondition(userA: string, userB: string) {
+  return or(
+    and(
+      eq(chatBlocksTable.blockerUserId, userA),
+      eq(chatBlocksTable.blockedUserId, userB),
+    ),
+    and(
+      eq(chatBlocksTable.blockerUserId, userB),
+      eq(chatBlocksTable.blockedUserId, userA),
+    ),
+  );
+}
+
+async function getBlockState(userA: string, userB: string) {
+  const blocks = await db
+    .select({
+      blockerUserId: chatBlocksTable.blockerUserId,
+    })
+    .from(chatBlocksTable)
+    .where(blockedPairCondition(userA, userB));
+  return {
+    isBlocked: blocks.length > 0,
+    blockedByMe: blocks.some((block) => block.blockerUserId === userA),
+  };
+}
+
+async function getDirectPeerUserId(
+  room: typeof chatRoomsTable.$inferSelect,
+  viewerUserId: string,
+): Promise<string | null> {
+  if (room.scope !== "global_direct" || room.kind !== "direct") return null;
+  const [peer] = await db
+    .select({ userId: chatRoomMembersTable.userId })
+    .from(chatRoomMembersTable)
+    .where(
+      and(
+        eq(chatRoomMembersTable.roomId, room.id),
+        ne(chatRoomMembersTable.userId, viewerUserId),
+      ),
+    )
+    .limit(1);
+  return peer?.userId ?? null;
 }
 
 // ── Customer invite issuance ──────────────────────────────────────────────────
@@ -708,8 +755,36 @@ router.post(
         ),
       );
 
-    // Exclude self and return minimal peer profile fields.
-    const matched = rows.filter((u) => u.id !== me.id);
+    // Exclude self and either side of a blocked pair. A block therefore also
+    // prevents issuing a fresh direct-room proof for that peer.
+    const candidates = rows.filter((u) => u.id !== me.id);
+    const candidateIds = candidates.map((u) => u.id);
+    const blockedRows = candidateIds.length
+      ? await db
+          .select({
+            blockerUserId: chatBlocksTable.blockerUserId,
+            blockedUserId: chatBlocksTable.blockedUserId,
+          })
+          .from(chatBlocksTable)
+          .where(
+            or(
+              and(
+                eq(chatBlocksTable.blockerUserId, me.id),
+                inArray(chatBlocksTable.blockedUserId, candidateIds),
+              ),
+              and(
+                eq(chatBlocksTable.blockedUserId, me.id),
+                inArray(chatBlocksTable.blockerUserId, candidateIds),
+              ),
+            ),
+          )
+      : [];
+    const blockedIds = new Set(
+      blockedRows.map((block) =>
+        block.blockerUserId === me.id ? block.blockedUserId : block.blockerUserId,
+      ),
+    );
+    const matched = candidates.filter((user) => !blockedIds.has(user.id));
     const grantExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
     const contacts = await db.transaction(async (tx) => {
       const issued = matched.map((u) => ({ user: u, rawToken: generateToken() }));
@@ -1009,6 +1084,20 @@ router.post(
         res.status(403).json({ message: "Direct chat authorization is invalid or expired." });
         return;
       }
+      if (kind === "direct") {
+        const [block] = await db
+          .select({ id: chatBlocksTable.id })
+          .from(chatBlocksTable)
+          .where(blockedPairCondition(me.id, targetUserId))
+          .limit(1);
+        if (block) {
+          res.status(403).json({
+            message: "This conversation is blocked.",
+            code: "CHAT_BLOCKED",
+          });
+          return;
+        }
+      }
       if (existingByPeer.providerRoomId && members.length === 2) {
         res.json({ room: await formatRoomForUser(existingByPeer, me.id), created: false });
         return;
@@ -1069,6 +1158,12 @@ router.post(
               )
               .limit(1);
             if (!boundGrant) throw new MatchGrantError();
+            const [block] = await tx
+              .select({ id: chatBlocksTable.id })
+              .from(chatBlocksTable)
+              .where(blockedPairCondition(me.id, targetUserId))
+              .limit(1);
+            if (block) throw new BlockedPairError();
           }
           return { room: existing, created: false };
         }
@@ -1101,6 +1196,12 @@ router.post(
             )
             .returning({ id: chatContactMatchGrantsTable.id });
           if (consumed.length !== 1) throw new MatchGrantError();
+          const [block] = await tx
+            .select({ id: chatBlocksTable.id })
+            .from(chatBlocksTable)
+            .where(blockedPairCondition(me.id, targetUserId))
+            .limit(1);
+          if (block) throw new BlockedPairError();
         }
 
         const [targetUser] = await tx
@@ -1169,12 +1270,30 @@ router.post(
             ),
           )
           .limit(1);
+        const [block] = await db
+          .select({ id: chatBlocksTable.id })
+          .from(chatBlocksTable)
+          .where(blockedPairCondition(me.id, targetUserId))
+          .limit(1);
+        if (block) {
+          res.status(403).json({
+            message: "This conversation is blocked.",
+            code: "CHAT_BLOCKED",
+          });
+          return;
+        }
         if (boundGrant) {
           reservation = { room: raced, created: false };
         } else {
           res.status(403).json({ message: "Direct chat authorization is invalid or expired." });
           return;
         }
+      } else if (err instanceof BlockedPairError) {
+        res.status(403).json({
+          message: "This conversation is blocked.",
+          code: "CHAT_BLOCKED",
+        });
+        return;
       } else if (err instanceof MatchGrantError) {
         res.status(403).json({ message: "Direct chat authorization is invalid or expired." });
         return;
@@ -1229,6 +1348,210 @@ router.get(
       return;
     }
     res.json({ room: await formatRoomForUser(room, me.id) });
+  }),
+);
+
+// ── Global direct-chat safety controls ───────────────────────────────────────
+
+router.post(
+  "/chat/rooms/:roomId/block",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const me = (req as AuthedRequest).user;
+    const roomId = String(req.params.roomId ?? "");
+    if (!UUID_RE.test(roomId)) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
+    const room = await authorizeRoom(me, roomId);
+    const peerUserId = room ? await getDirectPeerUserId(room, me.id) : null;
+    if (!room || !peerUserId) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
+
+    await db
+      .insert(chatBlocksTable)
+      .values({ blockerUserId: me.id, blockedUserId: peerUserId })
+      .onConflictDoNothing({
+        target: [chatBlocksTable.blockerUserId, chatBlocksTable.blockedUserId],
+      });
+
+    res.json(await getBlockState(me.id, peerUserId));
+  }),
+);
+
+router.delete(
+  "/chat/rooms/:roomId/block",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const me = (req as AuthedRequest).user;
+    const roomId = String(req.params.roomId ?? "");
+    if (!UUID_RE.test(roomId)) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
+    const room = await authorizeRoom(me, roomId);
+    const peerUserId = room ? await getDirectPeerUserId(room, me.id) : null;
+    if (!room || !peerUserId) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
+
+    await db
+      .delete(chatBlocksTable)
+      .where(
+        and(
+          eq(chatBlocksTable.blockerUserId, me.id),
+          eq(chatBlocksTable.blockedUserId, peerUserId),
+        ),
+      );
+
+    res.json(await getBlockState(me.id, peerUserId));
+  }),
+);
+
+const CHAT_REPORT_REASONS = [
+  "spam",
+  "harassment",
+  "scam",
+  "inappropriate",
+  "other",
+] as const;
+
+router.post(
+  "/chat/rooms/:roomId/reports",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const me = (req as AuthedRequest).user;
+    const roomId = String(req.params.roomId ?? "");
+    if (!UUID_RE.test(roomId)) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
+    const room = await authorizeRoom(me, roomId);
+    const peerUserId = room ? await getDirectPeerUserId(room, me.id) : null;
+    if (!room || !peerUserId) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
+
+    const { clientRequestId, reason, messageId, details } = req.body ?? {};
+    if (
+      typeof clientRequestId !== "string" ||
+      !clientRequestId.trim() ||
+      clientRequestId.trim().length > 200
+    ) {
+      res.status(400).json({ message: "clientRequestId is required" });
+      return;
+    }
+    if (
+      typeof reason !== "string" ||
+      !(CHAT_REPORT_REASONS as readonly string[]).includes(reason)
+    ) {
+      res.status(400).json({
+        message: `reason must be one of: ${CHAT_REPORT_REASONS.join(", ")}`,
+      });
+      return;
+    }
+    if (
+      messageId !== undefined &&
+      (typeof messageId !== "string" || !UUID_RE.test(messageId))
+    ) {
+      res.status(400).json({ message: "messageId must be a valid message in this room" });
+      return;
+    }
+    if (
+      details !== undefined &&
+      (typeof details !== "string" || details.trim().length > 1000)
+    ) {
+      res.status(400).json({ message: "details must be a string of at most 1000 characters" });
+      return;
+    }
+
+    if (messageId) {
+      const [message] = await db
+        .select({ id: chatMessagesTable.id })
+        .from(chatMessagesTable)
+        .where(
+          and(
+            eq(chatMessagesTable.id, messageId),
+            eq(chatMessagesTable.roomId, roomId),
+          ),
+        )
+        .limit(1);
+      if (!message) {
+        res.status(400).json({ message: "messageId must be a valid message in this room" });
+        return;
+      }
+    }
+
+    const requestId = clientRequestId.trim();
+    const outcome = await db.transaction(async (tx) => {
+      // Serialize report creation per reporter so concurrent requests cannot
+      // race past the daily abuse cap.
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${me.id}, 0))`,
+      );
+      const [existing] = await tx
+        .select()
+        .from(chatReportsTable)
+        .where(
+          and(
+            eq(chatReportsTable.reporterUserId, me.id),
+            eq(chatReportsTable.clientRequestId, requestId),
+          ),
+        )
+        .limit(1);
+      if (existing) return { report: existing, rateLimited: false };
+
+      const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const [recent] = await tx
+        .select({ total: count() })
+        .from(chatReportsTable)
+        .where(
+          and(
+            eq(chatReportsTable.reporterUserId, me.id),
+            gte(chatReportsTable.createdAt, dayAgo),
+          ),
+        );
+      if (Number(recent?.total ?? 0) >= 5) {
+        return { report: null, rateLimited: true };
+      }
+
+      const [created] = await tx
+        .insert(chatReportsTable)
+        .values({
+          reporterUserId: me.id,
+          reportedUserId: peerUserId,
+          roomId,
+          messageId: messageId ?? null,
+          clientRequestId: requestId,
+          reason,
+          details:
+            typeof details === "string" && details.trim() ? details.trim() : null,
+        })
+        .returning();
+      return { report: created, rateLimited: false };
+    });
+    if (outcome.rateLimited || !outcome.report) {
+      res.status(429).json({
+        message: "Report limit reached. Please try again later.",
+        code: "CHAT_REPORT_RATE_LIMITED",
+      });
+      return;
+    }
+    const report = outcome.report;
+
+    res.json({
+      report: {
+        id: report.id,
+        roomId: report.roomId,
+        messageId: report.messageId ?? undefined,
+        reason: report.reason,
+        createdAt: report.createdAt.toISOString(),
+      },
+    });
   }),
 );
 
@@ -1317,6 +1640,17 @@ router.post(
     if (!room) {
       res.status(404).json({ message: "Room not found" });
       return;
+    }
+    const directPeerUserId = await getDirectPeerUserId(room, me.id);
+    if (directPeerUserId) {
+      const blockState = await getBlockState(me.id, directPeerUserId);
+      if (blockState.isBlocked) {
+        res.status(403).json({
+          message: "This conversation is blocked.",
+          code: "CHAT_BLOCKED",
+        });
+        return;
+      }
     }
 
     const { kind, body, objectPath, durationMs, clientRequestId } = req.body ?? {};
@@ -1605,6 +1939,18 @@ router.post(
       return;
     }
 
+    const directPeerUserId = await getDirectPeerUserId(room, me.id);
+    if (directPeerUserId) {
+      const blockState = await getBlockState(me.id, directPeerUserId);
+      if (blockState.isBlocked) {
+        res.status(403).json({
+          message: "This conversation is blocked.",
+          code: "CHAT_BLOCKED",
+        });
+        return;
+      }
+    }
+
     const { name, size, contentType } = req.body ?? {};
     if (
       typeof name !== "string" || !name.trim() ||
@@ -1658,6 +2004,17 @@ router.post(
     if (!room) {
       res.status(404).json({ message: "Room not found" });
       return;
+    }
+    const directPeerUserId = await getDirectPeerUserId(room, me.id);
+    if (directPeerUserId) {
+      const blockState = await getBlockState(me.id, directPeerUserId);
+      if (blockState.isBlocked) {
+        res.status(403).json({
+          message: "This conversation is blocked.",
+          code: "CHAT_BLOCKED",
+        });
+        return;
+      }
     }
 
     // Fail closed: 503 when LiveKit credentials absent
@@ -1826,11 +2183,16 @@ async function formatRoomForUser(
     )
     .limit(1);
 
+  const blockState =
+    room.scope === "global_direct" && peer
+      ? await getBlockState(viewerUserId, peer.id)
+      : { isBlocked: false, blockedByMe: false };
   return {
     ...base,
     name: peer?.name ?? base.name,
     peerUserId: peer?.id,
     profilePhoto: peer?.profilePhoto ?? undefined,
+    ...blockState,
   };
 }
 

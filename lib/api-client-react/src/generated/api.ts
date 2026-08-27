@@ -43,6 +43,7 @@ import type {
   AuthOtpResend200,
   AuthSession,
   AuthSessions200,
+  ChatBlockResult,
   ChatCallTokenResult,
   ChatCapabilities,
   ChatContactMatchInput,
@@ -52,6 +53,8 @@ import type {
   ChatMessagesList200,
   ChatMessagesListParams,
   ChatMessagesSend200,
+  ChatReportInput,
+  ChatReportsCreate200,
   ChatRoomCreateInput,
   ChatRoomsCreate200,
   ChatRoomsGet200,
@@ -8222,6 +8225,220 @@ export function useChatRoomsGet<TData = Awaited<ReturnType<typeof chatRoomsGet>>
 
 
 
+
+export const getChatRoomsBlockUrl = (roomId: string,) => {
+
+
+
+
+  return `/api/chat/rooms/${roomId}/block`
+}
+
+/**
+ * @summary Block the other member of a global direct room
+ */
+export const chatRoomsBlock = async (roomId: string, options?: Parameters<typeof customFetch>[1]): Promise<ChatBlockResult> => {
+
+  return customFetch<ChatBlockResult>(getChatRoomsBlockUrl(roomId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatRoomsBlockMutationOptions = <TError = ErrorType<Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatRoomsBlock>>, TError,{roomId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatRoomsBlock>>, TError,{roomId: string}, TContext> => {
+
+const mutationKey = ['chatRoomsBlock'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatRoomsBlock>>, {roomId: string}> = (props) => {
+          const {roomId} = props ?? {};
+
+          return  chatRoomsBlock(roomId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatRoomsBlockMutationResult = NonNullable<Awaited<ReturnType<typeof chatRoomsBlock>>>
+
+    export type ChatRoomsBlockMutationError = ErrorType<Message>
+
+    /**
+ * @summary Block the other member of a global direct room
+ */
+export const useChatRoomsBlock = <TError = ErrorType<Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatRoomsBlock>>, TError,{roomId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatRoomsBlock>>,
+        TError,
+        {roomId: string},
+        TContext
+      > => {
+      return useMutation(getChatRoomsBlockMutationOptions(options));
+    }
+
+export const getChatRoomsUnblockUrl = (roomId: string,) => {
+
+
+
+
+  return `/api/chat/rooms/${roomId}/block`
+}
+
+/**
+ * @summary Remove the caller's block on the other member of a global direct room
+ */
+export const chatRoomsUnblock = async (roomId: string, options?: Parameters<typeof customFetch>[1]): Promise<ChatBlockResult> => {
+
+  return customFetch<ChatBlockResult>(getChatRoomsUnblockUrl(roomId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatRoomsUnblockMutationOptions = <TError = ErrorType<Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatRoomsUnblock>>, TError,{roomId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatRoomsUnblock>>, TError,{roomId: string}, TContext> => {
+
+const mutationKey = ['chatRoomsUnblock'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatRoomsUnblock>>, {roomId: string}> = (props) => {
+          const {roomId} = props ?? {};
+
+          return  chatRoomsUnblock(roomId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatRoomsUnblockMutationResult = NonNullable<Awaited<ReturnType<typeof chatRoomsUnblock>>>
+
+    export type ChatRoomsUnblockMutationError = ErrorType<Message>
+
+    /**
+ * @summary Remove the caller's block on the other member of a global direct room
+ */
+export const useChatRoomsUnblock = <TError = ErrorType<Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatRoomsUnblock>>, TError,{roomId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatRoomsUnblock>>,
+        TError,
+        {roomId: string},
+        TContext
+      > => {
+      return useMutation(getChatRoomsUnblockMutationOptions(options));
+    }
+
+export const getChatReportsCreateUrl = (roomId: string,) => {
+
+
+
+
+  return `/api/chat/rooms/${roomId}/reports`
+}
+
+/**
+ * @summary Report the other member of a global direct room
+ */
+export const chatReportsCreate = async (roomId: string,
+    chatReportInput: ChatReportInput, options?: Parameters<typeof customFetch>[1]): Promise<ChatReportsCreate200> => {
+
+  return customFetch<ChatReportsCreate200>(getChatReportsCreateUrl(roomId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chatReportInput)
+  }
+);}
+
+
+
+
+
+export const getChatReportsCreateMutationOptions = <TError = ErrorType<Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatReportsCreate>>, TError,{roomId: string;data: BodyType<ChatReportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatReportsCreate>>, TError,{roomId: string;data: BodyType<ChatReportInput>}, TContext> => {
+
+const mutationKey = ['chatReportsCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatReportsCreate>>, {roomId: string;data: BodyType<ChatReportInput>}> = (props) => {
+          const {roomId,data} = props ?? {};
+
+          return  chatReportsCreate(roomId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatReportsCreateMutationResult = NonNullable<Awaited<ReturnType<typeof chatReportsCreate>>>
+    export type ChatReportsCreateMutationBody = BodyType<ChatReportInput>
+    export type ChatReportsCreateMutationError = ErrorType<Message>
+
+    /**
+ * @summary Report the other member of a global direct room
+ */
+export const useChatReportsCreate = <TError = ErrorType<Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatReportsCreate>>, TError,{roomId: string;data: BodyType<ChatReportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatReportsCreate>>,
+        TError,
+        {roomId: string;data: BodyType<ChatReportInput>},
+        TContext
+      > => {
+      return useMutation(getChatReportsCreateMutationOptions(options));
+    }
 
 export const getChatMessagesListUrl = (roomId: string,
     params?: ChatMessagesListParams,) => {

@@ -33,6 +33,10 @@ const ALLOWED: Array<{ method: string | "*"; re: RegExp }> = [
   { method: "GET",    re: /^\/chat\/rooms$/ },
   // Single room (membership enforced inside the route)
   { method: "GET",    re: new RegExp(`^\\/chat\\/rooms\\/${UUID}$`) },
+  // Global direct-room safety controls (membership + direct scope enforced)
+  { method: "POST",   re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/block$`) },
+  { method: "DELETE", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/block$`) },
+  { method: "POST",   re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/reports$`) },
   // Messages in a room
   { method: "GET",    re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/messages$`) },
   { method: "POST",   re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/messages$`) },

@@ -288,6 +288,20 @@
       "when": 1787632914807,
       "tag": "0040_display_name_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1787632914808,
+      "tag": "0041_chat_blocks_reports",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1787797900000,
+      "tag": "0042_chat_report_idempotency",
+      "breakpoints": true
     }
   ]
 }

@@ -3249,6 +3249,8 @@ export const ChatRoomsListResponse = zod.object({
   "peerUserId": zod.string().optional().describe('The other member for a direct room, resolved for the current caller.'),
   "profilePhoto": zod.string().optional().describe('The other member\'s profile image for a direct room.'),
   "peerKey": zod.string().optional().describe('Deterministic sorted pair of participant user IDs for one-to-one rooms.'),
+  "isBlocked": zod.boolean().optional().describe('True when either member has blocked the other.'),
+  "blockedByMe": zod.boolean().optional().describe('True when the current caller created the active block.'),
   "isArchived": zod.boolean(),
   "createdById": zod.string().optional(),
   "createdByName": zod.string().optional(),
@@ -3298,6 +3300,8 @@ export const ChatRoomsCreateResponse = zod.object({
   "peerUserId": zod.string().optional().describe('The other member for a direct room, resolved for the current caller.'),
   "profilePhoto": zod.string().optional().describe('The other member\'s profile image for a direct room.'),
   "peerKey": zod.string().optional().describe('Deterministic sorted pair of participant user IDs for one-to-one rooms.'),
+  "isBlocked": zod.boolean().optional().describe('True when either member has blocked the other.'),
+  "blockedByMe": zod.boolean().optional().describe('True when the current caller created the active block.'),
   "isArchived": zod.boolean(),
   "createdById": zod.string().optional(),
   "createdByName": zod.string().optional(),
@@ -3342,6 +3346,8 @@ export const ChatRoomsGetResponse = zod.object({
   "peerUserId": zod.string().optional().describe('The other member for a direct room, resolved for the current caller.'),
   "profilePhoto": zod.string().optional().describe('The other member\'s profile image for a direct room.'),
   "peerKey": zod.string().optional().describe('Deterministic sorted pair of participant user IDs for one-to-one rooms.'),
+  "isBlocked": zod.boolean().optional().describe('True when either member has blocked the other.'),
+  "blockedByMe": zod.boolean().optional().describe('True when the current caller created the active block.'),
   "isArchived": zod.boolean(),
   "createdById": zod.string().optional(),
   "createdByName": zod.string().optional(),
@@ -3361,6 +3367,63 @@ export const ChatRoomsGetResponse = zod.object({
   "deletedAt": zod.string().optional(),
   "createdAt": zod.string()
 }).optional()
+})
+})
+
+
+/**
+ * @summary Block the other member of a global direct room
+ */
+export const ChatRoomsBlockParams = zod.object({
+  "roomId": zod.coerce.string()
+})
+
+export const ChatRoomsBlockResponse = zod.object({
+  "isBlocked": zod.boolean(),
+  "blockedByMe": zod.boolean()
+})
+
+
+/**
+ * @summary Remove the caller's block on the other member of a global direct room
+ */
+export const ChatRoomsUnblockParams = zod.object({
+  "roomId": zod.coerce.string()
+})
+
+export const ChatRoomsUnblockResponse = zod.object({
+  "isBlocked": zod.boolean(),
+  "blockedByMe": zod.boolean()
+})
+
+
+/**
+ * @summary Report the other member of a global direct room
+ */
+export const ChatReportsCreateParams = zod.object({
+  "roomId": zod.coerce.string()
+})
+
+export const chatReportsCreateBodyClientRequestIdMax = 200;
+
+export const chatReportsCreateBodyDetailsMax = 1000;
+
+
+
+export const ChatReportsCreateBody = zod.object({
+  "clientRequestId": zod.string().min(1).max(chatReportsCreateBodyClientRequestIdMax),
+  "reason": zod.enum(['spam', 'harassment', 'scam', 'inappropriate', 'other']),
+  "messageId": zod.string().optional().describe('Optional message in this room that provides context.'),
+  "details": zod.string().max(chatReportsCreateBodyDetailsMax).optional()
+})
+
+export const ChatReportsCreateResponse = zod.object({
+  "report": zod.object({
+  "id": zod.string(),
+  "roomId": zod.string(),
+  "messageId": zod.string().optional(),
+  "reason": zod.enum(['spam', 'harassment', 'scam', 'inappropriate', 'other']),
+  "createdAt": zod.coerce.date()
 })
 })
 
