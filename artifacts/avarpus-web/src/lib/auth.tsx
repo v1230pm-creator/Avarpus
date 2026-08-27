@@ -24,6 +24,7 @@ interface User {
   role: string;
   shopId?: string;
   dealerId?: string;
+  needsDisplayName: boolean;
 }
 
 interface AuthContextType {

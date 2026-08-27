@@ -281,6 +281,13 @@
       "when": 1787632914806,
       "tag": "0039_global_direct_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1787632914807,
+      "tag": "0040_display_name_onboarding",
+      "breakpoints": true
     }
   ]
 }

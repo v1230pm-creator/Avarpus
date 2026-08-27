@@ -10,4 +10,6 @@ import type { AuthUser } from './authUser';
 export interface AuthSession {
   token: string;
   user: AuthUser;
+  /** True only when OTP verification created a new standalone customer account. */
+  needsDisplayName?: boolean;
 }

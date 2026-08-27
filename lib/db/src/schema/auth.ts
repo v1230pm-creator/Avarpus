@@ -38,6 +38,7 @@ export const usersTable = pgTable("users", {
   shopAddress: text("shop_address"),
   profilePhoto: text("profile_photo"),
   companyLogo: text("company_logo"),
+  displayNameCompletedAt: timestamp("display_name_completed_at", { withTimezone: true }).defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

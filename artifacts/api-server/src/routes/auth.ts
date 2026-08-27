@@ -193,13 +193,13 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
   // The mobile unique index is the cross-process mutex: concurrent approvals
   // either return the already-created active user or exactly one inserts it.
   // Existing records are never changed, notably inactive accounts stay denied.
-  const user = await db.transaction(async (tx) => {
+  const account = await db.transaction(async (tx) => {
     const [existing] = await tx
       .select()
       .from(usersTable)
       .where(eq(usersTable.mobile, mobile))
       .limit(1);
-    if (existing) return existing;
+    if (existing) return { user: existing, created: false };
     const [created] = await tx
       .insert(usersTable)
       .values({
@@ -212,17 +212,19 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
         passwordHash: null,
         role: "customer",
         isActive: true,
+        displayNameCompletedAt: null,
       })
       .onConflictDoNothing({ target: usersTable.mobile })
       .returning();
-    if (created) return created;
+    if (created) return { user: created, created: true };
     const [raced] = await tx
       .select()
       .from(usersTable)
       .where(eq(usersTable.mobile, mobile))
       .limit(1);
-    return raced;
+    return { user: raced, created: false };
   });
+  const user = account.user;
   if (!user || !user.isActive) {
     // An existing inactive account cannot be reactivated by OTP verification.
     res.status(401).json({ message: "Account not found or inactive" });
@@ -247,7 +249,8 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
   }
   const token = await createSession(user.id, remember, deviceInfo, { expiresAt, trustedDeviceId });
   await recordLoginEvent(user.id, "otp", remember, deviceInfo);
-  res.json({ token, user: publicUser(user) });
+  const responseUser = publicUser(user);
+  res.json({ token, user: responseUser, needsDisplayName: responseUser.needsDisplayName });
 }));
 
 // Public but intentionally non-enumerating recovery. A valid Android ID maps
@@ -456,16 +459,40 @@ router.get("/auth/me", requireAuth, (req, res) => {
 });
 
 // ── Self profile update (name / mobile) ──────────────────────────────────
+const DISPLAY_NAME_MAX_LENGTH = 120;
+
+function validateDisplayName(value: unknown): { name: string } | { message: string } {
+  if (typeof value !== "string") {
+    return { message: "Name must be text" };
+  }
+  const name = value.normalize("NFC").trim();
+  if (!name) {
+    return { message: "Name cannot be empty" };
+  }
+  if (Array.from(name).length > DISPLAY_NAME_MAX_LENGTH) {
+    return { message: `Name must be ${DISPLAY_NAME_MAX_LENGTH} characters or fewer` };
+  }
+  // Names are displayed in room lists and notifications. Reject control,
+  // bidi-override, and markup characters while allowing normal Unicode names,
+  // spaces, accents, punctuation, and emoji.
+  if (/[\u0000-\u001F\u007F-\u009F\u061C\u200E-\u200F\u202A-\u202E\u2066-\u2069<>]/u.test(name)) {
+    return { message: "Name contains unsupported characters" };
+  }
+  return { name };
+}
+
 router.patch("/auth/me", requireAuth, asyncHandler(async (req, res) => {
   const me = req.user!;
   const { name, mobile } = req.body ?? {};
-  const set: Partial<{ name: string; mobile: string }> = {};
+  const set: Partial<{ name: string; mobile: string; displayNameCompletedAt: Date }> = {};
   if (name !== undefined) {
-    if (typeof name !== "string" || !name.trim()) {
-      res.status(400).json({ message: "Name cannot be empty" });
+    const validatedName = validateDisplayName(name);
+    if ("message" in validatedName) {
+      res.status(400).json({ message: validatedName.message });
       return;
     }
-    set.name = name.trim().slice(0, 120);
+    set.name = validatedName.name;
+    set.displayNameCompletedAt = new Date();
   }
   if (mobile !== undefined) {
     if (typeof mobile !== "string" || !/^\d{10}$/.test(mobile)) {

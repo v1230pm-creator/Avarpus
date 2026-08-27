@@ -22,4 +22,5 @@ export interface AuthUser {
   companyLogo?: string;
   shopId?: string;
   dealerId?: string;
+  needsDisplayName: boolean;
 }

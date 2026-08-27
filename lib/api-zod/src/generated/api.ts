@@ -65,8 +65,10 @@ export const AuthOtpVerifyResponse = zod.object({
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
-  "dealerId": zod.string().optional()
-})
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
+}),
+  "needsDisplayName": zod.boolean().optional().describe('True only when OTP verification created a new standalone customer account.')
 })
 
 
@@ -97,8 +99,10 @@ export const AuthTrustedDeviceRecoverResponse = zod.object({
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
-  "dealerId": zod.string().optional()
-})
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
+}),
+  "needsDisplayName": zod.boolean().optional().describe('True only when OTP verification created a new standalone customer account.')
 })
 
 
@@ -155,7 +159,8 @@ export const AuthRegisterVerifyResponse = zod.object({
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
-  "dealerId": zod.string().optional()
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
 }),
   "message": zod.string()
 })
@@ -180,7 +185,8 @@ export const AuthMeResponse = zod.object({
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
-  "dealerId": zod.string().optional()
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
 })
 })
 
@@ -209,7 +215,8 @@ export const AuthMeUpdateResponse = zod.object({
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
-  "dealerId": zod.string().optional()
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
 })
 })
 
@@ -262,7 +269,8 @@ export const StaffListResponse = zod.object({
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
-  "dealerId": zod.string().optional()
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
 }))
 })
 
@@ -295,7 +303,8 @@ export const StaffCreateResponse = zod.object({
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
-  "dealerId": zod.string().optional()
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
 })
 })
 
@@ -323,7 +332,8 @@ export const StaffActivateResponse = zod.object({
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
-  "dealerId": zod.string().optional()
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
 })
 })
 
@@ -351,7 +361,8 @@ export const StaffPermissionsGetResponse = zod.object({
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
-  "dealerId": zod.string().optional()
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
 }),
   "availableFeatures": zod.array(zod.string()),
   "roleFeatures": zod.record(zod.string(), zod.boolean()),
@@ -387,7 +398,8 @@ export const StaffPermissionsUpdateResponse = zod.object({
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
-  "dealerId": zod.string().optional()
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
 }),
   "availableFeatures": zod.array(zod.string()),
   "roleFeatures": zod.record(zod.string(), zod.boolean()),
@@ -426,7 +438,8 @@ export const StaffUpdateResponse = zod.object({
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
-  "dealerId": zod.string().optional()
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
 })
 })
 
@@ -3180,7 +3193,8 @@ export const AuthActivateInviteResponse = zod.object({
   "profilePhoto": zod.string().optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
-  "dealerId": zod.string().optional()
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
 })
 })
 

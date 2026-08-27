@@ -2762,7 +2762,8 @@ components:
         companyLogo: { type: string }
         shopId: { type: string }
         dealerId: { type: string }
-      required: [id, name, email, mobile, role, isActive]
+        needsDisplayName: { type: boolean }
+      required: [id, name, email, mobile, role, isActive, needsDisplayName]
     StaffCreateInput:
       type: object
       properties:
@@ -2793,6 +2794,9 @@ components:
         token: { type: string }
         user:
           $ref: "#/components/schemas/AuthUser"
+        needsDisplayName:
+          type: boolean
+          description: True only when OTP verification created a new standalone customer account.
       required: [token, user]
     Dealer:
       type: object

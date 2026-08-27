@@ -505,6 +505,7 @@ export function publicUser(u: DbUser) {
     shopAddress: u.shopAddress ?? undefined,
     profilePhoto: u.profilePhoto ?? undefined,
     companyLogo: u.companyLogo ?? undefined,
+    needsDisplayName: u.role === "customer" && u.displayNameCompletedAt === null,
   };
 }
 

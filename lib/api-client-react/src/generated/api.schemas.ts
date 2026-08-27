@@ -52,6 +52,7 @@ export interface AuthUser {
   companyLogo?: string;
   shopId?: string;
   dealerId?: string;
+  needsDisplayName: boolean;
 }
 
 export interface IndividualPermissions {
@@ -312,6 +313,8 @@ export interface RegisterVerifyResult {
 export interface AuthSession {
   token: string;
   user: AuthUser;
+  /** True only when OTP verification created a new standalone customer account. */
+  needsDisplayName?: boolean;
 }
 
 export interface Dealer {

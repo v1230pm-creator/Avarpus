@@ -1,5 +1,6 @@
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Router as WouterRouter } from "wouter";
 import App from "../src/App";
@@ -9,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   authOtpRequest: vi.fn(),
   authOtpResend: vi.fn(),
   authOtpVerify: vi.fn(),
+  authMeUpdate: vi.fn(),
   setSession: vi.fn(),
 }));
 
@@ -18,6 +20,9 @@ vi.mock("@workspace/api-client-react", () => ({
   authOtpRequest: mocks.authOtpRequest,
   authOtpResend: mocks.authOtpResend,
   authOtpVerify: mocks.authOtpVerify,
+  authMeUpdate: mocks.authMeUpdate,
+  getAuthMeQueryKey: () => ["/api/auth/me"],
+  getChatRoomsListQueryKey: () => ["/api/chat/rooms"],
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -37,6 +42,7 @@ beforeEach(() => {
   mocks.authOtpRequest.mockReset();
   mocks.authOtpResend.mockReset();
   mocks.authOtpVerify.mockReset();
+  mocks.authMeUpdate.mockReset();
   mocks.setSession.mockReset();
   root = createRoot(document.getElementById("root")!);
 });
@@ -120,10 +126,15 @@ describe("browser OTP verification", () => {
   });
 
   function renderOtpPage() {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
     root.render(
-      <WouterRouter>
-        <OtpPage />
-      </WouterRouter>,
+      <QueryClientProvider client={queryClient}>
+        <WouterRouter>
+          <OtpPage />
+        </WouterRouter>
+      </QueryClientProvider>,
     );
   }
 
@@ -185,7 +196,62 @@ describe("browser OTP verification", () => {
       deviceInfo: "Web Browser",
     });
     expect(mocks.setSession).toHaveBeenCalledWith("test-session-token");
-    expect(window.location.pathname).toBe("/dashboard");
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("prompts a newly created customer for a display name before continuing", async () => {
+    mocks.authOtpVerify.mockResolvedValue({
+      token: "new-customer-token",
+      needsDisplayName: true,
+      user: {
+        id: "customer-1",
+        name: "Customer",
+        email: "standalone@example.test",
+        mobile: "9876543210",
+        role: "customer",
+        isActive: true,
+      },
+    });
+    mocks.authMeUpdate.mockResolvedValue({
+      user: {
+        id: "customer-1",
+        name: "Priya",
+        email: "standalone@example.test",
+        mobile: "9876543210",
+        role: "customer",
+        isActive: true,
+      },
+    });
+    window.history.replaceState({}, "", "/verify?mobile=9876543210");
+
+    await act(async () => {
+      renderOtpPage();
+    });
+
+    const codeInput = document.querySelector<HTMLInputElement>("#verification-code");
+    const verifyButton = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Verify & Continue"),
+    );
+    await act(async () => {
+      setInputValue(codeInput!, "123456");
+      verifyButton?.click();
+    });
+
+    expect(mocks.setSession).toHaveBeenCalledWith("new-customer-token");
+    expect(window.location.pathname).toBe("/verify");
+    expect(document.querySelector("h1")?.textContent).toBe("Choose your display name");
+
+    const nameInput = document.querySelector<HTMLInputElement>("#display-name");
+    const continueButton = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Continue"),
+    );
+    await act(async () => {
+      setInputValue(nameInput!, "  Priya  ");
+      continueButton?.click();
+    });
+
+    expect(mocks.authMeUpdate).toHaveBeenCalledWith({ name: "Priya" });
+    expect(window.location.pathname).toBe("/");
   });
 
   it("shows an actionable error when the verification code is rejected", async () => {

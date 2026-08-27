@@ -31,6 +31,7 @@ export interface User {
   shopAddress?: string;
   profilePhoto?: string;
   companyLogo?: string;
+  needsDisplayName: boolean;
   /** For dealer-portal accounts: the dealer (B2B party) this login belongs to. */
   dealerId?: string;
 }

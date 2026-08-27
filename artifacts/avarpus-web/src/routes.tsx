@@ -60,7 +60,7 @@ function AccountLanding() {
 }
 
 export function ProtectedRoutes() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -72,6 +72,10 @@ export function ProtectedRoutes() {
 
   if (!isAuthenticated) {
     return <Redirect to="/login" />;
+  }
+
+  if (user?.needsDisplayName) {
+    return <Redirect to="/verify?setup=display-name" />;
   }
 
   return (

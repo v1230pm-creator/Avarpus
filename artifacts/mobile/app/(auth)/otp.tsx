@@ -2,10 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { authOtpResend } from '@workspace/api-client-react';
+import { authMeUpdate, authOtpResend, getChatRoomsListQueryKey } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
@@ -14,9 +15,10 @@ import { completeUnlockSuccess } from '@/utils/appLock';
 export default function OTPScreen() {
   const colors = useColors();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
-  const { loginWithOtp } = useAuth();
-  const params = useLocalSearchParams<{ mobile?: string; sentTo?: string; rememberMe?: string }>();
+  const { loginWithOtp, refreshUser } = useAuth();
+  const params = useLocalSearchParams<{ mobile?: string; sentTo?: string; rememberMe?: string; setup?: string }>();
   const mobile = typeof params.mobile === 'string' ? params.mobile : '';
   const rememberMe = params.rememberMe === '1';
   const sentTo = params.sentTo ?? '';
@@ -24,6 +26,9 @@ export default function OTPScreen() {
   const [timer, setTimer] = useState(60);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [needsDisplayName, setNeedsDisplayName] = useState(params.setup === 'display-name');
+  const [savingName, setSavingName] = useState(false);
   const refs = useRef<(TextInput | null)[]>([]);
 
   useEffect(() => {
@@ -64,9 +69,44 @@ export default function OTPScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
+    if (result.needsDisplayName) {
+      setNeedsDisplayName(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      return;
+    }
     await completeUnlockSuccess();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.replace('/(tabs)');
+  };
+
+  const saveDisplayName = async () => {
+    const trimmed = displayName.normalize('NFC').trim();
+    if (!trimmed) {
+      setError('Please enter a display name.');
+      return;
+    }
+    if (Array.from(trimmed).length > 120) {
+      setError('Display name must be 120 characters or fewer.');
+      return;
+    }
+    if (/[\u0000-\u001F\u007F-\u009F\u061C\u200E-\u200F\u202A-\u202E\u2066-\u2069<>]/u.test(trimmed)) {
+      setError('Display name contains unsupported characters.');
+      return;
+    }
+    setSavingName(true);
+    setError('');
+    try {
+      await authMeUpdate({ name: trimmed });
+      await refreshUser();
+      await queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
+      await completeUnlockSuccess();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      setError(err?.data?.message ?? err?.response?.data?.message ?? 'Could not save your display name. Please try again.');
+    } finally {
+      setSavingName(false);
+    }
   };
 
   const handleResend = async () => {
@@ -87,63 +127,95 @@ export default function OTPScreen() {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <KeyboardAwareScrollViewCompat style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
         <View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Feather name="arrow-left" size={22} color={colors.foreground} />
-          </TouchableOpacity>
+          {!needsDisplayName && (
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <Feather name="arrow-left" size={22} color={colors.foreground} />
+            </TouchableOpacity>
+          )}
 
           <View style={styles.content}>
             <View style={styles.header}>
               <View style={[styles.iconCircle, { backgroundColor: colors.primary + '15' }]}>
-                <Feather name="smartphone" size={32} color={colors.primary} />
+                <Feather name={needsDisplayName ? 'user' : 'smartphone'} size={32} color={colors.primary} />
               </View>
-              <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Verify Your Mobile</Text>
+              <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+                {needsDisplayName ? 'Choose your display name' : 'Verify Your Mobile'}
+              </Text>
               <Text style={[styles.subtitle, { color: colors.textMuted, fontFamily: 'Inter_400Regular' }]}>
-                {sentTo
+                {needsDisplayName
+                  ? 'This is how you will appear in conversations.'
+                  : sentTo
                   ? `Enter the 6-digit code sent to ${sentTo}`
                   : 'Enter the 6-digit code sent to the mobile number'}
               </Text>
             </View>
 
-            <View style={styles.otpRow}>
-              {otp.map((digit, idx) => (
+            {needsDisplayName ? (
+              <>
                 <TextInput
-                  key={idx}
-                  ref={(r) => { refs.current[idx] = r; }}
-                  value={digit}
-                  onChangeText={(v) => handleChange(v, idx)}
-                  onKeyPress={(e) => handleKeyPress(e, idx)}
-                  keyboardType="number-pad"
-                  maxLength={1}
-                  selectTextOnFocus
-                  style={[
-                    styles.otpCell,
-                    {
-                      borderColor: digit ? colors.primary : colors.border,
-                      color: colors.foreground,
-                      fontFamily: 'Inter_700Bold',
-                      backgroundColor: colors.input,
-                      borderRadius: colors.radius - 2,
-                    },
-                  ]}
-                  textAlign="center"
+                  value={displayName}
+                  onChangeText={(value) => setDisplayName(value.slice(0, 120))}
+                  autoFocus
+                  maxLength={120}
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                  onSubmitEditing={saveDisplayName}
+                  placeholder="Your name"
+                  placeholderTextColor={colors.textMuted}
+                  style={[styles.nameInput, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.input, borderRadius: colors.radius - 2, fontFamily: 'Inter_500Medium' }]}
                 />
-              ))}
-            </View>
+                <Button title="Continue" onPress={saveDisplayName} loading={savingName} disabled={savingName} fullWidth size="lg" />
+              </>
+            ) : (
+              <>
+                <View style={styles.otpRow}>
+                  {otp.map((digit, idx) => (
+                    <TextInput
+                      key={idx}
+                      ref={(r) => { refs.current[idx] = r; }}
+                      value={digit}
+                      onChangeText={(v) => handleChange(v, idx)}
+                      onKeyPress={(e) => handleKeyPress(e, idx)}
+                      keyboardType="number-pad"
+                      maxLength={1}
+                      selectTextOnFocus
+                      style={[
+                        styles.otpCell,
+                        {
+                          borderColor: digit ? colors.primary : colors.border,
+                          color: colors.foreground,
+                          fontFamily: 'Inter_700Bold',
+                          backgroundColor: colors.input,
+                          borderRadius: colors.radius - 2,
+                        },
+                      ]}
+                      textAlign="center"
+                    />
+                  ))}
+                </View>
 
-            {!!error && (
+                {!!error && (
+                  <View style={[styles.errorBox, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
+                    <Feather name="alert-circle" size={14} color={colors.destructive} />
+                    <Text style={[styles.errorText, { color: colors.destructive, fontFamily: 'Inter_400Regular' }]}>{error}</Text>
+                  </View>
+                )}
+
+                <TouchableOpacity onPress={handleResend} disabled={timer > 0} style={{ alignItems: 'center' }}>
+                  <Text style={[styles.resendText, { color: timer > 0 ? colors.textMuted : colors.primary, fontFamily: 'Inter_500Medium' }]}>
+                    {timer > 0 ? `Resend OTP in ${timer}s` : 'Resend OTP'}
+                  </Text>
+                </TouchableOpacity>
+
+                <Button title="Verify & Continue" onPress={handleVerify} loading={loading} disabled={!filled} fullWidth size="lg" />
+              </>
+            )}
+            {needsDisplayName && !!error && (
               <View style={[styles.errorBox, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
                 <Feather name="alert-circle" size={14} color={colors.destructive} />
                 <Text style={[styles.errorText, { color: colors.destructive, fontFamily: 'Inter_400Regular' }]}>{error}</Text>
               </View>
             )}
-
-            <TouchableOpacity onPress={handleResend} disabled={timer > 0} style={{ alignItems: 'center' }}>
-              <Text style={[styles.resendText, { color: timer > 0 ? colors.textMuted : colors.primary, fontFamily: 'Inter_500Medium' }]}>
-                {timer > 0 ? `Resend OTP in ${timer}s` : 'Resend OTP'}
-              </Text>
-            </TouchableOpacity>
-
-            <Button title="Verify & Continue" onPress={handleVerify} loading={loading} disabled={!filled} fullWidth size="lg" />
           </View>
         </View>
       </KeyboardAwareScrollViewCompat>
@@ -162,6 +234,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 15, textAlign: 'center', lineHeight: 22 },
   otpRow: { flexDirection: 'row', justifyContent: 'center', gap: 10 },
   otpCell: { width: 48, height: 60, fontSize: 24, borderWidth: 1.5 },
+  nameInput: { width: '100%', height: 54, borderWidth: 1.5, paddingHorizontal: 16, fontSize: 16 },
   resendText: { fontSize: 15 },
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 14, borderWidth: 1 },
   errorText: { fontSize: 14, flex: 1 },

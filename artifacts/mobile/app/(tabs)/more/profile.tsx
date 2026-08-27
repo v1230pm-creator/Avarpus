@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +10,7 @@ import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
 import { FlatCard, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
-import { authMeUpdate } from '@workspace/api-client-react';
+import { authMeUpdate, getChatRoomsListQueryKey } from '@workspace/api-client-react';
 
 // ── My Profile ──────────────────────────────────────────────────────────────
 // Self-service account screen for every signed-in user: edit name and mobile.
@@ -19,10 +20,16 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, refreshUser } = useAuth();
+  const queryClient = useQueryClient();
 
   const [name, setName] = useState(user?.name ?? '');
   const [mobile, setMobile] = useState(user?.mobile ?? '');
   const [savingProfile, setSavingProfile] = useState(false);
+
+  useEffect(() => {
+    setName(user?.name ?? '');
+    setMobile(user?.mobile ?? '');
+  }, [user?.id, user?.name, user?.mobile]);
 
   const anims = useStaggerAnim(1);
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
@@ -33,12 +40,18 @@ export default function ProfileScreen() {
   };
 
   const saveProfile = async () => {
-    if (!name.trim()) return notify('Error', 'Name cannot be empty');
+    const trimmedName = name.normalize('NFC').trim();
+    if (!trimmedName) return notify('Error', 'Name cannot be empty');
+    if (Array.from(trimmedName).length > 120) return notify('Error', 'Name must be 120 characters or fewer');
+    if (/[\u0000-\u001F\u007F-\u009F\u061C\u200E-\u200F\u202A-\u202E\u2066-\u2069<>]/u.test(trimmedName)) {
+      return notify('Error', 'Name contains unsupported characters');
+    }
     if (mobile && !/^\d{10}$/.test(mobile)) return notify('Error', 'Mobile must be a 10-digit number');
     setSavingProfile(true);
     try {
-      await authMeUpdate({ name: name.trim(), ...(mobile ? { mobile } : {}) });
+      await authMeUpdate({ name: trimmedName, ...(mobile ? { mobile } : {}) });
       await refreshUser();
+      await queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       notify('Saved', 'Profile updated');
     } catch (e: any) {
@@ -73,7 +86,7 @@ export default function ProfileScreen() {
               </View>
             </View>
             <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>NAME</Text>
-            <TextInput value={name} onChangeText={setName} style={inputStyle} placeholder="Your name" placeholderTextColor={colors.mutedForeground} />
+            <TextInput value={name} onChangeText={(value) => setName(value.slice(0, 120))} maxLength={120} style={inputStyle} placeholder="Your name" placeholderTextColor={colors.mutedForeground} />
             <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>MOBILE</Text>
             <TextInput value={mobile} onChangeText={(t) => setMobile(t.replace(/[^0-9]/g, '').slice(0, 10))} style={inputStyle} placeholder="10-digit mobile" placeholderTextColor={colors.mutedForeground} keyboardType="number-pad" />
             <TouchableOpacity onPress={saveProfile} disabled={savingProfile} activeOpacity={0.85} style={[styles.button, { backgroundColor: colors.primary, opacity: savingProfile ? 0.6 : 1 }]}>

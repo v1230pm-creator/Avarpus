@@ -407,6 +407,8 @@ describe("POST /api/auth/otp/verify", () => {
     expect(typeof res.body.token).toBe("string");
     expect(res.body.token.length).toBeGreaterThan(20);
     expect(res.body.user.mobile).toBe(MOBILE);
+    expect(res.body.user.name).toBe("Auth Test User");
+    expect(res.body.needsDisplayName).toBe(false);
     expect(res.body.user.passwordHash).toBeUndefined();
   });
 
@@ -441,9 +443,60 @@ describe("POST /api/auth/otp/verify", () => {
     expect(res.status).toBe(200);
     expect(res.body.user.role).toBe("customer");
     expect(res.body.user.shopId).toBeUndefined();
+    expect(res.body.needsDisplayName).toBe(true);
+    expect(res.body.user.needsDisplayName).toBe(true);
+
+    const interruptedCode = await createOtp(standaloneMobile, "login");
+    const interruptedLogin = await request(app)
+      .post("/api/auth/otp/verify")
+      .send({ mobile: standaloneMobile, code: interruptedCode });
+    expect(interruptedLogin.status).toBe(200);
+    expect(interruptedLogin.body.needsDisplayName).toBe(true);
+    expect(interruptedLogin.body.user.needsDisplayName).toBe(true);
+
+    const unsafeName = await request(app)
+      .patch("/api/auth/me")
+      .set("Authorization", `Bearer ${res.body.token}`)
+      .send({ name: "<script>alert(1)</script>" });
+    expect(unsafeName.status).toBe(400);
+    expect(unsafeName.body.message).toMatch(/unsupported characters/i);
+
+    for (const bidiControl of ["\u061C", "\u200E", "\u200F"]) {
+      const bidiName = await request(app)
+        .patch("/api/auth/me")
+        .set("Authorization", `Bearer ${res.body.token}`)
+        .send({ name: `Priya${bidiControl}Customer` });
+      expect(bidiName.status).toBe(400);
+      expect(bidiName.body.message).toMatch(/unsupported characters/i);
+    }
+
+    const longName = await request(app)
+      .patch("/api/auth/me")
+      .set("Authorization", `Bearer ${res.body.token}`)
+      .send({ name: "A".repeat(121) });
+    expect(longName.status).toBe(400);
+    expect(longName.body.message).toMatch(/120 characters or fewer/i);
+
+    const updatedName = await request(app)
+      .patch("/api/auth/me")
+      .set("Authorization", `Bearer ${res.body.token}`)
+      .send({ name: "  Priya Customer  " });
+    expect(updatedName.status).toBe(200);
+    expect(updatedName.body.user.name).toBe("Priya Customer");
+    expect(updatedName.body.user.needsDisplayName).toBe(false);
+
+    const completedCode = await createOtp(standaloneMobile, "login");
+    const completedLogin = await request(app)
+      .post("/api/auth/otp/verify")
+      .send({ mobile: standaloneMobile, code: completedCode });
+    expect(completedLogin.status).toBe(200);
+    expect(completedLogin.body.needsDisplayName).toBe(false);
+    expect(completedLogin.body.user.needsDisplayName).toBe(false);
+
     const [created] = await db.select().from(usersTable)
       .where(eq(usersTable.mobile, standaloneMobile));
     expect(created.isActive).toBe(true);
+    expect(created.name).toBe("Priya Customer");
     expect(created.shopId).toBeNull();
     expect(created.dealerId).toBeNull();
     await db.delete(sessionsTable).where(eq(sessionsTable.userId, created.id));

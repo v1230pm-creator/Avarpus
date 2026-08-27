@@ -11,6 +11,7 @@ export default function Index() {
     isLoading,
     trustedDeviceStatus,
     useOtpInstead,
+    user,
   } = useAuth();
   const colors = useColors();
   const [lockCheck, setLockCheck] = useState<'pending' | 'locked' | 'open'>('pending');
@@ -74,6 +75,10 @@ export default function Index() {
 
   if (!isAuthenticated) {
     return <Redirect href="/(auth)" />;
+  }
+
+  if (user?.needsDisplayName) {
+    return <Redirect href="/(auth)/otp?setup=display-name" />;
   }
 
   if (lockCheck === 'locked') {

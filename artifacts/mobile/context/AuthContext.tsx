@@ -23,7 +23,7 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  loginWithOtp: (mobile: string, code: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
+  loginWithOtp: (mobile: string, code: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string; needsDisplayName?: boolean }>;
   logout: () => Promise<void>;
   /** Adopt a session returned by an auth API call (e.g. registration). */
   adoptSession: (session: { token: string; user: any }) => Promise<void>;
@@ -271,7 +271,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await applySession(session);
       setSignedOutNotice(null);
       setTrustedDeviceStatus('idle');
-      return { success: true };
+       return { success: true, needsDisplayName: session.needsDisplayName === true };
     } catch (err) {
       return { success: false, error: apiErrorMessage(err, 'Verification failed. Please try again.') };
     }
