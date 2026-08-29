@@ -26,6 +26,15 @@
       "versionCode": 16,
       "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES"]
     },
+    "androidStatusBar": {
+      "barStyle": "light-content",
+      "backgroundColor": "#040914",
+      "translucent": false
+    },
+    "androidNavigationBar": {
+      "barStyle": "light-content",
+      "backgroundColor": "#040914"
+    },
     "web": {
       "favicon": "./assets/images/avarpus-favicon.png"
     },

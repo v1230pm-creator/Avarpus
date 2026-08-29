@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { StatusBar, useColorScheme } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -38,6 +39,8 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  const colorScheme = useColorScheme();
+  const dark = colorScheme === 'dark';
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -55,6 +58,11 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
+      <StatusBar
+        barStyle={dark ? 'light-content' : 'dark-content'}
+        backgroundColor={dark ? '#040914' : '#F4F7FB'}
+        translucent={false}
+      />
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>

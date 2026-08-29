@@ -427,9 +427,9 @@ export default function ReturnDetailScreen() {
       </KeyboardAwareScrollViewCompat>
 
       {/* Inspection Modal */}
-      <Modal visible={showInspectionEdit} animationType="fade" transparent>
+      <Modal visible={showInspectionEdit} animationType="fade" transparent onRequestClose={() => setShowInspectionEdit(false)}>
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Inspection</Text>
 
             <Text style={[styles.label, { color: colors.foreground }]}>Resolution</Text>
@@ -477,9 +477,9 @@ export default function ReturnDetailScreen() {
       </Modal>
 
       {/* Add Part Modal */}
-      <Modal visible={showAddPart} animationType="fade" transparent>
+      <Modal visible={showAddPart} animationType="fade" transparent onRequestClose={() => setShowAddPart(false)}>
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Add Part</Text>
             <Text style={{ fontSize: 12, color: colors.mutedForeground, marginBottom: 12 }}>
               Select from inventory to deduct stock, or enter custom.
@@ -527,9 +527,9 @@ export default function ReturnDetailScreen() {
       </Modal>
 
       {/* Refund Modal */}
-      <Modal visible={showRefundModal} animationType="fade" transparent>
+      <Modal visible={showRefundModal} animationType="fade" transparent onRequestClose={() => setShowRefundModal(false)}>
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>{isDealer ? 'Create Refund' : 'Request Refund'}</Text>
 
             <Text style={[styles.label, { color: colors.foreground }]}>Amount</Text>
@@ -546,9 +546,9 @@ export default function ReturnDetailScreen() {
         </KeyboardAvoidingCompat>
       </Modal>
       {/* Status Picker Modal */}
-      <Modal visible={showStatusPicker} animationType="fade" transparent>
+      <Modal visible={showStatusPicker} animationType="fade" transparent onRequestClose={() => setShowStatusPicker(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground, marginBottom: 16 }]}>Update Status</Text>
             <View style={{ gap: 8 }}>
               {availableStatuses.map(s => (

@@ -39,6 +39,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   LiveKitRoom,
   VideoTrack,
@@ -91,6 +92,7 @@ interface CallUIProps {
 
 function CallControls({ mode, remoteName, nav }: CallUIProps) {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const room = useRoomContext();
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
   const connectionState = useConnectionState();
@@ -276,7 +278,10 @@ function CallControls({ mode, remoteName, nav }: CallUIProps) {
       )}
 
       {/* E2EE note */}
-      <View style={styles.e2eeBanner} testID="e2ee-disabled-note">
+      <View
+        style={[styles.e2eeBanner, { bottom: Math.max(insets.bottom, 20) + 72 }]}
+        testID="e2ee-disabled-note"
+      >
         <View style={[styles.e2eePill, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Feather name="shield" size={12} color={colors.mutedForeground} />
           <Text
@@ -289,7 +294,10 @@ function CallControls({ mode, remoteName, nav }: CallUIProps) {
       </View>
 
       {/* Controls */}
-      <View style={styles.controls} testID="call-controls">
+      <View
+        style={[styles.controls, { bottom: Math.max(insets.bottom, 20) }]}
+        testID="call-controls"
+      >
         {/* Mute */}
         <TouchableOpacity
           style={[
@@ -582,7 +590,6 @@ const styles = StyleSheet.create({
   },
   e2eeBanner: {
     position: 'absolute',
-    bottom: 112,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -605,7 +612,6 @@ const styles = StyleSheet.create({
   },
   controls: {
     position: 'absolute',
-    bottom: 40,
     left: 0,
     right: 0,
     flexDirection: 'row',

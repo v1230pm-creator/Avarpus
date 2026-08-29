@@ -7,9 +7,9 @@ import { useColors } from '@/hooks/useColors';
 import { isLockEnabled, isUnlocked, subscribeLockState } from '@/utils/appLock';
 import { InactivityGuard } from '@/components/InactivityGuard';
 import { Feather } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
 import { canCustomerAccessTabsRoute, canPortalAccessTabsRoute } from '@/utils/tabRouteAccess';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const MAIN_TABS = [
   { name: 'index', label: 'Chats', icon: 'message-circle' as const },
@@ -23,12 +23,16 @@ function PremiumTabBar({
   state,
   descriptors,
   navigation,
+  tabs,
 }: {
   state: { index: number; routes: Array<{ key: string; name: string }> };
   descriptors: Record<string, { options: { href?: string | null; tabBarStyle?: unknown } }>;
   navigation: { navigate: (name: string) => void };
+  tabs: typeof MAIN_TABS;
 }) {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Platform.OS === 'web' ? 20 : Math.max(insets.bottom, 8);
   const currentOptions = descriptors[state.routes[state.index]?.key]?.options;
   const tabBarStyle = currentOptions?.tabBarStyle as any;
   if (tabBarStyle?.display === 'none') return null;
@@ -40,12 +44,13 @@ function PremiumTabBar({
         {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
-          paddingBottom: Platform.OS === 'web' ? 20 : 8,
+          paddingBottom: bottomInset,
+          minHeight: 62 + bottomInset,
         },
         tabBarStyle,
       ]}
     >
-      {MAIN_TABS.map((tab) => {
+      {tabs.map((tab) => {
         const routeIndex = state.routes.findIndex((route) => route.name === tab.name);
         if (routeIndex < 0) return null;
         const routeOptions = descriptors[state.routes[routeIndex].key]?.options;
@@ -102,12 +107,19 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
   const colors = useColors();
   const { canAccess } = useAuth();
   const isWeb = Platform.OS === 'web';
+  const visibleTabs = MAIN_TABS.filter((tab) => {
+    if (tab.name === 'index') return true;
+    if (customer || portal) return false;
+    if (tab.name === 'khata') return canAccess('payments');
+    return true;
+  });
 
   return (
     <Tabs
-      tabBar={(props) => <PremiumTabBar {...props} />}
+      tabBar={(props) => <PremiumTabBar {...props} tabs={visibleTabs} />}
       screenOptions={{
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: isWeb ? { height: 84 } : undefined,
       }}
     >
@@ -236,8 +248,7 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
-    minHeight: 70,
-    paddingTop: 8,
+    paddingTop: 6,
     borderTopWidth: 1,
     elevation: 0,
   },

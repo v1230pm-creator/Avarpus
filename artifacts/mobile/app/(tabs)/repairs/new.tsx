@@ -1305,9 +1305,9 @@ export default function NewRepairScreen() {
       </KeyboardAwareScrollViewCompat>
 
       {/* Signature Modal */}
-      <Modal visible={showSignature} animationType="slide" transparent>
+      <Modal visible={showSignature} animationType="slide" transparent onRequestClose={() => setShowSignature(false)}>
         <View style={[styles.modalOverlay, { backgroundColor: colors.background }]}>
-          <View style={[styles.sigScreen, { paddingTop: topPad + 8 }]}>
+          <View style={[styles.sigScreen, { paddingTop: topPad + 8, paddingBottom: Math.max(insets.bottom, 20) }]}>
             <View style={styles.sigHeaderRow}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Customer Signature</Text>
@@ -1343,7 +1343,7 @@ export default function NewRepairScreen() {
       </Modal>
 
       {/* Photo Kind Modal */}
-      <Modal visible={!!showPhotoKindModal} animationType="fade" transparent>
+      <Modal visible={!!showPhotoKindModal} animationType="fade" transparent onRequestClose={() => setShowPhotoKindModal(null)}>
         <View style={[styles.overlayCenter, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
           <View style={[styles.kindModal, { backgroundColor: colors.card }]}>
             <Text style={[styles.kindTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Photo Category</Text>

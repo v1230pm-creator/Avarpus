@@ -61,7 +61,7 @@ export function FormSheet({ visible, title, onClose, onSubmit, submitLabel = 'Sa
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  avoider: { justifyContent: 'flex-end' },
+  avoider: { flex: 1, justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' },
   sheetHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

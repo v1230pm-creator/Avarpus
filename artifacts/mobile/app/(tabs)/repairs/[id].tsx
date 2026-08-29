@@ -195,9 +195,9 @@ export default function RepairDetailScreen() {
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
   // The tab bar is position:'absolute' (see (tabs)/_layout.tsx), so screen
   // content renders behind it. Offset the sticky action bar above the tab bar:
-  // web uses an explicit 84px bar; native uses the react-navigation default
-  // (49px) plus the bottom safe-area inset.
-  const tabBarHeight = Platform.OS === 'web' ? 84 : 49 + insets.bottom;
+  // Keep fixed actions above the custom tab bar's visible content and the
+  // system navigation safe area.
+  const tabBarHeight = Platform.OS === 'web' ? 84 : 62 + Math.max(insets.bottom, 8);
   const anims = useStaggerAnim(16);
 
   const repair = useMemo(() => repairs.find((r) => r.id === id), [repairs, id]);
@@ -1508,7 +1508,7 @@ export default function RepairDetailScreen() {
       </View>
 
       {/* Update Status — next step only */}
-      <Modal visible={showStatusPicker} animationType="slide" transparent>
+      <Modal visible={showStatusPicker} animationType="slide" transparent onRequestClose={() => setShowStatusPicker(false)}>
         <View style={styles.sheetOverlay}>
           <View style={[styles.sheetContent, { backgroundColor: colors.background, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, 16) }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Update Status</Text>
@@ -1936,7 +1936,7 @@ export default function RepairDetailScreen() {
       </Modal>
 
       {/* Delivery Handover Modal */}
-      <Modal visible={showDeliveryHandover} animationType="fade" transparent>
+      <Modal visible={showDeliveryHandover} animationType="fade" transparent onRequestClose={() => setShowDeliveryHandover(false)}>
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground, marginBottom: 4 }]}>Delivery Handover</Text>
@@ -2027,7 +2027,7 @@ export default function RepairDetailScreen() {
       </Modal>
 
       {/* Add Part Modal */}
-      <Modal visible={showAddPart} animationType="fade" transparent>
+      <Modal visible={showAddPart} animationType="fade" transparent onRequestClose={() => setShowAddPart(false)}>
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Add Part</Text>
@@ -2298,7 +2298,7 @@ export default function RepairDetailScreen() {
 
 
       {/* Testing Modal */}
-      <Modal visible={showTesting} animationType="slide" transparent>
+      <Modal visible={showTesting} animationType="slide" transparent onRequestClose={() => setShowTesting(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Final Testing Checklist</Text>
@@ -2329,7 +2329,7 @@ export default function RepairDetailScreen() {
 
 
       {/* Estimate Approval Modal */}
-      <Modal visible={showApproval} animationType="slide" transparent>
+      <Modal visible={showApproval} animationType="slide" transparent onRequestClose={() => setShowApproval(false)}>
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Request Customer Approval</Text>
@@ -2367,7 +2367,7 @@ export default function RepairDetailScreen() {
         </KeyboardAvoidingCompat>
       </Modal>
 {/* Financial Edit Modal */}
-      <Modal visible={showFinancialEdit} animationType="fade" transparent>
+      <Modal visible={showFinancialEdit} animationType="fade" transparent onRequestClose={() => setShowFinancialEdit(false)}>
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Financials</Text>
@@ -2401,7 +2401,7 @@ export default function RepairDetailScreen() {
       </Modal>
 
       {/* Void Payment Modal (dealer/owner) */}
-      <Modal visible={!!voidTarget} animationType="fade" transparent>
+      <Modal visible={!!voidTarget} animationType="fade" transparent onRequestClose={() => setVoidTarget(null)}>
         <KeyboardAvoidingCompat style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Void Payment</Text>
@@ -2430,7 +2430,7 @@ export default function RepairDetailScreen() {
       </Modal>
 
       {/* Service Edit Modal */}
-      <Modal visible={showServiceEdit} animationType="fade" transparent>
+      <Modal visible={showServiceEdit} animationType="fade" transparent onRequestClose={() => setShowServiceEdit(false)}>
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Service Details</Text>
@@ -2497,7 +2497,7 @@ export default function RepairDetailScreen() {
       </Modal>
 
       {/* Delivery Signature Modal */}
-      <Modal visible={showDeliverySig} animationType="slide" transparent>
+      <Modal visible={showDeliverySig} animationType="slide" transparent onRequestClose={() => setShowDeliverySig(false)}>
         <View style={[styles.modalOverlay, { backgroundColor: colors.background, padding: 0, justifyContent: 'flex-start' }]}>
           <View style={[styles.sigScreen, { paddingTop: topPad + 8 }]}>
             <View style={styles.sigHeaderRow}>
@@ -2536,7 +2536,7 @@ export default function RepairDetailScreen() {
 
 
       {/* Delivery OTP Modal */}
-      <Modal visible={showDeliveryOtp} animationType="slide" transparent>
+      <Modal visible={showDeliveryOtp} animationType="slide" transparent onRequestClose={() => setShowDeliveryOtp(false)}>
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Verify Delivery OTP</Text>
@@ -2587,7 +2587,7 @@ export default function RepairDetailScreen() {
       </Modal>
 
       {/* Assign Technician Modal */}
-      <Modal visible={showAssign} animationType="slide" transparent>
+      <Modal visible={showAssign} animationType="slide" transparent onRequestClose={() => setShowAssign(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Assign Technician</Text>
