@@ -51,6 +51,12 @@ function PremiumTabBar({
         const routeOptions = descriptors[state.routes[routeIndex].key]?.options;
         if (routeOptions?.href === null) return null;
         const focused = state.index === routeIndex;
+        
+        const isKhata = tab.name === 'khata';
+        const activeColor = isKhata ? colors.goldActive : colors.primary;
+        const activeBg = isKhata ? `${colors.gold}15` : colors.accent;
+        const activeBorder = isKhata ? colors.gold : 'transparent';
+        
         return (
           <TouchableOpacity
             key={tab.name}
@@ -64,20 +70,21 @@ function PremiumTabBar({
             <View
               style={[
                 styles.tabIconWrap,
-                focused && { backgroundColor: colors.accent },
+                focused && { backgroundColor: activeBg },
+                focused && isKhata && { borderWidth: 1, borderColor: activeBorder },
               ]}
             >
               <Feather
                 name={tab.icon}
                 size={19}
-                color={focused ? colors.primary : colors.mutedForeground}
+                color={focused ? activeColor : colors.mutedForeground}
               />
             </View>
             <Text
               style={[
                 styles.tabLabel,
                 {
-                  color: focused ? colors.primary : colors.mutedForeground,
+                  color: focused ? activeColor : colors.mutedForeground,
                   fontFamily: focused ? 'Inter_600SemiBold' : 'Inter_500Medium',
                 },
               ]}

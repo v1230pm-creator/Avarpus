@@ -1,7 +1,7 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +9,7 @@ import { useColors } from '@/hooks/useColors';
 
 export default function TermsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ next?: string }>();
   const insets = useSafeAreaInsets();
   const colors = useColors();
 
@@ -41,7 +42,8 @@ export default function TermsScreen() {
             title="Agree & Continue"
             onPress={async () => {
               await AsyncStorage.setItem('avarpus_terms_accepted', 'true');
-              router.replace('/(auth)/phone');
+              const nextRoute = params.next === 'register' ? '/(auth)/register' : '/(auth)/phone';
+              router.replace(nextRoute as any);
             }}
             fullWidth
             size="lg"
@@ -69,7 +71,7 @@ const styles = StyleSheet.create({
   wordmark: { fontSize: 12, letterSpacing: 2.4, fontFamily: 'Inter_700Bold' },
   content: { flex: 1, justifyContent: 'center', paddingVertical: 28, gap: 14 },
   eyebrow: { fontSize: 12, letterSpacing: 1.5, fontFamily: 'Inter_700Bold', textTransform: 'uppercase' },
-  title: { fontSize: 36, lineHeight: 42, letterSpacing: -1, fontFamily: 'Inter_700Bold', marginBottom: 2 },
+  title: { fontSize: 28, lineHeight: 34, letterSpacing: -0.6, fontFamily: 'Inter_700Bold', marginBottom: 2 },
   subtitle: { fontSize: 15, lineHeight: 22, fontFamily: 'Inter_400Regular' },
   divider: { height: 1, marginVertical: 14 },
   section: { paddingBottom: 16, marginBottom: 2, borderBottomWidth: 1 },

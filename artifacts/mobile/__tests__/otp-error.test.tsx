@@ -8,6 +8,7 @@
  */
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ── Mocks (network + native boundaries only) ─────────────────────────────
 const mockOtpVerify = jest.fn();
@@ -63,10 +64,15 @@ class FakeApiError extends Error {
 }
 
 async function renderScreen() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   const utils = render(
-    <AuthProvider>
-      <OTPScreen />
-    </AuthProvider>,
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <OTPScreen />
+      </AuthProvider>
+    </QueryClientProvider>,
   );
   // Let AuthProvider's mount effect (storage read) settle inside act
   await act(async () => {});

@@ -166,7 +166,7 @@ export default function AddStaffScreen() {
                       onPress={() => setDealerId(d.id)}
                       activeOpacity={0.8}
                       style={{
-                        flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12,
+                        flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12,
                         borderWidth: 1.5, backgroundColor: active ? colors.primary + '15' : colors.primary + '08',
                         borderColor: active ? colors.primary : colors.primary + '18',
                       }}
@@ -187,7 +187,7 @@ export default function AddStaffScreen() {
 
           <FadeInView animValue={anims[1]} style={styles.section}>
           <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>DETAILS</Text>
-          <View style={{ gap: 14 }}>
+          <View style={{ gap: 8 }}>
             <Input label="Full Name" value={name} onChangeText={setName}
               placeholder="Staff member's name" leftIcon="user" error={errors.name} />
             <Input label="Email Address" value={email} onChangeText={setEmail}
@@ -219,17 +219,17 @@ export default function AddStaffScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14, gap: 8 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 12, gap: 8 },
   backBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 22 },
+  headerTitle: { fontSize: 20 },
   headerSub: { fontSize: 13 },
-  scroll: { padding: 16, gap: 16 },
-  section: { gap: 16 },
+  scroll: { padding: 12, gap: 8 },
+  section: { gap: 8 },
   sectionLabel: { fontSize: 11, letterSpacing: 1, marginTop: 4 },
-  roleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  roleCard: { width: '48%', flexGrow: 1, borderWidth: 1.5, padding: 14, gap: 6 },
+  roleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  roleCard: { width: '48%', flexGrow: 1, borderWidth: 1.5, padding: 12, gap: 6 },
   roleName: { fontSize: 13 },
   roleHint: { fontSize: 11, lineHeight: 15 },
-  infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1, padding: 12 },
+  infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, padding: 12 },
   infoText: { fontSize: 12, flex: 1, lineHeight: 18 },
 });

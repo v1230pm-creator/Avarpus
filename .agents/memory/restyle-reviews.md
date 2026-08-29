@@ -2,7 +2,8 @@
 name: Restyle review bar
 description: What completion reviewers check on app-wide visual restyle tasks
 ---
-Rule: on "make everything match the new style" tasks, reviewers reject if any screen's *primary content* (list item cards) keeps the old flat surface, even when headers/search/chips were restyled.
-**Why:** Task 
-review rejected an otherwise complete glassmorphism pass because one list's item cards still used the plain card token.
-**How to apply:** After restyling, grep for old surface tokens (e.g. `backgroundColor: colors.card`) across all screens and convert every list-item card, not just chrome.
+Rule: app-wide restyles must cover primary content on every route and preserve every pre-existing business control, status representation, and filter.
+
+**Why:** Past reviews rejected visually broad passes both for leaving legacy list cards and for accidentally removing payment options, terminal statuses, or report periods during presentation-only rewrites.
+
+**How to apply:** Audit every route, grep for legacy surfaces, and compare interactive controls and state representations against the pre-restyle version before completion.

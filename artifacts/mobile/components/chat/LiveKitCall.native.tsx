@@ -208,7 +208,7 @@ function CallControls({ mode, remoteName, nav }: CallUIProps) {
       : remoteName;
 
   return (
-    <View style={styles.outer} testID="call-active">
+    <View style={[styles.outer, { backgroundColor: mode === 'video' ? '#000' : colors.background }]} testID="call-active">
       {/* Video views (video mode only) */}
       {mode === 'video' && (
         <>
@@ -221,11 +221,11 @@ function CallControls({ mode, remoteName, nav }: CallUIProps) {
             />
           ) : (
             <View
-              style={[styles.remoteVideoStyle, styles.videoPlaceholder]}
+              style={[styles.remoteVideoStyle, styles.videoPlaceholder, { backgroundColor: colors.background }]}
               testID="remote-video-placeholder"
             >
-              <Feather name="user" size={64} color="rgba(255,255,255,0.4)" />
-              <Text style={styles.placeholderName} numberOfLines={1}>
+              <Feather name="user" size={64} color={colors.mutedForeground} />
+              <Text style={[styles.placeholderName, { color: colors.foreground }]} numberOfLines={1}>
                 {remoteNames}
               </Text>
             </View>
@@ -233,7 +233,7 @@ function CallControls({ mode, remoteName, nav }: CallUIProps) {
 
           {/* Local video — pip corner */}
           {localVideoTracks.length > 0 && isCameraEnabled && (
-            <View style={styles.localVideoContainer}>
+            <View style={[styles.localVideoContainer, { borderColor: colors.border, backgroundColor: colors.background }]}>
               <VideoTrack
                 trackRef={localVideoTracks[0]}
                 style={styles.localVideoInner}
@@ -248,14 +248,14 @@ function CallControls({ mode, remoteName, nav }: CallUIProps) {
 
       {/* Audio-only avatar screen */}
       {mode === 'audio' && (
-        <View style={styles.audioScreen} testID="audio-screen">
-          <View style={styles.audioAvatar}>
-            <Feather name="user" size={72} color="rgba(255,255,255,0.8)" />
+        <View style={[styles.audioScreen, { backgroundColor: colors.background }]} testID="audio-screen">
+          <View style={[styles.audioAvatar, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
+            <Feather name="user" size={56} color={colors.primary} />
           </View>
-          <Text style={styles.audioRemoteName} numberOfLines={1}>
+          <Text style={[styles.audioRemoteName, { color: colors.foreground }]} numberOfLines={1}>
             {remoteNames}
           </Text>
-          <Text style={styles.audioStatus}>
+          <Text style={[styles.audioStatus, { color: colors.mutedForeground }]}>
             {isConnecting
               ? 'Connecting…'
               : isConnected
@@ -269,51 +269,61 @@ function CallControls({ mode, remoteName, nav }: CallUIProps) {
 
       {/* Loading overlay */}
       {isConnecting && (
-        <View style={styles.loadingOverlay} testID="call-loading">
-          <ActivityIndicator color="#fff" size="large" />
-          <Text style={styles.loadingText}>Connecting…</Text>
+        <View style={[styles.loadingOverlay, { backgroundColor: colors.background }]} testID="call-loading">
+          <ActivityIndicator color={colors.primary} size="large" />
+          <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>Connecting…</Text>
         </View>
       )}
 
       {/* E2EE note */}
       <View style={styles.e2eeBanner} testID="e2ee-disabled-note">
-        <Feather name="shield" size={12} color="rgba(255,255,255,0.5)" />
-        <Text
-          style={styles.e2eeText}
-          accessibilityLabel="End-to-end encryption is not enabled"
-        >
-          End-to-end encryption is not enabled
-        </Text>
+        <View style={[styles.e2eePill, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="shield" size={12} color={colors.mutedForeground} />
+          <Text
+            style={[styles.e2eeText, { color: colors.mutedForeground }]}
+            accessibilityLabel="End-to-end encryption is not enabled"
+          >
+            End-to-end encryption is not enabled
+          </Text>
+        </View>
       </View>
 
       {/* Controls */}
       <View style={styles.controls} testID="call-controls">
         {/* Mute */}
         <TouchableOpacity
-          style={[styles.controlButton, !isMicrophoneEnabled && styles.controlButtonActive]}
+          style={[
+            styles.controlButton,
+            { backgroundColor: colors.card, borderColor: colors.border },
+            !isMicrophoneEnabled && { backgroundColor: colors.destructive, borderColor: colors.destructive }
+          ]}
           onPress={handleToggleMute}
           accessibilityLabel={isMicrophoneEnabled ? 'Mute microphone' : 'Unmute microphone'}
           testID="mute-button"
         >
           <Feather
             name={isMicrophoneEnabled ? 'mic' : 'mic-off'}
-            size={24}
-            color="#fff"
+            size={22}
+            color={!isMicrophoneEnabled ? '#fff' : colors.foreground}
           />
         </TouchableOpacity>
 
         {/* Camera toggle (video mode only) */}
         {mode === 'video' && (
           <TouchableOpacity
-            style={[styles.controlButton, !isCameraEnabled && styles.controlButtonActive]}
+            style={[
+              styles.controlButton,
+              { backgroundColor: colors.card, borderColor: colors.border },
+              !isCameraEnabled && { backgroundColor: colors.destructive, borderColor: colors.destructive }
+            ]}
             onPress={handleToggleCamera}
             accessibilityLabel={isCameraEnabled ? 'Turn camera off' : 'Turn camera on'}
             testID="camera-button"
           >
             <Feather
               name={isCameraEnabled ? 'video' : 'video-off'}
-              size={24}
-              color="#fff"
+              size={22}
+              color={!isCameraEnabled ? '#fff' : colors.foreground}
             />
           </TouchableOpacity>
         )}
@@ -321,41 +331,45 @@ function CallControls({ mode, remoteName, nav }: CallUIProps) {
         {/* Switch camera (video mode, non-web only) */}
         {mode === 'video' && Platform.OS !== 'web' && (
           <TouchableOpacity
-            style={styles.controlButton}
+            style={[styles.controlButton, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={handleSwitchCamera}
             accessibilityLabel="Switch camera"
             testID="switch-camera-button"
           >
-            <Feather name="refresh-cw" size={24} color="#fff" />
+            <Feather name="refresh-cw" size={22} color={colors.foreground} />
           </TouchableOpacity>
         )}
 
         {/* Speaker toggle (Android only — iOS uses system route picker) */}
         {Platform.OS === 'android' && (
           <TouchableOpacity
-            style={[styles.controlButton, speakerOn && styles.controlButtonActive]}
+            style={[
+              styles.controlButton,
+              { backgroundColor: colors.card, borderColor: colors.border },
+              speakerOn && { backgroundColor: colors.primary, borderColor: colors.primary }
+            ]}
             onPress={handleToggleSpeaker}
             accessibilityLabel={speakerOn ? 'Switch to earpiece' : 'Switch to speaker'}
             testID="speaker-button"
           >
             <Feather
               name={speakerOn ? 'volume-2' : 'volume-1'}
-              size={24}
-              color="#fff"
+              size={22}
+              color={speakerOn ? '#fff' : colors.foreground}
             />
           </TouchableOpacity>
         )}
 
         {/* Hang up */}
         <TouchableOpacity
-          style={styles.hangupButton}
+          style={[styles.hangupButton, { backgroundColor: colors.destructive }]}
           onPress={handleHangup}
           disabled={isHangingUp}
           accessibilityLabel="Hang up"
           accessibilityState={{ disabled: isHangingUp }}
           testID="hangup-button"
         >
-          <Feather name="phone-off" size={28} color="#fff" />
+          <Feather name="phone-off" size={24} color="#fff" />
         </TouchableOpacity>
       </View>
     </View>
@@ -438,19 +452,22 @@ export function LiveKitCall({
         <Text style={[styles.callErrorBody, { color: colors.mutedForeground }]}>
           {roomError}
         </Text>
-        <Text
-          style={[styles.callErrorBody, { color: colors.mutedForeground }]}
-          testID="e2ee-disabled-note"
-        >
-          End-to-end encryption is not enabled
-        </Text>
+        <View style={[styles.e2eePill, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 24 }]}>
+          <Feather name="shield" size={12} color={colors.mutedForeground} />
+          <Text
+            style={[styles.e2eeText, { color: colors.mutedForeground }]}
+            testID="e2ee-disabled-note"
+          >
+            End-to-end encryption is not enabled
+          </Text>
+        </View>
         <TouchableOpacity
-          style={styles.hangupButton}
+          style={[styles.controlButton, { backgroundColor: colors.card, borderColor: colors.border }]}
           onPress={navigateOnce}
           accessibilityLabel="Go back"
           testID="error-go-back"
         >
-          <Feather name="arrow-left" size={24} color="#fff" />
+          <Feather name="arrow-left" size={24} color={colors.foreground} />
         </TouchableOpacity>
       </View>
     );
@@ -478,12 +495,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
-    padding: 28,
+    gap: 12,
+    padding: 24,
   },
   callErrorTitle: {
-    fontSize: 20,
-    fontFamily: 'Inter_700Bold',
+    fontSize: 18,
+    fontFamily: 'Inter_600SemiBold',
     textAlign: 'center',
   },
   callErrorBody: {
@@ -491,10 +508,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     lineHeight: 20,
     textAlign: 'center',
+    marginBottom: 16,
   },
   outer: {
     flex: 1,
-    backgroundColor: '#000',
   },
   remoteVideoStyle: {
     position: 'absolute',
@@ -507,12 +524,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 16,
-    backgroundColor: '#1A1A2E',
   },
   placeholderName: {
-    color: 'rgba(255,255,255,0.6)',
     fontSize: 18,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Inter_500Medium',
   },
   localVideoContainer: {
     position: 'absolute',
@@ -520,10 +535,9 @@ const styles = StyleSheet.create({
     right: 16,
     width: 100,
     height: 140,
-    borderRadius: 12,
+    borderRadius: 8,
     overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderWidth: 1,
     zIndex: 10,
   },
   localVideoInner: {
@@ -534,24 +548,20 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#1A1A2E',
-    gap: 16,
+    gap: 20,
   },
   audioAvatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    width: 112,
+    height: 112,
+    borderRadius: 56,
     justifyContent: 'center',
     alignItems: 'center',
   },
   audioRemoteName: {
-    color: '#fff',
     fontSize: 22,
     fontFamily: 'Inter_600SemiBold',
   },
   audioStatus: {
-    color: 'rgba(255,255,255,0.6)',
     fontSize: 14,
     fontFamily: 'Inter_400Regular',
   },
@@ -561,36 +571,41 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 12,
     zIndex: 20,
   },
   loadingText: {
-    color: '#fff',
-    fontSize: 16,
-    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    fontFamily: 'Inter_500Medium',
   },
   e2eeBanner: {
     position: 'absolute',
-    bottom: 130,
+    bottom: 112,
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 6,
     zIndex: 15,
   },
+  e2eePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
   e2eeText: {
-    color: 'rgba(255,255,255,0.5)',
     fontSize: 11,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Inter_500Medium',
   },
   controls: {
     position: 'absolute',
-    bottom: 48,
+    bottom: 40,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -600,21 +615,20 @@ const styles = StyleSheet.create({
     zIndex: 15,
   },
   controlButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   controlButtonActive: {
-    backgroundColor: 'rgba(239,68,68,0.7)',
+    // handled dynamically now
   },
   hangupButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#EF4444',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
   },

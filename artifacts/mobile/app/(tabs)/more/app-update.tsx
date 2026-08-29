@@ -18,7 +18,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { sha256 } from 'js-sha256';
 import { useColors } from '@/hooks/useColors';
-import { FlatCard, useStaggerAnim } from '@/components/ui/Glass';
+import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { storage, KEYS } from '@/utils/storage';
 import { getAppVersion, getAppBuildNumber, formatBytes } from '@/utils/appVersion';
 import {
@@ -712,7 +712,7 @@ export default function AppUpdateScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {/* Current version */}
-        <FlatCard animValue={anims[0]} style={styles.card}>
+        <View style={styles.card}>
           <View style={styles.rowBetween}>
             <View style={[styles.iconWrap, { backgroundColor: colors.primary + '1A' }]}>
               <Feather name="smartphone" size={20} color={colors.primary} />
@@ -746,23 +746,23 @@ export default function AppUpdateScreen() {
               {checking ? 'Checking…' : 'Check for Updates'}
             </Text>
           </TouchableOpacity>
-        </FlatCard>
+        </View>
 
         {/* Check error */}
         {checkError && (
-          <FlatCard animValue={anims[1]} style={styles.card}>
+          <View style={styles.card}>
             <View style={styles.rowBetween}>
               <Feather name="wifi-off" size={20} color={colors.destructive} />
               <Text style={[styles.errorText, { color: colors.destructive, fontFamily: 'Inter_400Regular', flex: 1, marginLeft: 10 }]}>
                 {checkError}
               </Text>
             </View>
-          </FlatCard>
+          </View>
         )}
 
         {/* Up to date */}
         {checked && !checkError && !isUpdateAvailable && (
-          <FlatCard animValue={anims[1]} style={[styles.card, styles.centerCard]}>
+          <View style={[styles.card, styles.centerCard]}>
             <View style={[styles.bigIcon, { backgroundColor: '#34D3991A' }]}>
               <Feather name="check-circle" size={30} color="#34D399" />
             </View>
@@ -772,12 +772,12 @@ export default function AppUpdateScreen() {
             <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
               Current Version: {currentVersion}
             </Text>
-          </FlatCard>
+          </View>
         )}
 
         {/* Update available */}
         {checked && isUpdateAvailable && latest && (
-          <FlatCard animValue={anims[1]} style={styles.card}>
+          <View style={styles.card}>
             <View style={styles.rowBetween}>
               <View style={[styles.iconWrap, { backgroundColor: typeMeta.color + '1A' }]}>
                 <Feather name="download-cloud" size={20} color={typeMeta.color} />
@@ -866,7 +866,7 @@ export default function AppUpdateScreen() {
             ) : null}
 
             {(phase === 'downloading' || phase === 'paused') && (
-              <View style={{ gap: 10 }}>
+              <View style={{ gap: 8 }}>
                 <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
                   <View
                     style={[styles.progressFill, { backgroundColor: colors.primary, width: `${Math.min(100, Math.round(progress * 100))}%` }]}
@@ -932,7 +932,7 @@ export default function AppUpdateScreen() {
             )}
 
             {phase === 'ready' && (
-              <View style={{ gap: 10 }}>
+              <View style={{ gap: 8 }}>
                 <View style={styles.verifyRow}>
                   <Feather name="shield" size={16} color="#34D399" />
                   <Text style={[styles.muted, { color: '#34D399', fontFamily: 'Inter_600SemiBold' }]}>
@@ -953,12 +953,12 @@ export default function AppUpdateScreen() {
                 </Text>
               </View>
             )}
-          </FlatCard>
+          </View>
         )}
 
         {/* Changelog */}
         {checked && !checkError && (
-          <FlatCard animValue={anims[2]} style={styles.card}>
+          <View style={styles.card}>
             <TouchableOpacity onPress={loadChangelog} style={styles.rowBetween} activeOpacity={0.7}>
               <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
                 View Full Changelog
@@ -966,7 +966,7 @@ export default function AppUpdateScreen() {
               <Feather name={changelogOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
             </TouchableOpacity>
             {changelogOpen && (
-              <View style={{ gap: 14, marginTop: 6 }}>
+              <View style={{ gap: 8, marginTop: 6 }}>
                 {changelog === null ? (
                   <ActivityIndicator color={colors.primary} size="small" />
                 ) : changelog.length === 0 ? (
@@ -1007,7 +1007,7 @@ export default function AppUpdateScreen() {
                 )}
               </View>
             )}
-          </FlatCard>
+          </View>
         )}
 
         <View style={{ height: 100 }} />
@@ -1027,20 +1027,20 @@ function MetaRow({ label, value, colors }: { label: string; value: string; color
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingBottom: 16 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 16 },
   backBtn: { padding: 4 },
-  headerTitle: { fontSize: 22 },
-  scroll: { padding: 16, gap: 14 },
-  card: { padding: 16, gap: 14 },
+  headerTitle: { fontSize: 20 },
+  scroll: { padding: 12, gap: 8 },
+  card: { padding: 12, gap: 8 },
   centerCard: { alignItems: 'center', gap: 8 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  iconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  iconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   bigIcon: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   cardTitle: { fontSize: 15 },
   muted: { fontSize: 12.5 },
   lastChecked: { fontSize: 12 },
   upToDate: { fontSize: 17, textAlign: 'center' },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: 14 },
+  primaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 12 },
   primaryBtnText: { color: '#FFF', fontSize: 14.5 },
   typeBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, marginTop: 4 },
   typeBadgeText: { fontSize: 11 },
@@ -1048,7 +1048,7 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   metaLabel: { fontSize: 12.5 },
   metaValue: { fontSize: 13 },
-  notesBox: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
+  notesBox: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
   notesTitle: { fontSize: 14 },
   noteCategory: { fontSize: 12, marginTop: 4 },
   noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
@@ -1057,11 +1057,11 @@ const styles = StyleSheet.create({
   progressTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: 8, borderRadius: 4 },
   progressText: { fontSize: 14 },
-  btnRow: { flexDirection: 'row', gap: 10 },
+  btnRow: { flexDirection: 'row', gap: 8 },
   smallBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 11, borderRadius: 12, borderWidth: 1 },
   smallBtnText: { fontSize: 13 },
   verifyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   errorText: { fontSize: 12.5, lineHeight: 18 },
   installHint: { fontSize: 12, lineHeight: 17, textAlign: 'center' },
-  changelogItem: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 2 },
+  changelogItem: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 2 },
 });

@@ -155,8 +155,8 @@ export default function PurchasesScreen() {
 
         <View style={styles.searchWrap}>
           <View style={[styles.searchBar, {
-            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
-            borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+            backgroundColor: colors.card,
+            borderColor: colors.border,
           }]}>
             <Feather name="search" size={16} color={colors.mutedForeground} />
             <TextInput
@@ -176,8 +176,8 @@ export default function PurchasesScreen() {
                   key={f}
                   onPress={() => setFilter(f)}
                   style={[styles.filterTab, {
-                    backgroundColor: active ? colors.primary : (isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)'),
-                    borderColor: active ? colors.primary : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)'),
+                    backgroundColor: active ? colors.primary : (colors.card),
+                    borderColor: active ? colors.primary : (colors.border),
                   }]}
                 >
                   <Text style={[styles.filterText, { color: active ? '#FFFFFF' : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>
@@ -216,19 +216,19 @@ export default function PurchasesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14 },
-  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  addBtn: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 22 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 12 },
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  addBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 20 },
   headerSub: { fontSize: 12, marginTop: 2 },
-  searchWrap: { paddingHorizontal: 16, paddingBottom: 12, gap: 10 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14 },
+  searchWrap: { paddingHorizontal: 12, paddingBottom: 12, gap: 8 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14 },
   searchInput: { flex: 1, height: 46, fontSize: 14 },
   filterRow: { flexDirection: 'row', gap: 8 },
   filterTab: { flex: 1, paddingVertical: 8, borderRadius: 20, borderWidth: 1, alignItems: 'center' },
   filterText: { fontSize: 12 },
-  list: { paddingHorizontal: 16, paddingTop: 4, gap: 10 },
-  card: { padding: 14, gap: 8 },
+  list: { paddingHorizontal: 12, paddingTop: 4, gap: 8 },
+  card: { padding: 12, gap: 8 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   invoiceBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   invoiceId: { fontSize: 11 },

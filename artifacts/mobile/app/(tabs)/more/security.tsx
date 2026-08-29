@@ -202,15 +202,15 @@ export default function SecurityScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 12 },
   backBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 22 },
-  scroll: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100, gap: 16 },
+  headerTitle: { fontSize: 20 },
+  scroll: { paddingHorizontal: 12, paddingTop: 16, paddingBottom: 100, gap: 8 },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
   bannerText: { fontSize: 13, flex: 1 },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   rowLabel: { fontSize: 15 },
   rowSub: { fontSize: 12, marginTop: 4, lineHeight: 18 },
-  infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   infoIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 });

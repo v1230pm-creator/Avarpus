@@ -35,110 +35,48 @@ type Filter = (typeof FILTERS)[number];
 // Dealer-portal accounts see a simplified read-only view of their own repairs.
 const PORTAL_FILTERS = ['All', 'Received', 'Repair', 'Ready', 'Delivered'] as const;
 
-function RepairCard({ repair, onPress, variant }: { repair: Repair; onPress: () => void; variant: 'received' | 'repair' | 'ready' | 'delivered' }) {
+function RepairCard({ repair, onPress }: { repair: Repair; onPress: () => void; }) {
   const colors = useColors();
-  const balance = Math.max(0, repair.repairCharge + repair.partsCharge - repair.advance);
+  const balance = Math.max(0, repair.repairCharge + repair.partsCharge - (repair.advance || 0));
   const total = repair.repairCharge + repair.partsCharge;
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
-      <FlatCard style={styles.card}>
-        <View style={styles.cardTop}>
-          <View style={[styles.repairIdBadge, { backgroundColor: colors.primary + '15' }]}>
-            <Text style={[styles.repairId, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{repair.repairId}</Text>
-          </View>
-          <PriorityBadge priority={repair.priority} />
-          {variant !== 'received' && <RepairStatusBadge status={repair.status} />}
-          {repair.isSample && <SampleBadge />}
-        </View>
-
-        <Text style={[styles.customerName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{repair.customerName}</Text>
-        <Text style={[styles.deviceLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-          {repair.deviceType} · {repair.brand} {repair.model}
-        </Text>
-
-        {variant === 'received' && (
-          <>
-            <Text style={[styles.problem, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
-              {repair.problem}
-            </Text>
-            <View style={{ marginTop: 4 }}>
-              <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Est: {formatCurrency(total)}</Text>
-              <Text style={{ fontSize: 12, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Received: {formatDate(repair.receiveDate || repair.createdAt)}</Text>
-              <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Expected: {formatDate(repair.expectedDate)}</Text>
-              <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Received by: {repair.receivedByName || 'System'}</Text>
-            </View>
-          </>
-        )}
-
-        {variant === 'repair' && (
-          <View style={{ marginTop: 4 }}>
-            <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Technician: {repair.technicianName || 'Unassigned'}</Text>
-            <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Total: {formatCurrency(total)} | Adv: {formatCurrency(repair.advance)}</Text>
-            {balance > 0 && <Text style={{ fontSize: 12, color: colors.warning, fontWeight: 'bold' }}>Pending: {formatCurrency(balance)}</Text>}
-          </View>
-        )}
-
-        {variant === 'ready' && (
-          <View style={{ marginTop: 4 }}>
-             <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Total: {formatCurrency(total)} | Adv: {formatCurrency(repair.advance)}</Text>
-             {balance > 0 && <Text style={{ fontSize: 12, color: colors.warning, fontWeight: 'bold' }}>Due: {formatCurrency(balance)}</Text>}
-             <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-               <TouchableOpacity onPress={onPress} style={{ flex: 1, backgroundColor: colors.info, paddingVertical: 6, borderRadius: 6, alignItems: 'center' }}>
-                 <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>Notify</Text>
-               </TouchableOpacity>
-               <TouchableOpacity onPress={onPress} style={{ flex: 1, backgroundColor: colors.warning, paddingVertical: 6, borderRadius: 6, alignItems: 'center' }}>
-                 <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>Payment</Text>
-               </TouchableOpacity>
-               <TouchableOpacity onPress={onPress} style={{ flex: 1, backgroundColor: colors.primary, paddingVertical: 6, borderRadius: 6, alignItems: 'center' }}>
-                 <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>Hand Over</Text>
-               </TouchableOpacity>
-             </View>
-          </View>
-        )}
-
-        {variant === 'delivered' && (
-          <View style={{ marginTop: 4 }}>
-             <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Total: {formatCurrency(total)} | Adv: {formatCurrency(repair.advance)}</Text>
-             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-               <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, backgroundColor: balance === 0 ? colors.success + '22' : colors.warning + '22' }}>
-                 <Text style={{ fontSize: 10, color: balance === 0 ? colors.success : colors.warning, fontWeight: 'bold' }}>
-                   {balance === 0 ? 'PAID' : `PENDING ${formatCurrency(balance)}`}
-                 </Text>
-               </View>
-               {repair.paymentMethod && <Text style={{ fontSize: 11, color: colors.mutedForeground }}>via {repair.paymentMethod}</Text>}
-             </View>
-             <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 4 }}>
-               Delivered: {repair.deliveryDate ? formatDate(repair.deliveryDate) : 'N/A'} by {repair.deliveredByName || 'Unknown'}
-             </Text>
-          </View>
-        )}
-
-        <View style={[styles.amountSummary, { borderTopColor: colors.border }]}>
-          <View>
-            <Text style={[styles.amountSummaryLabel, { color: colors.mutedForeground }]}>Bill</Text>
-            <Text style={[styles.amountSummaryValue, { color: colors.foreground }]}>{formatCurrency(total)}</Text>
-          </View>
-          <View style={styles.amountSummaryCell}>
-            <Text style={[styles.amountSummaryLabel, { color: colors.mutedForeground }]}>Paid</Text>
-            <Text style={[styles.amountSummaryValue, { color: colors.success }]}>{formatCurrency(repair.advance)}</Text>
-          </View>
-          <View style={styles.amountSummaryCell}>
-            <Text style={[styles.amountSummaryLabel, { color: colors.mutedForeground }]}>Due</Text>
-            <Text style={[styles.amountSummaryValue, { color: balance > 0 ? colors.destructive : colors.success }]}>
-              {formatCurrency(balance)}
-            </Text>
+      <View style={{ padding: 14, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, marginBottom: 12, flexDirection: 'row' }}>
+        
+        {/* Left Icon */}
+        <View style={{ marginRight: 12 }}>
+          <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: colors.backgroundSecondary, alignItems: 'center', justifyContent: 'center' }}>
+            <Feather name="smartphone" size={18} color={colors.mutedForeground} />
           </View>
         </View>
 
-        <View style={styles.cardBottom}>
-          <View style={styles.cardBottomRight}>
-            <Text style={[styles.dateText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-              {formatDate(repair.createdAt)}
-            </Text>
-          </View>
+        {/* Center/Left Content */}
+        <View style={{ flex: 1, justifyContent: 'flex-start', paddingRight: 8 }}>
+          <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginBottom: 2 }}>{repair.repairId}</Text>
+          <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 4 }} numberOfLines={1}>{repair.problem}</Text>
+          <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 2 }}>{repair.deviceType} · {repair.brand} {repair.model}</Text>
+          <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 2 }}>{repair.customerName}</Text>
+          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>{formatDate(repair.createdAt)}</Text>
         </View>
-      </FlatCard>
+
+        {/* Right Content */}
+        <View style={{ alignItems: 'flex-end', justifyContent: 'space-between', minWidth: 90 }}>
+          <View style={{ marginBottom: 12 }}>
+             <RepairStatusBadge status={repair.status} />
+          </View>
+          <Text style={{ fontSize: 15, color: colors.success, fontFamily: 'Inter_600SemiBold', marginBottom: 6 }}>
+            {formatCurrency(total)}
+          </Text>
+          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+            Paid: {formatCurrency(repair.advance || 0)}
+          </Text>
+          <Text style={{ fontSize: 11, color: balance > 0 ? colors.destructive : colors.mutedForeground, fontFamily: balance > 0 ? 'Inter_600SemiBold' : 'Inter_400Regular' }}>
+            Due: {formatCurrency(balance)}
+          </Text>
+        </View>
+
+      </View>
     </TouchableOpacity>
   );
 }
@@ -648,10 +586,7 @@ export default function RepairsScreen() {
             // Portal accounts get a read-only card: variant derived from the
             // repair's own status, never the staff 'ready' variant (which
             // shows Notify/Payment/Hand Over actions).
-            const variant = isPortal
-              ? item.status === 'received' ? 'received' : item.status === 'delivered' ? 'delivered' : 'repair'
-              : filter === 'Received' ? 'received' : filter === 'Repair' ? 'repair' : filter === 'Ready' ? 'ready' : 'delivered';
-            return <RepairCard repair={item} onPress={() => router.push(`/(tabs)/repairs/${item.id}`)} variant={variant} />;
+            return <RepairCard repair={item} onPress={() => router.push(`/(tabs)/repairs/${item.id}`)} />;
           }}
         />
       )}

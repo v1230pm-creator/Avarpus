@@ -147,8 +147,8 @@ export default function FinanceScreen() {
                 key={p}
                 onPress={() => setPeriod(p)}
                 style={[styles.periodTab, {
-                  backgroundColor: active ? colors.primary : (isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)'),
-                  borderColor: active ? colors.primary : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)'),
+                  backgroundColor: active ? colors.primary : (colors.card),
+                  borderColor: active ? colors.primary : (colors.border),
                 }]}
               >
                 <Text style={[styles.periodText, { color: active ? '#FFFFFF' : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>
@@ -165,7 +165,7 @@ export default function FinanceScreen() {
           <StatCard title="Expense" value={formatCurrency(stats.expense)} icon="trending-down" iconColor="error" style={styles.statCard} />
         </View>
 
-        <FlatCard animValue={anims[0]} style={{ padding: 20 }}>
+        <FlatCard animValue={anims[0]} style={{ padding: 12 }}>
           <View style={styles.profitRow}>
             <View>
               <Text style={[styles.profitLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Net Profit</Text>
@@ -208,15 +208,15 @@ export default function FinanceScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14 },
-  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  addBtn: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 22 },
-  scroll: { padding: 16, gap: 14 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 12 },
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  addBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 20 },
+  scroll: { padding: 12, gap: 8 },
   periodRow: { flexDirection: 'row', gap: 8 },
-  periodTab: { flex: 1, paddingVertical: 10, borderRadius: 14, borderWidth: 1, alignItems: 'center' },
+  periodTab: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
   periodText: { fontSize: 13 },
-  statsRow: { flexDirection: 'row', gap: 12 },
+  statsRow: { flexDirection: 'row', gap: 8 },
   statCard: { flex: 1 },
   profitRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   profitLabel: { fontSize: 13 },
@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
   profitBadge: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   sectionLabel: { fontSize: 11, letterSpacing: 1 },
   txList: { overflow: 'hidden' },
-  txItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  txItem: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
   txIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   txContent: { flex: 1, gap: 2 },
   txCategory: { fontSize: 14 },

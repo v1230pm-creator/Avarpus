@@ -81,7 +81,7 @@ function ApprovalCard({
         />
       </View>
 
-      <View style={[styles.detailsBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}>
+      <View style={[styles.detailsBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.recordType, { color: colors.foreground, fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }]}>
           {request.mode} {request.recordType}
         </Text>
@@ -276,12 +276,12 @@ export default function ApprovalsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14 },
-  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 22 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 12 },
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 20 },
   headerSub: { fontSize: 12, marginTop: 2 },
-  list: { paddingHorizontal: 16, paddingTop: 4, gap: 12 },
-  card: { padding: 16, gap: 12 },
+  list: { paddingHorizontal: 12, paddingTop: 4, gap: 8 },
+  card: { padding: 12, gap: 8 },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   requester: { fontSize: 16 },
   role: { fontSize: 12, marginTop: 2, textTransform: 'capitalize' },
@@ -292,15 +292,15 @@ const styles = StyleSheet.create({
   reasonBlock: { gap: 4 },
   reasonLabel: { fontSize: 12 },
   reasonText: { fontSize: 14, fontStyle: 'italic' },
-  actionRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
   decidedBox: { borderTopWidth: 1, paddingTop: 12, marginTop: 4, gap: 4 },
   decidedText: { fontSize: 12 },
   rejectionReason: { fontSize: 12 },
 
-  overlayCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
-  rejectModal: { width: '100%', padding: 20, borderRadius: 16, borderWidth: 1 },
+  overlayCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 12 },
+  rejectModal: { width: '100%', padding: 12, borderRadius: 16, borderWidth: 1 },
   modalTitle: { fontSize: 18, marginBottom: 8 },
   modalSub: { fontSize: 13, marginBottom: 16, lineHeight: 18 },
   rejectInput: { borderWidth: 1, borderRadius: 8, padding: 12, height: 100, textAlignVertical: 'top', marginBottom: 20 },
-  modalActions: { flexDirection: 'row', gap: 12 },
+  modalActions: { flexDirection: 'row', gap: 8 },
 });

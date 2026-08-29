@@ -107,13 +107,13 @@ export default function AddDealerScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14, gap: 8 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 22 },
-  headerSub: { fontSize: 13 },
-  scroll: { padding: 16, gap: 16 },
-  section: { gap: 16 },
-  sectionLabel: { fontSize: 11, letterSpacing: 1, marginTop: 4 },
-  infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1, padding: 12 },
-  infoText: { fontSize: 12, flex: 1, lineHeight: 18 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 10, gap: 6 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 20 },
+  headerSub: { fontSize: 12 },
+  scroll: { padding: 12, gap: 12 },
+  section: { gap: 12 },
+  sectionLabel: { fontSize: 10, letterSpacing: 1, marginTop: 4 },
+  infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, padding: 10 },
+  infoText: { fontSize: 11, flex: 1, lineHeight: 16 },
 });

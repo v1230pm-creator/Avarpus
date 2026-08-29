@@ -14,14 +14,13 @@ jest.mock('@workspace/api-client-react', () => ({
 }));
 
 jest.mock('expo-router', () => {
-  const { Text } = require('react-native');
   return {
-    Redirect: ({ href }: { href: string }) => <Text testID="auth-redirect">{href}</Text>,
     useRouter: () => ({
       push: mockPush,
       replace: mockReplace,
       back: mockBack,
     }),
+    useLocalSearchParams: () => ({}),
   };
 });
 
@@ -62,10 +61,15 @@ describe('mobile OTP-only auth entry', () => {
     mockOtpRequest.mockResolvedValue({ message: 'Code sent' });
   });
 
-  it('starts at the terms gate instead of an alternate sign-in method', () => {
+  it('starts at the reference welcome screen and keeps OTP as the only login path', async () => {
     render(<AuthIndex />);
 
-    expect(screen.getByTestId('auth-redirect')).toHaveTextContent('/(auth)/terms');
+    expect(screen.getByText('Create Account')).toBeTruthy();
+    expect(screen.getByText('Log In')).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(screen.getByText('Log In'));
+    });
+    expect(mockPush).toHaveBeenCalledWith('/(auth)/phone');
     expect(screen.queryByText(/SIM|device key|SMS bridge|verify with SIM/i)).toBeNull();
   });
 

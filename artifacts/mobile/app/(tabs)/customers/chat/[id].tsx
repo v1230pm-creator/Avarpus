@@ -17,6 +17,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useColorScheme,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -522,7 +523,22 @@ type RecordingPhase =
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const colors = useColors();
+  const rawColors = useColors();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  
+  const colors = useMemo(() => ({
+    ...rawColors,
+    background: isDark ? '#040914' : rawColors.background,
+    card: isDark ? '#0A1221' : rawColors.card,
+    border: isDark ? '#1E293B' : rawColors.border,
+    primary: isDark ? '#2563EB' : rawColors.primary,
+    foreground: isDark ? '#FFFFFF' : rawColors.foreground,
+    mutedForeground: isDark ? '#94A3B8' : rawColors.mutedForeground,
+    backgroundSecondary: isDark ? '#0F172A' : rawColors.backgroundSecondary,
+    success: isDark ? '#10B981' : rawColors.success,
+  }), [rawColors, isDark]);
+
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -1241,7 +1257,7 @@ export default function ChatScreen() {
       <View
         style={[
           styles.header,
-          { paddingTop: topPadding, backgroundColor: colors.card, borderBottomColor: colors.border },
+          { paddingTop: topPadding, backgroundColor: colors.card, borderBottomColor: colors.border, paddingBottom: 6 },
         ]}
       >
         <TouchableOpacity
@@ -1249,19 +1265,19 @@ export default function ChatScreen() {
           style={styles.iconButton}
           accessibilityLabel="Back"
         >
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+          <Feather name="arrow-left" size={20} color={colors.foreground} />
         </TouchableOpacity>
-        <Avatar name={roomName} size={38} />
+        <Avatar name={roomName} size={34} />
         <View style={styles.headerTitleContainer}>
           <Text
-            style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}
+            style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold', fontSize: 15 }]}
             numberOfLines={1}
           >
             {roomName}
           </Text>
           <View style={styles.presenceRow}>
             <View style={[styles.presenceDot, { backgroundColor: colors.success }]} />
-            <Text style={[styles.headerSubtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.headerSubtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>
               {room?.kind === 'dealer' || targetType === 'dealer' ? 'Dealer' : 'Customer'} · Active
             </Text>
           </View>
@@ -1278,7 +1294,7 @@ export default function ChatScreen() {
         >
           <Feather
             name="phone"
-            size={20}
+            size={18}
             color={callEnabled ? colors.primary : colors.mutedForeground}
           />
         </TouchableOpacity>
@@ -1294,7 +1310,7 @@ export default function ChatScreen() {
         >
           <Feather
             name="video"
-            size={20}
+            size={18}
             color={callEnabled ? colors.primary : colors.mutedForeground}
           />
         </TouchableOpacity>
@@ -1303,7 +1319,7 @@ export default function ChatScreen() {
           accessibilityLabel="Open chat menu"
           onPress={openChatMenu}
         >
-          <Feather name="more-vertical" size={21} color={colors.foreground} />
+          <Feather name="more-vertical" size={18} color={colors.foreground} />
         </TouchableOpacity>
       </View>
 

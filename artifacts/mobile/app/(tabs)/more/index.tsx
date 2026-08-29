@@ -7,8 +7,6 @@ import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
-import { FlatCard } from '@/components/ui/FlatCard';
-import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
 import { useApprovalsList, useLatestAppUpdate, useNotificationsList } from '@workspace/api-client-react';
 import { getAppBuildNumber, getAppVersion } from '@/utils/appVersion';
@@ -26,18 +24,18 @@ interface MenuItem {
 }
 
 const MENU_ITEMS: MenuItem[] = [
-  { id: 'my-profile', label: 'My Profile', icon: 'user', route: '/(tabs)/more/profile', color: '#4DA3FF', description: 'Name and mobile number', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'] },
-  { id: 'notifications', label: 'Notifications', icon: 'bell', route: '/(tabs)/more/notifications', color: '#F59E0B', description: 'Chats, repairs and approvals', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'] },
-  { id: 'activity', label: 'Activity Log', icon: 'activity', route: '/(tabs)/more/activity', color: '#34D399', description: 'View system events', roles: ['super_admin', 'dealer'] },
-  { id: 'finance', label: 'Finance', icon: 'bar-chart-2', route: '/(tabs)/more/finance', color: '#34D399', description: 'Income, expense, cash book', roles: ['super_admin', 'dealer'], feature: 'finance' },
-  { id: 'approvals', label: 'Approvals', icon: 'check-circle', route: '/(tabs)/more/approvals', color: '#FB7185', description: 'Backdated entry requests', roles: ['super_admin', 'dealer'], feature: 'approvals' },
+  { id: 'my-profile', label: 'My Profile', icon: 'user', route: '/(tabs)/more/profile', color: '#0866FF', description: 'Name and mobile number', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'] },
+  { id: 'notifications', label: 'Notifications', icon: 'bell', route: '/(tabs)/more/notifications', color: '#F2B84B', description: 'Chats, repairs and approvals', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'] },
+  { id: 'activity', label: 'Activity Log', icon: 'activity', route: '/(tabs)/more/activity', color: '#20C878', description: 'View system events', roles: ['super_admin', 'dealer'] },
+  { id: 'finance', label: 'Finance', icon: 'bar-chart-2', route: '/(tabs)/more/finance', color: '#20C878', description: 'Income, expense, cash book', roles: ['super_admin', 'dealer'], feature: 'finance' },
+  { id: 'approvals', label: 'Approvals', icon: 'check-circle', route: '/(tabs)/more/approvals', color: '#FF4D4F', description: 'Backdated entry requests', roles: ['super_admin', 'dealer'], feature: 'approvals' },
   { id: 'staff', label: 'Staff', icon: 'users', route: '/(tabs)/more/staff', color: '#8B5CF6', description: 'Manage staff and roles', roles: ['super_admin', 'dealer'] },
-  { id: 'permissions', label: 'Staff Permissions', icon: 'sliders', route: '/(tabs)/more/permissions', color: '#F472B6', description: 'Turn features on/off per role', roles: ['super_admin', 'dealer'] },
-  { id: 'purchases', label: 'Purchases', icon: 'shopping-bag', route: '/(tabs)/more/purchases', color: '#4DA3FF', description: 'Purchase orders, suppliers', roles: ['super_admin', 'dealer'], feature: 'purchases' },
-  { id: 'reports', label: 'Reports', icon: 'file-text', route: '/(tabs)/more/reports', color: '#F59E0B', description: 'Generate and export reports', roles: ['super_admin', 'dealer'], feature: 'reports' },
-  { id: 'inventory', label: 'Inventory', icon: 'package', route: '/(tabs)/inventory', color: '#F59E0B', description: 'Manage stock and parts', roles: ['super_admin', 'dealer'], feature: 'inventory' },
-  { id: 'settings', label: 'Settings', icon: 'settings', route: '/(tabs)/more/settings', color: '#A8B3C7', description: 'Company, app configuration', roles: ['super_admin', 'dealer'] },
-  { id: 'app-update', label: 'App Update', icon: 'download-cloud', route: '/(tabs)/more/app-update', color: '#3A8FF7', description: 'Check for new app versions', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician'] },
+  { id: 'permissions', label: 'Staff Permissions', icon: 'sliders', route: '/(tabs)/more/permissions', color: '#D9A441', description: 'Turn features on/off per role', roles: ['super_admin', 'dealer'] },
+  { id: 'purchases', label: 'Purchases', icon: 'shopping-bag', route: '/(tabs)/more/purchases', color: '#0866FF', description: 'Purchase orders, suppliers', roles: ['super_admin', 'dealer'], feature: 'purchases' },
+  { id: 'reports', label: 'Reports', icon: 'file-text', route: '/(tabs)/more/reports', color: '#F2B84B', description: 'Generate and export reports', roles: ['super_admin', 'dealer'], feature: 'reports' },
+  { id: 'inventory', label: 'Inventory', icon: 'package', route: '/(tabs)/inventory', color: '#F2B84B', description: 'Manage stock and parts', roles: ['super_admin', 'dealer'], feature: 'inventory' },
+  { id: 'settings', label: 'Settings', icon: 'settings', route: '/(tabs)/more/settings', color: '#718096', description: 'Company, app configuration', roles: ['super_admin', 'dealer'] },
+  { id: 'app-update', label: 'App Update', icon: 'download-cloud', route: '/(tabs)/more/app-update', color: '#0866FF', description: 'Check for new app versions', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician'] },
   { id: 'update-manager', label: 'App Update Manager', icon: 'upload-cloud', route: '/(tabs)/more/update-manager', color: '#8B5CF6', description: 'Publish new app releases', roles: ['super_admin'] },
 ];
 
@@ -52,13 +50,16 @@ export default function MoreScreen() {
   const isOwner = role === 'dealer' || role === 'super_admin';
   const currentVersion = getAppVersion();
   const currentBuild = getAppBuildNumber();
+  
   const { data: approvalsData } = useApprovalsList({
     query: { enabled: isOwner },
   } as any);
   const pendingCount = approvalsData?.pendingCount || 0;
+  
   // Every authenticated role can receive exact-recipient direct-chat alerts.
   const { data: notifData } = useNotificationsList({ query: { enabled: true, refetchInterval: 60000 } } as any);
   const unreadNotifs = notifData?.unreadCount || 0;
+  
   // Quiet update indicator: a small badge only, never a popup.
   const { data: latestUpdateData } = useLatestAppUpdate(
     { buildNumber: currentBuild },
@@ -77,8 +78,6 @@ export default function MoreScreen() {
       (!isPortal && !isCustomer && !!item.feature && canAccess(item.feature)),
   );
 
-  const anims = useStaggerAnim(3);
-
   const handleLogout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await logout();
@@ -87,19 +86,24 @@ export default function MoreScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
-          <Feather name="arrow-left" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Menu</Text>
+      <View style={[styles.header, { paddingTop: topPad + 16, borderBottomColor: colors.border }]}>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.headerAction}
+          >
+            <Feather name="arrow-left" size={24} color={colors.foreground} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Settings</Text>
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
         {/* User Card */}
-        <FlatCard animValue={anims[0]} style={styles.userCard}>
-          <Avatar name={user?.name ?? 'User'} size={56} />
+        <View style={[styles.userCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Avatar name={user?.name ?? 'User'} size={52} />
           <View style={styles.userInfo}>
-            <Text style={[styles.userName, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{user?.name}</Text>
+            <Text style={[styles.userName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{user?.name}</Text>
             <Text style={[styles.userEmail, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{user?.email}</Text>
             <View style={[styles.roleBadge, { backgroundColor: colors.primary + '15' }]}>
               <Text style={[styles.roleText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
@@ -107,11 +111,10 @@ export default function MoreScreen() {
               </Text>
             </View>
           </View>
-        </FlatCard>
+        </View>
 
         {/* Menu Items */}
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>MODULES</Text>
-        <FlatCard animValue={anims[1]} style={styles.menuGroup}>
+        <View style={[styles.menuGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           {visibleItems.map((item, idx) => (
             <TouchableOpacity
               key={item.id}
@@ -123,46 +126,46 @@ export default function MoreScreen() {
               ]}
             >
               <View style={[styles.menuIconWrap, { backgroundColor: item.color + '1A' }]}>
-                <Feather name={item.icon} size={20} color={item.color} />
+                <Feather name={item.icon} size={18} color={item.color} />
                 {item.id === 'approvals' && pendingCount > 0 && (user?.role === 'dealer' || user?.role === 'super_admin') && (
-                  <View style={[styles.badgeWrap, { backgroundColor: colors.destructive, borderColor: colors.card }]}>
+                  <View style={[styles.badgeWrap, { backgroundColor: colors.destructive, borderColor: colors.surface }]}>
                     <Text style={styles.badgeText}>{pendingCount > 99 ? '99+' : pendingCount}</Text>
                   </View>
                 )}
                 {item.id === 'notifications' && unreadNotifs > 0 && (
-                  <View style={[styles.badgeWrap, { backgroundColor: colors.destructive, borderColor: colors.card }]}>
+                  <View style={[styles.badgeWrap, { backgroundColor: colors.destructive, borderColor: colors.surface }]}>
                     <Text style={styles.badgeText}>{unreadNotifs > 99 ? '99+' : unreadNotifs}</Text>
                   </View>
                 )}
                 {item.id === 'app-update' && updateAvailable && (
-                  <View style={[styles.badgeWrap, { backgroundColor: colors.primary, borderColor: colors.card }]}>
+                  <View style={[styles.badgeWrap, { backgroundColor: colors.primary, borderColor: colors.surface }]}>
                     <Text style={styles.badgeText}>1</Text>
                   </View>
                 )}
               </View>
               <View style={styles.menuContent}>
-                <Text style={[styles.menuLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{item.label}</Text>
+                <Text style={[styles.menuLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{item.label}</Text>
                 <Text style={[styles.menuDesc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{item.description}</Text>
               </View>
-              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
             </TouchableOpacity>
           ))}
-        </FlatCard>
-
-        {/* Version info */}
-        <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-          Avarpus v{currentVersion} (Build {currentBuild})
-        </Text>
+        </View>
 
         {/* Logout */}
         <TouchableOpacity
           onPress={handleLogout}
-          style={[styles.logoutBtn, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '33', borderRadius: 20 }]}
-          activeOpacity={0.8}
+          style={[styles.logoutBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          activeOpacity={0.7}
         >
           <Feather name="log-out" size={18} color={colors.destructive} />
-          <Text style={[styles.logoutText, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>Sign Out</Text>
+          <Text style={[styles.logoutText, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>Sign Out</Text>
         </TouchableOpacity>
+        
+        {/* Version info */}
+        <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          Avarpus v{currentVersion} (Build {currentBuild})
+        </Text>
       </ScrollView>
     </View>
   );
@@ -170,26 +173,63 @@ export default function MoreScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 16 },
-  headerTitle: { fontSize: 28 },
-  scroll: { padding: 16, gap: 14 },
-  userCard: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16 },
-  userInfo: { flex: 1, gap: 3 },
-  userName: { fontSize: 18 },
+  header: {
+    minHeight: 60,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerTitle: { fontSize: 20, letterSpacing: -0.5 },
+  headerAction: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scroll: { padding: 12, gap: 8 },
+  userCard: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8, 
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  userInfo: { flex: 1, gap: 4 },
+  userName: { fontSize: 18, letterSpacing: -0.3 },
   userEmail: { fontSize: 13 },
-  roleBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20, marginTop: 2 },
+  roleBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, marginTop: 4 },
   roleText: { fontSize: 11 },
-  sectionLabel: { fontSize: 11, letterSpacing: 1 },
-  menuGroup: { overflow: 'hidden' },
-  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
+  menuGroup: { 
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden' 
+  },
+  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
   menuItemBorder: { borderBottomWidth: 1 },
-  menuIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  menuIconWrap: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   badgeWrap: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, borderWidth: 2, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   badgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
   menuContent: { flex: 1, gap: 2 },
   menuLabel: { fontSize: 15 },
   menuDesc: { fontSize: 12 },
-  version: { textAlign: 'center', fontSize: 12, paddingVertical: 8 },
-  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16, borderWidth: 1 },
+  logoutBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 8, 
+    padding: 12, 
+    borderWidth: 1,
+    borderRadius: 12,
+  },
   logoutText: { fontSize: 15 },
+  version: { textAlign: 'center', fontSize: 12, paddingVertical: 8, marginTop: 8 },
 });

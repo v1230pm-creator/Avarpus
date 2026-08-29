@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -13,7 +13,6 @@ import { useAuth } from '@/context/AuthContext';
 import { completeUnlockSuccess } from '@/utils/appLock';
 
 export default function OTPScreen() {
-  const colors = useColors();
   const router = useRouter();
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
@@ -30,6 +29,22 @@ export default function OTPScreen() {
   const [needsDisplayName, setNeedsDisplayName] = useState(params.setup === 'display-name');
   const [savingName, setSavingName] = useState(false);
   const refs = useRef<(TextInput | null)[]>([]);
+
+  const colors = useColors();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  
+  const theme = {
+    bg: isDark ? '#040914' : colors.background,
+    card: isDark ? '#0A1221' : colors.card,
+    border: isDark ? '#1E293B' : colors.border,
+    primary: isDark ? '#2563EB' : colors.primary,
+    text: isDark ? '#FFFFFF' : colors.foreground,
+    textMuted: isDark ? '#94A3B8' : colors.textMuted,
+    inputBg: isDark ? '#0F172A' : colors.input,
+    danger: isDark ? '#EF4444' : colors.destructive,
+    dangerBg: isDark ? 'rgba(239, 68, 68, 0.1)' : colors.destructive + '15',
+  };
 
   useEffect(() => {
     const interval = setInterval(() => setTimer((t) => (t > 0 ? t - 1 : 0)), 1000);
@@ -124,24 +139,26 @@ export default function OTPScreen() {
   const filled = otp.join('').length === 6;
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
+    <View style={[styles.root, { backgroundColor: theme.bg }]}>
       <KeyboardAwareScrollViewCompat style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
-        <View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }]}>
-          {!needsDisplayName && (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-              <Feather name="arrow-left" size={22} color={colors.foreground} />
-            </TouchableOpacity>
-          )}
+        <View style={[styles.container, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20 }]}>
+          <View style={styles.topbar}>
+            {!needsDisplayName && (
+              <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                <Feather name="arrow-left" size={20} color={theme.text} />
+              </TouchableOpacity>
+            )}
+          </View>
 
           <View style={styles.content}>
             <View style={styles.header}>
-              <View style={[styles.iconCircle, { backgroundColor: colors.primary + '15' }]}>
-                <Feather name={needsDisplayName ? 'user' : 'smartphone'} size={32} color={colors.primary} />
+              <View style={[styles.iconCircle, { backgroundColor: theme.primary + '15' }]}>
+                <Feather name={needsDisplayName ? 'user' : 'smartphone'} size={28} color={theme.primary} />
               </View>
-              <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+              <Text style={[styles.title, { color: theme.text, fontFamily: 'Inter_700Bold' }]}>
                 {needsDisplayName ? 'Choose your display name' : 'Verify Your Mobile'}
               </Text>
-              <Text style={[styles.subtitle, { color: colors.textMuted, fontFamily: 'Inter_400Regular' }]}>
+              <Text style={[styles.subtitle, { color: theme.textMuted, fontFamily: 'Inter_400Regular' }]}>
                 {needsDisplayName
                   ? 'This is how you will appear in conversations.'
                   : sentTo
@@ -161,8 +178,8 @@ export default function OTPScreen() {
                   returnKeyType="done"
                   onSubmitEditing={saveDisplayName}
                   placeholder="Your name"
-                  placeholderTextColor={colors.textMuted}
-                  style={[styles.nameInput, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.input, borderRadius: colors.radius - 2, fontFamily: 'Inter_500Medium' }]}
+                  placeholderTextColor={theme.textMuted}
+                  style={[styles.nameInput, { borderColor: theme.border, color: theme.text, backgroundColor: theme.inputBg, borderRadius: colors.radius - 2, fontFamily: 'Inter_500Medium' }]}
                 />
                 <Button title="Continue" onPress={saveDisplayName} loading={savingName} disabled={savingName} fullWidth size="lg" />
               </>
@@ -182,10 +199,10 @@ export default function OTPScreen() {
                       style={[
                         styles.otpCell,
                         {
-                          borderColor: digit ? colors.primary : colors.border,
-                          color: colors.foreground,
+                          borderColor: digit ? theme.primary : theme.border,
+                          color: theme.text,
                           fontFamily: 'Inter_700Bold',
-                          backgroundColor: colors.input,
+                          backgroundColor: theme.inputBg,
                           borderRadius: colors.radius - 2,
                         },
                       ]}
@@ -195,14 +212,14 @@ export default function OTPScreen() {
                 </View>
 
                 {!!error && (
-                  <View style={[styles.errorBox, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
-                    <Feather name="alert-circle" size={14} color={colors.destructive} />
-                    <Text style={[styles.errorText, { color: colors.destructive, fontFamily: 'Inter_400Regular' }]}>{error}</Text>
+                  <View style={[styles.errorBox, { backgroundColor: theme.dangerBg, borderColor: theme.dangerBg }]}>
+                    <Feather name="alert-circle" size={14} color={theme.danger} />
+                    <Text style={[styles.errorText, { color: theme.danger, fontFamily: 'Inter_400Regular' }]}>{error}</Text>
                   </View>
                 )}
 
                 <TouchableOpacity onPress={handleResend} disabled={timer > 0} style={{ alignItems: 'center' }}>
-                  <Text style={[styles.resendText, { color: timer > 0 ? colors.textMuted : colors.primary, fontFamily: 'Inter_500Medium' }]}>
+                  <Text style={[styles.resendText, { color: timer > 0 ? theme.textMuted : theme.primary, fontFamily: 'Inter_500Medium' }]}>
                     {timer > 0 ? `Resend OTP in ${timer}s` : 'Resend OTP'}
                   </Text>
                 </TouchableOpacity>
@@ -211,9 +228,9 @@ export default function OTPScreen() {
               </>
             )}
             {needsDisplayName && !!error && (
-              <View style={[styles.errorBox, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
-                <Feather name="alert-circle" size={14} color={colors.destructive} />
-                <Text style={[styles.errorText, { color: colors.destructive, fontFamily: 'Inter_400Regular' }]}>{error}</Text>
+              <View style={[styles.errorBox, { backgroundColor: theme.dangerBg, borderColor: theme.dangerBg }]}>
+                <Feather name="alert-circle" size={14} color={theme.danger} />
+                <Text style={[styles.errorText, { color: theme.danger, fontFamily: 'Inter_400Regular' }]}>{error}</Text>
               </View>
             )}
           </View>
@@ -225,17 +242,18 @@ export default function OTPScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  container: { flex: 1, paddingHorizontal: 24 },
-  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -12 },
-  content: { flex: 1, justifyContent: 'center', gap: 32 },
-  header: { alignItems: 'center', gap: 12 },
-  iconCircle: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 26 },
-  subtitle: { fontSize: 15, textAlign: 'center', lineHeight: 22 },
-  otpRow: { flexDirection: 'row', justifyContent: 'center', gap: 10 },
-  otpCell: { width: 48, height: 60, fontSize: 24, borderWidth: 1.5 },
-  nameInput: { width: '100%', height: 54, borderWidth: 1.5, paddingHorizontal: 16, fontSize: 16 },
-  resendText: { fontSize: 15 },
-  errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 14, borderWidth: 1 },
-  errorText: { fontSize: 14, flex: 1 },
+  container: { flex: 1, paddingHorizontal: 16 },
+  topbar: { height: 44, justifyContent: 'center', marginBottom: 8 },
+  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
+  content: { flex: 1, justifyContent: 'center', gap: 24 },
+  header: { alignItems: 'center', gap: 8 },
+  iconCircle: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 24, letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  otpRow: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
+  otpCell: { width: 44, height: 56, fontSize: 22, borderWidth: 1 },
+  nameInput: { width: '100%', height: 50, borderWidth: 1, paddingHorizontal: 16, fontSize: 15 },
+  resendText: { fontSize: 14 },
+  errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 8, padding: 12, borderWidth: 1 },
+  errorText: { fontSize: 13, flex: 1 },
 });

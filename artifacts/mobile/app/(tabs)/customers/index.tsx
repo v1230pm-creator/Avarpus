@@ -9,6 +9,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useColorScheme,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,34 +27,33 @@ import { CustomerFormSheet } from '@/components/forms/CustomerFormSheet';
 import { Customer } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 
-function CustomerCard({ customer, onPress }: { customer: Customer; onPress: () => void }) {
-  const colors = useColors();
+function CustomerCard({ customer, onPress, theme }: { customer: Customer; onPress: () => void; theme: any }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
-      <FlatCard style={styles.card}>
-        <Avatar name={customer.name} size={48} />
+      <FlatCard style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <Avatar name={customer.name} size={44} />
         <View style={styles.cardContent}>
-          <Text style={[styles.customerName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{customer.name}</Text>
-          <Text style={[styles.mobile, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{customer.mobile}</Text>
+          <Text style={[styles.customerName, { color: theme.text, fontFamily: 'Inter_600SemiBold' }]}>{customer.name}</Text>
+          <Text style={[styles.mobile, { color: theme.textMuted, fontFamily: 'Inter_400Regular' }]}>{customer.mobile}</Text>
           <View style={styles.cardMeta}>
             {customer.isSample && <SampleBadge />}
-            <View style={[styles.metaBadge, { backgroundColor: colors.primary + '15' }]}>
-              <Feather name="tool" size={11} color={colors.primary} />
-              <Text style={[styles.metaText, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>
+            <View style={[styles.metaBadge, { backgroundColor: theme.primary + '15' }]}>
+              <Feather name="tool" size={10} color={theme.primary} />
+              <Text style={[styles.metaText, { color: theme.primary, fontFamily: 'Inter_500Medium' }]}>
                 {customer.totalRepairs} repairs
               </Text>
             </View>
             {customer.dueAmount > 0 && (
-              <View style={[styles.metaBadge, { backgroundColor: colors.warning + '15' }]}>
-                <Feather name="alert-circle" size={11} color={colors.warning} />
-                <Text style={[styles.metaText, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>
+              <View style={[styles.metaBadge, { backgroundColor: theme.warning + '15' }]}>
+                <Feather name="alert-circle" size={10} color={theme.warning} />
+                <Text style={[styles.metaText, { color: theme.warning, fontFamily: 'Inter_600SemiBold' }]}>
                   Due {formatCurrency(customer.dueAmount)}
                 </Text>
               </View>
             )}
           </View>
         </View>
-        <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+        <Feather name="chevron-right" size={18} color={theme.textMuted} />
       </FlatCard>
     </TouchableOpacity>
   );
@@ -61,8 +61,21 @@ function CustomerCard({ customer, onPress }: { customer: Customer; onPress: () =
 
 export default function CustomersScreen() {
   const colors = useColors();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  
+  const theme = {
+    bg: isDark ? '#040914' : colors.background,
+    card: isDark ? '#0A1221' : colors.card,
+    border: isDark ? '#1E293B' : colors.border,
+    primary: isDark ? '#2563EB' : colors.primary,
+    text: isDark ? '#FFFFFF' : colors.foreground,
+    textMuted: isDark ? '#94A3B8' : colors.mutedForeground,
+    inputBg: isDark ? '#0F172A' : colors.input,
+    warning: isDark ? '#F59E0B' : colors.warning,
+  };
+
   const { user } = useAuth();
-  const isDark = useIsDark();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { customers, isLoading, loadError, loadAll } = useData();
@@ -104,12 +117,12 @@ export default function CustomersScreen() {
   }, [customers, search]);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <FadeInView animValue={headerAnim} style={[styles.header, { paddingTop: topPad + 16, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
+      <FadeInView animValue={headerAnim} style={[styles.header, { paddingTop: topPad + 12, backgroundColor: theme.bg }]}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Customers</Text>
-            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.headerTitle, { color: theme.text, fontFamily: 'Inter_700Bold' }]}>Customers</Text>
+            <Text style={[styles.headerSub, { color: theme.textMuted, fontFamily: 'Inter_400Regular' }]}>
               {filtered.length} records
             </Text>
           </View>
@@ -117,43 +130,40 @@ export default function CustomersScreen() {
             <TouchableOpacity
               onPress={() => router.push('/(tabs)/more')}
               style={{
-                width: 44, height: 44, borderRadius: 22,
-                backgroundColor: colors.backgroundSecondary,
+                width: 38, height: 38, borderRadius: 19,
+                backgroundColor: theme.inputBg,
                 alignItems: 'center', justifyContent: 'center',
-                borderWidth: 1, borderColor: colors.border
+                borderWidth: 1, borderColor: theme.border
               }}
             >
-              <Avatar name={user?.name ?? 'User'} size={40} />
-              <View style={{ position: 'absolute', bottom: -2, right: -2, backgroundColor: colors.card, borderRadius: 10, padding: 2 }}>
-                <Feather name="menu" size={12} color={colors.primary} />
-              </View>
+              <Avatar name={user?.name ?? 'User'} size={34} />
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => setShowAdd(true)}
               activeOpacity={0.85}
-              style={[styles.addBtn, { backgroundColor: colors.primary }]}
+              style={[styles.addBtn, { backgroundColor: theme.primary }]}
             >
-              <Feather name="plus" size={18} color="#FFFFFF" />
+              <Feather name="plus" size={16} color="#FFFFFF" />
               <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Add</Text>
             </TouchableOpacity>
           </View>
         </View>
         <View style={[styles.searchBar, {
-          backgroundColor: colors.input,
-          borderColor: colors.border,
+          backgroundColor: theme.inputBg,
+          borderColor: theme.border,
         }]}>
-          <Feather name="search" size={16} color={colors.mutedForeground} />
+          <Feather name="search" size={14} color={theme.textMuted} />
           <TextInput
             value={search}
             onChangeText={setSearch}
             placeholder="Search by name or mobile..."
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+            placeholderTextColor={theme.textMuted}
+            style={[styles.searchInput, { color: theme.text, fontFamily: 'Inter_400Regular' }]}
           />
           {!!search && (
             <TouchableOpacity onPress={() => setSearch('')}>
-              <Feather name="x" size={16} color={colors.mutedForeground} />
+              <Feather name="x" size={14} color={theme.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -171,7 +181,7 @@ export default function CustomersScreen() {
         keyExtractor={(c) => c.id}
         contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
         ListEmptyComponent={
           <EmptyState
             icon="users"
@@ -180,7 +190,7 @@ export default function CustomersScreen() {
           />
         }
         renderItem={({ item }) => (
-          <CustomerCard customer={item} onPress={() => router.push(`/(tabs)/customers/${item.id}`)} />
+          <CustomerCard customer={item} onPress={() => router.push(`/(tabs)/customers/${item.id}`)} theme={theme} />
         )}
       />
       </>
@@ -193,22 +203,22 @@ export default function CustomersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingBottom: 12, gap: 12 },
+  header: { paddingHorizontal: 16, paddingBottom: 12, gap: 10 },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 28 },
-  headerSub: { fontSize: 13, marginTop: 2 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14 },
-  addBtnText: { color: '#FFFFFF', fontSize: 14 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14 },
-  searchInput: { flex: 1, height: 46, fontSize: 14 },
-  list: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
+  headerTitle: { fontSize: 24, letterSpacing: -0.5 },
+  headerSub: { fontSize: 12, marginTop: 2 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  addBtnText: { color: '#FFFFFF', fontSize: 13 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12 },
+  searchInput: { flex: 1, height: 40, fontSize: 13 },
+  list: { paddingHorizontal: 16, paddingTop: 8, gap: 8 },
   card: {
-    flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,
   },
   cardContent: { flex: 1, gap: 4 },
-  customerName: { fontSize: 15 },
-  mobile: { fontSize: 13 },
-  cardMeta: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 2 },
-  metaBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-  metaText: { fontSize: 11 },
+  customerName: { fontSize: 14 },
+  mobile: { fontSize: 12 },
+  cardMeta: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 2 },
+  metaBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 12 },
+  metaText: { fontSize: 10 },
 });

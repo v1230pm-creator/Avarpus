@@ -81,7 +81,7 @@ export default function NotificationsScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+        contentContainerStyle={{ padding: 12, paddingBottom: 120 }}
         refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={() => refetch()} tintColor={colors.primary} />}
       >
         {isLoading ? (
@@ -133,9 +133,9 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingBottom: 12 },
-  headerTitle: { fontSize: 22 },
-  row: { flexDirection: 'row', gap: 12, paddingHorizontal: 14, paddingVertical: 12, alignItems: 'flex-start' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 12 },
+  headerTitle: { fontSize: 20 },
+  row: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingVertical: 12, alignItems: 'flex-start' },
   iconWrap: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   unreadDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
 });

@@ -111,6 +111,6 @@ export default function ScannerScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: '#040914' },
   overlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'space-between' },
 });

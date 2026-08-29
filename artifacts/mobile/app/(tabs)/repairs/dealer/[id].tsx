@@ -109,43 +109,43 @@ export default function DealerProfileScreen() {
   const onRefresh = async () => { await Promise.all([profileRefetch(), repairsRefetch()]); };
 
   const header = useMemo(() => (
-    <View style={{ gap: 14 }}>
+    <View style={{ gap: 10 }}>
       {dealer && (
-        <FlatCard style={{ padding: 16, gap: 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <FlatCard style={{ padding: 12, gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={[styles.avatar, { backgroundColor: colors.primary + '18' }]}>
-              <Feather name="briefcase" size={20} color={colors.primary} />
+              <Feather name="briefcase" size={16} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 17, color: colors.foreground, fontFamily: 'Inter_700Bold' }}>{dealer.name}</Text>
+              <Text style={{ fontSize: 16, color: colors.foreground, fontFamily: 'Inter_700Bold' }}>{dealer.name}</Text>
               {!!dealer.shopName && (
-                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{dealer.shopName}</Text>
+                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{dealer.shopName}</Text>
               )}
             </View>
             <View style={[styles.codeBadge, { backgroundColor: colors.primary + '15' }]}>
-              <Text style={{ fontSize: 11, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{dealer.dealerCode}</Text>
+              <Text style={{ fontSize: 10, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{dealer.dealerCode}</Text>
             </View>
           </View>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Feather name="phone" size={12} color={colors.mutedForeground} />
-              <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{dealer.mobile}</Text>
+              <Feather name="phone" size={10} color={colors.mutedForeground} />
+              <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{dealer.mobile}</Text>
             </View>
             {!!dealer.location && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Feather name="map-pin" size={12} color={colors.mutedForeground} />
-                <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{dealer.location}</Text>
+                <Feather name="map-pin" size={10} color={colors.mutedForeground} />
+                <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{dealer.location}</Text>
               </View>
             )}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Feather name="calendar" size={12} color={colors.mutedForeground} />
-              <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Since {formatDate(dealer.createdAt)}</Text>
+              <Feather name="calendar" size={10} color={colors.mutedForeground} />
+              <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Since {formatDate(dealer.createdAt)}</Text>
             </View>
           </View>
           {!isDealerPortalRole(user?.role) && (
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 8, width: '100%' }}>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 8, width: '100%' }}>
               <TouchableOpacity
-                style={{ flex: 1, backgroundColor: colors.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                style={{ flex: 1, backgroundColor: colors.primary, paddingVertical: 10, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
                 onPress={() =>
                   router.push(
                     `/(tabs)/customers/chat/${dealer.id}?targetId=${dealer.id}&type=dealer&name=${encodeURIComponent(dealer.name)}`,
@@ -153,17 +153,17 @@ export default function DealerProfileScreen() {
                 }
                 activeOpacity={0.8}
               >
-                <Feather name="message-square" size={16} color="#FFFFFF" />
-                <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 14 }}>Message</Text>
+                <Feather name="message-square" size={14} color="#FFFFFF" />
+                <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 13 }}>Message</Text>
               </TouchableOpacity>
               {canAccess('payments') && (
                 <TouchableOpacity
-                  style={{ flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                  style={{ flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, paddingVertical: 10, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
                   onPress={() => router.push(`/(tabs)/khata/party/dealer/${dealer.id}?name=${encodeURIComponent(dealer.name)}`)}
                   activeOpacity={0.8}
                 >
-                  <Feather name="book" size={16} color={colors.foreground} />
-                  <Text style={{ color: colors.foreground, fontWeight: '600', fontSize: 14 }}>Khata</Text>
+                  <Feather name="book" size={14} color={colors.foreground} />
+                  <Text style={{ color: colors.foreground, fontWeight: '600', fontSize: 13 }}>Khata</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -258,7 +258,7 @@ export default function DealerProfileScreen() {
       <FlatList
         data={accumulated}
         keyExtractor={(r) => r.id}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100, gap: 12 }}
+        contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 100, gap: 10 }}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={header}
         refreshControl={<RefreshControl refreshing={repairsLoading && page === 1} onRefresh={onRefresh} tintColor={colors.primary} />}
@@ -287,26 +287,26 @@ export default function DealerProfileScreen() {
           const balance = Math.max(0, total - item.advance);
           return (
             <TouchableOpacity onPress={() => router.push(`/(tabs)/repairs/${item.id}`)} activeOpacity={0.8}>
-              <FlatCard style={{ padding: 16, gap: 7 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <FlatCard style={{ padding: 12, gap: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <View style={[styles.codeBadge, { backgroundColor: colors.primary + '15' }]}>
-                    <Text style={{ fontSize: 11, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{item.repairId}</Text>
+                    <Text style={{ fontSize: 10, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{item.repairId}</Text>
                   </View>
                   <PriorityBadge priority={item.priority} />
                   <RepairStatusBadge status={item.status} />
                 </View>
-                <Text style={{ fontSize: 15, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{item.customerName}</Text>
-                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+                <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{item.customerName}</Text>
+                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
                   {item.deviceType} · {item.brand} {item.model}
                 </Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 12, color: colors.mutedForeground }}>
+                  <Text style={{ fontSize: 11, color: colors.mutedForeground }}>
                     Total: {formatCurrency(total)}{balance > 0 ? '' : ' · Paid'}
                   </Text>
-                  <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{formatDate(item.createdAt)}</Text>
+                  <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{formatDate(item.createdAt)}</Text>
                 </View>
                 {balance > 0 && (
-                  <Text style={{ fontSize: 12, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>Pending: {formatCurrency(balance)}</Text>
+                  <Text style={{ fontSize: 11, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>Pending: {formatCurrency(balance)}</Text>
                 )}
               </FlatCard>
             </TouchableOpacity>
@@ -319,18 +319,18 @@ export default function DealerProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14, gap: 8 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 22 },
-  headerSub: { fontSize: 13 },
-  avatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  codeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  statCard: { width: '48%', flexGrow: 1, padding: 12, gap: 6 },
-  statIcon: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  statValue: { fontSize: 16 },
-  statLabel: { fontSize: 11 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
-  searchInput: { flex: 1, height: 46, fontSize: 14 },
-  filterTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 10, gap: 6 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 20 },
+  headerSub: { fontSize: 12 },
+  avatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  codeBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  statCard: { width: '48%', flexGrow: 1, padding: 10, gap: 4 },
+  statIcon: { width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  statValue: { fontSize: 14 },
+  statLabel: { fontSize: 10 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 },
+  searchInput: { flex: 1, height: 40, fontSize: 13 },
+  filterTab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
 });

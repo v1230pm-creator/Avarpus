@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   useColorScheme,
   View,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -33,7 +34,8 @@ import {
   useRepairsList,
 } from '@workspace/api-client-react';
 import type { ChatContact, ChatRoom } from '@workspace/api-client-react';
-import { APP_BRAND, getAvarpusLogo } from '@/constants/branding';
+import { APP_BRAND } from '@/constants/branding';
+import { BrandMark } from '@/components/ui/BrandMark';
 
 const PHONE_BATCH_SIZE = 50;
 
@@ -76,19 +78,22 @@ function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => vo
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
-      style={[styles.roomItem, { borderBottomColor: colors.border, backgroundColor: colors.background }]}
+      style={[styles.roomItem, { borderBottomColor: 'transparent', backgroundColor: colors.background }]}
       testID={`room-item-${room.id}`}
       accessibilityLabel={`Open chat with ${room.name}`}
     >
-      <Avatar
-        name={room.name}
-        size={52}
-        style={{ ...styles.roomAvatar, borderColor: colors.backgroundSecondary }}
-      />
+      <View style={{ position: 'relative' }}>
+        <Avatar
+          name={room.name}
+          size={48}
+          style={{ ...styles.roomAvatar, borderColor: colors.backgroundSecondary }}
+        />
+        {/* Mockup shows a heart icon next to some names. We'll skip for real data unless present. */}
+      </View>
       <View style={styles.roomContent}>
         <View style={styles.roomHeader}>
           <Text
-            style={[styles.roomName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}
+            style={[styles.roomName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 16 }]}
             numberOfLines={1}
           >
             {room.name}
@@ -98,7 +103,8 @@ function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => vo
               styles.roomTime,
               {
                 color: unread > 0 ? colors.primary : colors.mutedForeground,
-                fontFamily: unread > 0 ? 'Inter_600SemiBold' : 'Inter_400Regular',
+                fontFamily: unread > 0 ? 'Inter_500Medium' : 'Inter_400Regular',
+                fontSize: 12,
               },
             ]}
           >
@@ -110,14 +116,14 @@ function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => vo
             <Feather
               name={preview.icon}
               size={14}
-              color={colors.mutedForeground}
-              style={styles.roomPreviewIcon}
+              color={unread > 0 ? colors.foreground : colors.primary}
+              style={[styles.roomPreviewIcon, { marginRight: 4 }]}
             />
           )}
           <Text
             style={[
               styles.roomLastMsg,
-              { color: unread > 0 ? colors.foreground : colors.mutedForeground, fontFamily: unread > 0 ? 'Inter_500Medium' : 'Inter_400Regular' },
+              { color: unread > 0 ? colors.foreground : colors.mutedForeground, fontFamily: unread > 0 ? 'Inter_500Medium' : 'Inter_400Regular', fontSize: 13, flex: 1 },
             ]}
             numberOfLines={1}
           >
@@ -125,7 +131,7 @@ function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => vo
           </Text>
           {unread > 0 && (
             <View style={[styles.unreadBadge, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.unreadText, { fontFamily: 'Inter_700Bold' }]}>
+              <Text style={[styles.unreadText, { fontFamily: 'Inter_600SemiBold', fontSize: 12, color: '#fff' }]}>
                 {unread > 99 ? '99+' : String(unread)}
               </Text>
             </View>
@@ -143,6 +149,8 @@ function CustomerInboxScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
+  const chatSearchInputRef = useRef<TextInput>(null);
+  const [showChatSearch, setShowChatSearch] = useState(false);
   const [roomFilter, setRoomFilter] = useState<'all' | 'unread'>('all');
   const [showContactDiscovery, setShowContactDiscovery] = useState(false);
   const [exactPhone, setExactPhone] = useState('');
@@ -290,101 +298,110 @@ function CustomerInboxScreen() {
         paddingTop: topPad + 16,
         paddingHorizontal: 20,
         paddingBottom: 12,
-        backgroundColor: colors.card,
+        backgroundColor: colors.background,
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
       }}
     >
-      <View style={styles.chatHeaderRow}>
-        <View style={styles.chatHeaderTitleRow}>
+      <View style={[styles.chatHeaderRow, { justifyContent: 'space-between', paddingHorizontal: 0 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/more')}
-            style={styles.chatHeaderIcon}
+            style={[styles.chatHeaderIcon, { marginRight: 16 }]}
             accessibilityLabel="Open account menu"
             testID="account-menu-control"
           >
-            <Feather name="menu" size={22} color={colors.foreground} />
+            <Feather name="menu" size={24} color={colors.foreground} />
           </TouchableOpacity>
-          <Text style={[styles.chatHeaderTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.chatHeaderTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 24 }]}>
             Chats
           </Text>
         </View>
+        
         <View style={styles.chatHeaderActions}>
           <TouchableOpacity
+            onPress={() => {
+              setShowChatSearch((visible) => {
+                if (!visible) requestAnimationFrame(() => chatSearchInputRef.current?.focus());
+                return !visible;
+              });
+            }}
+            style={styles.chatHeaderIcon}
+            accessibilityLabel="Search chats"
+          >
+            <Feather name="search" size={24} color={colors.foreground} />
+          </TouchableOpacity>
+          <TouchableOpacity
             onPress={() => setShowContactDiscovery((visible) => !visible)}
-            style={[styles.chatHeaderIcon, showContactDiscovery && { backgroundColor: colors.accent }]}
+            style={styles.chatHeaderIcon}
             accessibilityLabel="Start a new chat"
             testID="new-chat-control"
           >
-            <Feather name="edit" size={19} color={showContactDiscovery ? colors.primary : colors.foreground} />
+            <Feather name="plus-circle" size={24} color={colors.foreground} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Search bar — only shown when provider is up */}
-      {providerConfigured && (
-        <View
-          style={{
-            flexDirection: 'row', alignItems: 'center',
-            backgroundColor: colors.backgroundSecondary,
-            borderRadius: 12, paddingHorizontal: 12, height: 40,
-            borderWidth: 1, borderColor: colors.border,
-          }}
-        >
-          <Feather name="search" size={16} color={colors.mutedForeground} />
+      {providerConfigured && showChatSearch && (
+        <View style={[styles.homeSearch, { backgroundColor: colors.backgroundSecondary, marginTop: 12 }]}>
+          <Feather name="search" size={18} color={colors.mutedForeground} />
           <TextInput
+            ref={chatSearchInputRef}
             value={search}
             onChangeText={setSearch}
             placeholder="Search chats"
             placeholderTextColor={colors.mutedForeground}
-            style={{ flex: 1, marginLeft: 8, fontSize: 14, color: colors.foreground, fontFamily: 'Inter_400Regular' }}
+            style={[styles.homeSearchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+            returnKeyType="search"
           />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Feather name="x" size={16} color={colors.mutedForeground} />
+          {!!search && (
+            <TouchableOpacity onPress={() => setSearch('')} accessibilityLabel="Clear chat search">
+              <Feather name="x" size={18} color={colors.mutedForeground} />
             </TouchableOpacity>
           )}
         </View>
       )}
+
       {providerConfigured && (
-        <View style={styles.roomFilters}>
-          {([
-            ['all', 'All'],
-            ['unread', 'Unread'],
-          ] as const).map(([value, label]) => {
-            const selected = roomFilter === value;
-            return (
-              <TouchableOpacity
-                key={value}
-                onPress={() => setRoomFilter(value)}
-                style={[
-                  styles.roomFilterChip,
-                  {
-                    backgroundColor: selected ? colors.primary : colors.backgroundSecondary,
-                    borderColor: selected ? colors.primary : colors.border,
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    color: selected ? colors.primaryForeground : colors.secondaryForeground,
-                    fontSize: 11,
-                    fontFamily: 'Inter_600SemiBold',
+        <View style={[styles.roomFilters, { marginTop: 12 }]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {(['All', 'Unread', 'Groups', 'Favorites'] as const).map((label) => {
+              const value = label.toLowerCase() as 'all' | 'unread' | 'groups' | 'favorites';
+              const disabled = value === 'groups' || value === 'favorites';
+              const selected = !disabled && roomFilter === value;
+              return (
+                <TouchableOpacity
+                  key={value}
+                  onPress={() => {
+                    if (!disabled) setRoomFilter(value);
                   }}
+                  disabled={disabled}
+                  accessibilityState={{ disabled, selected }}
+                  accessibilityHint={disabled ? `${label} filtering is not available for direct chats` : undefined}
+                  style={[
+                    styles.roomFilterChip,
+                    {
+                      backgroundColor: selected ? colors.primary : 'transparent',
+                      opacity: disabled ? 0.5 : 1,
+                    },
+                  ]}
                 >
-                  {label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-          <View style={[styles.securePill, { borderColor: colors.border }]}>
-            <Feather name="shield" size={11} color={colors.gold} />
-            <Text style={{ color: colors.mutedForeground, fontSize: 10, fontFamily: 'Inter_500Medium' }}>
-              Private
-            </Text>
-          </View>
+                  <Text
+                    style={{
+                      color: selected ? '#FFFFFF' : colors.mutedForeground,
+                      fontSize: 13,
+                      fontFamily: 'Inter_500Medium',
+                    }}
+                  >
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
       )}
+
       {providerConfigured && showContactDiscovery && (
         <View style={{ marginTop: 12 }}>
           <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 14, marginBottom: 8 }}>
@@ -554,6 +571,7 @@ function CustomerInboxScreen() {
             }}
           />
         )}
+        ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
         ListEmptyComponent={
           search ? (
             <View style={styles.emptyContainer}>
@@ -564,7 +582,7 @@ function CustomerInboxScreen() {
             </View>
           ) : null
         }
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 24, paddingTop: 8, paddingHorizontal: 12 }}
         showsVerticalScrollIndicator={false}
       />
     </View>
@@ -908,7 +926,7 @@ function RepairHomeScreen() {
         </TouchableOpacity>
 
         <View style={styles.brandLockup}>
-          <Image source={getAvarpusLogo(scheme)} style={styles.brandLogo} resizeMode="contain" />
+          <BrandMark size={27} />
           <Text style={[styles.brandName, { color: colors.foreground }]}>{APP_BRAND}</Text>
         </View>
 
@@ -1168,14 +1186,12 @@ const styles = StyleSheet.create({
   roomItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 74,
-    paddingHorizontal: 18,
-    paddingVertical: 9,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     gap: 13,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   roomAvatar: {
-    borderWidth: 1,
+    borderWidth: 0,
   },
   roomContent: {
     flex: 1,
@@ -1198,23 +1214,22 @@ const styles = StyleSheet.create({
   roomFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
   roomLastMsg: {
     fontSize: 14,
-    flex: 1,
     marginRight: 8,
   },
   roomPreviewIcon: {
     marginRight: 5,
   },
   unreadBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 12,
+    marginLeft: 6,
     minWidth: 20,
-    height: 20,
-    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 5,
   },
   unreadText: {
     fontSize: 11,
@@ -1222,17 +1237,16 @@ const styles = StyleSheet.create({
   },
   chatHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 4,
   },
   chatHeaderTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   chatHeaderTitle: { fontSize: 24 },
-  chatHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  chatHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   chatHeaderIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1243,10 +1257,12 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   roomFilterChip: {
-    paddingHorizontal: 13,
-    paddingVertical: 6,
-    borderRadius: 14,
-    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 100,
+    marginRight: 4,
   },
   securePill: {
     marginLeft: 'auto',

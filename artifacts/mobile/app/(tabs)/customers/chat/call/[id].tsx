@@ -148,7 +148,7 @@ export default function CallScreen() {
         <Text
           style={[
             styles.loadingText,
-            { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+            { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' },
           ]}
         >
           Preparing call…
@@ -181,7 +181,7 @@ export default function CallScreen() {
           <Text
             style={[
               styles.errorTitle,
-              { color: colors.foreground, fontFamily: 'Inter_700Bold' },
+              { color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
             ]}
             testID="call-error-title"
           >
@@ -198,10 +198,10 @@ export default function CallScreen() {
           </Text>
 
           {/* E2EE note even on error screens */}
-          <View style={[styles.e2eeRow, { backgroundColor: colors.backgroundSecondary }]}>
+          <View style={[styles.e2eeRow, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}>
             <Feather name="shield" size={13} color={colors.mutedForeground} />
             <Text
-              style={[styles.e2eeNote, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}
+              style={[styles.e2eeNote, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}
               testID="e2ee-disabled-note"
             >
               End-to-end encryption is not enabled
@@ -223,7 +223,7 @@ export default function CallScreen() {
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              style={[styles.backButton, { borderColor: colors.border }]}
+              style={[styles.backButton, { borderColor: colors.border, backgroundColor: colors.card }]}
               onPress={handleHangup}
               accessibilityLabel="Go back"
               testID="back-button"

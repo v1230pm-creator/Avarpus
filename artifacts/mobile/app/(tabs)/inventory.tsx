@@ -39,68 +39,63 @@ function InventoryCard({ item, onPress }: { item: InventoryItem; onPress: () => 
   const isOut = item.quantity === 0;
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
-    <FlatCard
-      style={StyleSheet.flatten([
-        styles.card,
-        isOut
-          ? { borderColor: colors.destructive + '44' }
-          : isLow
+      <FlatCard
+        style={[
+          styles.card,
+          isOut
+            ? { borderColor: colors.destructive + '44' }
+            : isLow
             ? { borderColor: colors.warning + '44' }
-            : null,
-      ])}
-    >
-      <View style={styles.cardTop}>
-        <View style={{ flex: 1, gap: 3 }}>
-          <Text style={[styles.itemName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <Text style={[styles.brand, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            {item.brand} · {CAT_LABELS[item.category]}
-          </Text>
-        </View>
-        <View style={{ alignItems: 'flex-end', gap: 4 }}>
-          <Badge
-            label={CAT_LABELS[item.category]}
-            variant={item.category === 'spare_part' ? 'info' : item.category === 'product' ? 'default' : 'muted'}
-            size="sm"
-          />
-          {item.isSample && <SampleBadge />}
-        </View>
-      </View>
-
-      <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-      <View style={styles.cardBottom}>
-        <View style={styles.stockInfo}>
-          <View style={[styles.stockBadge, { backgroundColor: isOut ? colors.destructive + '22' : isLow ? colors.warningLight : colors.successLight }]}>
-            <Text style={[styles.stockNum, { color: isOut ? colors.destructive : isLow ? colors.warning : colors.success, fontFamily: 'Inter_700Bold' }]}>
-              {item.quantity}
+            : { borderColor: colors.border },
+          { backgroundColor: colors.surface }
+        ]}
+      >
+        <View style={styles.cardTop}>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={[styles.itemName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
+              {item.name}
             </Text>
-            <Text style={[styles.stockLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>In Stock</Text>
+            <Text style={[styles.brand, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              {item.brand}
+            </Text>
           </View>
-          <View style={styles.minStock}>
-            <Text style={[styles.minLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Min: {item.minStock}</Text>
+          <View style={{ alignItems: 'flex-end', gap: 6 }}>
+            <Text style={[styles.price, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{formatCurrency(item.sellingPrice)}</Text>
+            {item.canSeeCosts !== false && (
+              <Text style={[styles.costPrice, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                Cost: {formatCurrency(item.purchasePrice)}
+              </Text>
+            )}
           </View>
         </View>
-        <View style={styles.priceInfo}>
-          <Text style={[styles.price, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{formatCurrency(item.sellingPrice)}</Text>
-          {item.canSeeCosts !== false && (
-            <Text style={[styles.costPrice, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-              Cost: {formatCurrency(item.purchasePrice)}
-            </Text>
-          )}
-        </View>
-      </View>
 
-      {(isOut || isLow) && (
-        <View style={[styles.alertBar, { backgroundColor: isOut ? colors.destructive + '22' : colors.warningLight }]}>
-          <Feather name="alert-triangle" size={12} color={isOut ? colors.destructive : colors.warning} />
-          <Text style={[styles.alertText, { color: isOut ? colors.destructive : colors.warning, fontFamily: 'Inter_600SemiBold' }]}>
-            {isOut ? 'OUT OF STOCK' : 'LOW STOCK ALERT'}
-          </Text>
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+        <View style={styles.cardBottom}>
+          <View style={styles.stockInfo}>
+            <View style={[styles.stockBadge, { backgroundColor: isOut ? colors.destructive + '15' : isLow ? colors.warning + '15' : colors.success + '15' }]}>
+              <Text style={[styles.stockNum, { color: isOut ? colors.destructive : isLow ? colors.warning : colors.success, fontFamily: 'Inter_600SemiBold' }]}>
+                {item.quantity} in stock
+              </Text>
+            </View>
+            {isOut ? (
+               <Text style={[styles.minLabel, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>Out of Stock</Text>
+            ) : isLow ? (
+               <Text style={[styles.minLabel, { color: colors.warning, fontFamily: 'Inter_500Medium' }]}>Low Stock</Text>
+            ) : (
+               <Text style={[styles.minLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Min: {item.minStock}</Text>
+            )}
+          </View>
+          <View style={{ alignItems: 'flex-end', flexDirection: 'row', gap: 6 }}>
+            <Badge
+              label={CAT_LABELS[item.category]}
+              variant={item.category === 'spare_part' ? 'info' : item.category === 'product' ? 'default' : 'muted'}
+              size="sm"
+            />
+            {item.isSample && <SampleBadge />}
+          </View>
         </View>
-      )}
-    </FlatCard>
+      </FlatCard>
     </TouchableOpacity>
   );
 }
@@ -142,39 +137,25 @@ export default function InventoryScreen() {
     return [...list].sort((a, b) => a.quantity - b.quantity);
   }, [inventory, category, search]);
 
-  const headerAnims = useStaggerAnim(3);
+  const headerAnims = useStaggerAnim(2);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
-
-      <FadeInView animValue={headerAnims[0]} style={[styles.header, { paddingTop: topPad + 16 }]}>
+      <FadeInView animValue={headerAnims[0]} style={[styles.header, { paddingTop: topPad + 16, borderBottomColor: colors.border }]}>
         <View style={styles.headerRow}>
-          <View>
-            <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Inventory</Text>
-            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
-              {filtered.length} items{lowStockCount > 0 ? ` · ${lowStockCount} low stock` : ''}
-            </Text>
-          </View>
+          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Inventory</Text>
           <View style={styles.headerActions}>
-            {lowStockCount > 0 && (
-              <View style={[styles.alertBadge, { backgroundColor: colors.warning + '15' }]}>
-                <Feather name="alert-triangle" size={14} color={colors.warning} />
-                <Text style={[styles.alertBadgeText, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>{lowStockCount}</Text>
-              </View>
-            )}
-            <TouchableOpacity
-              onPress={openAdd}
-              activeOpacity={0.85}
-              style={[styles.addBtn, { backgroundColor: colors.primary }]}
-            >
-              <Feather name="plus" size={18} color="#FFFFFF" />
-              <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Add</Text>
+            <TouchableOpacity activeOpacity={0.7} style={styles.iconBtn}>
+              <Feather name="search" size={20} color={colors.foreground} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={openAdd} activeOpacity={0.7} style={styles.iconBtn}>
+              <Feather name="plus-square" size={20} color={colors.foreground} />
             </TouchableOpacity>
           </View>
         </View>
 
-        <FlatCard style={styles.searchBar}>
+        <View style={[styles.searchBar, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
           <Feather name="search" size={16} color={colors.mutedForeground} />
           <TextInput
             value={search}
@@ -183,30 +164,42 @@ export default function InventoryScreen() {
             placeholderTextColor={colors.mutedForeground}
             style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
           />
-          {!!search && <TouchableOpacity onPress={() => setSearch('')}><Feather name="x" size={16} color={colors.mutedForeground} /></TouchableOpacity>}
-        </FlatCard>
+          {!!search && (
+            <TouchableOpacity onPress={() => setSearch('')} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+              <Feather name="x" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          )}
+        </View>
 
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={CATEGORIES}
-          keyExtractor={(c) => c}
-          contentContainerStyle={{ gap: 8 }}
-          renderItem={({ item }) => {
-            const active = category === item;
-            return (
-              <TouchableOpacity
-                onPress={() => setCategory(item)}
-                activeOpacity={0.8}
-                style={[styles.filterTab, { backgroundColor: active ? colors.primary : colors.primary + '12', borderColor: active ? colors.primary : 'transparent' }]}
-              >
-                <Text style={[styles.filterText, { color: active ? '#FFFFFF' : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>
-                  {item}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
-        />
+        <View style={styles.tabsWrapper}>
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={CATEGORIES}
+            keyExtractor={(c) => c}
+            contentContainerStyle={styles.tabsContent}
+            renderItem={({ item }) => {
+              const active = category === item;
+              return (
+                <TouchableOpacity
+                  onPress={() => setCategory(item)}
+                  activeOpacity={0.8}
+                  style={[
+                    styles.filterTab,
+                    { 
+                      backgroundColor: active ? colors.primary : colors.surfaceSecondary,
+                      borderColor: active ? colors.primary : colors.border
+                    }
+                  ]}
+                >
+                  <Text style={[styles.filterText, { color: active ? colors.primaryForeground : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </View>
       </FadeInView>
 
       {isLoading && inventory.length === 0 ? (
@@ -215,16 +208,16 @@ export default function InventoryScreen() {
         <DataErrorState onRetry={loadAll} />
       ) : (
       <>
-      {!!loadError && <DataErrorBanner onRetry={loadAll} />}
-      <FlatList
-        data={filtered}
-        keyExtractor={(i) => i.id}
-        contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-        ListEmptyComponent={<EmptyState icon="package" title="No items found" description={search ? 'Try a different search' : 'No inventory items'} />}
-        renderItem={({ item }) => <InventoryCard item={item} onPress={() => openEdit(item)} />}
-      />
+        {!!loadError && <DataErrorBanner onRetry={loadAll} />}
+        <FlatList
+          data={filtered}
+          keyExtractor={(i) => i.id}
+          contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+          ListEmptyComponent={<EmptyState icon="package" title="No items found" description={search ? 'Try a different search' : 'No inventory items'} />}
+          renderItem={({ item }) => <InventoryCard item={item} onPress={() => openEdit(item)} />}
+        />
       </>
       )}
 
@@ -235,35 +228,61 @@ export default function InventoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingBottom: 12, gap: 14 },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 28 },
-  headerSub: { fontSize: 13, marginTop: 2 },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14 },
-  addBtnText: { color: '#FFFFFF', fontSize: 14 },
-  alertBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
-  alertBadgeText: { fontSize: 13 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
-  searchInput: { flex: 1, height: 46, fontSize: 14 },
-  filterTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  header: { 
+    paddingBottom: 12, 
+    borderBottomWidth: 1,
+  },
+  headerRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  headerTitle: { fontSize: 24, letterSpacing: -0.5 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconBtn: {
+    padding: 4,
+  },
+  searchBar: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 10, 
+    paddingHorizontal: 14,
+    marginHorizontal: 16,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  searchInput: { flex: 1, height: '100%', fontSize: 14 },
+  tabsWrapper: {
+    borderTopWidth: 1,
+    borderTopColor: 'transparent', // controlled by container
+  },
+  tabsContent: { 
+    paddingHorizontal: 16, 
+    gap: 8,
+    paddingBottom: 4,
+  },
+  filterTab: { 
+    paddingHorizontal: 16, 
+    paddingVertical: 6, 
+    borderRadius: 16, 
+    borderWidth: 1 
+  },
   filterText: { fontSize: 13 },
-  list: { paddingHorizontal: 16, paddingTop: 14, gap: 12 },
-  card: { padding: 16, gap: 10 },
-  cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  itemName: { fontSize: 15 },
-  brand: { fontSize: 12 },
-  divider: { height: 1 },
+  list: { paddingHorizontal: 16, paddingTop: 16, gap: 12 },
+  card: { padding: 14, gap: 12, borderRadius: 12 },
+  cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  itemName: { fontSize: 15, marginBottom: 2 },
+  brand: { fontSize: 13 },
+  divider: { height: 1, marginVertical: 2 },
   cardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  stockInfo: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  stockBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, alignItems: 'center' },
-  stockNum: { fontSize: 20 },
-  stockLabel: { fontSize: 10 },
-  minStock: {},
+  stockInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  stockBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  stockNum: { fontSize: 12 },
   minLabel: { fontSize: 12 },
-  priceInfo: { alignItems: 'flex-end', gap: 2 },
-  price: { fontSize: 16 },
-  costPrice: { fontSize: 11 },
-  alertBar: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  alertText: { fontSize: 11, letterSpacing: 0.5 },
+  price: { fontSize: 15 },
+  costPrice: { fontSize: 12 },
 });

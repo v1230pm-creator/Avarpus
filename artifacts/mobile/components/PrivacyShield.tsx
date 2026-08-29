@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { AppState, Image, StyleSheet, View, useColorScheme } from 'react-native';
+import { AppState, StyleSheet, View, useColorScheme } from 'react-native';
 import colors from '@/constants/colors';
-import { getAvarpusLogo } from '@/constants/branding';
+import { BrandMark } from '@/components/ui/BrandMark';
 
 /**
  * Covers the whole UI with a branded opaque overlay whenever the app is not
@@ -35,11 +35,7 @@ export function PrivacyShield() {
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <Image
-        source={getAvarpusLogo(scheme)}
-        style={styles.logo}
-        resizeMode="contain"
-      />
+      <BrandMark size={160} />
     </View>
   );
 }
@@ -51,9 +47,5 @@ const styles = StyleSheet.create({
     elevation: 9999,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  logo: {
-    width: 160,
-    height: 160,
   },
 });

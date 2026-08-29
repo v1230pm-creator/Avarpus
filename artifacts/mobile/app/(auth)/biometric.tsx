@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -7,16 +7,26 @@ import * as Haptics from 'expo-haptics';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
-import {
-  completeUnlockSuccess,
-  isBiometricLockEnabled,
-  setUnlocked,
-} from '@/utils/appLock';
+import { completeUnlockSuccess, isBiometricLockEnabled, setUnlocked } from '@/utils/appLock';
 
 export default function BiometricScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useColors();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  const theme = {
+    bg: isDark ? '#040914' : colors.background,
+    card: isDark ? '#0A1221' : colors.card,
+    border: isDark ? '#1E293B' : colors.border,
+    primary: isDark ? '#2563EB' : colors.primary,
+    text: isDark ? '#FFFFFF' : colors.foreground,
+    textMuted: isDark ? '#94A3B8' : colors.textMuted,
+    danger: isDark ? '#EF4444' : colors.destructive,
+    dangerBg: isDark ? 'rgba(239, 68, 68, 0.1)' : colors.destructive + '15',
+  };
+
   const { isAuthenticated, isLoading, logout } = useAuth();
   const [checking, setChecking] = useState(true);
   const [authenticating, setAuthenticating] = useState(false);
@@ -94,24 +104,24 @@ export default function BiometricScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
+    <View style={[styles.root, { backgroundColor: theme.bg }]}>
       <View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
-        <View style={[styles.iconWrap, { backgroundColor: colors.primary + '15' }]}>
-          <Feather name="shield" size={38} color={colors.primary} />
+        <View style={[styles.iconWrap, { backgroundColor: theme.primary + '15' }]}>
+          <Feather name="shield" size={32} color={theme.primary} />
         </View>
         <View style={styles.titleWrap}>
-          <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.title, { color: theme.text, fontFamily: 'Inter_700Bold' }]}>
             Unlock Avarpus
           </Text>
-          <Text style={[styles.subtitle, { color: colors.textMuted, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.subtitle, { color: theme.textMuted, fontFamily: 'Inter_400Regular' }]}>
             Continue with your {methodLabel}.
           </Text>
         </View>
 
         {!!error && (
-          <View style={[styles.errorBox, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
-            <Feather name="alert-circle" size={16} color={colors.destructive} />
-            <Text style={[styles.errorText, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>
+          <View style={[styles.errorBox, { backgroundColor: theme.dangerBg, borderColor: theme.dangerBg }]}>
+            <Feather name="alert-circle" size={14} color={theme.danger} />
+            <Text style={[styles.errorText, { color: theme.danger, fontFamily: 'Inter_500Medium' }]}>
               {error}
             </Text>
           </View>
@@ -120,21 +130,21 @@ export default function BiometricScreen() {
         <TouchableOpacity
           onPress={unlock}
           disabled={checking || authenticating}
-          style={[styles.unlockButton, { backgroundColor: colors.primary }, (checking || authenticating) && { opacity: 0.6 }]}
+          style={[styles.unlockButton, { backgroundColor: theme.primary }, (checking || authenticating) && { opacity: 0.6 }]}
           activeOpacity={0.8}
         >
           {checking || authenticating ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <>
-              <Feather name="unlock" size={20} color="#FFFFFF" />
+              <Feather name="unlock" size={18} color="#FFFFFF" />
               <Text style={[styles.unlockText, { fontFamily: 'Inter_600SemiBold' }]}>Authenticate</Text>
             </>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity onPress={signOut} style={styles.signOutButton} activeOpacity={0.7}>
-          <Text style={[styles.signOutText, { color: colors.textMuted, fontFamily: 'Inter_500Medium' }]}>
+          <Text style={[styles.signOutText, { color: theme.textMuted, fontFamily: 'Inter_500Medium' }]}>
             Sign out instead
           </Text>
         </TouchableOpacity>
@@ -145,15 +155,15 @@ export default function BiometricScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 24 },
-  iconWrap: { width: 88, height: 88, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  titleWrap: { alignItems: 'center', gap: 8 },
-  title: { fontSize: 27, textAlign: 'center' },
-  subtitle: { fontSize: 15, lineHeight: 22, textAlign: 'center', maxWidth: 300 },
-  errorBox: { width: '100%', flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 13, borderRadius: 12, borderWidth: 1 },
-  errorText: { flex: 1, fontSize: 13, lineHeight: 19 },
-  unlockButton: { width: '100%', minHeight: 54, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
-  unlockText: { color: '#FFFFFF', fontSize: 16 },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, gap: 20 },
+  iconWrap: { width: 72, height: 72, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  titleWrap: { alignItems: 'center', gap: 6 },
+  title: { fontSize: 24, textAlign: 'center', letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, lineHeight: 20, textAlign: 'center', maxWidth: 300 },
+  errorBox: { width: '100%', flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 8, borderWidth: 1 },
+  errorText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  unlockButton: { width: '100%', minHeight: 50, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  unlockText: { color: '#FFFFFF', fontSize: 15 },
   signOutButton: { paddingVertical: 10, paddingHorizontal: 16 },
-  signOutText: { fontSize: 14 },
+  signOutText: { fontSize: 13 },
 });

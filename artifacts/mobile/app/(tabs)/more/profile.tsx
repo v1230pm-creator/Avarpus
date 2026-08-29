@@ -74,7 +74,7 @@ export default function ProfileScreen() {
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 12, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
           <FlatCard animValue={anims[0]} style={styles.card}>
             <View style={{ alignItems: 'center', marginBottom: 16 }}>
               <Avatar name={user?.name ?? 'User'} size={64} />
@@ -102,10 +102,10 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingBottom: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 12 },
   backBtn: { padding: 4 },
-  headerTitle: { fontSize: 22 },
-  card: { padding: 18, marginBottom: 16 },
+  headerTitle: { fontSize: 20 },
+  card: { padding: 16, marginBottom: 16 },
   email: { fontSize: 13, marginTop: 8 },
   roleBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, marginTop: 6 },
   label: { fontSize: 11, letterSpacing: 0.6, marginTop: 12, marginBottom: 6 },

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -12,16 +12,17 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useColors } from '@/hooks/useColors';
 import { formatCurrency } from '@/utils/helpers';
-import { FlatCard } from '@/components/ui/FlatCard';
 import { useKhataLedger } from '@/hooks/useKhataLedger';
 import type { KhataPartyType, LedgerEntry } from '@/utils/khata-ledger';
+import { Avatar } from '@/components/ui/Avatar';
+import { useColors } from '@/hooks/useColors';
+import { DataErrorBanner, DataErrorState } from '@/components/ui/DataStates';
 
 export default function KhataDetailScreen() {
   const insets = useSafeAreaInsets();
-  const colors = useColors();
   const router = useRouter();
+  const colors = useColors();
   const { type, id, name } = useLocalSearchParams<{
     type: KhataPartyType;
     id: string;
@@ -31,7 +32,18 @@ export default function KhataDetailScreen() {
 
   const { ledger, totals, isLoading, error, reload } = useKhataLedger(validType, id);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'transactions' | 'summary'>('transactions');
+  const [newestFirst, setNewestFirst] = useState(true);
   const topPadding = Platform.OS === 'web' ? insets.top + 67 : insets.top;
+  const orderedLedger = useMemo(
+    () =>
+      [...ledger].sort((a, b) =>
+        newestFirst
+          ? b.date.localeCompare(a.date)
+          : a.date.localeCompare(b.date),
+      ),
+    [ledger, newestFirst],
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -44,65 +56,44 @@ export default function KhataDetailScreen() {
 
   const formatDateLabel = (isoDate: string) => {
     const d = new Date(isoDate);
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) {
+      return `Today, ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
+    }
     return d.toLocaleDateString('en-IN', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
     });
   };
 
   const renderEntry = (entry: LedgerEntry) => {
-    const isDebit = entry.debit > 0;
-    const isCredit = entry.credit > 0;
+    const isDebit = entry.debit > 0; // Means Repair (charge)
+    const isCredit = entry.credit > 0; // Means Payment Received
     const amount = isDebit ? entry.debit : entry.credit;
 
     return (
-      <TouchableOpacity
-        key={entry.id}
-        activeOpacity={0.7}
-        onPress={() => router.push(`/(tabs)/repairs/${entry.repairDbId}`)}
-        style={styles.entryPressable}
-      >
-        <FlatCard style={styles.entryCard}>
-          <View style={styles.entryHeader}>
-            <Text style={styles.entryDate}>{formatDateLabel(entry.date)}</Text>
-            <View style={styles.repairIdBadge}>
-              <Text style={styles.repairIdText}>{entry.repairId}</Text>
-            </View>
+      <View key={entry.id} style={styles.entryBox}>
+        <View style={styles.entryRow}>
+          <View style={[styles.entryIconBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Feather name={isDebit ? 'tool' : 'download'} size={14} color={colors.mutedForeground} />
           </View>
-
-          <View style={styles.entryBody}>
-            <View style={styles.entryInfo}>
-              <Text style={styles.entryLabel}>
-                {entry.label}
-                {entry.method ? ` • ${entry.method.toUpperCase()}` : ''}
-              </Text>
-            </View>
-
-            <View style={styles.amountInfo}>
-              {isDebit ? (
-                <Text style={styles.debitText}>
-                  {formatCurrency(amount)} DEBIT
-                </Text>
-              ) : isCredit ? (
-                <Text style={styles.creditText}>
-                  {formatCurrency(amount)} CREDIT
-                </Text>
-              ) : null}
-              <Text
-                style={[
-                  styles.balanceText,
-                  entry.partyBalance <= 0 && styles.settledBalance,
-                ]}
-              >
-                Bal: {formatCurrency(entry.partyBalance)}
-              </Text>
-            </View>
+          <View style={styles.entryInfo}>
+            <Text style={[styles.entryTitle, { color: colors.foreground }]} numberOfLines={1}>
+              {isDebit ? `Repair Bill - R-${entry.repairId}` : 'Payment Received'}
+            </Text>
+            <Text style={[styles.entryDesc, { color: colors.mutedForeground }]} numberOfLines={1}>
+              {isDebit ? entry.label : (entry.method ? `By ${entry.method}` : 'Cash')}
+            </Text>
+            <Text style={[styles.entryDate, { color: colors.mutedForeground }]}>{formatDateLabel(entry.date)}</Text>
           </View>
-        </FlatCard>
-      </TouchableOpacity>
+          <View style={styles.entryAmountBox}>
+            <Text style={[styles.entryAmount, { color: isDebit ? colors.destructive : colors.success }]}>
+              {formatCurrency(amount)}
+            </Text>
+          </View>
+        </View>
+      </View>
     );
   };
 
@@ -110,74 +101,80 @@ export default function KhataDetailScreen() {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.primary} size="large" />
-        <Text style={styles.loadingText}>Loading account…</Text>
+      </View>
+    );
+  }
+
+  if (error && ledger.length === 0) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPadding }]}>
+        <DataErrorState onRetry={reload} />
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPadding + 12, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityLabel="Back">
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+      <View style={[styles.header, { paddingTop: topPadding + 16, borderBottomColor: colors.border }]}>
+        <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
+          <Feather name="arrow-left" size={20} color={colors.foreground} />
         </TouchableOpacity>
-        <View style={styles.headerCopy}>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>{name || 'Khata Details'}</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
-            {validType === 'dealer' ? 'Dealer account ledger' : 'Customer account ledger'}
-          </Text>
+        <View style={{ flex: 1, paddingHorizontal: 16 }}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Khata Book - {name}</Text>
         </View>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => setNewestFirst((value) => !value)}
+          accessibilityLabel={newestFirst ? 'Show oldest transactions first' : 'Show newest transactions first'}
+        >
+          <Feather name={newestFirst ? 'arrow-down' : 'arrow-up'} size={18} color={colors.foreground} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0B63F6" />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
-        {!!error && (
-          <FlatCard style={styles.errorCard}>
-            <Feather name="alert-circle" size={18} color="#EF4444" />
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity onPress={reload} style={styles.retryButton}>
-              <Text style={styles.retryText}>Retry</Text>
-            </TouchableOpacity>
-          </FlatCard>
-        )}
+        {!!error && <DataErrorBanner onRetry={reload} />}
+        <View style={styles.tabBar}>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'transactions' && { backgroundColor: colors.primary }]}
+            onPress={() => setActiveTab('transactions')}
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'transactions' ? colors.primaryForeground : colors.mutedForeground }]}>Transactions</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'summary' && { backgroundColor: colors.primary }]}
+            onPress={() => setActiveTab('summary')}
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'summary' ? colors.primaryForeground : colors.mutedForeground }]}>Summary</Text>
+          </TouchableOpacity>
+        </View>
 
-        <FlatCard style={styles.summaryCard}>
-          <View style={styles.summaryTop}>
-            <View style={styles.summaryBox}>
-              <Text style={styles.summaryLabel}>Total Business</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(totals.billed)}</Text>
+        <View style={[styles.cardContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {activeTab === 'transactions' ? (
+            <View style={styles.activityList}>
+              {orderedLedger.length > 0 ? (
+                orderedLedger.map(renderEntry)
+              ) : (
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No transactions yet</Text>
+              )}
             </View>
-            <View style={styles.summaryBox}>
-              <Text style={styles.summaryLabel}>Total Paid</Text>
-              <Text style={[styles.summaryValue, styles.paidValue]}>{formatCurrency(totals.paid)}</Text>
-            </View>
-          </View>
-          <View style={styles.outstandingBox}>
-            <Text style={styles.outstandingLabel}>Outstanding Balance</Text>
-            <Text style={[styles.outstandingValue, totals.due <= 0 && styles.paidValue]}>
-              {formatCurrency(totals.due)}
-            </Text>
-          </View>
-        </FlatCard>
-
-        <View style={{ marginBottom: 20 }}>
-          <Text style={styles.sectionTitle}>LEDGER ENTRIES ({ledger.length})</Text>
-          {ledger.length > 0 ? (
-            ledger.map(renderEntry)
           ) : (
-            <View style={styles.empty}>
-              <View style={styles.emptyIcon}>
-                <Feather name="list" size={28} color="#94A3B8" />
+            <View style={styles.summaryGrid}>
+              <View style={styles.summaryCell}>
+                <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Total Billed</Text>
+                <Text style={[styles.summaryValue, { color: colors.foreground }]}>{formatCurrency(totals.billed)}</Text>
               </View>
-              <Text style={styles.emptyTitle}>No entries yet</Text>
-              <Text style={styles.emptyText}>
-                No billing or payment activity found for this account.
-              </Text>
+              <View style={styles.summaryCell}>
+                <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Received</Text>
+                <Text style={[styles.summaryValue, { color: colors.success }]}>{formatCurrency(totals.paid)}</Text>
+              </View>
+              <View style={styles.summaryCell}>
+                <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Outstanding</Text>
+                <Text style={[styles.summaryValue, { color: totals.due > 0 ? colors.destructive : colors.success }]}>{formatCurrency(totals.due)}</Text>
+              </View>
             </View>
           )}
         </View>
@@ -187,93 +184,63 @@ export default function KhataDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
-    gap: 12,
-  },
-  loadingText: { color: '#64748B', fontSize: 13, fontFamily: 'Inter_500Medium' },
+  container: { flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
-  backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  headerCopy: { flex: 1, paddingRight: 44 },
-  headerTitle: { color: '#111827', fontSize: 18, fontFamily: 'Inter_700Bold' },
-  headerSubtitle: { color: '#64748B', fontSize: 12, marginTop: 2, fontFamily: 'Inter_400Regular' },
-  scroll: { padding: 16, paddingBottom: 110, width: '100%', maxWidth: 720, alignSelf: 'center' },
-  errorCard: {
+  iconBtn: {
+    width: 40, height: 40,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  headerTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  scroll: { padding: 16, paddingBottom: 100 },
+
+  tabBar: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-    borderColor: '#FECACA',
+    marginBottom: 24,
+    gap: 16,
   },
-  errorText: { flex: 1, color: '#991B1B', fontSize: 12, fontFamily: 'Inter_400Regular' },
-  retryButton: { paddingHorizontal: 10, paddingVertical: 7 },
-  retryText: { color: '#0B63F6', fontSize: 12, fontFamily: 'Inter_600SemiBold' },
-  summaryCard: { backgroundColor: '#EAF2FF', borderColor: '#D7E6FF', marginBottom: 22 },
-  summaryTop: { flexDirection: 'row', gap: 18 },
-  summaryBox: { flex: 1 },
-  summaryLabel: { color: '#64748B', fontSize: 11, fontFamily: 'Inter_500Medium' },
-  summaryValue: { color: '#111827', fontSize: 19, marginTop: 4, fontFamily: 'Inter_700Bold' },
-  paidValue: { color: '#16A34A' },
-  outstandingBox: {
-    marginTop: 16,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#CFE0FA',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  tabButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 20,
   },
-  outstandingLabel: { color: '#64748B', fontSize: 12, fontFamily: 'Inter_500Medium' },
-  outstandingValue: { color: '#EF4444', fontSize: 22, fontFamily: 'Inter_700Bold' },
-  sectionTitle: {
-    color: '#64748B',
-    fontSize: 11,
-    letterSpacing: 0.8,
-    marginBottom: 10,
-    marginLeft: 4,
-    fontFamily: 'Inter_600SemiBold',
+  tabText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+
+  cardContainer: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
-  entryPressable: { marginBottom: 10 },
-  entryCard: { padding: 12, gap: 8 },
-  entryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  entryDate: { color: '#64748B', fontSize: 11, fontFamily: 'Inter_500Medium' },
-  repairIdBadge: { backgroundColor: '#EAF2FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  repairIdText: { color: '#0B63F6', fontSize: 10, fontFamily: 'Inter_700Bold' },
-  entryBody: { flexDirection: 'row', alignItems: 'center' },
+
+  activityList: { paddingVertical: 8 },
+  summaryGrid: { padding: 16, gap: 16 },
+  summaryCell: { gap: 4 },
+  summaryLabel: { fontSize: 12, fontFamily: 'Inter_500Medium' },
+  summaryValue: { fontSize: 20, fontFamily: 'Inter_700Bold' },
+  entryBox: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  entryRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  entryIconBox: {
+    width: 24, height: 24, borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center'
+  },
   entryInfo: { flex: 1 },
-  entryLabel: { color: '#111827', fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  amountInfo: { alignItems: 'flex-end', minWidth: 90 },
-  debitText: { color: '#EF4444', fontSize: 13, fontFamily: 'Inter_700Bold' },
-  creditText: { color: '#16A34A', fontSize: 13, fontFamily: 'Inter_700Bold' },
-  balanceText: { color: '#64748B', fontSize: 11, marginTop: 4, fontFamily: 'Inter_500Medium' },
-  settledBalance: { color: '#16A34A' },
-  empty: { alignItems: 'center', paddingVertical: 50, paddingHorizontal: 24 },
-  emptyIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: '#F3F7FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyTitle: { color: '#111827', fontSize: 15, marginTop: 13, fontFamily: 'Inter_600SemiBold' },
-  emptyText: {
-    color: '#64748B',
-    fontSize: 12,
-    marginTop: 5,
-    textAlign: 'center',
-    fontFamily: 'Inter_400Regular',
-  },
+  entryTitle: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  entryDesc: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  entryDate: { fontSize: 10, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  entryAmountBox: { alignItems: 'flex-end' },
+  entryAmount: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  
+  emptyText: { fontSize: 13, textAlign: 'center', marginVertical: 20 },
 });
+
+
