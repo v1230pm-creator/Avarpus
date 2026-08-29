@@ -791,7 +791,7 @@ export const getAuthMeUpdateUrl = () => {
 }
 
 /**
- * @summary Update own profile (name, mobile)
+ * @summary Update own profile
  */
 export const authMeUpdate = async (profileUpdateInput: ProfileUpdateInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthMeUpdate200> => {
 
@@ -840,7 +840,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type AuthMeUpdateMutationError = ErrorType<unknown>
 
     /**
- * @summary Update own profile (name, mobile)
+ * @summary Update own profile
  */
 export const useAuthMeUpdate = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authMeUpdate>>, TError,{data: BodyType<ProfileUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -5528,6 +5528,77 @@ export const useRequestUploadUrl = <TError = ErrorType<ErrorEnvelope>,
         TContext
       > => {
       return useMutation(getRequestUploadUrlMutationOptions(options));
+    }
+
+export const getRequestProfileUploadUrlUrl = () => {
+
+
+
+
+  return `/api/storage/profiles/upload-url`
+}
+
+/**
+ * @summary Request a presigned URL for own profile photo upload
+ */
+export const requestProfileUploadUrl = async (uploadUrlRequest: UploadUrlRequest, options?: Parameters<typeof customFetch>[1]): Promise<UploadUrlResponse> => {
+
+  return customFetch<UploadUrlResponse>(getRequestProfileUploadUrlUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(uploadUrlRequest)
+  }
+);}
+
+
+
+
+
+export const getRequestProfileUploadUrlMutationOptions = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestProfileUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestProfileUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext> => {
+
+const mutationKey = ['requestProfileUploadUrl'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestProfileUploadUrl>>, {data: BodyType<UploadUrlRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestProfileUploadUrl(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestProfileUploadUrlMutationResult = NonNullable<Awaited<ReturnType<typeof requestProfileUploadUrl>>>
+    export type RequestProfileUploadUrlMutationBody = BodyType<UploadUrlRequest>
+    export type RequestProfileUploadUrlMutationError = ErrorType<ErrorEnvelope>
+
+    /**
+ * @summary Request a presigned URL for own profile photo upload
+ */
+export const useRequestProfileUploadUrl = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestProfileUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestProfileUploadUrl>>,
+        TError,
+        {data: BodyType<UploadUrlRequest>},
+        TContext
+      > => {
+      return useMutation(getRequestProfileUploadUrlMutationOptions(options));
     }
 
 export const getGetStorageObjectUrl = (objectPath: string,) => {

@@ -63,6 +63,9 @@ export const AuthOtpVerifyResponse = zod.object({
   "gstNumber": zod.string().optional(),
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
   "dealerId": zod.string().optional(),
@@ -97,6 +100,9 @@ export const AuthTrustedDeviceRecoverResponse = zod.object({
   "gstNumber": zod.string().optional(),
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
   "dealerId": zod.string().optional(),
@@ -157,6 +163,9 @@ export const AuthRegisterVerifyResponse = zod.object({
   "gstNumber": zod.string().optional(),
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
   "dealerId": zod.string().optional(),
@@ -183,6 +192,9 @@ export const AuthMeResponse = zod.object({
   "gstNumber": zod.string().optional(),
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
   "dealerId": zod.string().optional(),
@@ -192,11 +204,24 @@ export const AuthMeResponse = zod.object({
 
 
 /**
- * @summary Update own profile (name, mobile)
+ * @summary Update own profile
  */
+export const authMeUpdateBodyProfileAboutMax = 500;
+
+export const authMeUpdateBodyProfileUsernameRegExp = new RegExp('^[a-z0-9][a-z0-9_]{2,29}$');
+export const authMeUpdateBodyProfileLinksItemMax = 2048;
+
+export const authMeUpdateBodyProfileLinksMax = 8;
+
+
+
 export const AuthMeUpdateBody = zod.object({
   "name": zod.string().optional(),
-  "mobile": zod.string().optional()
+  "mobile": zod.string().optional(),
+  "profilePhoto": zod.string().nullish(),
+  "profileAbout": zod.string().max(authMeUpdateBodyProfileAboutMax).nullish(),
+  "profileUsername": zod.string().regex(authMeUpdateBodyProfileUsernameRegExp).nullish(),
+  "profileLinks": zod.array(zod.string().max(authMeUpdateBodyProfileLinksItemMax)).max(authMeUpdateBodyProfileLinksMax).nullish()
 })
 
 export const AuthMeUpdateResponse = zod.object({
@@ -213,6 +238,9 @@ export const AuthMeUpdateResponse = zod.object({
   "gstNumber": zod.string().optional(),
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
   "dealerId": zod.string().optional(),
@@ -267,6 +295,9 @@ export const StaffListResponse = zod.object({
   "gstNumber": zod.string().optional(),
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
   "dealerId": zod.string().optional(),
@@ -301,6 +332,9 @@ export const StaffCreateResponse = zod.object({
   "gstNumber": zod.string().optional(),
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
   "dealerId": zod.string().optional(),
@@ -330,6 +364,9 @@ export const StaffActivateResponse = zod.object({
   "gstNumber": zod.string().optional(),
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
   "dealerId": zod.string().optional(),
@@ -359,6 +396,9 @@ export const StaffPermissionsGetResponse = zod.object({
   "gstNumber": zod.string().optional(),
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
   "dealerId": zod.string().optional(),
@@ -396,6 +436,9 @@ export const StaffPermissionsUpdateResponse = zod.object({
   "gstNumber": zod.string().optional(),
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
   "dealerId": zod.string().optional(),
@@ -436,6 +479,9 @@ export const StaffUpdateResponse = zod.object({
   "gstNumber": zod.string().optional(),
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
   "dealerId": zod.string().optional(),
@@ -2491,6 +2537,26 @@ export const RequestUploadUrlResponse = zod.object({
 
 
 /**
+ * @summary Request a presigned URL for own profile photo upload
+ */
+export const RequestProfileUploadUrlBody = zod.object({
+  "name": zod.string(),
+  "size": zod.number(),
+  "contentType": zod.string()
+})
+
+export const RequestProfileUploadUrlResponse = zod.object({
+  "uploadURL": zod.string(),
+  "objectPath": zod.string(),
+  "metadata": zod.object({
+  "name": zod.string(),
+  "size": zod.number(),
+  "contentType": zod.string()
+}).optional()
+})
+
+
+/**
  * @summary Serve an object entity from PRIVATE_OBJECT_DIR
  */
 export const GetStorageObjectParams = zod.object({
@@ -3191,6 +3257,9 @@ export const AuthActivateInviteResponse = zod.object({
   "gstNumber": zod.string().optional(),
   "shopAddress": zod.string().optional(),
   "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
   "companyLogo": zod.string().optional(),
   "shopId": zod.string().optional(),
   "dealerId": zod.string().optional(),

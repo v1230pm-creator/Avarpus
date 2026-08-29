@@ -187,6 +187,34 @@ export class ObjectStorageService {
     return { uploadURL: signedURL, objectPath };
   }
 
+  async saveObjectEntityWithPrefix(
+    prefix: string,
+    data: Buffer,
+    contentType: string,
+  ): Promise<string> {
+    if (
+      typeof prefix !== 'string' ||
+      !prefix ||
+      prefix.startsWith('/') ||
+      prefix.includes('..') ||
+      /[?#]/.test(prefix) ||
+      prefix.split('/').some((segment) => segment === '')
+    ) {
+      throw new Error(`Invalid prefix: ${prefix}`);
+    }
+
+    const privateObjectDir = this.getPrivateObjectDir();
+    const objectId = randomUUID();
+    const fullPath = `${privateObjectDir}/uploads/${prefix}/${objectId}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const objectFile = objectStorageClient.bucket(bucketName).file(objectName);
+    await objectFile.save(data, {
+      resumable: false,
+      metadata: { contentType },
+    });
+    return this.normalizeObjectEntityPath(objectFile.publicUrl());
+  }
+
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith('/objects/')) {
       throw new ObjectNotFoundError();

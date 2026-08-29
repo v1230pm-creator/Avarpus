@@ -30,6 +30,9 @@ export interface User {
   gstNumber?: string;
   shopAddress?: string;
   profilePhoto?: string;
+  profileAbout?: string;
+  profileUsername?: string;
+  profileLinks?: string[];
   companyLogo?: string;
   needsDisplayName: boolean;
   /** For dealer-portal accounts: the dealer (B2B party) this login belongs to. */

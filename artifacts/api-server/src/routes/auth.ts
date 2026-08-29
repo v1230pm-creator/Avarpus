@@ -39,8 +39,10 @@ import {
   hanuSendOtp,
   normaliseIndianMobile,
 } from "../lib/hanuOtp";
+import { ObjectStorageService } from "../lib/objectStorage";
 
 const router: IRouter = Router();
+const objectStorageService = new ObjectStorageService();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -458,8 +460,12 @@ router.get("/auth/me", requireAuth, (req, res) => {
   res.json({ user: publicUser(req.user!) });
 });
 
-// ── Self profile update (name / mobile) ──────────────────────────────────
+// ── Self profile update ───────────────────────────────────────────────────
 const DISPLAY_NAME_MAX_LENGTH = 120;
+const PROFILE_ABOUT_MAX_LENGTH = 500;
+const PROFILE_USERNAME_RE = /^[a-z0-9][a-z0-9_]{2,29}$/;
+const PROFILE_LINK_MAX_COUNT = 8;
+const PROFILE_LINK_MAX_LENGTH = 2_048;
 
 function validateDisplayName(value: unknown): { name: string } | { message: string } {
   if (typeof value !== "string") {
@@ -481,10 +487,94 @@ function validateDisplayName(value: unknown): { name: string } | { message: stri
   return { name };
 }
 
+function validateProfileUsername(value: unknown): { username: string | null } | { message: string } {
+  if (value === null || value === "") return { username: null };
+  if (typeof value !== "string") return { message: "Username must be text" };
+  const username = value.normalize("NFKC").trim().toLowerCase();
+  if (!PROFILE_USERNAME_RE.test(username)) {
+    return { message: "Username must be 3-30 lowercase letters, numbers, or underscores" };
+  }
+  return { username };
+}
+
+function validateProfileLinks(value: unknown): { links: string[] | null } | { message: string } {
+  if (value === null) return { links: null };
+  if (!Array.isArray(value) || value.length > PROFILE_LINK_MAX_COUNT) {
+    return { message: `Profile links must contain at most ${PROFILE_LINK_MAX_COUNT} URLs` };
+  }
+  const links: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || item.length > PROFILE_LINK_MAX_LENGTH) {
+      return { message: "Each profile link must be a URL of 2048 characters or fewer" };
+    }
+    try {
+      const url = new URL(item);
+      if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("Unsupported protocol");
+      links.push(url.toString());
+    } catch {
+      return { message: "Each profile link must be a valid http or https URL" };
+    }
+  }
+  return { links };
+}
+
+async function validateStoredProfilePhoto(
+  objectPath: string,
+  userId: string,
+): Promise<{ valid: true; finalPath: string } | { valid: false; message: string }> {
+  try {
+    const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+    const [metadata] = await objectFile.getMetadata();
+    const size = Number(metadata.size ?? 0);
+    const contentType = String(metadata.contentType ?? "").toLowerCase();
+    if (size <= 0 || size > 10 * 1024 * 1024) {
+      await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
+      return {
+        valid: false,
+        message: "Profile photo must be a valid JPEG, PNG, or WebP image no larger than 10 MB",
+      };
+    }
+    const [contents] = await objectFile.download();
+    const head = contents.subarray(0, 12);
+    const isJpeg =
+      head.length >= 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
+    const isPng =
+      head.length >= 8 &&
+      head.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    const isWebp =
+      head.length >= 12 &&
+      head.subarray(0, 4).toString("ascii") === "RIFF" &&
+      head.subarray(8, 12).toString("ascii") === "WEBP";
+    const signatureMatches =
+      (contentType === "image/jpeg" && isJpeg) ||
+      (contentType === "image/png" && isPng) ||
+      (contentType === "image/webp" && isWebp);
+    if (contents.length !== size || contents.length > 10 * 1024 * 1024 || !signatureMatches) {
+      await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
+      return {
+        valid: false,
+        message: "Profile photo must be a valid JPEG, PNG, or WebP image no larger than 10 MB",
+      };
+    }
+    const finalPath = await objectStorageService.saveObjectEntityWithPrefix(
+      `profiles/${userId}/final`,
+      contents,
+      contentType,
+    );
+    await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
+    return { valid: true, finalPath };
+  } catch {
+    return { valid: false, message: "Uploaded profile photo could not be verified" };
+  }
+}
+
 router.patch("/auth/me", requireAuth, asyncHandler(async (req, res) => {
   const me = req.user!;
-  const { name, mobile } = req.body ?? {};
-  const set: Partial<{ name: string; mobile: string; displayNameCompletedAt: Date }> = {};
+  const { name, mobile, profilePhoto, profileAbout, profileUsername, profileLinks } = req.body ?? {};
+  const set: Partial<{
+    name: string; mobile: string; profilePhoto: string | null; profileAbout: string | null;
+    profileUsername: string | null; profileLinks: string[] | null; displayNameCompletedAt: Date;
+  }> = {};
   if (name !== undefined) {
     const validatedName = validateDisplayName(name);
     if ("message" in validatedName) {
@@ -512,16 +602,85 @@ router.patch("/auth/me", requireAuth, asyncHandler(async (req, res) => {
     }
     set.mobile = mobile;
   }
+  if (profilePhoto !== undefined) {
+    if (profilePhoto === null || profilePhoto === "") {
+      set.profilePhoto = null;
+    } else if (
+      typeof profilePhoto !== "string" ||
+      !profilePhoto.startsWith(`/objects/uploads/profiles/${me.id}/`) ||
+      !/^\/objects\/uploads\/profiles\/[0-9a-f-]+\/[0-9a-f-]+$/i.test(profilePhoto)
+    ) {
+      res.status(400).json({ message: "Profile photo must be uploaded to your profile storage path" });
+      return;
+    } else {
+      const validation = await validateStoredProfilePhoto(profilePhoto, me.id);
+      if (!validation.valid) {
+        res.status(400).json({ message: validation.message });
+        return;
+      }
+      set.profilePhoto = validation.finalPath;
+    }
+  }
+  if (profileAbout !== undefined) {
+    if (profileAbout === null || profileAbout === "") {
+      set.profileAbout = null;
+    } else if (typeof profileAbout !== "string" || Array.from(profileAbout.normalize("NFC").trim()).length > PROFILE_ABOUT_MAX_LENGTH) {
+      res.status(400).json({ message: `Profile about must be ${PROFILE_ABOUT_MAX_LENGTH} characters or fewer` });
+      return;
+    } else {
+      set.profileAbout = profileAbout.normalize("NFC").trim();
+    }
+  }
+  if (profileUsername !== undefined) {
+    const validatedUsername = validateProfileUsername(profileUsername);
+    if ("message" in validatedUsername) {
+      res.status(400).json({ message: validatedUsername.message });
+      return;
+    }
+    if (validatedUsername.username !== null && validatedUsername.username !== me.profileUsername) {
+      const [clash] = await db.select({ id: usersTable.id }).from(usersTable)
+        .where(eq(usersTable.profileUsername, validatedUsername.username)).limit(1);
+      if (clash && clash.id !== me.id) {
+        res.status(409).json({ message: "Another account already uses this username" });
+        return;
+      }
+    }
+    set.profileUsername = validatedUsername.username;
+  }
+  if (profileLinks !== undefined) {
+    const validatedLinks = validateProfileLinks(profileLinks);
+    if ("message" in validatedLinks) {
+      res.status(400).json({ message: validatedLinks.message });
+      return;
+    }
+    set.profileLinks = validatedLinks.links;
+  }
   if (Object.keys(set).length === 0) {
     res.json({ user: publicUser(me) });
     return;
   }
-  const [updated] = await db
-    .update(usersTable)
-    .set(set)
-    .where(eq(usersTable.id, me.id))
-    .returning();
-  res.json({ user: publicUser(updated) });
+  try {
+    const [updated] = await db
+      .update(usersTable)
+      .set(set)
+      .where(eq(usersTable.id, me.id))
+      .returning();
+    res.json({ user: publicUser(updated) });
+  } catch (error: unknown) {
+    // The preflight check makes the usual case friendly; the unique index is
+    // still authoritative when two requests race to claim the same handle.
+    if (
+      set.profileUsername !== undefined &&
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "23505"
+    ) {
+      res.status(409).json({ message: "Another account already uses this username" });
+      return;
+    }
+    throw error;
+  }
 }));
 
 router.get("/auth/login-history", requireAuth, asyncHandler(async (req, res) => {

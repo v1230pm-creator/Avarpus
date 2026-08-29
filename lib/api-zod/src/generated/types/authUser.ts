@@ -19,6 +19,9 @@ export interface AuthUser {
   gstNumber?: string;
   shopAddress?: string;
   profilePhoto?: string;
+  profileAbout?: string;
+  profileUsername?: string;
+  profileLinks?: string[];
   companyLogo?: string;
   shopId?: string;
   dealerId?: string;

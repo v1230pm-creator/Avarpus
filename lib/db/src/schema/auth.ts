@@ -37,12 +37,20 @@ export const usersTable = pgTable("users", {
   gstNumber: text("gst_number"),
   shopAddress: text("shop_address"),
   profilePhoto: text("profile_photo"),
+  profileAbout: text("profile_about"),
+  profileUsername: text("profile_username"),
+  profileLinks: jsonb("profile_links"),
   companyLogo: text("company_logo"),
   displayNameCompletedAt: timestamp("display_name_completed_at", { withTimezone: true }).defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (table) => [
+  // Nullable profiles do not participate, while every chosen handle is unique.
+  uniqueIndex("users_profile_username_unique").on(table.profileUsername).where(
+    sql`${table.profileUsername} is not null`,
+  ),
+]);
 
 // A dealer's shop/workspace. Created automatically when a dealer registers.
 // `settings` holds the shop's default workspace settings (currency, hours, …).

@@ -485,6 +485,41 @@ describe("POST /api/auth/otp/verify", () => {
     expect(updatedName.body.user.name).toBe("Priya Customer");
     expect(updatedName.body.user.needsDisplayName).toBe(false);
 
+    const profile = await request(app)
+      .patch("/api/auth/me")
+      .set("Authorization", `Bearer ${res.body.token}`)
+      .send({
+        profileUsername: `  Priya_${RUN}  `,
+        profileAbout: "  Repairs, tips, and updates.  ",
+        profileLinks: ["https://example.test/profile"],
+      });
+    expect(profile.status).toBe(200);
+    expect(profile.body.user.profileUsername).toBe(`priya_${RUN}`);
+    expect(profile.body.user.profileAbout).toBe("Repairs, tips, and updates.");
+    expect(profile.body.user.profileLinks).toEqual(["https://example.test/profile"]);
+
+    const [usernameOwner] = await db.insert(usersTable).values({
+      name: "Username Owner",
+      email: `username-owner-${RUN}@example.test`,
+      mobile: `6${RUN}`,
+      passwordHash: hashPassword(PASSWORD),
+      role: "customer",
+      isActive: true,
+      profileUsername: `taken_${RUN}`,
+    }).returning();
+    const duplicateUsername = await request(app)
+      .patch("/api/auth/me")
+      .set("Authorization", `Bearer ${res.body.token}`)
+      .send({ profileUsername: `TAKEN_${RUN}` });
+    expect(duplicateUsername.status).toBe(409);
+    expect(duplicateUsername.body.message).toMatch(/already uses this username/i);
+    const invalidUsername = await request(app)
+      .patch("/api/auth/me")
+      .set("Authorization", `Bearer ${res.body.token}`)
+      .send({ profileUsername: "not valid!" });
+    expect(invalidUsername.status).toBe(400);
+    await db.delete(usersTable).where(eq(usersTable.id, usernameOwner.id));
+
     const completedCode = await createOtp(standaloneMobile, "login");
     const completedLogin = await request(app)
       .post("/api/auth/otp/verify")

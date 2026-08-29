@@ -8,6 +8,16 @@
 export interface ProfileUpdateInput {
   name?: string;
   mobile?: string;
+  profilePhoto?: string | null;
+  /** @maxLength 500 */
+  profileAbout?: string | null;
+  /** @pattern ^[a-z0-9][a-z0-9_]{2,29}$ */
+  profileUsername?: string | null;
+  /**
+     * @maxItems 8
+     * @items.maxLength 2048
+     */
+  profileLinks?: string[] | null;
 }
 
 export interface NotificationsReadInput {
@@ -49,6 +59,9 @@ export interface AuthUser {
   gstNumber?: string;
   shopAddress?: string;
   profilePhoto?: string;
+  profileAbout?: string;
+  profileUsername?: string;
+  profileLinks?: string[];
   companyLogo?: string;
   shopId?: string;
   dealerId?: string;

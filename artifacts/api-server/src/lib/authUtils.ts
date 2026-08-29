@@ -504,6 +504,9 @@ export function publicUser(u: DbUser) {
     gstNumber: u.gstNumber ?? undefined,
     shopAddress: u.shopAddress ?? undefined,
     profilePhoto: u.profilePhoto ?? undefined,
+    profileAbout: u.profileAbout ?? undefined,
+    profileUsername: u.profileUsername ?? undefined,
+    profileLinks: u.profileLinks ?? undefined,
     companyLogo: u.companyLogo ?? undefined,
     needsDisplayName: u.role === "customer" && u.displayNameCompletedAt === null,
   };

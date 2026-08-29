@@ -89,6 +89,7 @@ function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => vo
       <View style={{ position: 'relative' }}>
         <Avatar
           name={room.name}
+          url={room.profilePhoto}
           size={48}
           style={{ ...styles.roomAvatar, borderColor: colors.backgroundSecondary }}
         />
@@ -316,11 +317,11 @@ function CustomerInboxScreen() {
   const handleOverflowAction = useCallback((action: string) => {
     setShowOverflowMenu(false);
     if (action === 'linked-devices') {
-      router.push('/(tabs)/more/settings');
+      router.push('/(tabs)/more/account');
       return;
     }
     if (action === 'settings') {
-      router.push('/(tabs)/settings');
+      router.push('/(tabs)/more/settings');
       return;
     }
     Alert.alert(
@@ -463,7 +464,7 @@ function CustomerInboxScreen() {
               testID={`matched-contact-${contact.userId}`}
               style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border, opacity: openingContactId && openingContactId !== contact.userId ? 0.5 : 1 }}
             >
-              <Avatar name={contact.name} size={36} />
+              <Avatar name={contact.name} url={contact.profilePhoto} size={36} />
               <View style={{ marginLeft: 10 }}>
                 <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{contact.name}</Text>
                 <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12 }}>{contact.mobile}</Text>

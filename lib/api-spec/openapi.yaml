@@ -168,7 +168,7 @@ paths:
     patch:
       operationId: authMeUpdate
       tags: [auth]
-      summary: Update own profile (name, mobile)
+      summary: Update own profile
       requestBody:
         required: true
         content:
@@ -1540,6 +1540,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /storage/profiles/upload-url:
+    post:
+      tags: [Storage]
+      operationId: requestProfileUploadUrl
+      summary: Request a presigned URL for own profile photo upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadUrlRequest'
+      responses:
+        '200':
+          description: Presigned profile photo upload URL generated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadUrlResponse'
+        '400':
+          description: Invalid profile photo upload request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /storage/objects/{objectPath}:
     get:
       tags: [Storage]
@@ -2593,6 +2617,14 @@ components:
       properties:
         name: { type: string }
         mobile: { type: string }
+        profilePhoto: { type: string, nullable: true }
+        profileAbout: { type: string, nullable: true, maxLength: 500 }
+        profileUsername: { type: string, nullable: true, pattern: '^[a-z0-9][a-z0-9_]{2,29}$' }
+        profileLinks:
+          type: array
+          nullable: true
+          maxItems: 8
+          items: { type: string, maxLength: 2048 }
     NotificationsReadInput:
       type: object
       properties:
@@ -2845,6 +2877,11 @@ components:
         gstNumber: { type: string }
         shopAddress: { type: string }
         profilePhoto: { type: string }
+        profileAbout: { type: string }
+        profileUsername: { type: string }
+        profileLinks:
+          type: array
+          items: { type: string }
         companyLogo: { type: string }
         shopId: { type: string }
         dealerId: { type: string }

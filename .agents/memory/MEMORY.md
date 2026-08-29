@@ -47,3 +47,4 @@
 - [Expo motion testing](expo-motion-testing.md) — Reanimated web previews may honor host reduced-motion despite browser emulation; verify normal-motion timing on-device or with direct visual sampling.
 - [Custom tab visibility](custom-tab-visibility.md) — Expo Router custom tab bars must derive visible routes from access state; descriptor `href` may not reliably hide forbidden tabs.
 - [Android 12 splash handoff](android-12-splash-handoff.md) — never feed full-screen art to the centered system icon; bridge with matching navy until the in-app splash is loaded.
+- [Immutable profile photos](immutable-profile-photos.md) — never attach a presigned-upload key directly; verify bytes, copy to a server-owned final key, then attach that immutable path.

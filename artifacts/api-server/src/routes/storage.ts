@@ -1,7 +1,7 @@
 import { Readable } from "stream";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { and, eq, or } from "drizzle-orm";
-import { db, repairsTable, repairPhotosTable, type DbUser } from "@workspace/db";
+import { db, repairsTable, repairPhotosTable, usersTable, type DbUser } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { isDealerPortalRole } from "../lib/dealerPortal";
@@ -49,24 +49,55 @@ router.post(
   }),
 );
 
+router.post(
+  "/storage/profiles/upload-url",
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { name, size, contentType } = req.body ?? {};
+    if (
+      typeof name !== "string" || !name ||
+      typeof size !== "number" || !Number.isFinite(size) || size <= 0 || size > 10 * 1024 * 1024 ||
+      typeof contentType !== "string" || !["image/jpeg", "image/png", "image/webp"].includes(contentType)
+    ) {
+      res.status(400).json({ error: "Profile photo must be a JPEG, PNG, or WebP image no larger than 10 MB" });
+      return;
+    }
+    const me = (req as Request & { user: DbUser }).user;
+    const { uploadURL, objectPath } = await objectStorageService
+      .getObjectEntityUploadURLWithPrefix(`profiles/${me.id}`);
+    res.json({ uploadURL, objectPath, metadata: { name, size, contentType } });
+  }),
+);
+
 router.get(
   "/storage/objects/*path",
   requireAuth,
   asyncHandler(async (req: Request, res: Response) => {
-    const shopId = shopIdOr403(req, res);
-    if (!shopId) return;
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : String(raw ?? "");
+    const me = (req as Request & { user: DbUser }).user;
+    const objectPath = `/objects/${wildcardPath}`;
+    const isProfilePath = wildcardPath.startsWith("uploads/profiles/");
+    if (isProfilePath) {
+      // Profile objects are public-to-authenticated-users only while the exact
+      // object remains attached to an active account.
+      const [profileHit] = await db.select({ id: usersTable.id }).from(usersTable)
+        .where(and(eq(usersTable.profilePhoto, objectPath), eq(usersTable.isActive, true))).limit(1);
+      if (!profileHit) {
+        res.status(404).json({ error: "Object not found" });
+        return;
+      }
+    } else {
+      const shopId = shopIdOr403(req, res);
+      if (!shopId) return;
     // Shop isolation: only serve objects from the caller's own namespace.
-    if (!wildcardPath.startsWith(`uploads/${shopId}/`)) {
-      res.status(404).json({ error: "Object not found" });
-      return;
-    }
+      if (!wildcardPath.startsWith(`uploads/${shopId}/`)) {
+        res.status(404).json({ error: "Object not found" });
+        return;
+      }
     // Dealer-portal accounts: shop scoping is NOT enough — the object must be
     // attached (photo or signature) to a repair belonging to THEIR dealer.
-    const me = (req as Request & { user: DbUser }).user;
-    if (isDealerPortalRole(me.role)) {
-      const objectPath = `/objects/${wildcardPath}`;
+      if (isDealerPortalRole(me.role)) {
       const dealerId = me.dealerId;
       if (!dealerId) {
         res.status(404).json({ error: "Object not found" });
@@ -101,6 +132,7 @@ router.get(
       if (!allowed) {
         res.status(404).json({ error: "Object not found" });
         return;
+      }
       }
     }
     try {
