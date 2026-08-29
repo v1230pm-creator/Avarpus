@@ -1,7 +1,7 @@
 # Register this file in ESS/Synapse only after replacing both token placeholders
 # with independent random values stored in Replit Secrets.
 id: avarpus-chat
-url: https://avarpus.com/api/matrix/appservice
+url: https://api.avarpus.com/api/matrix/appservice
 as_token: <MATRIX_APP_SERVICE_TOKEN>
 hs_token: <MATRIX_HOMESERVER_TOKEN>
 sender_localpart: avarpus-chat
