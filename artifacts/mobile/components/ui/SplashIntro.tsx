@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
@@ -13,12 +13,13 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
+import * as SplashScreen from 'expo-splash-screen';
 import Svg, { Defs, LinearGradient, Path, Polygon, Stop } from 'react-native-svg';
 
 const LETTERS = 'Avarpus'.split('');
 const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
 
-function MilkyWayLoadingBackground() {
+function MilkyWayLoadingBackground({ onReady }: { onReady: () => void }) {
   const journey = useSharedValue(0);
   const reducedMotion = useReducedMotion();
 
@@ -44,6 +45,8 @@ function MilkyWayLoadingBackground() {
         source={require('@/assets/images/avarpus-nordic-night-background.png')}
         style={StyleSheet.absoluteFillObject}
         contentFit="cover"
+        onLoad={onReady}
+        onError={onReady}
       />
       <View style={styles.skyShade} />
     </Animated.View>
@@ -139,22 +142,40 @@ function WaveLetter({ letter, index }: { letter: string; index: number }) {
 export function SplashIntro({ onFinish }: { onFinish: () => void }) {
   const { width, height } = useWindowDimensions();
   const reducedMotion = useReducedMotion();
+  const [backgroundReady, setBackgroundReady] = useState(false);
+  const [markReady, setMarkReady] = useState(false);
+  const [revealed, setRevealed] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
+  const revealStarted = useRef(false);
   const markSize = Math.min(width * 0.42, 180);
+
   useEffect(() => {
+    if (!backgroundReady || !markReady || revealStarted.current) return;
+    revealStarted.current = true;
+    SplashScreen.setOptions({ duration: 0, fade: false });
+    SplashScreen.hideAsync()
+      .catch(() => undefined)
+      .finally(() => setRevealed(true));
+  }, [backgroundReady, markReady]);
+
+  useEffect(() => {
+    if (!revealed) return;
     const duration = reducedMotion ? 550 : 4000;
     const timer = setTimeout(() => {
       setIsFinished(true);
       onFinish();
     }, duration);
     return () => clearTimeout(timer);
-  }, [onFinish, reducedMotion]);
+  }, [onFinish, reducedMotion, revealed]);
 
   if (isFinished) return null;
 
   return (
     <View style={[styles.container, { width, height }]}>
-      <MilkyWayLoadingBackground />
+      <StatusBar barStyle="light-content" backgroundColor="#040914" translucent={false} />
+      <MilkyWayLoadingBackground
+        onReady={() => setBackgroundReady(true)}
+      />
 
       <View style={styles.brandGroup}>
         <View style={[styles.markWrap, { width: markSize, height: markSize }]}>
@@ -163,6 +184,8 @@ export function SplashIntro({ onFinish }: { onFinish: () => void }) {
             style={styles.exactMark}
             contentFit="contain"
             accessibilityLabel="Avarpus"
+            onLoad={() => setMarkReady(true)}
+            onError={() => setMarkReady(true)}
           />
           <TriangleTrace size={markSize} />
         </View>
@@ -179,7 +202,7 @@ export function SplashIntro({ onFinish }: { onFinish: () => void }) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#010714',
+    backgroundColor: '#040914',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',

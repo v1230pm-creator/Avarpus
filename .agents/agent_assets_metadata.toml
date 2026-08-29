@@ -22,3 +22,17 @@ mtime_ms = 1787592251835
 storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:3c2b05f7-3c61-425c-9ed4-67462616b38f/a2d62dd7-33ed-4be0-b0d5-83afd5a40926/e97f4dc3-1ac4-45ad-a4ef-c28e2af6b36d"
 storage_version_token = "1787592268636454"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "tn_OpwGMQdUoRaAwXBiY0"
+uri = "file://.agents/outputs/avarpus-launcher-mask-preview.png"
+type = "image"
+title = "Avarpus Android launcher icon preview"
+description = "Adaptive icon preview across circle, squircle, and rounded launcher masks. The gold-and-blue mark is unchanged; nested square and extra padding are removed."
+logical_id = "04318a2d-a645-4b34-8d7e-9757926b4ba4"
+content_hash = "sha256:c251992004c3e099d13cea6add15d74f8ba4b134c3c5db6801e57e1ae940c78f"
+size = 99338
+mtime_ms = 1788033123209
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:3c2b05f7-3c61-425c-9ed4-67462616b38f/04318a2d-a645-4b34-8d7e-9757926b4ba4/b488f7ca-19ca-4aea-b4dc-486863a14a65"
+storage_version_token = "1788033137640966"
+content_type = "image/png"

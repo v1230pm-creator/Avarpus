@@ -24,6 +24,11 @@
     "android": {
       "package": "com.vmcelectronicerp.app",
       "versionCode": 16,
+      "icon": "./assets/images/avarpus-android-legacy-icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/avarpus-adaptive-foreground.png",
+        "backgroundColor": "#020817"
+      },
       "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES"]
     },
     "androidStatusBar": {
@@ -39,6 +44,17 @@
       "favicon": "./assets/images/avarpus-favicon.png"
     },
     "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "android": {
+            "backgroundColor": "#040914",
+            "drawable": {
+              "icon": "./assets/android/splash-transparent.xml"
+            }
+          }
+        }
+      ],
       [
         "expo-router",
         {

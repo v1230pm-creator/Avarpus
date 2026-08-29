@@ -46,3 +46,4 @@
 - [React Native API caching](react-native-api-caching.md) — dynamic/authenticated API responses must not use HTTP validators; body-less 304 responses surface as client query failures.
 - [Expo motion testing](expo-motion-testing.md) — Reanimated web previews may honor host reduced-motion despite browser emulation; verify normal-motion timing on-device or with direct visual sampling.
 - [Custom tab visibility](custom-tab-visibility.md) — Expo Router custom tab bars must derive visible routes from access state; descriptor `href` may not reliably hide forbidden tabs.
+- [Android 12 splash handoff](android-12-splash-handoff.md) — never feed full-screen art to the centered system icon; bridge with matching navy until the in-app splash is loaded.
