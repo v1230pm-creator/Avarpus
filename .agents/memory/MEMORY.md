@@ -42,3 +42,4 @@
 - [OTP-only account access](otp-only-account-access.md) — mobile OTP is the sole primary sign-in path; saved email is recovery-only, while retired SIM/device data stays non-destructively archived.
 - [Trusted-device recovery](trusted-device-recovery.md) — Android reinstall recovery uses short immutable trust generations, global hash serialization, durable hashed throttles, and fail-closed ambiguity.
 - [Chat abuse controls](chat-abuse-controls.md) — pair blocks are bidirectional in effect; reports need server limits and stable client retry identities.
+- [Task-branch publishing isolation](task-branch-publishing.md) — Publishing from the parent workspace does not include an assigned task's isolated branch until that task is merged.

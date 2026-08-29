@@ -131,6 +131,28 @@ function makeClientRequestId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function formatRoomCreateError(error: unknown): string {
+  const apiError = error as {
+    data?: { message?: unknown };
+    message?: unknown;
+    url?: unknown;
+  };
+  const message =
+    typeof apiError?.data?.message === 'string'
+      ? apiError.data.message
+      : typeof apiError?.message === 'string'
+        ? apiError.message
+        : 'Could not open chat room.';
+
+  if (!__DEV__ || typeof apiError?.url !== 'string') return message;
+
+  try {
+    return `${message}\nServer: ${new URL(apiError.url).host}`;
+  } catch {
+    return message;
+  }
+}
+
 function formatMsgTime(dateStr: string): string {
   const d = new Date(dateStr);
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -622,11 +644,11 @@ export default function ChatScreen() {
     looksLikeRoomId ? routeId : null,
   );
   const [roomCreateError, setRoomCreateError] = useState<string | null>(null);
-  const [roomCreateAttempt, setRoomCreateAttempt] = useState(0);
 
-  useEffect(() => {
+  const requestRoomCreation = () => {
     if (looksLikeRoomId || resolvedRoomId) return;
     if (!targetId || !providerAvailable) return;
+    if (createRoomMutation.isPending) return;
 
     const kind: ChatRoomCreateInputKind = targetType === 'dealer' ? 'dealer' : 'customer';
     createRoomMutation.mutate(
@@ -644,15 +666,17 @@ export default function ChatScreen() {
           setResolvedRoomId(res.room.id);
           setRoomCreateError(null);
         },
-        onError: (err: any) => {
-          setRoomCreateError(
-            err?.data?.message ?? err?.message ?? 'Could not open chat room.',
-          );
+        onError: (err: unknown) => {
+          setRoomCreateError(formatRoomCreateError(err));
         },
       },
     );
+  };
+
+  useEffect(() => {
+    requestRoomCreation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetId, providerAvailable, roomCreateAttempt]);
+  }, [targetId, providerAvailable]);
 
   // ── Room details ────────────────────────────────────────────────────────
   const { data: roomData } = useChatRoomsGet(resolvedRoomId ?? '', {
@@ -1380,7 +1404,7 @@ export default function ChatScreen() {
               onPress={() => {
                 setRoomCreateError(null);
                 clientRequestIdRef.current = makeClientRequestId('room');
-                setRoomCreateAttempt((a) => a + 1);
+                requestRoomCreation();
               }}
             >
               <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>

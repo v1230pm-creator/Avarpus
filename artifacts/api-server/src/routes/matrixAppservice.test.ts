@@ -1,5 +1,5 @@
 import request from "supertest";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import app from "../app";
 
 const HS_TOKEN = "test-homeserver-token";
@@ -15,6 +15,7 @@ describe("Matrix Application Service callback", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     delete process.env.MATRIX_BASE_URL;
     delete process.env.MATRIX_SERVER_NAME;
     delete process.env.MATRIX_APP_SERVICE_URL;
@@ -108,5 +109,32 @@ describe("Matrix Application Service callback", () => {
       homeserverToken: "ok",
     });
     expect(JSON.stringify(response.body)).not.toContain(HS_TOKEN);
+  });
+
+  it("checks outbound appservice authentication without exposing tokens", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ user_id: "@avarpus-appservice:example.com" }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await request(app)
+      .get("/api/matrix/appservice/health/outbound")
+      .set("Authorization", `Bearer ${HS_TOKEN}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      configured: true,
+      outboundAuth: "ok",
+      httpStatus: 200,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://matrix.example.com/_matrix/client/v3/account/whoami",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(JSON.stringify(response.body)).not.toContain(HS_TOKEN);
+    expect(JSON.stringify(response.body)).not.toContain("test-as-token");
   });
 });

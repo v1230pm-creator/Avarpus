@@ -106,6 +106,13 @@ export type MatrixConfigurationStatus = {
   aliasNamespace: string;
 };
 
+export type MatrixOutboundAuthStatus = {
+  outboundAuth: "ok" | "failed" | "unavailable";
+  httpStatus?: number;
+  errcode?: string;
+  failure?: "timeout" | "network";
+};
+
 function httpUrlStatus(value: string | undefined): "ok" | "missing" | "invalid" {
   if (!value?.trim()) return "missing";
   try {
@@ -134,6 +141,51 @@ export function matrixConfigurationStatus(): MatrixConfigurationStatus {
     userNamespace: `^@${MATRIX_APPSERVICE_NAMESPACE_PREFIX}[a-f0-9]{32}:${serverName || "<server_name>"}$`,
     aliasNamespace: `^#${MATRIX_DIRECT_ROOM_ALIAS_PREFIX}[a-f0-9]{40}:${serverName || "<server_name>"}$`,
   };
+}
+
+/**
+ * Verify that this process's AS token is accepted by the configured homeserver.
+ * The result intentionally excludes response bodies and token material so it is
+ * safe to expose from the homeserver-token-protected diagnostic route.
+ */
+export async function matrixOutboundAuthStatus(): Promise<MatrixOutboundAuthStatus> {
+  if (!matrixConfigured()) {
+    return { outboundAuth: "unavailable" };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), matrixProvisionTimeoutMs());
+  try {
+    const resp = await fetch(matrixUrl("/_matrix/client/v3/account/whoami"), {
+      method: "GET",
+      headers: matrixHeaders(),
+      signal: controller.signal,
+    });
+    if (resp.ok) {
+      return { outboundAuth: "ok", httpStatus: resp.status };
+    }
+
+    let errcode = "";
+    try {
+      const body = (await resp.json()) as { errcode?: unknown };
+      if (typeof body.errcode === "string") errcode = body.errcode;
+    } catch {
+      // A non-JSON provider response is represented by its HTTP status only.
+    }
+    return {
+      outboundAuth: "failed",
+      httpStatus: resp.status,
+      ...(errcode ? { errcode } : {}),
+    };
+  } catch (error) {
+    return {
+      outboundAuth: "failed",
+      failure:
+        error instanceof Error && error.name === "AbortError" ? "timeout" : "network",
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export function livekitConfigured(): boolean {

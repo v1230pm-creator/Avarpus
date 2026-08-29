@@ -4,6 +4,7 @@ import {
   MATRIX_APPSERVICE_NAMESPACE_PREFIX,
   MATRIX_DIRECT_ROOM_ALIAS_PREFIX,
   matrixConfigurationStatus,
+  matrixOutboundAuthStatus,
 } from "../lib/chatProviders";
 
 const router: IRouter = Router();
@@ -101,6 +102,14 @@ function handleTransaction(req: Request, res: Response): void {
 router.get("/health", (req, res) => {
   if (!requireHomeserver(req, res)) return;
   res.json(matrixConfigurationStatus());
+});
+
+router.get("/health/outbound", async (req, res) => {
+  if (!requireHomeserver(req, res)) return;
+  res.json({
+    ...matrixConfigurationStatus(),
+    ...(await matrixOutboundAuthStatus()),
+  });
 });
 
 // ESS installations that post directly to the configured callback base are
