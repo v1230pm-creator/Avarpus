@@ -11,6 +11,10 @@ const app: Express = express();
 // Behind Replit's proxy — trust the first hop so req.ip reflects the real
 // client address (used for auth rate limiting).
 app.set("trust proxy", 1);
+// API responses are dynamic and often authenticated. React Query owns client
+// caching; HTTP validators can make React Native surface a bare 304 as a failed
+// fetch with no response body.
+app.disable("etag");
 
 app.use(
   pinoHttp({
@@ -38,6 +42,10 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 // Resend signs the exact request bytes. This route must be mounted before the
 // global JSON parser so signature verification never sees re-serialized JSON.
 app.post("/api/webhooks/resend", express.raw({ type: "application/json", limit: "256kb" }), resendWebhookHandler);
