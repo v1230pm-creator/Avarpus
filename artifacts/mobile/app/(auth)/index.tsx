@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,36 +6,44 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import Svg, { Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
-
-function PremiumWaves() {
-  return (
-    <View pointerEvents="none" style={styles.waves}>
-      <Svg width="100%" height="100%" viewBox="0 0 420 520" preserveAspectRatio="none">
-        <Defs>
-          <SvgGradient id="welcomeWave" x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor="#0F62FE" stopOpacity="0" />
-            <Stop offset="0.28" stopColor="#258DFF" stopOpacity="0.7" />
-            <Stop offset="0.55" stopColor="#77D5FF" stopOpacity="0.95" />
-            <Stop offset="0.82" stopColor="#258DFF" stopOpacity="0.62" />
-            <Stop offset="1" stopColor="#0F62FE" stopOpacity="0" />
-          </SvgGradient>
-        </Defs>
-        <Path d="M-30 145 C65 58 132 225 230 139 S374 56 465 150" fill="none" stroke="url(#welcomeWave)" strokeWidth="1.4" />
-        <Path d="M-35 166 C60 79 128 246 226 160 S370 77 460 171" fill="none" stroke="url(#welcomeWave)" strokeWidth="0.7" strokeDasharray="3 8" />
-        <Path d="M-45 390 C48 303 122 470 218 384 S365 301 470 397" fill="none" stroke="url(#welcomeWave)" strokeWidth="1.1" />
-        <Path d="M-45 411 C48 324 122 491 218 405 S365 322 470 418" fill="none" stroke="url(#welcomeWave)" strokeWidth="0.6" strokeDasharray="2 9" />
-      </Svg>
-    </View>
-  );
-}
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+import { CosmicWelcomeBackground } from '@/components/ui/CosmicWelcomeBackground';
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useColors();
+  const logoFloat = useSharedValue(0);
+  const reducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (reducedMotion) return;
+    logoFloat.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 2200, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0, { duration: 2200, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      true,
+    );
+  }, [logoFloat, reducedMotion]);
+
+  const logoStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: -5 * logoFloat.value },
+      { scale: 1 + logoFloat.value * 0.025 },
+    ],
+    opacity: 0.94 + logoFloat.value * 0.06,
+  }));
 
   const handleLogin = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -53,23 +61,18 @@ export default function WelcomeScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <LinearGradient
-        colors={[colors.background, 'rgba(4, 38, 94, 0.36)', colors.background]}
-        style={StyleSheet.absoluteFillObject}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-      />
-      <PremiumWaves />
+      <CosmicWelcomeBackground />
       <View style={[styles.content, { paddingTop: insets.top, paddingBottom: insets.bottom + 20 }]}>
         <View style={styles.center}>
-          <View style={styles.logoContainer}>
+          <Animated.View style={[styles.logoContainer, logoStyle]}>
+            <View style={styles.logoHalo} />
             <Image
               source={require('@/assets/images/avarpus-a-transparent-v2.png')}
               style={styles.logo}
               contentFit="contain"
               accessibilityLabel="Avarpus"
             />
-          </View>
+          </Animated.View>
           <Text style={[styles.eyebrow, { color: colors.primary }]}>SECURE BUSINESS NETWORK</Text>
           <Text style={[styles.welcome, { color: colors.mutedForeground }]}>Welcome to</Text>
           <Text style={[styles.brand, { color: colors.foreground }]}>AVARPUS</Text>
@@ -100,8 +103,7 @@ export default function WelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  waves: { ...StyleSheet.absoluteFillObject, opacity: 0.85 },
+  root: { flex: 1, overflow: 'hidden' },
   content: { flex: 1, paddingHorizontal: 24, justifyContent: 'space-between' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   logoContainer: {
@@ -112,6 +114,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   logo: { width: 138, height: 138 },
+  logoHalo: {
+    position: 'absolute',
+    width: 118,
+    height: 72,
+    borderRadius: 60,
+    backgroundColor: '#0A63D8',
+    opacity: 0.12,
+    transform: [{ scale: 1.45 }],
+  },
   eyebrow: { fontSize: 10, fontFamily: 'Inter_600SemiBold', letterSpacing: 2.4, marginBottom: 18 },
   welcome: { fontSize: 17, fontFamily: 'Inter_500Medium', letterSpacing: 0.2, marginBottom: 2 },
   brand: { fontSize: 38, fontFamily: 'Inter_700Bold', letterSpacing: 5, textAlign: 'center' },
