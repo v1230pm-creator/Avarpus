@@ -44,3 +44,4 @@
 - [Chat abuse controls](chat-abuse-controls.md) — pair blocks are bidirectional in effect; reports need server limits and stable client retry identities.
 - [Task-branch publishing isolation](task-branch-publishing.md) — Publishing from the parent workspace does not include an assigned task's isolated branch until that task is merged.
 - [React Native API caching](react-native-api-caching.md) — dynamic/authenticated API responses must not use HTTP validators; body-less 304 responses surface as client query failures.
+- [Expo motion testing](expo-motion-testing.md) — Reanimated web previews may honor host reduced-motion despite browser emulation; verify normal-motion timing on-device or with direct visual sampling.

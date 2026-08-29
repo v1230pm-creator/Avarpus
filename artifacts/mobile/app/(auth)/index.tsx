@@ -5,7 +5,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
-import { APP_BRAND } from '@/constants/branding';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -47,9 +46,10 @@ export default function WelcomeScreen() {
               end={{ x: 0.5, y: 1 }}
             />
             <Image
-              source={require('@/assets/images/avarpus-splash.png')}
-              style={{ width: 120, height: 120, borderRadius: 28 }}
-              contentFit="cover"
+              source={require('@/assets/images/avarpus-a-transparent-v2.png')}
+              style={styles.logo}
+              contentFit="contain"
+              accessibilityLabel="Avarpus"
             />
           </View>
           <Text style={[styles.brand, { color: colors.foreground, textAlign: 'center' }]}>Welcome to Avarpus</Text>
@@ -96,6 +96,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 24,
   },
+  logo: { width: 130, height: 130 },
   glow: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 70,

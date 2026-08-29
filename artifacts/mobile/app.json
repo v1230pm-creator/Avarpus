@@ -9,11 +9,8 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/avarpus-splash-light.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F4F7FB",
+      "backgroundColor": "#020817",
       "dark": {
-        "image": "./assets/images/avarpus-splash-dark.png",
         "backgroundColor": "#020812"
       }
     },
