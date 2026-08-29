@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
 import { APP_BRAND } from '@/constants/branding';
-import { BrandMark } from '@/components/ui/BrandMark';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 
@@ -46,9 +46,13 @@ export default function WelcomeScreen() {
               start={{ x: 0.5, y: 0.5 }}
               end={{ x: 0.5, y: 1 }}
             />
-            <BrandMark size={100} />
+            <Image
+              source={require('@/assets/images/avarpus-splash.png')}
+              style={{ width: 120, height: 120, borderRadius: 28 }}
+              contentFit="cover"
+            />
           </View>
-          <Text style={[styles.brand, { color: colors.foreground }]}>{APP_BRAND}</Text>
+          <Text style={[styles.brand, { color: colors.foreground, textAlign: 'center' }]}>Welcome to Avarpus</Text>
           <Text style={[styles.tagline, { color: colors.gold }]}>Secure. Private. Connected.</Text>
         </View>
 
@@ -97,7 +101,7 @@ const styles = StyleSheet.create({
     borderRadius: 70,
     transform: [{ scale: 1.5 }],
   },
-  brand: { fontSize: 36, fontFamily: 'Inter_700Bold', letterSpacing: -0.5, marginBottom: 8 },
+  brand: { fontSize: 32, fontFamily: 'Inter_700Bold', letterSpacing: -0.5, marginBottom: 8 },
   tagline: { fontSize: 14, fontFamily: 'Inter_500Medium', letterSpacing: 0.2 },
   bottomBlock: { width: '100%', alignItems: 'center', paddingBottom: 10 },
   termsWrapper: { marginTop: 24, alignItems: 'center' },

@@ -4,6 +4,7 @@ import { Redirect } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { isLockEnabled, isUnlocked } from '@/utils/appLock';
+import { SplashIntro } from '@/components/ui/SplashIntro';
 
 export default function Index() {
   const {
@@ -16,6 +17,7 @@ export default function Index() {
   const colors = useColors();
   const [lockCheck, setLockCheck] = useState<'pending' | 'locked' | 'open'>('pending');
   const [showVerified, setShowVerified] = useState(true);
+  const [introFinished, setIntroFinished] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -35,6 +37,10 @@ export default function Index() {
     const timer = setTimeout(() => setShowVerified(false), 1200);
     return () => clearTimeout(timer);
   }, [trustedDeviceStatus]);
+
+  if (!introFinished) {
+    return <SplashIntro onFinish={() => setIntroFinished(true)} />;
+  }
 
   if (isLoading && trustedDeviceStatus === 'checking') {
     return (
