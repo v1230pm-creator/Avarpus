@@ -55,10 +55,10 @@ export function GlassCard({ children, style, animValue }: GlassCardProps) {
         {
           borderRadius: 20,
           borderWidth: 1,
-          borderColor: colors.glassBorder,
-          backgroundColor: colors.glass,
+          borderColor: colors.border,
+          backgroundColor: colors.card,
           overflow: 'hidden',
-          shadowColor: '#000000',
+          shadowColor: colors.primary,
           shadowOffset: { width: 0, height: 8 },
           shadowOpacity: isDark ? 0.18 : 0.06,
           shadowRadius: 24,
@@ -69,7 +69,7 @@ export function GlassCard({ children, style, animValue }: GlassCardProps) {
     >
       {Platform.OS === 'ios' && (
         <BlurView
-          intensity={isDark ? 30 : 60}
+          intensity={isDark ? 12 : 20}
           tint={isDark ? 'dark' : 'light'}
           style={StyleSheet.absoluteFill}
         />
@@ -96,10 +96,10 @@ export function ScreenGlow() {
   const isDark = useIsDark();
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {/* Spec background: linear #0B0F1A → #0E1422 with a soft blue radial at top-right */}
+      {/* Avarpus dark field with a restrained blue ambient wash. */}
       {isDark && (
         <LinearGradient
-          colors={['#0B0F1A', '#0E1422']}
+          colors={['#020812', '#06111F']}
           style={StyleSheet.absoluteFill}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
@@ -113,8 +113,8 @@ export function ScreenGlow() {
           width: 320,
           height: 320,
           borderRadius: 160,
-          backgroundColor: isDark ? '#2F80ED' : colors.primary,
-          opacity: isDark ? 0.08 : 0.04,
+          backgroundColor: isDark ? '#0866FF' : colors.primary,
+          opacity: isDark ? 0.09 : 0.04,
           transform: [{ scale: 1.5 }],
         }}
       />

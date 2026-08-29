@@ -35,16 +35,16 @@ export function FlatCard({ style, children, animValue, ...props }: FlatCardProps
         },
         Platform.select({
           ios: {
-            shadowColor: colors.foreground,
+            shadowColor: colors.primary,
             shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.05,
-            shadowRadius: 4,
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
           },
           android: {
-            elevation: 2,
+            elevation: 1,
           },
           web: {
-            boxShadow: `0 2px 8px ${colors.foreground}0A`,
+            boxShadow: `0 4px 14px ${colors.primary}12`,
           },
         }),
         animatedStyle,
@@ -60,7 +60,7 @@ export function FlatCard({ style, children, animValue, ...props }: FlatCardProps
 const styles = StyleSheet.create({
   card: {
     padding: 16,
-    borderRadius: 16,
+    borderRadius: 15,
     borderWidth: 1,
   },
 });

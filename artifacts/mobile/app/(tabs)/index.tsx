@@ -76,7 +76,7 @@ function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => vo
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
-      style={[styles.roomItem, { borderBottomColor: colors.border }]}
+      style={[styles.roomItem, { borderBottomColor: colors.border, backgroundColor: colors.background }]}
       testID={`room-item-${room.id}`}
       accessibilityLabel={`Open chat with ${room.name}`}
     >
@@ -143,6 +143,7 @@ function CustomerInboxScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
+  const [roomFilter, setRoomFilter] = useState<'all' | 'unread'>('all');
   const [showContactDiscovery, setShowContactDiscovery] = useState(false);
   const [exactPhone, setExactPhone] = useState('');
   const [matchedContacts, setMatchedContacts] = useState<ChatContact[]>([]);
@@ -182,14 +183,17 @@ function CustomerInboxScreen() {
     const all = (roomsData?.rooms ?? []).filter(
       (room) => room.kind === 'customer' || room.kind === 'direct',
     );
-    if (!search.trim()) return all;
+    const filtered = roomFilter === 'unread'
+      ? all.filter((room) => (room.unreadCount ?? 0) > 0)
+      : all;
+    if (!search.trim()) return filtered;
     const q = search.toLowerCase();
-    return all.filter(
+    return filtered.filter(
       (r) =>
         r.name.toLowerCase().includes(q) ||
         r.lastMessage?.body.toLowerCase().includes(q),
     );
-  }, [roomsData, search]);
+  }, [roomFilter, roomsData, search]);
 
   const isLoading = capLoading || (providerConfigured && roomsLoading);
 
@@ -291,37 +295,30 @@ function CustomerInboxScreen() {
         borderBottomColor: colors.border,
       }}
     >
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <Text
-            style={{ fontSize: 24, color: colors.foreground, fontFamily: 'Inter_700Bold' }}
-          >
-            Chats
-          </Text>
-
-        <TouchableOpacity
-          onPress={() => setShowContactDiscovery((visible) => !visible)}
-          style={{
-            width: 40, height: 40, borderRadius: 20,
-            alignItems: 'center', justifyContent: 'center',
-          }}
-          accessibilityLabel="Start a new chat"
-          testID="new-chat-control"
-        >
-          <Feather name="user-plus" size={22} color={colors.foreground} />
-        </TouchableOpacity>
-        {user?.role === 'customer' && (
+      <View style={styles.chatHeaderRow}>
+        <View style={styles.chatHeaderTitleRow}>
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/more')}
-            style={{
-              width: 40, height: 40, borderRadius: 20,
-              alignItems: 'center', justifyContent: 'center',
-            }}
+            style={styles.chatHeaderIcon}
             accessibilityLabel="Open account menu"
             testID="account-menu-control"
           >
-            <Feather name="user" size={22} color={colors.foreground} />
+            <Feather name="menu" size={22} color={colors.foreground} />
           </TouchableOpacity>
-        )}
+          <Text style={[styles.chatHeaderTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+            Chats
+          </Text>
+        </View>
+        <View style={styles.chatHeaderActions}>
+          <TouchableOpacity
+            onPress={() => setShowContactDiscovery((visible) => !visible)}
+            style={[styles.chatHeaderIcon, showContactDiscovery && { backgroundColor: colors.accent }]}
+            accessibilityLabel="Start a new chat"
+            testID="new-chat-control"
+          >
+            <Feather name="edit" size={19} color={showContactDiscovery ? colors.primary : colors.foreground} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search bar — only shown when provider is up */}
@@ -347,6 +344,45 @@ function CustomerInboxScreen() {
               <Feather name="x" size={16} color={colors.mutedForeground} />
             </TouchableOpacity>
           )}
+        </View>
+      )}
+      {providerConfigured && (
+        <View style={styles.roomFilters}>
+          {([
+            ['all', 'All'],
+            ['unread', 'Unread'],
+          ] as const).map(([value, label]) => {
+            const selected = roomFilter === value;
+            return (
+              <TouchableOpacity
+                key={value}
+                onPress={() => setRoomFilter(value)}
+                style={[
+                  styles.roomFilterChip,
+                  {
+                    backgroundColor: selected ? colors.primary : colors.backgroundSecondary,
+                    borderColor: selected ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    color: selected ? colors.primaryForeground : colors.secondaryForeground,
+                    fontSize: 11,
+                    fontFamily: 'Inter_600SemiBold',
+                  }}
+                >
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+          <View style={[styles.securePill, { borderColor: colors.border }]}>
+            <Feather name="shield" size={11} color={colors.gold} />
+            <Text style={{ color: colors.mutedForeground, fontSize: 10, fontFamily: 'Inter_500Medium' }}>
+              Private
+            </Text>
+          </View>
         </View>
       )}
       {providerConfigured && showContactDiscovery && (
@@ -1132,9 +1168,9 @@ const styles = StyleSheet.create({
   roomItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 76,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    minHeight: 74,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
     gap: 13,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
@@ -1183,6 +1219,44 @@ const styles = StyleSheet.create({
   unreadText: {
     fontSize: 11,
     color: '#FFFFFF',
+  },
+  chatHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  chatHeaderTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  chatHeaderTitle: { fontSize: 24 },
+  chatHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  chatHeaderIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roomFilters: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
+  roomFilterChip: {
+    paddingHorizontal: 13,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  securePill: {
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
   },
   homeHeader: {
     borderBottomWidth: StyleSheet.hairlineWidth,

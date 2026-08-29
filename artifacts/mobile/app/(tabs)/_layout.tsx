@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Redirect, useSegments } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { isDealerPortalRole, isCustomerRole } from '@/types';
@@ -8,95 +8,115 @@ import { isLockEnabled, isUnlocked, subscribeLockState } from '@/utils/appLock';
 import { InactivityGuard } from '@/components/InactivityGuard';
 import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Tabs } from 'expo-router';
-import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
-import { SymbolView } from 'expo-symbols';
 import { canCustomerAccessTabsRoute, canPortalAccessTabsRoute } from '@/utils/tabRouteAccess';
 
-function NativeTabLayout({ portal, customer }: { portal: boolean; customer: boolean }) {
-  const { canAccess } = useAuth();
-  // Customer role: only Chats (chat inbox) is visible.
-  // Dealer-portal accounts only get Repairs (their read-only "My Repairs"
-  // view). Staff tabs additionally honor the
-  // shop's per-role feature toggles (More → Staff Permissions).
+const MAIN_TABS = [
+  { name: 'index', label: 'Chats', icon: 'message-circle' as const },
+  { name: 'calls', label: 'Calls', icon: 'phone' as const },
+  { name: 'khata', label: 'Khata', icon: 'book-open' as const },
+  { name: 'updates', label: 'Updates', icon: 'bell' as const },
+  { name: 'settings', label: 'Settings', icon: 'settings' as const },
+];
+
+function PremiumTabBar({
+  state,
+  descriptors,
+  navigation,
+}: {
+  state: { index: number; routes: Array<{ key: string; name: string }> };
+  descriptors: Record<string, { options: { href?: string | null; tabBarStyle?: unknown } }>;
+  navigation: { navigate: (name: string) => void };
+}) {
+  const colors = useColors();
+  const currentOptions = descriptors[state.routes[state.index]?.key]?.options;
+  const tabBarStyle = currentOptions?.tabBarStyle as any;
+  if (tabBarStyle?.display === 'none') return null;
+
   return (
-    <NativeTabs>
-      {!portal && (
-        <NativeTabs.Trigger name="index">
-          <Icon sf={{ default: 'message', selected: 'message.fill' }} />
-          <Label>Chats</Label>
-        </NativeTabs.Trigger>
-      )}
-      {!customer && (portal ? canAccess('repairs_portal') : canAccess('repairs')) && (
-        <NativeTabs.Trigger name="repairs">
-          <Icon sf={{ default: 'wrench', selected: 'wrench.fill' }} />
-          <Label>Repairs</Label>
-        </NativeTabs.Trigger>
-      )}
-      {!customer && !portal && canAccess('customers') && (
-        <NativeTabs.Trigger name="customers">
-          <Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} />
-          <Label>Customers</Label>
-        </NativeTabs.Trigger>
-      )}
-      {!customer && !portal && canAccess('payments') && (
-        <NativeTabs.Trigger name="khata">
-          <Icon sf={{ default: 'book.closed', selected: 'book.closed.fill' }} />
-          <Label>Khata</Label>
-        </NativeTabs.Trigger>
-      )}
-    </NativeTabs>
+    <View
+      style={[
+        styles.tabBar,
+        {
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
+          paddingBottom: Platform.OS === 'web' ? 20 : 8,
+        },
+        tabBarStyle,
+      ]}
+    >
+      {MAIN_TABS.map((tab) => {
+        const routeIndex = state.routes.findIndex((route) => route.name === tab.name);
+        if (routeIndex < 0) return null;
+        const routeOptions = descriptors[state.routes[routeIndex].key]?.options;
+        if (routeOptions?.href === null) return null;
+        const focused = state.index === routeIndex;
+        return (
+          <TouchableOpacity
+            key={tab.name}
+            accessibilityRole="button"
+            accessibilityState={focused ? { selected: true } : {}}
+            accessibilityLabel={tab.label}
+            onPress={() => navigation.navigate(tab.name)}
+            style={styles.tabItem}
+            activeOpacity={0.8}
+          >
+            <View
+              style={[
+                styles.tabIconWrap,
+                focused && { backgroundColor: colors.accent },
+              ]}
+            >
+              <Feather
+                name={tab.icon}
+                size={19}
+                color={focused ? colors.primary : colors.mutedForeground}
+              />
+            </View>
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  color: focused ? colors.primary : colors.mutedForeground,
+                  fontFamily: focused ? 'Inter_600SemiBold' : 'Inter_500Medium',
+                },
+              ]}
+            >
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
   );
 }
 
 function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boolean }) {
   const colors = useColors();
   const { canAccess } = useAuth();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const isIOS = Platform.OS === 'ios';
   const isWeb = Platform.OS === 'web';
 
   return (
     <Tabs
+      tabBar={(props) => <PremiumTabBar {...props} />}
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.card,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-          elevation: 0,
-          ...(isWeb ? { height: 84, paddingBottom: 34 } : {}),
-        },
+        tabBarStyle: isWeb ? { height: 84 } : undefined,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          href: portal ? null : undefined,
+          href: undefined,
           title: 'Chats',
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="message" tintColor={color} size={22} />
-            ) : (
-              <Feather name="message-circle" size={22} color={color} />
-            ),
         }}
       />
+      <Tabs.Screen name="calls" options={{ href: customer || portal ? null : undefined, title: 'Calls' }} />
       <Tabs.Screen
         name="repairs"
         options={{
           href: customer || !(portal ? canAccess('repairs_portal') : canAccess('repairs')) ? null : undefined,
           title: 'Repairs',
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="wrench" tintColor={color} size={22} />
-            ) : (
-              <Feather name="tool" size={22} color={color} />
-            ),
         }}
       />
       <Tabs.Screen
@@ -104,12 +124,6 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
         options={{
           href: customer || portal || !canAccess('customers') ? null : undefined,
           title: 'Customers',
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="person.2" tintColor={color} size={22} />
-            ) : (
-              <Feather name="users" size={22} color={color} />
-            ),
         }}
       />
       <Tabs.Screen
@@ -117,14 +131,10 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
         options={{
           href: customer || portal || !canAccess('payments') ? null : undefined,
           title: 'Khata',
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="book.closed" tintColor={color} size={22} />
-            ) : (
-              <Feather name="book" size={22} color={color} />
-            ),
         }}
       />
+      <Tabs.Screen name="updates" options={{ href: customer || portal ? null : undefined, title: 'Updates' }} />
+      <Tabs.Screen name="settings" options={{ href: customer || portal ? null : undefined, title: 'Settings' }} />
       <Tabs.Screen
         name="inventory"
         options={{
@@ -213,9 +223,30 @@ export default function TabLayout() {
     return <Redirect href="/(auth)/biometric" />;
   }
 
-  return (
-    <InactivityGuard>
-      {isLiquidGlassAvailable() ? <NativeTabLayout portal={portal} customer={customer} /> : <ClassicTabLayout portal={portal} customer={customer} />}
-    </InactivityGuard>
-  );
+  return <InactivityGuard><ClassicTabLayout portal={portal} customer={customer} /></InactivityGuard>;
 }
+
+const styles = StyleSheet.create({
+  tabBar: {
+    flexDirection: 'row',
+    minHeight: 70,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    elevation: 0,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    minHeight: 56,
+  },
+  tabIconWrap: {
+    width: 34,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabLabel: { fontSize: 10, letterSpacing: 0.1 },
+});

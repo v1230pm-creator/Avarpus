@@ -424,7 +424,7 @@ function MessageBubble({
         style={[
           styles.bubble,
           isMine
-            ? [styles.bubbleMine, { backgroundColor: colors.successLight }]
+            ? [styles.bubbleMine, { backgroundColor: colors.primary }]
             : [styles.bubbleTheirs, { backgroundColor: colors.card, borderColor: colors.border }],
           (isImage || isFile || isAudio) && styles.bubbleMedia,
         ]}
@@ -453,7 +453,7 @@ function MessageBubble({
           <Text
             style={[
               styles.bubbleText,
-              { color: colors.foreground, fontFamily: 'Inter_400Regular' },
+              { color: isMine ? colors.primaryForeground : colors.foreground, fontFamily: 'Inter_400Regular' },
             ]}
           >
             {msg.body}
@@ -464,7 +464,7 @@ function MessageBubble({
           <Text
             style={[
               styles.bubbleTime,
-              { color: colors.mutedForeground },
+              { color: isMine ? 'rgba(255,255,255,0.72)' : colors.mutedForeground },
             ]}
           >
             {formatMsgTime(msg.createdAt)}
@@ -1624,7 +1624,7 @@ export default function ChatScreen() {
             styles.composer,
             {
               paddingBottom: Math.max(insets.bottom, 16),
-              backgroundColor: colors.card,
+              backgroundColor: colors.backgroundSecondary,
               borderTopColor: colors.border,
             },
           ]}
@@ -1690,7 +1690,7 @@ export default function ChatScreen() {
                   text.trim() && resolvedRoomId && providerAvailable && !isBlocked
                     ? colors.primary
                     : micEnabled
-                    ? colors.success
+                    ? colors.primary
                     : colors.border,
               },
             ]}
@@ -1927,14 +1927,14 @@ const styles = StyleSheet.create({
   bubbleRowTheirs: { alignItems: 'flex-start' },
   bubble: {
     maxWidth: '80%',
-    borderRadius: 9,
-    paddingHorizontal: 9,
-    paddingTop: 7,
-    paddingBottom: 5,
+    borderRadius: 13,
+    paddingHorizontal: 11,
+    paddingTop: 8,
+    paddingBottom: 6,
     gap: 2,
   },
-  bubbleMine: { borderTopRightRadius: 3 },
-  bubbleTheirs: { borderTopLeftRadius: 3, borderWidth: StyleSheet.hairlineWidth },
+  bubbleMine: { borderBottomRightRadius: 4 },
+  bubbleTheirs: { borderBottomLeftRadius: 4, borderWidth: StyleSheet.hairlineWidth },
   bubbleMedia: { padding: 6 },
   bubbleText: { fontSize: 14, lineHeight: 19 },
   bubbleFooter: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: 3, marginTop: 1 },
@@ -2051,7 +2051,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 22,
+    borderRadius: 14,
     paddingHorizontal: 4,
     minHeight: 44,
     borderWidth: 1,
@@ -2071,7 +2071,7 @@ const styles = StyleSheet.create({
   sendBtn: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },

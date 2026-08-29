@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 
-const COLORS = ['#1A56DB', '#7C3AED', '#059669', '#D97706', '#DC2626', '#0284C7'];
+const COLORS = ['#075FEA', '#315BA6', '#0A8062', '#A87824', '#9C3B4A', '#246A91'];
 
 function hashColor(name: string) {
   let hash = 0;

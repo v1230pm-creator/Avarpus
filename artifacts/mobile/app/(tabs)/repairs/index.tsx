@@ -114,6 +114,23 @@ function RepairCard({ repair, onPress, variant }: { repair: Repair; onPress: () 
           </View>
         )}
 
+        <View style={[styles.amountSummary, { borderTopColor: colors.border }]}>
+          <View>
+            <Text style={[styles.amountSummaryLabel, { color: colors.mutedForeground }]}>Bill</Text>
+            <Text style={[styles.amountSummaryValue, { color: colors.foreground }]}>{formatCurrency(total)}</Text>
+          </View>
+          <View style={styles.amountSummaryCell}>
+            <Text style={[styles.amountSummaryLabel, { color: colors.mutedForeground }]}>Paid</Text>
+            <Text style={[styles.amountSummaryValue, { color: colors.success }]}>{formatCurrency(repair.advance)}</Text>
+          </View>
+          <View style={styles.amountSummaryCell}>
+            <Text style={[styles.amountSummaryLabel, { color: colors.mutedForeground }]}>Due</Text>
+            <Text style={[styles.amountSummaryValue, { color: balance > 0 ? colors.destructive : colors.success }]}>
+              {formatCurrency(balance)}
+            </Text>
+          </View>
+        </View>
+
         <View style={styles.cardBottom}>
           <View style={styles.cardBottomRight}>
             <Text style={[styles.dateText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
@@ -309,7 +326,7 @@ export default function RepairsScreen() {
         <View style={styles.headerRow}>
           <View>
             <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-              {isPortal ? 'My Repairs' : 'Repairs'}
+              {isPortal ? 'My Repairs' : 'All Repairs'}
             </Text>
             <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
               {isPortal
@@ -321,7 +338,7 @@ export default function RepairsScreen() {
             <TouchableOpacity
               onPress={() => router.push('/(tabs)/more')}
               style={{
-                width: 40, height: 40, borderRadius: 20,
+                width: 40, height: 40, borderRadius: 12,
                 backgroundColor: colors.backgroundSecondary,
                 alignItems: 'center', justifyContent: 'center',
                 borderWidth: 1, borderColor: colors.border,
@@ -443,8 +460,8 @@ export default function RepairsScreen() {
                 onPress={() => (isPortal ? setPortalFilter(item as any) : setFilter(item as Filter))}
                 activeOpacity={0.8}
                 style={[styles.filterTab, {
-                  backgroundColor: active ? colors.primary : colors.primary + '12',
-                  borderColor: active ? colors.primary : 'transparent',
+                  backgroundColor: active ? colors.primary : colors.card,
+                  borderColor: active ? colors.primary : colors.border,
                 }]}
               >
                 <Text style={[styles.filterText, {
@@ -657,13 +674,23 @@ const styles = StyleSheet.create({
   filterTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   filterText: { fontSize: 13 },
   list: { paddingHorizontal: 16, paddingTop: 14, gap: 12 },
-  card: { padding: 16, gap: 7 },
+  card: { padding: 14, gap: 6 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   repairIdBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   repairId: { fontSize: 11 },
   customerName: { fontSize: 15 },
   deviceLine: { fontSize: 13 },
   problem: { fontSize: 12 },
+  amountSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: 6,
+    paddingTop: 9,
+  },
+  amountSummaryCell: { alignItems: 'flex-end' },
+  amountSummaryLabel: { fontSize: 9, fontFamily: 'Inter_500Medium', marginBottom: 2 },
+  amountSummaryValue: { fontSize: 12, fontFamily: 'Inter_700Bold' },
   cardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
   cardBottomRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   dateText: { fontSize: 12 },

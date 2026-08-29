@@ -11,10 +11,10 @@
     "splash": {
       "image": "./assets/images/avarpus-splash-light.png",
       "resizeMode": "contain",
-      "backgroundColor": "#f7f3ec",
+      "backgroundColor": "#F4F7FB",
       "dark": {
         "image": "./assets/images/avarpus-splash-dark.png",
-        "backgroundColor": "#0f1d2d"
+        "backgroundColor": "#020812"
       }
     },
     "ios": {

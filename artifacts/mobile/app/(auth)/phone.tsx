@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,12 +11,14 @@ import { useAuth } from '@/context/AuthContext';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
+import { APP_BRAND, getAvarpusLogo } from '@/constants/branding';
 
 export default function PhoneScreen() {
   const { signedOutNotice, clearSignedOutNotice } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useColors();
+  const colorScheme = useColorScheme();
   const [mobile, setMobile] = useState('');
   const [error, setError] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
@@ -80,7 +82,14 @@ export default function PhoneScreen() {
         </View>
 
         <View style={styles.content}>
-          <Text style={[styles.eyebrow, { color: colors.primary }]}>Avarpus secure sign in</Text>
+          <View style={styles.brandLockup}>
+            <Image source={getAvarpusLogo(colorScheme)} style={styles.brandLogo} resizeMode="contain" />
+            <View>
+              <Text style={[styles.brandName, { color: colors.foreground }]}>{APP_BRAND}</Text>
+              <Text style={[styles.brandTagline, { color: colors.gold }]}>Secure. Private. Connected.</Text>
+            </View>
+          </View>
+          <Text style={[styles.eyebrow, { color: colors.primary }]}>Secure sign in</Text>
           <Text style={[styles.title, { color: colors.foreground }]}>Enter your mobile number</Text>
           <Text style={[styles.subtitle, { color: colors.textMuted }]}>
             We will send a one-time code to verify your account and continue securely.
@@ -150,6 +159,10 @@ const styles = StyleSheet.create({
   backButton: { width: 44, height: 44, marginLeft: -10, alignItems: 'center', justifyContent: 'center' },
   step: { fontSize: 12, letterSpacing: 1, fontFamily: 'Inter_500Medium', textTransform: 'uppercase' },
   content: { flex: 1, justifyContent: 'center', paddingVertical: 28, gap: 14 },
+  brandLockup: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+  brandLogo: { width: 52, height: 52 },
+  brandName: { fontSize: 24, fontFamily: 'Inter_700Bold', letterSpacing: -0.5 },
+  brandTagline: { fontSize: 10, fontFamily: 'Inter_600SemiBold', marginTop: 2 },
   eyebrow: { fontSize: 12, letterSpacing: 1.5, fontFamily: 'Inter_700Bold', textTransform: 'uppercase' },
   title: { fontSize: 36, lineHeight: 42, letterSpacing: -1, fontFamily: 'Inter_700Bold', marginBottom: 2 },
   subtitle: { fontSize: 15, lineHeight: 22, fontFamily: 'Inter_400Regular', marginBottom: 14 },

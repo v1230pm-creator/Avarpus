@@ -12,8 +12,8 @@ interface CardProps {
 }
 
 /**
- * Glass-style card matching the app's premium look.
- * Backwards compatible: `variant` tweaks shadow/border strength.
+ * Premium surface card. Kept intentionally restrained so the app reads as
+ * secure and operational rather than overly glassy.
  */
 export function Card({ children, style, variant = 'default', padding = 16 }: CardProps) {
   const colors = useColors();
@@ -23,20 +23,19 @@ export function Card({ children, style, variant = 'default', padding = 16 }: Car
       style={[
         styles.base,
         {
-          backgroundColor: variant === 'elevated' ? colors.glassStrong : colors.glass,
-          borderColor: variant === 'outline' ? colors.glassBorderActive : colors.glassBorder,
+          backgroundColor: variant === 'elevated' ? colors.surfaceElevated : colors.card,
+          borderColor: variant === 'outline' ? colors.primary : colors.border,
           padding,
-          shadowColor: '#000000',
-          shadowOpacity:
-            variant === 'elevated' ? (isDark ? 0.22 : 0.08) : isDark ? 0.18 : 0.05,
-          elevation: variant === 'elevated' ? 6 : 4,
+          shadowColor: colors.primary,
+          shadowOpacity: variant === 'elevated' ? (isDark ? 0.16 : 0.08) : isDark ? 0.08 : 0.04,
+          elevation: variant === 'elevated' ? 3 : 1,
         },
         style,
       ]}
     >
       {Platform.OS === 'ios' && (
         <BlurView
-          intensity={isDark ? 30 : 60}
+          intensity={isDark ? 12 : 20}
           tint={isDark ? 'dark' : 'light'}
           style={StyleSheet.absoluteFill}
         />
@@ -48,7 +47,7 @@ export function Card({ children, style, variant = 'default', padding = 16 }: Car
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: 20,
+    borderRadius: 15,
     borderWidth: 1,
     overflow: 'hidden',
     shadowOffset: { width: 0, height: 4 },
