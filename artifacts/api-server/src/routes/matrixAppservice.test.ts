@@ -47,6 +47,7 @@ describe("Matrix Application Service callback", () => {
       });
     expect(response.status).toBe(200);
     expect(response.body).toEqual({});
+    expect(response.headers["x-avarpus-matrix-appservice"]).toBe("2");
   });
 
   it("does not acknowledge a malformed POST transaction", async () => {

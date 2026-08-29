@@ -8,6 +8,11 @@ import {
 
 const router: IRouter = Router();
 
+router.use((_req, res, next) => {
+  res.setHeader("X-Avarpus-Matrix-Appservice", "2");
+  next();
+});
+
 function matrixError(res: Response, status: number, errcode: string, error: string) {
   return res.status(status).json({ errcode, error });
 }
