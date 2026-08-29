@@ -1,9 +1,12 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
+  Modal,
   Platform,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -26,6 +29,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import {
   useChatCapabilities,
+  chatMarkRead,
   useChatContactsMatch,
   useChatRoomsCreate,
   useChatRoomsList,
@@ -149,6 +153,7 @@ function CustomerInboxScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
+  const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [roomFilter, setRoomFilter] = useState<'all' | 'unread'>('all');
   const [showContactDiscovery, setShowContactDiscovery] = useState(false);
   const [exactPhone, setExactPhone] = useState('');
@@ -290,6 +295,40 @@ function CustomerInboxScreen() {
     await matchPhones([phone]);
   }, [exactPhone, matchPhones]);
 
+  const handleReadAll = useCallback(async () => {
+    setShowOverflowMenu(false);
+    const unreadRooms = (roomsData?.rooms ?? []).filter(
+      (room) => (room.unreadCount ?? 0) > 0 && !!room.lastMessage?.id,
+    );
+    if (!unreadRooms.length) return;
+    try {
+      await Promise.all(
+        unreadRooms.map((room) =>
+          chatMarkRead(room.id, { messageId: room.lastMessage!.id }),
+        ),
+      );
+      await queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
+    } catch {
+      Alert.alert('Could not mark chats as read', 'Please check your connection and try again.');
+    }
+  }, [queryClient, roomsData?.rooms]);
+
+  const handleOverflowAction = useCallback((action: string) => {
+    setShowOverflowMenu(false);
+    if (action === 'linked-devices') {
+      router.push('/(tabs)/more/settings');
+      return;
+    }
+    if (action === 'settings') {
+      router.push('/(tabs)/settings');
+      return;
+    }
+    Alert.alert(
+      'Not available yet',
+      'This option will be available when group messaging is enabled for Avarpus.',
+    );
+  }, [router]);
+
   const renderHeader = () => (
     <View
       style={{
@@ -316,9 +355,9 @@ function CustomerInboxScreen() {
             <Feather name="plus-circle" size={23} color={colors.foreground} />
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => router.push('/(tabs)/more')}
+            onPress={() => setShowOverflowMenu(true)}
             style={styles.chatHeaderIcon}
-            accessibilityLabel="Open account menu"
+            accessibilityLabel="Open chat menu"
             testID="account-menu-control"
           >
             <Feather name="more-vertical" size={24} color={colors.foreground} />
@@ -436,6 +475,60 @@ function CustomerInboxScreen() {
           ))}
         </View>
       )}
+
+      <Modal
+        visible={showOverflowMenu}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowOverflowMenu(false)}
+      >
+        <Pressable style={styles.overflowBackdrop} onPress={() => setShowOverflowMenu(false)}>
+          <Pressable
+            style={[
+              styles.overflowMenu,
+              {
+                top: topPad + 58,
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+            onPress={(event) => event.stopPropagation()}
+          >
+            {[
+              { id: 'new-group', label: 'New group' },
+              { id: 'new-community', label: 'New community' },
+              { id: 'broadcast-lists', label: 'Broadcast lists' },
+              { id: 'linked-devices', label: 'Linked devices' },
+              { id: 'read-all', label: 'Read all' },
+              { id: 'settings', label: 'Settings' },
+            ].map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.overflowMenuItem}
+                activeOpacity={0.65}
+                onPress={() => {
+                  if (item.id === 'read-all') {
+                    void handleReadAll();
+                  } else {
+                    handleOverflowAction(item.id);
+                  }
+                }}
+                accessibilityRole="menuitem"
+              >
+                <Text
+                  style={[
+                    styles.overflowMenuLabel,
+                    { color: colors.foreground, fontFamily: 'Inter_400Regular' },
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 
@@ -1230,6 +1323,32 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  overflowBackdrop: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  overflowMenu: {
+    position: 'absolute',
+    right: 10,
+    width: 214,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 7,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  overflowMenuItem: {
+    minHeight: 51,
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  overflowMenuLabel: {
+    fontSize: 16,
+    lineHeight: 22,
   },
   roomFilters: {
     flexDirection: 'row',
