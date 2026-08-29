@@ -13,9 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const MAIN_TABS = [
   { name: 'index', label: 'Chats', icon: 'message-circle' as const },
-  { name: 'calls', label: 'Calls', icon: 'phone' as const },
+  { name: 'updates', label: 'Updates', icon: 'aperture' as const },
   { name: 'khata', label: 'Khata', icon: 'book-open' as const },
-  { name: 'updates', label: 'Updates', icon: 'bell' as const },
   { name: 'settings', label: 'Settings', icon: 'settings' as const },
 ];
 
@@ -130,7 +129,7 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
           title: 'Chats',
         }}
       />
-      <Tabs.Screen name="calls" options={{ href: customer || portal ? null : undefined, title: 'Calls' }} />
+      <Tabs.Screen name="calls" options={{ href: null, title: 'Calls' }} />
       <Tabs.Screen
         name="repairs"
         options={{

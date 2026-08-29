@@ -149,8 +149,6 @@ function CustomerInboxScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
-  const chatSearchInputRef = useRef<TextInput>(null);
-  const [showChatSearch, setShowChatSearch] = useState(false);
   const [roomFilter, setRoomFilter] = useState<'all' | 'unread'>('all');
   const [showContactDiscovery, setShowContactDiscovery] = useState(false);
   const [exactPhone, setExactPhone] = useState('');
@@ -304,63 +302,46 @@ function CustomerInboxScreen() {
       }}
     >
       <View style={[styles.chatHeaderRow, { justifyContent: 'space-between', paddingHorizontal: 0 }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity
-            onPress={() => router.push('/(tabs)/more')}
-            style={[styles.chatHeaderIcon, { marginRight: 16 }]}
-            accessibilityLabel="Open account menu"
-            testID="account-menu-control"
-          >
-            <Feather name="menu" size={24} color={colors.foreground} />
-          </TouchableOpacity>
-          <Text style={[styles.chatHeaderTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 24 }]}>
-            Chats
-          </Text>
-        </View>
-        
+        <Text style={[styles.chatHeaderTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+          Avarpus
+        </Text>
+
         <View style={styles.chatHeaderActions}>
-          <TouchableOpacity
-            onPress={() => {
-              setShowChatSearch((visible) => {
-                if (!visible) requestAnimationFrame(() => chatSearchInputRef.current?.focus());
-                return !visible;
-              });
-            }}
-            style={styles.chatHeaderIcon}
-            accessibilityLabel="Search chats"
-          >
-            <Feather name="search" size={24} color={colors.foreground} />
-          </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setShowContactDiscovery((visible) => !visible)}
             style={styles.chatHeaderIcon}
             accessibilityLabel="Start a new chat"
             testID="new-chat-control"
           >
-            <Feather name="plus-circle" size={24} color={colors.foreground} />
+            <Feather name="plus-circle" size={23} color={colors.foreground} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/more')}
+            style={styles.chatHeaderIcon}
+            accessibilityLabel="Open account menu"
+            testID="account-menu-control"
+          >
+            <Feather name="more-vertical" size={24} color={colors.foreground} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {providerConfigured && showChatSearch && (
-        <View style={[styles.homeSearch, { backgroundColor: colors.backgroundSecondary, marginTop: 12 }]}>
-          <Feather name="search" size={18} color={colors.mutedForeground} />
-          <TextInput
-            ref={chatSearchInputRef}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search chats"
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.homeSearchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
-            returnKeyType="search"
-          />
-          {!!search && (
-            <TouchableOpacity onPress={() => setSearch('')} accessibilityLabel="Clear chat search">
-              <Feather name="x" size={18} color={colors.mutedForeground} />
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
+      <View style={[styles.homeSearch, { backgroundColor: colors.backgroundSecondary, marginTop: 12 }]}>
+        <Feather name="search" size={18} color={colors.mutedForeground} />
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search your conversations"
+          placeholderTextColor={colors.mutedForeground}
+          style={[styles.homeSearchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+          returnKeyType="search"
+        />
+        {!!search && (
+          <TouchableOpacity onPress={() => setSearch('')} accessibilityLabel="Clear chat search">
+            <Feather name="x" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        )}
+      </View>
 
       {providerConfigured && (
         <View style={[styles.roomFilters, { marginTop: 12 }]}>
