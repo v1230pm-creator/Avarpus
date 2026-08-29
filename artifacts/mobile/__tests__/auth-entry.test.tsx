@@ -90,19 +90,21 @@ describe('mobile OTP-only auth entry', () => {
     render(<PhoneScreen />);
 
     await waitFor(() => expect(screen.getByText('Enter your mobile number')).toBeTruthy());
-    expect(screen.getByPlaceholderText('10-digit mobile number')).toBeTruthy();
-    expect(screen.getByText('Continue')).toBeTruthy();
+    expect(screen.getByPlaceholderText('Phone number')).toBeTruthy();
+    expect(screen.getByText('Next')).toBeTruthy();
+    expect(screen.queryByText('Keep me signed in on this device')).toBeNull();
+    expect(screen.queryByText(/New dealer|Received an invite/i)).toBeNull();
     expect(screen.queryByText(/SIM|device key|SMS bridge|verify with SIM|sign in with/i)).toBeNull();
 
-    fireEvent.changeText(screen.getByPlaceholderText('10-digit mobile number'), '9876543210');
+    fireEvent.changeText(screen.getByPlaceholderText('Phone number'), '9876543210');
     await act(async () => {
-      fireEvent.press(screen.getByText('Continue'));
+      fireEvent.press(screen.getByText('Next'));
     });
 
     expect(mockOtpRequest).toHaveBeenCalledWith({ mobile: '9876543210' });
     expect(mockPush).toHaveBeenCalledWith({
       pathname: '/(auth)/otp',
-      params: { mobile: '9876543210', rememberMe: '0' },
+      params: { mobile: '9876543210', rememberMe: '1' },
     });
   });
 });
