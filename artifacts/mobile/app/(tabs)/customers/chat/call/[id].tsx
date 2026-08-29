@@ -24,13 +24,19 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useChatCallToken } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
-// Platform-split: LiveKitCall.native.tsx / LiveKitCall.web.tsx
-import { LiveKitCall } from '@/components/chat/LiveKitCall';
-import type { CallMode } from '@/components/chat/LiveKitCallTypes';
+import type { CallMode, LiveKitCallProps } from '@/components/chat/LiveKitCallTypes';
+
+function supportsLiveKitNative(): boolean {
+  return (
+    Platform.OS !== 'web' &&
+    Constants.executionEnvironment !== ExecutionEnvironment.StoreClient
+  );
+}
 
 type TokenState =
   | { status: 'idle' }
@@ -42,6 +48,14 @@ export default function CallScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const colors = useColors();
+  const liveKitNativeSupported = supportsLiveKitNative();
+
+  // Do not evaluate @livekit/react-native inside Expo Go: its WebRTC native
+  // module only exists in the custom Avarpus build. Conditional require keeps
+  // the route itself loadable so ordinary Matrix messaging still works.
+  const LiveKitCall: React.ComponentType<LiveKitCallProps> = liveKitNativeSupported
+    ? require('@/components/chat/LiveKitCall').LiveKitCall
+    : require('@/components/chat/LiveKitCall.web').LiveKitCall;
 
   const params = useLocalSearchParams<{
     id: string;
@@ -67,7 +81,7 @@ export default function CallScreen() {
   }, []);
 
   useEffect(() => {
-    if (Platform.OS === 'web') return;
+    if (!liveKitNativeSupported) return;
     if (!roomId) {
       setTokenState({ status: 'error', message: 'Invalid room ID.', is503: false });
       return;
@@ -114,9 +128,9 @@ export default function CallScreen() {
     setRetryCount((c) => c + 1);
   }, []);
 
-  // ── Web fallback (calls require native app) ────────────────────────────
-  // On web, skip token request entirely – just show the fallback.
-  if (Platform.OS === 'web') {
+  // ── Unsupported-runtime fallback ───────────────────────────────────────
+  // Web and Expo Go skip the token request and native LiveKit import.
+  if (!liveKitNativeSupported) {
     return <LiveKitCall serverUrl="" token="" mode={mode} remoteName={remoteName} onHangup={handleHangup} />;
   }
 

@@ -410,7 +410,7 @@ describe('CallScreen – web fallback', () => {
     setNativePlatform();
   });
 
-  it('renders the LiveKitCall component (web stub) on web without requesting a token', () => {
+  it('renders the unsupported-runtime fallback on web without requesting a token', () => {
     setWebPlatform();
     jest.clearAllMocks();
     (useLocalSearchParams as jest.Mock).mockReturnValue({
@@ -424,8 +424,8 @@ describe('CallScreen – web fallback', () => {
 
     render(<CallScreen />);
 
-    // The LiveKitCall component stub should be rendered immediately
-    expect(screen.getByTestId('livekit-call-component')).toBeTruthy();
+    expect(screen.getByTestId('livekit-web-fallback')).toBeTruthy();
+    expect(mutateFn).not.toHaveBeenCalled();
     // No token request should have been made (web short-circuits before useEffect)
     // Note: useEffect still runs but Platform.OS check makes the component
     // render the web branch before any async call completes.
