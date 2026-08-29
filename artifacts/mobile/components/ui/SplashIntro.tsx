@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Easing,
@@ -14,124 +14,38 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import Svg, { Defs, LinearGradient, Path, Polygon, Stop } from 'react-native-svg';
-import { CosmicWelcomeBackground } from '@/components/ui/CosmicWelcomeBackground';
 
 const LETTERS = 'AVARPUS'.split('');
-const STAR_COUNT = 54;
 const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
 
-type StarSpec = {
-  id: number;
-  x: number;
-  y: number;
-  size: number;
-  delay: number;
-  duration: number;
-  drift: number;
-};
-
-function MovingStar({ star }: { star: StarSpec }) {
-  const progress = useSharedValue(0);
+function MilkyWayLoadingBackground() {
+  const journey = useSharedValue(0);
   const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (reducedMotion) {
-      progress.value = 0.45;
+      journey.value = 0.35;
       return;
     }
-    progress.value = withDelay(
-      star.delay,
-      withRepeat(
-        withSequence(
-          withTiming(1, { duration: star.duration, easing: Easing.inOut(Easing.sin) }),
-          withTiming(0, { duration: star.duration, easing: Easing.inOut(Easing.sin) }),
-        ),
-        -1,
-        false,
-      ),
-    );
-  }, [progress, reducedMotion, star.delay, star.duration]);
+    journey.value = withTiming(1, { duration: 4000, easing: Easing.inOut(Easing.cubic) });
+  }, [journey, reducedMotion]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    opacity: 0.18 + progress.value * 0.82,
     transform: [
-      { translateX: progress.value * star.drift },
-      { translateY: -progress.value * (8 + star.size * 3) },
-      { scale: 0.7 + progress.value * 0.65 },
+      { scale: 1.04 + journey.value * 0.28 },
+      { translateX: journey.value * -8 },
+      { translateY: journey.value * 18 },
     ],
   }));
 
   return (
-    <Animated.View
-      style={[
-        styles.star,
-        {
-          left: `${star.x}%`,
-          top: `${star.y}%`,
-          width: star.size,
-          height: star.size,
-          borderRadius: star.size / 2,
-        },
-        animatedStyle,
-      ]}
-    />
-  );
-}
-
-function MovingWave({
-  top,
-  delay,
-  duration,
-  opacity,
-  direction = 1,
-}: {
-  top: `${number}%`;
-  delay: number;
-  duration: number;
-  opacity: number;
-  direction?: 1 | -1;
-}) {
-  const phase = useSharedValue(0);
-  const reducedMotion = useReducedMotion();
-
-  useEffect(() => {
-    if (reducedMotion) return;
-    phase.value = withDelay(
-      delay,
-      withRepeat(withTiming(1, { duration, easing: Easing.linear }), -1, false),
-    );
-  }, [delay, duration, phase, reducedMotion]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: direction * phase.value * -180 }],
-  }));
-
-  return (
-    <Animated.View style={[styles.waveLayer, { top, opacity }, animatedStyle]}>
-      <Svg width={900} height={120} viewBox="0 0 900 120">
-        <Defs>
-          <LinearGradient id={`wave-${delay}`} x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor="#006CFF" stopOpacity="0" />
-            <Stop offset="0.2" stopColor="#168BFF" stopOpacity="0.9" />
-            <Stop offset="0.52" stopColor="#53C7FF" stopOpacity="1" />
-            <Stop offset="0.82" stopColor="#168BFF" stopOpacity="0.9" />
-            <Stop offset="1" stopColor="#006CFF" stopOpacity="0" />
-          </LinearGradient>
-        </Defs>
-        <Path
-          d="M0 62 C75 8 145 112 220 62 S365 12 440 62 S585 112 660 62 S805 12 900 62"
-          fill="none"
-          stroke={`url(#wave-${delay})`}
-          strokeWidth="2.2"
-        />
-        <Path
-          d="M0 77 C75 23 145 127 220 77 S365 27 440 77 S585 127 660 77 S805 27 900 77"
-          fill="none"
-          stroke={`url(#wave-${delay})`}
-          strokeWidth="0.8"
-          strokeDasharray="3 7"
-        />
-      </Svg>
+    <Animated.View style={[StyleSheet.absoluteFillObject, animatedStyle]}>
+      <Image
+        source={require('@/assets/images/avarpus-nordic-night-background.png')}
+        style={StyleSheet.absoluteFillObject}
+        contentFit="cover"
+      />
+      <View style={styles.skyShade} />
     </Animated.View>
   );
 }
@@ -227,20 +141,6 @@ export function SplashIntro({ onFinish }: { onFinish: () => void }) {
   const reducedMotion = useReducedMotion();
   const [isFinished, setIsFinished] = useState(false);
   const markSize = Math.min(width * 0.58, 250);
-  const stars = useMemo<StarSpec[]>(
-    () =>
-      Array.from({ length: STAR_COUNT }, (_, index) => ({
-        id: index,
-        x: (index * 37 + 11) % 100,
-        y: (index * 61 + 7) % 100,
-        size: 1.2 + ((index * 13) % 28) / 10,
-        delay: (index * 83) % 950,
-        duration: 700 + ((index * 97) % 1100),
-        drift: ((index % 5) - 2) * 3.5,
-      })),
-    [],
-  );
-
   useEffect(() => {
     const duration = reducedMotion ? 550 : 4000;
     const timer = setTimeout(() => {
@@ -254,17 +154,10 @@ export function SplashIntro({ onFinish }: { onFinish: () => void }) {
 
   return (
     <View style={[styles.container, { width, height }]}>
-      <CosmicWelcomeBackground />
-      <MovingWave top="17%" delay={0} duration={2500} opacity={0.34} />
-      <MovingWave top="34%" delay={180} duration={3100} opacity={0.5} direction={-1} />
-      <MovingWave top="67%" delay={90} duration={2800} opacity={0.42} />
-      <MovingWave top="80%" delay={260} duration={3300} opacity={0.25} direction={-1} />
-
-      {stars.map((star) => <MovingStar key={star.id} star={star} />)}
+      <MilkyWayLoadingBackground />
 
       <View style={styles.brandGroup}>
         <View style={[styles.markWrap, { width: markSize, height: markSize }]}>
-          <View style={styles.markGlow} />
           <Image
             source={require('@/assets/images/avarpus-a-transparent-v2.png')}
             style={styles.exactMark}
@@ -292,19 +185,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     zIndex: 9999,
   },
-  star: {
-    position: 'absolute',
-    backgroundColor: '#DDF4FF',
-    shadowColor: '#168BFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.95,
-    shadowRadius: 5,
-  },
-  waveLayer: {
-    position: 'absolute',
-    left: -180,
-    width: 900,
-    height: 120,
+  skyShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(1, 7, 20, 0.42)',
   },
   brandGroup: {
     alignItems: 'center',
@@ -315,14 +198,6 @@ const styles = StyleSheet.create({
   markWrap: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  markGlow: {
-    position: 'absolute',
-    width: '72%',
-    height: '72%',
-    borderRadius: 999,
-    backgroundColor: '#0A5BDB',
-    opacity: 0.22,
   },
   exactMark: {
     width: '100%',
