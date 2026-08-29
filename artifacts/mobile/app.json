@@ -9,8 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
+      "image": "./assets/images/avarpus-native-loading.png",
+      "resizeMode": "cover",
       "backgroundColor": "#020817",
       "dark": {
+        "image": "./assets/images/avarpus-native-loading.png",
         "backgroundColor": "#020812"
       }
     },

@@ -14,6 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import Svg, { Defs, LinearGradient, Path, Polygon, Stop } from 'react-native-svg';
+import { CosmicWelcomeBackground } from '@/components/ui/CosmicWelcomeBackground';
 
 const LETTERS = 'AVARPUS'.split('');
 const STAR_COUNT = 54;
@@ -253,6 +254,7 @@ export function SplashIntro({ onFinish }: { onFinish: () => void }) {
 
   return (
     <View style={[styles.container, { width, height }]}>
+      <CosmicWelcomeBackground />
       <MovingWave top="17%" delay={0} duration={2500} opacity={0.34} />
       <MovingWave top="34%" delay={180} duration={3100} opacity={0.5} direction={-1} />
       <MovingWave top="67%" delay={90} duration={2800} opacity={0.42} />
@@ -284,7 +286,7 @@ export function SplashIntro({ onFinish }: { onFinish: () => void }) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#020817',
+    backgroundColor: '#010714',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
