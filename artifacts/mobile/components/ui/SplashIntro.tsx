@@ -253,7 +253,6 @@ export function SplashIntro({ onFinish }: { onFinish: () => void }) {
 
   return (
     <View style={[styles.container, { width, height }]}>
-      <View style={styles.blueGlow} />
       <MovingWave top="17%" delay={0} duration={2500} opacity={0.34} />
       <MovingWave top="34%" delay={180} duration={3100} opacity={0.5} direction={-1} />
       <MovingWave top="67%" delay={90} duration={2800} opacity={0.42} />
@@ -290,14 +289,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
     zIndex: 9999,
-  },
-  blueGlow: {
-    position: 'absolute',
-    width: '120%',
-    aspectRatio: 1,
-    borderRadius: 1000,
-    backgroundColor: '#063EA2',
-    opacity: 0.16,
   },
   star: {
     position: 'absolute',

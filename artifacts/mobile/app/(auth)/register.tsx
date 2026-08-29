@@ -231,7 +231,7 @@ export default function RegisterScreen() {
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={[gs.title, { color: theme.text, fontFamily: 'Inter_700Bold' }]}>
-              Create Account
+              Create Dealer Account
             </Text>
             <Text style={[gs.subtitle, { color: theme.textMuted, fontFamily: 'Inter_400Regular' }]}>
               Register your shop / business
@@ -298,7 +298,7 @@ export default function RegisterScreen() {
               </Text>
             </TouchableOpacity>
 
-            <Button title="Verify & Create Account" onPress={handleEmailVerify} loading={emailLoading} disabled={emailOtp.join('').length < 6} fullWidth size="lg" />
+            <Button title="Verify & Create Dealer Account" onPress={handleEmailVerify} loading={emailLoading} disabled={emailOtp.join('').length < 6} fullWidth size="lg" />
           </View>
         )}
 

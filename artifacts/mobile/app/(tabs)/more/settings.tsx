@@ -208,6 +208,25 @@ export default function SettingsScreen() {
             </Text>
           </View>
         </Card>
+
+        <TouchableOpacity
+          onPress={() => router.push('/(auth)/register')}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Create Dealer Account"
+        >
+          <Card>
+            <View style={styles.configRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Create Dealer Account</Text>
+                <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  Register another shop or business owner account.
+                </Text>
+              </View>
+              <Feather name="user-plus" size={20} color={colors.primary} />
+            </View>
+          </Card>
+        </TouchableOpacity>
         </FadeInView>
 
         <FadeInView animValue={anims[2]} style={styles.section}>

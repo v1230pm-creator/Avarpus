@@ -156,7 +156,7 @@ export default function PhoneScreen() {
           <View style={styles.accountLinks}>
             <TouchableOpacity onPress={() => router.push('/(auth)/register')} accessibilityRole="link">
               <Text style={[styles.accountText, { color: theme.textMuted }]}>
-                New dealer? <Text style={{ color: theme.primary, fontFamily: 'Inter_600SemiBold' }}>Create account</Text>
+                New dealer? <Text style={{ color: theme.primary, fontFamily: 'Inter_600SemiBold' }}>Create dealer account</Text>
               </Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push('/(auth)/activate')} accessibilityRole="link">

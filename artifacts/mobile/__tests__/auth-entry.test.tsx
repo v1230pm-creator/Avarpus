@@ -64,7 +64,9 @@ describe('mobile OTP-only auth entry', () => {
   it('starts at the reference welcome screen and keeps OTP as the only login path', async () => {
     render(<AuthIndex />);
 
-    expect(screen.getByText('Create Account')).toBeTruthy();
+    expect(screen.queryByText('Create Account')).toBeNull();
+    expect(screen.getByText('Welcome to')).toBeTruthy();
+    expect(screen.getByText('AVARPUS')).toBeTruthy();
     expect(screen.getByText('Log In')).toBeTruthy();
     await act(async () => {
       fireEvent.press(screen.getByText('Log In'));
