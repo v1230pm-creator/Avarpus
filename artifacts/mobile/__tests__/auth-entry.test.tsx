@@ -66,10 +66,10 @@ describe('mobile OTP-only auth entry', () => {
 
     expect(screen.queryByText('Create Account')).toBeNull();
     expect(screen.getByText('Welcome to')).toBeTruthy();
-    expect(screen.getByText('AVARPUS')).toBeTruthy();
-    expect(screen.getByText('Log In')).toBeTruthy();
+    expect(screen.getByText('Avarpus')).toBeTruthy();
+    expect(screen.getByText('Agree and Continue')).toBeTruthy();
     await act(async () => {
-      fireEvent.press(screen.getByText('Log In'));
+      fireEvent.press(screen.getByText('Agree and Continue'));
     });
     expect(mockPush).toHaveBeenCalledWith('/(auth)/phone');
     expect(screen.queryByText(/SIM|device key|SMS bridge|verify with SIM/i)).toBeNull();

@@ -15,7 +15,7 @@ import Animated, {
 import { Image } from 'expo-image';
 import Svg, { Defs, LinearGradient, Path, Polygon, Stop } from 'react-native-svg';
 
-const LETTERS = 'AVARPUS'.split('');
+const LETTERS = 'Avarpus'.split('');
 const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
 
 function MilkyWayLoadingBackground() {
@@ -32,7 +32,7 @@ function MilkyWayLoadingBackground() {
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
-      { scale: 1.04 + journey.value * 0.28 },
+      { scale: 1.04 + journey.value * 0.14 },
       { translateX: journey.value * -8 },
       { translateY: journey.value * 18 },
     ],
@@ -140,7 +140,7 @@ export function SplashIntro({ onFinish }: { onFinish: () => void }) {
   const { width, height } = useWindowDimensions();
   const reducedMotion = useReducedMotion();
   const [isFinished, setIsFinished] = useState(false);
-  const markSize = Math.min(width * 0.58, 250);
+  const markSize = Math.min(width * 0.42, 180);
   useEffect(() => {
     const duration = reducedMotion ? 550 : 4000;
     const timer = setTimeout(() => {
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
   },
   skyShade: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(1, 7, 20, 0.42)',
+    backgroundColor: 'rgba(1, 7, 20, 0.48)',
   },
   brandGroup: {
     alignItems: 'center',
@@ -217,10 +217,10 @@ const styles = StyleSheet.create({
   },
   letter: {
     color: '#F8FBFF',
-    fontSize: 48,
-    lineHeight: 62,
+    fontSize: 38,
+    lineHeight: 52,
     fontFamily: 'Inter_600SemiBold',
-    letterSpacing: 1,
+    letterSpacing: 2.2,
     textShadowColor: 'rgba(22,139,255,0.55)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 10,

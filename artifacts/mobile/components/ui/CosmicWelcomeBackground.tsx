@@ -151,9 +151,9 @@ export function CosmicWelcomeBackground() {
 
   const skyStyle = useAnimatedStyle(() => ({
     transform: [
-      { scale: 1.07 + drift.value * 0.035 },
-      { translateX: (drift.value - 0.5) * 8 },
-      { translateY: (drift.value - 0.5) * -10 },
+      { scale: 1.18 + drift.value * 0.035 },
+      { translateX: -8 + drift.value * 4 },
+      { translateY: 18 - drift.value * 8 },
     ],
   }));
 
@@ -167,8 +167,7 @@ export function CosmicWelcomeBackground() {
         />
       </Animated.View>
       <LinearGradient
-        colors={['rgba(1,7,20,0.34)', 'rgba(2,8,23,0.57)', 'rgba(2,8,23,0.94)']}
-        locations={[0, 0.48, 1]}
+        colors={['rgba(1,7,20,0.48)', 'rgba(1,7,20,0.48)']}
         style={StyleSheet.absoluteFillObject}
       />
       {stars.map((star) => <TwinklingStar key={star.id} star={star} />)}
