@@ -67,6 +67,7 @@ import {
   matrixTxnId,
 } from "../lib/chatProviders";
 import { generateToken, sha256 } from "../lib/authUtils";
+import { notifyUser } from "../lib/notify";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -835,9 +836,9 @@ router.post(
       res.status(400).json({ message: "name is required" });
       return;
     }
-    // Customers may only create kind=direct rooms.
-    if (me.role === "customer" && kind !== "direct") {
-      res.status(403).json({ message: "Customers may only create direct chat rooms (kind=direct)" });
+    // Restricted customer/dealer-portal accounts may only create direct rooms.
+    if ((me.role === "customer" || isDealerPortal(me.role)) && kind !== "direct") {
+      res.status(403).json({ message: "This account may only create direct chat rooms (kind=direct)" });
       return;
     }
     // Only supported kinds.
@@ -1817,6 +1818,31 @@ router.post(
       .returning();
 
     if (inserted.length > 0) {
+      if (directPeerUserId) {
+        const message = inserted[0];
+        const preview =
+          message.kind === "image"
+            ? "Photo"
+            : message.kind === "audio"
+              ? "Voice message"
+              : message.kind === "file"
+                ? `Attachment: ${message.body}`
+                : message.body;
+        void notifyUser({
+          userId: directPeerUserId,
+          shopId: room.shopId,
+          type: "chat_message",
+          title: `New message from ${me.name}`,
+          body: preview.slice(0, 160),
+          data: {
+            roomId,
+            messageId: message.id,
+            senderId: me.id,
+            senderName: me.name,
+          },
+          dedupeKey: `chat-message:${message.id}:${directPeerUserId}`,
+        });
+      }
       res.json({ message: formatMessage(inserted[0]) });
       return;
     }

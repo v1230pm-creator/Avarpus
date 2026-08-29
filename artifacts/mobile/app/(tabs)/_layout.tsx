@@ -12,6 +12,7 @@ import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Tabs } from 'expo-router';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
+import { canCustomerAccessTabsRoute, canPortalAccessTabsRoute } from '@/utils/tabRouteAccess';
 
 function NativeTabLayout({ portal, customer }: { portal: boolean; customer: boolean }) {
   const { canAccess } = useAuth();
@@ -190,16 +191,13 @@ export default function TabLayout() {
     return <Redirect href="/(auth)" />;
   }
 
-  // A tab being hidden is not a route authorization boundary. A standalone
-  // customer session may only enter its Chats inbox, chat-room descendants, or
-  // the compact account menu (profile and sign-out). Keep this at the tabs
-  // boundary so pasted/deep-linked staff and business routes fail closed too.
-  const customerRoute =
-    segments[1] === undefined ||
-    (segments[1] === 'customers' && segments[2] === 'chat') ||
-    (segments[1] === 'more' &&
-      (segments[2] === undefined || segments[2] === 'profile'));
-  if (customer && !customerRoute) {
+  // A hidden tab is not an authorization boundary. Restricted accounts may
+  // enter their primary area, direct-chat rooms, and the compact account menu
+  // including chat notifications. Other business routes fail closed here.
+  if (customer && !canCustomerAccessTabsRoute(segments)) {
+    return <Redirect href="/(tabs)" />;
+  }
+  if (portal && !canPortalAccessTabsRoute(segments)) {
     return <Redirect href="/(tabs)" />;
   }
 

@@ -22,6 +22,10 @@ const ALLOWED: Array<{ method: string | "*"; re: RegExp }> = [
   { method: "POST",   re: /^\/auth\/sessions\/revoke-others$/ },
   { method: "GET",    re: /^\/auth\/login-history$/ },
 
+  // ── Exact-recipient notifications ───────────────────────────────────────
+  { method: "GET",    re: /^\/notifications$/ },
+  { method: "POST",   re: /^\/notifications\/read$/ },
+
   // ── Chat ─────────────────────────────────────────────────────────────────
   // Capabilities
   { method: "GET",    re: /^\/chat\/capabilities$/ },

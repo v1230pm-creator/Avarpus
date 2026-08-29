@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import * as Contacts from 'expo-contacts';
 import { type Repair } from '@/types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -138,6 +139,7 @@ function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => vo
 function CustomerInboxScreen() {
   const colors = useColors();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
@@ -165,7 +167,13 @@ function CustomerInboxScreen() {
     isError: roomsError,
     refetch: roomsRefetch,
   } = useChatRoomsList({
-    query: { enabled: providerConfigured, queryKey: getChatRoomsListQueryKey() },
+    query: {
+      enabled: providerConfigured,
+      queryKey: getChatRoomsListQueryKey(),
+      refetchInterval: providerConfigured ? 5_000 : false,
+      refetchIntervalInBackground: false,
+      refetchOnMount: 'always',
+    },
   });
 
   const rooms = useMemo(() => {
@@ -198,6 +206,7 @@ function CustomerInboxScreen() {
           matchToken: contact.matchToken,
         },
       });
+      await queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
       router.push(
         `/(tabs)/customers/chat/${result.room.id}?name=${encodeURIComponent(contact.name)}`,
       );
@@ -209,7 +218,7 @@ function CustomerInboxScreen() {
     } finally {
       setOpeningContactId(null);
     }
-  }, [openingContactId, roomsCreate, router]);
+  }, [openingContactId, queryClient, roomsCreate, router]);
 
   const matchPhones = useCallback(async (phones: string[]) => {
     if (!phones.length) {

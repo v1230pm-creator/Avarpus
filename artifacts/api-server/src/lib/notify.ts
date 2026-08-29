@@ -16,6 +16,16 @@ export type NotifyInput = {
   extraUserIds?: string[];
 };
 
+export type NotifyUserInput = {
+  userId: string;
+  shopId?: string | null;
+  type: string;
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+  dedupeKey?: string;
+};
+
 // Best-effort, fire-and-forget: notifications must never fail or slow the
 // main request. Always call WITHOUT await, or with .catch swallowed.
 export async function notifyShop(input: NotifyInput): Promise<void> {
@@ -49,5 +59,27 @@ export async function notifyShop(input: NotifyInput): Promise<void> {
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error("notifyShop failed:", err);
+  }
+}
+
+// Exact-recipient notification for membership-scoped features such as global
+// direct chat. Unlike notifyShop this never fans out to shop owners.
+export async function notifyUser(input: NotifyUserInput): Promise<void> {
+  try {
+    await db
+      .insert(notificationsTable)
+      .values({
+        shopId: input.shopId ?? null,
+        userId: input.userId,
+        type: input.type,
+        title: input.title,
+        body: input.body,
+        data: input.data ?? {},
+        dedupeKey: input.dedupeKey,
+      })
+      .onConflictDoNothing();
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("notifyUser failed:", err);
   }
 }

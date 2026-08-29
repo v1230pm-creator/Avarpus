@@ -27,6 +27,25 @@ const ALLOWED: Array<{ method: string; re: RegExp }> = [
   { method: "POST", re: /^\/auth\/.*$/ },
   { method: "PATCH", re: /^\/auth\/.*$/ },
   { method: "DELETE", re: /^\/auth\/.*$/ },
+  // Exact-recipient notifications
+  { method: "GET", re: /^\/notifications$/ },
+  { method: "POST", re: /^\/notifications\/read$/ },
+  // Global direct chat. Room routes enforce exact membership internally, and
+  // POST /chat/rooms additionally limits portal accounts to kind=direct.
+  { method: "GET", re: /^\/chat\/capabilities$/ },
+  { method: "POST", re: /^\/chat\/contacts\/match$/ },
+  { method: "POST", re: /^\/chat\/rooms$/ },
+  { method: "GET", re: /^\/chat\/rooms$/ },
+  { method: "GET", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}$`) },
+  { method: "POST", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/block$`) },
+  { method: "DELETE", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/block$`) },
+  { method: "POST", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/reports$`) },
+  { method: "GET", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/messages$`) },
+  { method: "POST", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/messages$`) },
+  { method: "POST", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/read$`) },
+  { method: "POST", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/upload-url$`) },
+  { method: "POST", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/call-token$`) },
+  { method: "GET", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/messages\\/${UUID}\\/media$`) },
   // Serving uploaded photos — the actual mounted route is /storage/objects/*.
   // Dealer-level scoping (only objects attached to the portal dealer's own
   // repairs) is enforced inside the storage route itself.

@@ -27,7 +27,7 @@ interface MenuItem {
 
 const MENU_ITEMS: MenuItem[] = [
   { id: 'my-profile', label: 'My Profile', icon: 'user', route: '/(tabs)/more/profile', color: '#4DA3FF', description: 'Name and mobile number', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'] },
-  { id: 'notifications', label: 'Notifications', icon: 'bell', route: '/(tabs)/more/notifications', color: '#F59E0B', description: 'Repairs, payments and approvals', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician'] },
+  { id: 'notifications', label: 'Notifications', icon: 'bell', route: '/(tabs)/more/notifications', color: '#F59E0B', description: 'Chats, repairs and approvals', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'] },
   { id: 'activity', label: 'Activity Log', icon: 'activity', route: '/(tabs)/more/activity', color: '#34D399', description: 'View system events', roles: ['super_admin', 'dealer'] },
   { id: 'finance', label: 'Finance', icon: 'bar-chart-2', route: '/(tabs)/more/finance', color: '#34D399', description: 'Income, expense, cash book', roles: ['super_admin', 'dealer'], feature: 'finance' },
   { id: 'approvals', label: 'Approvals', icon: 'check-circle', route: '/(tabs)/more/approvals', color: '#FB7185', description: 'Backdated entry requests', roles: ['super_admin', 'dealer'], feature: 'approvals' },
@@ -56,10 +56,8 @@ export default function MoreScreen() {
     query: { enabled: isOwner },
   } as any);
   const pendingCount = approvalsData?.pendingCount || 0;
-  // Unread in-app notifications badge (polled every minute). Portal accounts
-  // don't have a notification inbox.
-  const notifEnabled = !isPortal && !isCustomer;
-  const { data: notifData } = useNotificationsList({ query: { enabled: notifEnabled, refetchInterval: 60000 } } as any);
+  // Every authenticated role can receive exact-recipient direct-chat alerts.
+  const { data: notifData } = useNotificationsList({ query: { enabled: true, refetchInterval: 60000 } } as any);
   const unreadNotifs = notifData?.unreadCount || 0;
   // Quiet update indicator: a small badge only, never a popup.
   const { data: latestUpdateData } = useLatestAppUpdate(

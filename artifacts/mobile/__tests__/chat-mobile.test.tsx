@@ -100,6 +100,7 @@ const mockUseChatRoomsBlock = jest.fn();
 const mockUseChatRoomsUnblock = jest.fn();
 const mockUseChatReportsCreate = jest.fn();
 const mockUseRepairsList = jest.fn();
+const mockInvalidateQueries = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('@workspace/api-client-react', () => ({
   useChatCapabilities: (...args: any[]) => mockUseChatCapabilities(...args),
@@ -128,7 +129,7 @@ jest.mock('@workspace/api-client-react', () => ({
 jest.mock('@tanstack/react-query', () => ({
   ...jest.requireActual('@tanstack/react-query'),
   useQueryClient: () => ({
-    invalidateQueries: jest.fn().mockResolvedValue(undefined),
+    invalidateQueries: mockInvalidateQueries,
   }),
 }));
 
@@ -456,7 +457,34 @@ describe('Inbox — no fake data', () => {
         matchToken: 'proof-token',
       },
     }));
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['/api/chat/rooms'] });
     expect(push).toHaveBeenCalledWith('/(tabs)/customers/chat/room-priya?name=Priya');
+  });
+
+  it('polls the member-only room list so incoming direct chats appear', () => {
+    mockUseChatCapabilities.mockReturnValue({
+      data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseChatRoomsList.mockReturnValue({
+      data: { rooms: [] },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+
+    render(<HomeScreen />);
+
+    expect(mockUseChatRoomsList).toHaveBeenCalledWith({
+      query: expect.objectContaining({
+        enabled: true,
+        queryKey: ['/api/chat/rooms'],
+        refetchInterval: 5000,
+        refetchIntervalInBackground: false,
+        refetchOnMount: 'always',
+      }),
+    });
   });
 
   it('keeps customer account access visible from the Chats landing', () => {

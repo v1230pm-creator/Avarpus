@@ -44,6 +44,7 @@ import {
   chatBlocksTable,
   chatReportsTable,
   sessionsTable,
+  notificationsTable,
 } from "@workspace/db";
 
 vi.mock("../lib/mailer", () => ({
@@ -2443,6 +2444,9 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
         for (const id of joinedMemberIds) joined[id] = { display_name: id };
         return new Response(JSON.stringify({ joined }), { status: 200 });
       }
+      if (url.includes("/send/m.room.message/")) {
+        return new Response(JSON.stringify({ event_id: `$direct-event-${RUN}` }), { status: 200 });
+      }
       return new Response("{}", { status: 200 });
     }) as typeof fetch);
   });
@@ -2516,6 +2520,53 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
     const memberIds = members.map((m) => m.userId).sort();
     expect(memberIds).toEqual([dealerA.id, directTarget2.id].sort());
     expect(members.every((member) => member.shopId === null)).toBe(true);
+  });
+
+  it("notifies only the direct recipient once when a message retry is replayed", async () => {
+    const clientRequestId = `direct-alert-${RUN}`;
+    const first = await request(app)
+      .post(`/api/chat/rooms/${createdDirectRoomId}/messages`)
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ kind: "text", body: "Direct hello", clientRequestId });
+    expect(first.status).toBe(200);
+
+    const replay = await request(app)
+      .post(`/api/chat/rooms/${createdDirectRoomId}/messages`)
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ kind: "text", body: "Direct hello", clientRequestId });
+    expect(replay.status).toBe(200);
+    expect(replay.body.message.id).toBe(first.body.message.id);
+
+    await vi.waitFor(async () => {
+      const alerts = await db
+        .select()
+        .from(notificationsTable)
+        .where(eq(
+          notificationsTable.dedupeKey,
+          `chat-message:${first.body.message.id}:${directTarget2.id}`,
+        ));
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0]?.userId).toBe(directTarget2.id);
+      expect(alerts[0]?.shopId).toBeNull();
+      expect(alerts[0]?.type).toBe("chat_message");
+      expect(alerts[0]?.title).toBe("New message from Chat Dealer A");
+      expect(alerts[0]?.body).toBe("Direct hello");
+      expect(alerts[0]?.data).toMatchObject({
+        roomId: createdDirectRoomId,
+        messageId: first.body.message.id,
+        senderId: dealerA.id,
+        senderName: "Chat Dealer A",
+      });
+    });
+
+    const senderAlerts = await db
+      .select()
+      .from(notificationsTable)
+      .where(and(
+        eq(notificationsTable.userId, dealerA.id),
+        eq(notificationsTable.type, "chat_message"),
+      ));
+    expect(senderAlerts).toHaveLength(0);
   });
 
   it("does not replay another member's clientRequestId to a same-shop nonmember", async () => {

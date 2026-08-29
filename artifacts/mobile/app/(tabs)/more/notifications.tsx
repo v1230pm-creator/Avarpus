@@ -7,6 +7,7 @@ import { useColors } from '@/hooks/useColors';
 import { FlatCard } from '@/components/ui/Glass';
 import { useNotificationsList, notificationsMarkRead, getNotificationsListQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { getNotificationRoute } from '@/utils/notificationNavigation';
 
 // ── Notifications ───────────────────────────────────────────────────────────
 // In-app notification inbox: new repairs, status changes, payments, approval
@@ -19,6 +20,7 @@ const TYPE_ICON: Record<string, { icon: any; color: string }> = {
   payment_recorded: { icon: 'credit-card', color: '#F59E0B' },
   approval_requested: { icon: 'clock', color: '#FB7185' },
   approval_decided: { icon: 'check-circle', color: '#34D399' },
+  chat_message: { icon: 'message-circle', color: '#4DA3FF' },
 };
 
 function timeAgo(iso: string): string {
@@ -58,10 +60,8 @@ export default function NotificationsScreen() {
         // best-effort
       }
     }
-    const repairId = (n.data as any)?.repairId;
-    const approvalId = (n.data as any)?.approvalId;
-    if (repairId) router.push(`/(tabs)/repairs/${repairId}` as any);
-    else if (approvalId) router.push('/(tabs)/more/approvals' as any);
+    const route = getNotificationRoute(n.data);
+    if (route) router.push(route as any);
   };
 
   return (
