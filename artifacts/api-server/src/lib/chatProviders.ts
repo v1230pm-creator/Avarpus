@@ -29,6 +29,10 @@
  *   MATRIX_APP_SERVICE_TOKEN   — the appservice `as_token` from the ESS/Synapse
  *                                appservice registration. Used as the Bearer
  *                                token for ALL Matrix operations. NEVER logged.
+ *   MATRIX_HOMESERVER_TOKEN    — the registration `hs_token`. Used only to
+ *                                authenticate homeserver-to-AS callbacks.
+ *   MATRIX_APP_SERVICE_URL     — stable public callback base URL from the
+ *                                registration, e.g. https://api.example.com/api/matrix/appservice
  *   LIVEKIT_URL                — e.g. wss://livekit.example.com
  *   LIVEKIT_API_KEY            — LiveKit API key
  *   LIVEKIT_API_SECRET         — LiveKit API secret
@@ -85,8 +89,51 @@ export function matrixConfigured(): boolean {
   return !!(
     process.env.MATRIX_BASE_URL?.trim() &&
     process.env.MATRIX_SERVER_NAME?.trim() &&
-    process.env.MATRIX_APP_SERVICE_TOKEN?.trim()
+    process.env.MATRIX_APP_SERVICE_TOKEN?.trim() &&
+    process.env.MATRIX_HOMESERVER_TOKEN?.trim() &&
+    process.env.MATRIX_APP_SERVICE_URL?.trim()
   );
+}
+
+export type MatrixConfigurationStatus = {
+  configured: boolean;
+  baseUrl: "ok" | "missing" | "invalid";
+  serverName: "ok" | "missing" | "invalid";
+  appServiceUrl: "ok" | "missing" | "invalid";
+  appServiceToken: "ok" | "missing";
+  homeserverToken: "ok" | "missing";
+  userNamespace: string;
+  aliasNamespace: string;
+};
+
+function httpUrlStatus(value: string | undefined): "ok" | "missing" | "invalid" {
+  if (!value?.trim()) return "missing";
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? "ok" : "invalid";
+  } catch {
+    return "invalid";
+  }
+}
+
+export function matrixConfigurationStatus(): MatrixConfigurationStatus {
+  const serverName = process.env.MATRIX_SERVER_NAME?.trim();
+  const serverNameStatus =
+    !serverName
+      ? "missing"
+      : /^[a-z0-9.-]+(?::\d+)?$/i.test(serverName) && !serverName.includes("/")
+        ? "ok"
+        : "invalid";
+  return {
+    configured: matrixConfigured(),
+    baseUrl: httpUrlStatus(process.env.MATRIX_BASE_URL),
+    serverName: serverNameStatus,
+    appServiceUrl: httpUrlStatus(process.env.MATRIX_APP_SERVICE_URL),
+    appServiceToken: process.env.MATRIX_APP_SERVICE_TOKEN?.trim() ? "ok" : "missing",
+    homeserverToken: process.env.MATRIX_HOMESERVER_TOKEN?.trim() ? "ok" : "missing",
+    userNamespace: `^@${MATRIX_APPSERVICE_NAMESPACE_PREFIX}[a-f0-9]{32}:${serverName || "<server_name>"}$`,
+    aliasNamespace: `^#${MATRIX_DIRECT_ROOM_ALIAS_PREFIX}[a-f0-9]{40}:${serverName || "<server_name>"}$`,
+  };
 }
 
 export function livekitConfigured(): boolean {

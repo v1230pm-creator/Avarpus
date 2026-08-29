@@ -62,6 +62,8 @@ beforeAll(() => {
   delete process.env.MATRIX_BASE_URL;
   delete process.env.MATRIX_SERVER_NAME;
   delete process.env.MATRIX_APP_SERVICE_TOKEN;
+  delete process.env.MATRIX_HOMESERVER_TOKEN;
+  delete process.env.MATRIX_APP_SERVICE_URL;
   // Admin token is legacy and MUST NOT enable Matrix on its own.
   delete process.env.MATRIX_ADMIN_TOKEN;
 });
@@ -709,6 +711,8 @@ describe("Provider-mocked room creation + idempotent send", () => {
     process.env.MATRIX_BASE_URL = "https://matrix.example.com";
     process.env.MATRIX_SERVER_NAME = SERVER_NAME;
     process.env.MATRIX_APP_SERVICE_TOKEN = AS_TOKEN;
+    process.env.MATRIX_HOMESERVER_TOKEN = "test-hs-token";
+    process.env.MATRIX_APP_SERVICE_URL = "https://api.example.com/api/matrix/appservice";
     // Present but MUST be ignored — Matrix readiness requires the AS token.
     process.env.MATRIX_ADMIN_TOKEN = "legacy-admin-token-should-be-ignored";
 
@@ -809,6 +813,8 @@ describe("Provider-mocked room creation + idempotent send", () => {
     delete process.env.MATRIX_BASE_URL;
     delete process.env.MATRIX_SERVER_NAME;
     delete process.env.MATRIX_APP_SERVICE_TOKEN;
+    delete process.env.MATRIX_HOMESERVER_TOKEN;
+    delete process.env.MATRIX_APP_SERVICE_URL;
     delete process.env.MATRIX_ADMIN_TOKEN;
     if (custUser?.id) {
       await db.delete(customerUsersTable).where(eq(customerUsersTable.userId, custUser.id));
@@ -2247,6 +2253,8 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
     process.env.MATRIX_BASE_URL = "https://matrix.example.com";
     process.env.MATRIX_SERVER_NAME = SERVER_NAME2;
     process.env.MATRIX_APP_SERVICE_TOKEN = AS_TOKEN2;
+    process.env.MATRIX_HOMESERVER_TOKEN = "test-hs-token";
+    process.env.MATRIX_APP_SERVICE_URL = "https://api.example.com/api/matrix/appservice";
 
     // A fresh active staff user in shopA as the direct target.
     const [t] = await db.insert(usersTable).values({
@@ -2444,6 +2452,8 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
     delete process.env.MATRIX_BASE_URL;
     delete process.env.MATRIX_SERVER_NAME;
     delete process.env.MATRIX_APP_SERVICE_TOKEN;
+    delete process.env.MATRIX_HOMESERVER_TOKEN;
+    delete process.env.MATRIX_APP_SERVICE_URL;
     if (createdDirectRoomId) {
       await db.delete(chatProviderIdentitiesTable).where(eq(chatProviderIdentitiesTable.shopId, shopA.id));
       await db.delete(chatRoomMembersTable).where(eq(chatRoomMembersTable.roomId, createdDirectRoomId));

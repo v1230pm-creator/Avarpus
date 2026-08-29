@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { resendWebhookHandler } from "./routes/resendWebhook";
+import matrixAppserviceRouter from "./routes/matrixAppservice";
 
 const app: Express = express();
 
@@ -40,6 +41,13 @@ app.use(
 // Resend signs the exact request bytes. This route must be mounted before the
 // global JSON parser so signature verification never sees re-serialized JSON.
 app.post("/api/webhooks/resend", express.raw({ type: "application/json", limit: "256kb" }), resendWebhookHandler);
+// Matrix may deliver batched transactions. Keep this parser isolated so the
+// callback has an explicit bound without widening the rest of the API.
+app.use(
+  "/api/matrix/appservice",
+  express.json({ limit: "1mb" }),
+  matrixAppserviceRouter,
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
