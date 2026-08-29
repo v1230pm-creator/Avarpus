@@ -54,22 +54,54 @@ function ownsRoomAlias(roomAlias: string): boolean {
     new RegExp(`^#${MATRIX_DIRECT_ROOM_ALIAS_PREFIX}[a-f0-9]{40}:${serverName}$`).test(roomAlias);
 }
 
+type MatrixTransactionBody = {
+  events?: unknown;
+};
+
+/**
+ * Validate the event envelope before acknowledging it. Avarpus currently
+ * originates messages through the Client-Server API, so there is no inbound
+ * event-to-local-message mutation to perform here. We still parse and validate
+ * every transaction rather than exposing a health-only 200 endpoint; an invalid
+ * transaction is rejected and Matrix will retry it.
+ */
+function validateTransaction(body: unknown): { eventCount: number } | null {
+  if (!body || typeof body !== "object") return null;
+  const events = (body as MatrixTransactionBody).events;
+  if (!Array.isArray(events)) return null;
+  for (const event of events) {
+    if (!event || typeof event !== "object") return null;
+    const record = event as Record<string, unknown>;
+    if (typeof record.type !== "string" || typeof record.sender !== "string") {
+      return null;
+    }
+  }
+  return { eventCount: events.length };
+}
+
+function handleTransaction(req: Request, res: Response): void {
+  if (!requireHomeserver(req, res)) return;
+  const transaction = validateTransaction(req.body);
+  if (!transaction) {
+    matrixError(res, 400, "M_BAD_JSON", "Transaction body must contain valid Matrix events");
+    return;
+  }
+  // The empty Matrix response is the protocol acknowledgement. Because this
+  // handler has no side effects, retries/replays are safe and idempotent.
+  // eventCount is intentionally not returned: Synapse expects an empty object.
+  void transaction.eventCount;
+  res.json({});
+}
+
 router.get("/health", (req, res) => {
   if (!requireHomeserver(req, res)) return;
   res.json(matrixConfigurationStatus());
 });
 
-router.put("/_matrix/app/v1/transactions/:txnId", (req, res) => {
-  if (!requireHomeserver(req, res)) return;
-  if (!req.params.txnId || !req.body || !Array.isArray(req.body.events)) {
-    matrixError(res, 400, "M_BAD_JSON", "Transaction body must contain an events array");
-    return;
-  }
-  // Avarpus currently sends through the Client-Server API and stores its local
-  // message only after Matrix accepts it. Incoming AS events require no further
-  // mutation, so acknowledging a replay is naturally idempotent.
-  res.json({});
-});
+// ESS installations that post directly to the configured callback base are
+// supported in addition to the standard Matrix transaction path below.
+router.post("/", handleTransaction);
+router.put("/_matrix/app/v1/transactions/:txnId", handleTransaction);
 
 router.get("/_matrix/app/v1/users/:userId", (req, res) => {
   if (!requireHomeserver(req, res)) return;

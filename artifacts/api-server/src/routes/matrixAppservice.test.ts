@@ -31,6 +31,33 @@ describe("Matrix Application Service callback", () => {
     expect(response.body.errcode).toBe("M_UNAUTHORIZED");
   });
 
+  it("accepts a valid POST transaction at the configured callback base", async () => {
+    const response = await request(app)
+      .post("/api/matrix/appservice")
+      .set("Authorization", `Bearer ${HS_TOKEN}`)
+      .send({
+        events: [
+          {
+            type: "m.room.message",
+            sender: "@appuser-0123456789abcdef0123456789abcdef:example.com",
+            room_id: "!room:example.com",
+            content: { msgtype: "m.text", body: "hello" },
+          },
+        ],
+      });
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({});
+  });
+
+  it("does not acknowledge a malformed POST transaction", async () => {
+    const response = await request(app)
+      .post("/api/matrix/appservice")
+      .set("Authorization", `Bearer ${HS_TOKEN}`)
+      .send({ events: [{ type: "m.room.message" }] });
+    expect(response.status).toBe(400);
+    expect(response.body.errcode).toBe("M_BAD_JSON");
+  });
+
   it("acknowledges valid and replayed transactions", async () => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const response = await request(app)
