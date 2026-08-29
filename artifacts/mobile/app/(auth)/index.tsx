@@ -118,12 +118,15 @@ export default function WelcomeScreen() {
         </View>
 
         <Animated.View style={[styles.bottomBlock, actionStyle]}>
-          <Button
-            title="Agree and Continue"
-            onPress={handleLogin}
-            fullWidth
-            size="lg"
-          />
+          <View style={styles.buttonArea}>
+            <Button
+              title="Agree and Continue"
+              onPress={handleLogin}
+              fullWidth
+              size="lg"
+              style={styles.primaryButton}
+            />
+          </View>
           <View style={styles.termsWrapper}>
             <Text style={[styles.termsText, { color: colors.mutedForeground }]}>
               By continuing, you agree to our{'\n'}
@@ -165,7 +168,9 @@ const styles = StyleSheet.create({
   taglineRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
   taglineLine: { width: 28, height: StyleSheet.hairlineWidth, opacity: 0.75 },
   tagline: { fontSize: 11, fontFamily: 'Inter_500Medium', letterSpacing: 0.8 },
-  bottomBlock: { width: '100%', alignItems: 'center', paddingBottom: 10 },
+  bottomBlock: { width: '100%', alignItems: 'center' },
+  buttonArea: { width: '100%', height: 64, paddingHorizontal: 5, paddingBottom: 10 },
+  primaryButton: { borderRadius: 28, minHeight: 54, maxHeight: 54 },
   termsWrapper: { marginTop: 24, alignItems: 'center' },
   termsText: { fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 18 },
 });

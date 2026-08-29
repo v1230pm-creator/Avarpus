@@ -4,9 +4,9 @@ export default function AuthLayout() {
   return (
     <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
       <Stack.Screen name="index" />
-      <Stack.Screen name="terms" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="phone" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="otp" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="terms" options={{ animation: 'fade' }} />
+      <Stack.Screen name="phone" options={{ animation: 'fade' }} />
+      <Stack.Screen name="otp" options={{ animation: 'fade' }} />
       <Stack.Screen name="register" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="biometric" options={{ animation: 'fade' }} />
       <Stack.Screen name="activate" options={{ animation: 'slide_from_right' }} />

@@ -137,15 +137,17 @@ export default function PhoneScreen() {
             </View>
           </View>
         </View>
-        <Button
-          title={otpLoading ? 'Sending code...' : 'Next'}
-          onPress={handleSendOtp}
-          loading={otpLoading}
-          disabled={mobile.length !== 10}
-          fullWidth
-          size="lg"
-          style={styles.nextButton}
-        />
+        <View style={styles.nextButtonArea}>
+          <Button
+            title={otpLoading ? 'Sending code...' : 'Next'}
+            onPress={handleSendOtp}
+            loading={otpLoading}
+            disabled={mobile.length !== 10}
+            fullWidth
+            size="lg"
+            style={styles.nextButton}
+          />
+        </View>
       </KeyboardAwareScrollViewCompat>
     </View>
   );
@@ -177,7 +179,8 @@ const styles = StyleSheet.create({
   codeText: { fontSize: 18, fontFamily: 'Inter_400Regular' },
   numberField: { flex: 1, height: 50, borderBottomWidth: 1.5, justifyContent: 'center' },
   numberInput: { height: 48, fontSize: 18, fontFamily: 'Inter_400Regular', paddingHorizontal: 0 },
-  nextButton: { marginTop: 'auto', borderRadius: 28, minHeight: 54 },
+  nextButtonArea: { width: '100%', height: 64, marginTop: 'auto', paddingHorizontal: 5, paddingBottom: 10 },
+  nextButton: { borderRadius: 28, minHeight: 54, maxHeight: 54 },
   alertBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 8, borderWidth: 1 },
   alertText: { fontSize: 12, flex: 1, fontFamily: 'Inter_500Medium', lineHeight: 16 },
 });

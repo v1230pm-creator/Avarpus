@@ -6,15 +6,23 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
+import { CosmicWelcomeBackground } from '@/components/ui/CosmicWelcomeBackground';
 
 export default function TermsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ next?: string }>();
   const insets = useSafeAreaInsets();
-  const colors = useColors();
+  const appColors = useColors();
+  const colors = {
+    foreground: '#F6F8FC',
+    textMuted: '#9BA8BC',
+    border: 'rgba(111, 169, 225, 0.34)',
+    primary: appColors.primary,
+  };
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
+    <View style={[styles.root, { backgroundColor: '#010714' }]}>
+      <CosmicWelcomeBackground />
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 28 }]}
         showsVerticalScrollIndicator={false}
@@ -38,23 +46,26 @@ export default function TermsScreen() {
           <TermSection title="Your business information" text="You are responsible for the accuracy of customer, repair, inventory, and financial information entered by your team." colors={colors} />
           <TermSection title="Secure access" text="We use mobile verification and access controls to help protect your workspace. Never share verification codes with anyone." colors={colors} />
 
-          <Button
-            title="Agree & Continue"
-            onPress={async () => {
-              await AsyncStorage.setItem('avarpus_terms_accepted', 'true');
-              const nextRoute = params.next === 'register' ? '/(auth)/register' : '/(auth)/phone';
-              router.replace(nextRoute as any);
-            }}
-            fullWidth
-            size="lg"
-          />
+          <View style={styles.buttonArea}>
+            <Button
+              title="Agree & Continue"
+              onPress={async () => {
+                await AsyncStorage.setItem('avarpus_terms_accepted', 'true');
+                const nextRoute = params.next === 'register' ? '/(auth)/register' : '/(auth)/phone';
+                router.replace(nextRoute as any);
+              }}
+              fullWidth
+              size="lg"
+              style={styles.primaryButton}
+            />
+          </View>
         </View>
       </ScrollView>
     </View>
   );
 }
 
-function TermSection({ title, text, colors }: { title: string; text: string; colors: ReturnType<typeof useColors> }) {
+function TermSection({ title, text, colors }: { title: string; text: string; colors: { foreground: string; textMuted: string; border: string } }) {
   return (
     <View style={[styles.section, { borderBottomColor: colors.border }]}>
       <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{title}</Text>
@@ -77,4 +88,6 @@ const styles = StyleSheet.create({
   section: { paddingBottom: 16, marginBottom: 2, borderBottomWidth: 1 },
   sectionTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 5 },
   sectionText: { fontSize: 14, lineHeight: 21, fontFamily: 'Inter_400Regular' },
+  buttonArea: { width: '100%', height: 64, paddingHorizontal: 5, paddingBottom: 10, marginTop: 4 },
+  primaryButton: { borderRadius: 28, minHeight: 54, maxHeight: 54 },
 });
