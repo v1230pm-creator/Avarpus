@@ -25,7 +25,55 @@ import type { LedgerEntry, KhataPartyType } from '@/utils/khata-ledger';
 
 type FilterState = 'all' | KhataPartyType;
 
-export default function KhataOverviewScreen() {
+function RepairOnlyKhataScreen() {
+  const { canAccess } = useAuth();
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { repairs } = useData();
+  const topPadding = Platform.OS === 'web' ? insets.top + 67 : insets.top;
+  const inProgress = repairs.filter((repair) => !['ready', 'delivered', 'cancelled'].includes(repair.status)).length;
+  const completed = repairs.filter((repair) => ['ready', 'delivered'].includes(repair.status)).length;
+  const items = [
+    { label: 'All Repairs', value: repairs.length, icon: 'tool' as const, route: '/(tabs)/repairs' },
+    { label: 'In Progress', value: inProgress, icon: 'clock' as const, route: '/(tabs)/repairs' },
+    { label: 'Completed', value: completed, icon: 'check-circle' as const, route: '/(tabs)/repairs' },
+    ...(canAccess('repairs_create')
+      ? [{ label: 'Add Repair', value: 'New', icon: 'plus-circle' as const, route: '/(tabs)/repairs/new' }]
+      : []),
+  ];
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { paddingTop: topPadding + 16 }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Khata</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>Repair book</Text>
+        </View>
+      </View>
+      <ScrollView contentContainerStyle={[styles.scroll, { gap: 12 }]} showsVerticalScrollIndicator={false}>
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Repairs</Text>
+        {items.map((item) => (
+          <TouchableOpacity
+            key={item.label}
+            onPress={() => router.push(item.route as any)}
+            activeOpacity={0.75}
+            style={[styles.repairHubRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <View style={[styles.repairHubIcon, { backgroundColor: colors.primary + '14' }]}>
+              <Feather name={item.icon} size={19} color={colors.primary} />
+            </View>
+            <Text style={[styles.repairHubLabel, { color: colors.foreground }]}>{item.label}</Text>
+            <Text style={[styles.repairHubValue, { color: colors.primary }]}>{item.value}</Text>
+            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function FullKhataOverviewScreen() {
   const { user, canAccess } = useAuth();
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -279,6 +327,11 @@ export default function KhataOverviewScreen() {
   );
 }
 
+export default function KhataOverviewScreen() {
+  const { canAccess } = useAuth();
+  return canAccess('payments') ? <FullKhataOverviewScreen /> : <RepairOnlyKhataScreen />;
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -360,6 +413,24 @@ const styles = StyleSheet.create({
   entryAmount: { fontSize: 14, fontFamily: 'Inter_700Bold' },
   
   emptyText: { fontSize: 13, textAlign: 'center', marginTop: 20 },
+  repairHubRow: {
+    minHeight: 64,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  repairHubIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  repairHubLabel: { flex: 1, fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  repairHubValue: { fontSize: 13, fontFamily: 'Inter_700Bold' },
 });
 
 

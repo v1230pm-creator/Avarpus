@@ -267,7 +267,7 @@ export default function AccountScreen() {
         <Card>
           <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Auto-lock after inactivity</Text>
           <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            Locks with device authentication when app lock is enabled, or signs you out when it is off.
+            Locks with device authentication when app lock is enabled. Your signed-in session stays active until you sign out.
           </Text>
           <View style={styles.timeoutRow}>
             {INACTIVITY_OPTIONS.map((min) => {

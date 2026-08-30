@@ -14,8 +14,9 @@ import {
 import type { DbUser } from "@workspace/db";
 import { desc } from "drizzle-orm";
 
-// "Remember me" keeps the session for 30 days; otherwise it lasts 1 day.
-const SESSION_TTL_REMEMBERED_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+// Persistent sessions remain valid until they are explicitly revoked. The
+// database keeps a non-null expiry for efficient active-session queries.
+const PERSISTENT_SESSION_EXPIRES_AT = new Date("9999-12-31T23:59:59.999Z");
 const SESSION_TTL_DEFAULT_MS = 24 * 60 * 60 * 1000; // 1 day
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_OTP_ATTEMPTS = 5;
@@ -49,13 +50,16 @@ export async function createSession(
   options?: { expiresAt?: Date; trustedDeviceId?: string | null },
 ): Promise<string> {
   const token = generateToken();
-  const ttl = rememberMe ? SESSION_TTL_REMEMBERED_MS : SESSION_TTL_DEFAULT_MS;
+  const expiresAt = options?.expiresAt ??
+    (rememberMe
+      ? PERSISTENT_SESSION_EXPIRES_AT
+      : new Date(Date.now() + SESSION_TTL_DEFAULT_MS));
   await db.insert(sessionsTable).values({
     token,
     userId,
     deviceInfo: deviceInfo ?? null,
     trustedDeviceId: options?.trustedDeviceId ?? null,
-    expiresAt: options?.expiresAt ?? new Date(Date.now() + ttl),
+    expiresAt,
   });
   return token;
 }

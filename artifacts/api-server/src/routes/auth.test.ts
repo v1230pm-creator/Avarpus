@@ -760,6 +760,12 @@ describe("trusted Android device recovery", () => {
     expect(trust.androidIdHash).not.toBe(ANDROID_ID);
     expect(trust.expiresAt.getTime() - trust.createdAt.getTime()).toBeLessThanOrEqual(48 * 60 * 60 * 1000);
     expect(trust.recoveryDeadline.getTime() - trust.createdAt.getTime()).toBeLessThanOrEqual(24 * 60 * 60 * 1000);
+    const [otpSession] = await db
+      .select()
+      .from(sessionsTable)
+      .where(eq(sessionsTable.token, enrolled.body.token));
+    expect(otpSession.expiresAt.getUTCFullYear()).toBe(9999);
+    expect(otpSession.expiresAt.getTime()).toBeGreaterThan(trust.expiresAt.getTime());
 
     const recovered = await request(app)
       .post("/api/auth/trusted-device/recover")

@@ -6,7 +6,7 @@ import { FeatureRouteGuard } from '@/components/navigation/FeatureRouteGuard';
 export default function KhataLayout() {
   const colors = useColors();
   return (
-    <FeatureRouteGuard feature="payments" excludeDealerPortal>
+    <FeatureRouteGuard anyFeature={['payments', 'repairs']} excludeDealerPortal>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="party/[type]/[id]" />

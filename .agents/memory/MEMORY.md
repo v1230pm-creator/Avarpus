@@ -1,6 +1,6 @@
 - [VMC BMS Architecture](vmc-bms-arch.md) — Expo app now API-backed: auth AND business data (repairs/customers/inventory/purchases/finance) live server-side, shop-scoped; no on-device seed data.
 - [Drizzle journal drift](drizzle-journal-drift.md) — boot fails with "relation already exists" when DB drifts from the migration journal; backfill journal rows, don't drop tables.
-- [App lock enforcement](app-lock.md) — app lock is biometric/device-credential only, opt-in, guarded at the tabs boundary; OTP unlocks the current session before entering tabs.
+- [App lock enforcement](app-lock.md) — opt-in biometric/device-credential lock; inactivity may relock but must never sign out an unlocked account.
 - [Lock-state mutations](lock-state-mutations.md) — settings toggles require OS authentication and must re-read persisted state after write failures.
 - [Stale api-client d.ts](api-client-dist-types.md) — mobile typecheck reads lib types from dist declarations; rebuild them after changing lib exports or you get phantom TS2305 errors.
 - [Role naming](role-naming.md) — the privileged role is `super_admin` everywhere; introducing an `admin` role breaks client permissions/labels.
@@ -40,7 +40,7 @@
 - [Wouter query navigation](wouter-query-navigation.md) — query-only login transitions need local React step state to rerender reliably.
 - [Local Expo native modules](local-expo-native-modules.md) — use autolinked modules under artifacts/mobile/modules; Expo Go must fail closed for sensitive native features.
 - [OTP-only account access](otp-only-account-access.md) — mobile OTP is the sole primary sign-in path; saved email is recovery-only, while retired SIM/device data stays non-destructively archived.
-- [Trusted-device recovery](trusted-device-recovery.md) — Android reinstall recovery uses short immutable trust generations, global hash serialization, durable hashed throttles, and fail-closed ambiguity.
+- [Trusted-device recovery](trusted-device-recovery.md) — OTP sessions persist until revocation; Android reinstall recovery stays short, immutable, serialized, throttled, and fail-closed.
 - [Chat abuse controls](chat-abuse-controls.md) — pair blocks are bidirectional in effect; reports need server limits and stable client retry identities.
 - [Task-branch publishing isolation](task-branch-publishing.md) — Publishing from the parent workspace does not include an assigned task's isolated branch until that task is merged.
 - [React Native API caching](react-native-api-caching.md) — dynamic/authenticated API responses must not use HTTP validators; body-less 304 responses surface as client query failures.

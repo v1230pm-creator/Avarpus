@@ -148,7 +148,7 @@ router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
 }));
 
 router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
-  const { mobile: rawMobile, code, rememberMe, androidDeviceId } = req.body ?? {};
+  const { mobile: rawMobile, code, androidDeviceId } = req.body ?? {};
   if (typeof rawMobile !== "string" || typeof code !== "string") {
     res.status(400).json({ message: "Mobile and code are required" });
     return;
@@ -232,10 +232,11 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
     res.status(401).json({ message: "Account not found or inactive" });
     return;
   }
-  const remember = rememberMe === true;
+  // A verified mobile login stays active until the user explicitly signs out
+  // or revokes the session from Active Sessions.
+  const remember = true;
   const deviceInfo = deviceInfoFrom(req);
   let trustedDeviceId: string | null = null;
-  let expiresAt: Date | undefined;
   // Device enrollment is opt-in: legacy OTP clients retain their existing
   // session behavior. The raw Android ID is only held in this request scope.
   if (androidDeviceId !== undefined) {
@@ -247,9 +248,8 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
       enrolledAt,
     );
     trustedDeviceId = trust.id;
-    expiresAt = trust.expiresAt;
   }
-  const token = await createSession(user.id, remember, deviceInfo, { expiresAt, trustedDeviceId });
+  const token = await createSession(user.id, remember, deviceInfo, { trustedDeviceId });
   await recordLoginEvent(user.id, "otp", remember, deviceInfo);
   const responseUser = publicUser(user);
   res.json({ token, user: responseUser, needsDisplayName: responseUser.needsDisplayName });

@@ -1,11 +1,10 @@
 export type PrimaryTabName =
   | 'index'
-  | 'calls'
+  | 'status'
   | 'repairs'
   | 'customers'
   | 'khata'
-  | 'updates'
-  | 'settings';
+  | 'updates';
 
 type TabVisibilityInput = {
   customer: boolean;
@@ -21,11 +20,10 @@ export function getVisiblePrimaryTabs({
   if (customer) return ['index'];
   if (portal) return canAccess('repairs_portal') ? ['repairs'] : ['index'];
 
-  const tabs: PrimaryTabName[] = ['index', 'calls'];
-  if (canAccess('repairs')) tabs.push('repairs');
+  const tabs: PrimaryTabName[] = ['index', 'status'];
   if (canAccess('customers')) tabs.push('customers');
-  if (canAccess('payments')) tabs.push('khata');
-  tabs.push('updates', 'settings');
+  if (canAccess('payments') || canAccess('repairs')) tabs.push('khata');
+  tabs.push('updates');
   return tabs;
 }
 

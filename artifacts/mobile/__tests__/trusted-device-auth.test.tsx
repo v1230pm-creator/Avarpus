@@ -156,6 +156,40 @@ describe('AuthProvider trusted-device flow', () => {
     view.unmount();
   });
 
+  it('keeps the persisted login during a temporary startup network failure', async () => {
+    mockCanRecover.mockReturnValue(false);
+    mockStorageGet.mockImplementation(async (key: string) => {
+      if (key === 'auth_token') return 'existing-token';
+      if (key === 'current_user') return session.user;
+      return null;
+    });
+    mockAuthMe.mockRejectedValue(new Error('Network request failed'));
+    const view = mount();
+
+    await waitFor(() => expect(auth.isLoading).toBe(false));
+    expect(auth.user).toMatchObject({ id: 'user-1' });
+    expect(auth.isAuthenticated).toBe(true);
+    expect(mockStorageRemove).not.toHaveBeenCalledWith('auth_token');
+    view.unmount();
+  });
+
+  it('clears a persisted login only when the server rejects the session', async () => {
+    mockCanRecover.mockReturnValue(false);
+    mockStorageGet.mockImplementation(async (key: string) => {
+      if (key === 'auth_token') return 'expired-token';
+      if (key === 'current_user') return session.user;
+      return null;
+    });
+    mockAuthMe.mockRejectedValue(Object.assign(new Error('Unauthorized'), { status: 401 }));
+    const view = mount();
+
+    await waitFor(() => expect(auth.isLoading).toBe(false));
+    expect(auth.user).toBeNull();
+    expect(mockStorageRemove).toHaveBeenCalledWith('auth_token');
+    expect(mockStorageRemove).toHaveBeenCalledWith('current_user');
+    view.unmount();
+  });
+
   it('does not restore a late saved-session response after explicit logout', async () => {
     const pending = deferred<{ user: typeof session.user }>();
     mockStorageGet.mockResolvedValue('existing-token');

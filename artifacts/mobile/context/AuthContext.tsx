@@ -149,6 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       await seedIfNeeded();
       const token = await storage.get<string>(KEYS.AUTH_TOKEN);
+      const cachedUser = await storage.get<User>(KEYS.CURRENT_USER);
       let restoredSession = false;
       if (token) {
         try {
@@ -156,9 +157,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (attempt !== recoveryAttemptRef.current) return;
           setUser(toUser(res.user));
           restoredSession = true;
-        } catch {
-          // Session invalid or server unreachable — require sign-in
-          await storage.remove(KEYS.AUTH_TOKEN);
+        } catch (error) {
+          const status = (error as { status?: number })?.status;
+          if (status === 401) {
+            await storage.remove(KEYS.AUTH_TOKEN);
+            await storage.remove(KEYS.CURRENT_USER);
+          } else if (cachedUser) {
+            // A temporary network/server failure must not sign the user out.
+            // Keep the persisted identity and let authenticated queries retry.
+            if (attempt !== recoveryAttemptRef.current) return;
+            setUser(cachedUser);
+            restoredSession = true;
+          }
         }
       }
       if (!restoredSession && canAttemptTrustedDeviceRecovery()) {

@@ -22,12 +22,11 @@ const MAIN_TABS: Array<{
   icon: React.ComponentProps<typeof Feather>['name'];
 }> = [
   { name: 'index', label: 'Chats', icon: 'message-circle' as const },
-  { name: 'calls', label: 'Calls', icon: 'phone' as const },
+  { name: 'status', label: 'Status', icon: 'circle' as const },
   { name: 'repairs', label: 'Repairs', icon: 'tool' as const },
   { name: 'customers', label: 'Customers', icon: 'users' as const },
   { name: 'khata', label: 'Khata', icon: 'book-open' as const },
   { name: 'updates', label: 'Updates', icon: 'bell' as const },
-  { name: 'settings', label: 'Settings', icon: 'settings' as const },
 ];
 
 function PremiumTabBar({
@@ -137,11 +136,11 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
           title: 'Chats',
         }}
       />
-      <Tabs.Screen name="calls" options={{ href: customer || portal ? null : undefined, title: 'Calls' }} />
+      <Tabs.Screen name="status" options={{ href: customer || portal ? null : undefined, title: 'Status' }} />
       <Tabs.Screen
         name="repairs"
         options={{
-          href: customer || !(portal ? canAccess('repairs_portal') : canAccess('repairs')) ? null : undefined,
+          href: customer || !(portal && canAccess('repairs_portal')) ? null : undefined,
           title: 'Repairs',
         }}
       />
@@ -160,7 +159,7 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
         }}
       />
       <Tabs.Screen name="updates" options={{ href: customer || portal ? null : undefined, title: 'Updates' }} />
-      <Tabs.Screen name="settings" options={{ href: customer || portal ? null : undefined, title: 'Settings' }} />
+      <Tabs.Screen name="settings" options={{ href: null, title: 'Settings' }} />
       <Tabs.Screen
         name="inventory"
         options={{

@@ -9,11 +9,11 @@ const CHECK_INTERVAL_MS = 30 * 1000;
 
 /**
  * Wraps the authenticated area of the app. Tracks user touch activity and,
- * after the configured inactivity period, either locks the app to the
- * device-authentication screen (when app lock is enabled) or signs the user out.
+ * after the configured inactivity period, locks the app only when the user has
+ * explicitly enabled app lock. Inactivity must never end the signed-in session.
  */
 export function InactivityGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated } = useAuth();
   const router = useRouter();
   const lastActivityRef = useRef(Date.now());
   const firedRef = useRef(false);
@@ -26,23 +26,22 @@ export function InactivityGuard({ children }: { children: React.ReactNode }) {
     if (firedRef.current) return;
     firedRef.current = true;
     try {
-      let lockEnabled = true; // fail closed: unknown lock state → lock screen
+      // Unknown lock state must still fail closed to the lock screen, never to
+      // a destructive session logout.
+      let lockEnabled = true;
       try {
         lockEnabled = await isLockEnabled();
       } catch {}
       if (lockEnabled) {
         setUnlocked(false);
         router.replace('/(auth)/biometric');
-      } else {
-        await logout();
-        router.replace('/(auth)');
       }
     } finally {
       // Allow the guard to fire again for the next session
       firedRef.current = false;
       lastActivityRef.current = Date.now();
     }
-  }, [logout, router]);
+  }, [router]);
 
   const checkIdle = useCallback(async () => {
     if (!isAuthenticated) return;
