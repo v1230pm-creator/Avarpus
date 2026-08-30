@@ -17,3 +17,11 @@ Fixes that were required (all live in `artifacts/mobile/eas.json` + root package
 Release-build-only bug: RN `KeyboardAvoidingView` on Android conflicts with the active keyboard-controller native module (fine in Expo Go, keyboard instantly dismisses in the APK). Don't use RN KAV at all on form screens — use `KeyboardAwareScrollViewCompat` (keyboard-controller's aware scroll view; plain ScrollView on web). Two more release-only dismissal causes: Android subview clipping detaches the focused TextInput on keyboard-open layout shift (compat now forces `removeClippedSubviews={false}`), and `justifyContent:'center'` on the scroll contentContainerStyle causes jump/blur — center via an inner flexGrow View instead.
 
 **How to apply:** bump the app version, sync the exact source to `Avarpus-/avarpus`, and trigger EAS from the resulting commit SHA. Verify EAS reports that SHA and inspect the finished APK bundle before sharing it. Signing identity must remain stable across updates.
+
+## Confirmed release check
+
+**Rule:** An APK release is not accepted from EAS metadata alone; verify its packaged bundle/native classes, then require a real Android install check for the changed UI and keyboard-sensitive flows.
+
+**Why:** A successful cloud build can still omit locally ignored assets or native module sources. After correcting source sync and ignore scoping, the user confirmed the resulting APK showed the current Settings/Profile features and correct keyboard behavior on a real phone.
+
+**How to apply:** compare the EAS commit SHA, inspect the APK contents for expected UI/native symbols, and keep the release task open until the user confirms the installed APK on-device.
