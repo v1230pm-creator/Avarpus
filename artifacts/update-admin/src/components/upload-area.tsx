@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useAppUpdateUploadUrl } from '@workspace/api-client-react';
 import { Upload, X, File as FileIcon, Loader2, AlertCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { formatBytes } from '@/lib/utils';
+import { cn, formatBytes, apiErrorMessage } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -124,7 +123,11 @@ export function UploadArea({ onUploadSuccess, accept, maxSizeMB = 50, title, des
       
     } catch (err: any) {
       console.error('Upload failed:', err);
-      setUploadState(prev => prev ? { ...prev, status: 'error', error: err.message || 'Upload failed' } : null);
+      setUploadState(prev => prev ? {
+        ...prev,
+        status: 'error',
+        error: apiErrorMessage(err, 'Upload failed. Please try again.'),
+      } : null);
     }
   };
 

@@ -3,11 +3,14 @@ import {
   ActivityIndicator,
   Alert,
   AppState,
+  Image,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useColorScheme,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -18,6 +21,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { sha256 } from 'js-sha256';
 import { useColors } from '@/hooks/useColors';
+import { getAvarpusLogo } from '@/constants/branding';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { storage, KEYS } from '@/utils/storage';
 import { getAppVersion, getAppBuildNumber, formatBytes } from '@/utils/appVersion';
@@ -60,6 +64,20 @@ const UPDATE_TYPE_META: Record<string, { label: string; color: string }> = {
   recommended: { label: 'Recommended Update', color: '#F59E0B' },
   critical: { label: 'Critical Update', color: '#FB7185' },
 };
+
+const APP_UPDATE_ASSET_PREFIX = '/objects/uploads/app-updates/';
+const UUID_PATTERN = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
+
+function screenshotObjectId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const match = new RegExp(`^${APP_UPDATE_ASSET_PREFIX}(${UUID_PATTERN})$`).exec(value);
+  return match?.[1] ?? null;
+}
+
+function apiOrigin(): string | null {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  return domain ? `https://${domain}` : null;
+}
 
 function releaseNoteLines(notes: unknown): { category: string | null; items: string[] }[] {
   if (!notes) return [];
@@ -135,6 +153,7 @@ async function sha256OfFile(
 
 export default function AppUpdateScreen() {
   const colors = useColors();
+  const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const anims = useStaggerAnim(4);
@@ -149,6 +168,7 @@ export default function AppUpdateScreen() {
   const [latest, setLatest] = useState<AppUpdate | null>(null);
   const [changelog, setChangelog] = useState<AppUpdate[] | null>(null);
   const [changelogOpen, setChangelogOpen] = useState(false);
+  const [assetAuthToken, setAssetAuthToken] = useState<string | null>(null);
 
   const [phase, setPhase] = useState<DownloadPhase>('idle');
   const [progress, setProgress] = useState(0);
@@ -174,6 +194,14 @@ export default function AppUpdateScreen() {
 
   const isUpdateAvailable = !!latest && latest.buildNumber > currentBuild;
   const typeMeta = UPDATE_TYPE_META[latest?.updateType ?? 'optional'] ?? UPDATE_TYPE_META.optional;
+  const screenshotUrls = (Array.isArray(latest?.screenshots) ? latest.screenshots : [])
+    .map(screenshotObjectId)
+    .filter((id): id is string => !!id)
+    .map((id) => {
+      const origin = apiOrigin();
+      return origin ? `${origin}/api/app-updates/assets/${id}` : null;
+    })
+    .filter((url): url is string => !!url);
   const persistentDownloaderAvailable =
     Platform.OS === 'android' && isBackgroundDownloaderAvailable();
 
@@ -193,6 +221,22 @@ export default function AppUpdateScreen() {
       nativePollingRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!latest) {
+      setAssetAuthToken(null);
+      return () => {
+        active = false;
+      };
+    }
+    void storage.get<string>(KEYS.AUTH_TOKEN).then((token) => {
+      if (active) setAssetAuthToken(token);
+    });
+    return () => {
+      active = false;
+    };
+  }, [latest?.id]);
 
   const handleCheck = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -711,6 +755,18 @@ export default function AppUpdateScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <View style={[styles.brandCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Image source={getAvarpusLogo(colorScheme)} style={styles.brandLogo} resizeMode="contain" />
+          <View style={styles.brandCopy}>
+            <Text style={[styles.brandTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+              Avarpus
+            </Text>
+            <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              Official app releases and verified downloads
+            </Text>
+          </View>
+        </View>
+
         {/* Current version */}
         <View style={styles.card}>
           <View style={styles.rowBetween}>
@@ -798,6 +854,9 @@ export default function AppUpdateScreen() {
               <MetaRow label="Version" value={`v${latest.version} (Build ${latest.buildNumber})`} colors={colors} />
               <MetaRow label="Release Date" value={latest.releaseDate ?? '—'} colors={colors} />
               <MetaRow label="Size" value={formatBytes(latest.apkSize)} colors={colors} />
+              {latest.checksum ? (
+                <MetaRow label="SHA-256" value={`${latest.checksum.slice(0, 12)}…`} colors={colors} />
+              ) : null}
               {latest.minAndroidVersion ? (
                 <MetaRow label="Requires Android" value={latest.minAndroidVersion + '+'} colors={colors} />
               ) : null}
@@ -828,6 +887,21 @@ export default function AppUpdateScreen() {
                 ))}
               </View>
             )}
+
+            {latest.demoVideoUrl ? (
+              <TouchableOpacity
+                onPress={() => Linking.openURL(latest.demoVideoUrl!).catch(() => {
+                  Alert.alert('Unable to open video', 'The release video link could not be opened.');
+                })}
+                style={[styles.secondaryBtn, { borderColor: colors.border }]}
+                activeOpacity={0.8}
+              >
+                <Feather name="play-circle" size={16} color={colors.primary} />
+                <Text style={[styles.secondaryBtnText, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                  Watch Release Video
+                </Text>
+              </TouchableOpacity>
+            ) : null}
 
             {/* Download / progress / install */}
             {phase === 'idle' || phase === 'error' ? (
@@ -956,6 +1030,31 @@ export default function AppUpdateScreen() {
           </View>
         )}
 
+        {checked && isUpdateAvailable && latest && screenshotUrls.length > 0 && (
+          <View style={[styles.card, { backgroundColor: colors.card }]}>
+            <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+              Release Preview
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.screenshotRow}
+            >
+              {screenshotUrls.map((uri) => (
+                <Image
+                  key={uri}
+                  source={{
+                    uri,
+                    headers: assetAuthToken ? { Authorization: `Bearer ${assetAuthToken}` } : undefined,
+                  }}
+                  style={[styles.screenshot, { borderColor: colors.border }]}
+                  resizeMode="cover"
+                />
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Changelog */}
         {checked && !checkError && (
           <View style={styles.card}>
@@ -1032,6 +1131,10 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20 },
   scroll: { padding: 12, gap: 8 },
   card: { padding: 12, gap: 8 },
+  brandCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 16, borderWidth: 1 },
+  brandLogo: { width: 56, height: 56, borderRadius: 14 },
+  brandCopy: { flex: 1, gap: 3 },
+  brandTitle: { fontSize: 17 },
   centerCard: { alignItems: 'center', gap: 8 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   iconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
@@ -1042,6 +1145,8 @@ const styles = StyleSheet.create({
   upToDate: { fontSize: 17, textAlign: 'center' },
   primaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 12 },
   primaryBtnText: { color: '#FFF', fontSize: 14.5 },
+  secondaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 11, borderRadius: 12, borderWidth: 1 },
+  secondaryBtnText: { fontSize: 13.5 },
   typeBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, marginTop: 4 },
   typeBadgeText: { fontSize: 11 },
   metaGrid: { gap: 8 },
@@ -1064,4 +1169,6 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 12.5, lineHeight: 18 },
   installHint: { fontSize: 12, lineHeight: 17, textAlign: 'center' },
   changelogItem: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 2 },
+  screenshotRow: { gap: 10, paddingTop: 2 },
+  screenshot: { width: 118, height: 210, borderWidth: 1, borderRadius: 12 },
 });

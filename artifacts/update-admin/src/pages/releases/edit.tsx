@@ -42,7 +42,7 @@ import {
   AlertTriangle,
   X
 } from "lucide-react";
-import { formatBytes } from "@/lib/utils";
+import { apiErrorMessage, formatBytes } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
 const updateTypes = ["optional", "recommended", "critical"] as const;
@@ -196,21 +196,32 @@ export default function ReleaseEditor() {
     if (isNew) {
       createUpdate.mutate({ data: payload }, {
         onSuccess: (res) => {
+          queryClient.invalidateQueries({ queryKey: getListAppUpdatesQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getLatestAppUpdateQueryKey() });
           toast({ title: "Draft created successfully" });
           setLocation(`/releases/${res.update.id}`);
         },
         onError: (err) => {
-          toast({ title: "Failed to create draft", description: err.message, variant: "destructive" });
+          toast({
+            title: "Failed to create draft",
+            description: apiErrorMessage(err, "Please check the release details and try again."),
+            variant: "destructive",
+          });
         }
       });
     } else {
       updateUpdate.mutate({ id, data: payload }, {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["listAppUpdates"] });
+          queryClient.invalidateQueries({ queryKey: getListAppUpdatesQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getLatestAppUpdateQueryKey() });
           toast({ title: "Release updated successfully" });
         },
         onError: (err) => {
-          toast({ title: "Failed to update release", description: err.message, variant: "destructive" });
+          toast({
+            title: "Failed to update release",
+            description: apiErrorMessage(err, "Please check the release details and try again."),
+            variant: "destructive",
+          });
         }
       });
     }
@@ -219,16 +230,25 @@ export default function ReleaseEditor() {
   const handlePublish = (allowLowerBuild = false) => {
     publishUpdate.mutate({ id, data: { allowLowerBuild } }, {
       onSuccess: () => {
-        queryClient.invalidateQueries();
+        queryClient.invalidateQueries({ queryKey: getListAppUpdatesQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getLatestAppUpdateQueryKey() });
         setPublishDialogOpen(false);
         setRollbackWarning(false);
         toast({ title: "Release published successfully" });
       },
       onError: (err: any) => {
-        if (err?.status === 409 && !allowLowerBuild) {
+        if (
+          err?.status === 409 &&
+          !allowLowerBuild &&
+          /confirm the rollback/i.test(apiErrorMessage(err, ""))
+        ) {
           setRollbackWarning(true);
         } else {
-          toast({ title: "Publish failed", description: err.message, variant: "destructive" });
+          toast({
+            title: "Publish failed",
+            description: apiErrorMessage(err, "Please reload the release and try again."),
+            variant: "destructive",
+          });
         }
       }
     });
@@ -237,11 +257,16 @@ export default function ReleaseEditor() {
   const handleUnpublish = () => {
     unpublishUpdate.mutate({ id }, {
       onSuccess: () => {
-        queryClient.invalidateQueries();
+        queryClient.invalidateQueries({ queryKey: getListAppUpdatesQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getLatestAppUpdateQueryKey() });
         toast({ title: "Release unpublished" });
       },
       onError: (err) => {
-        toast({ title: "Failed to unpublish", description: err.message, variant: "destructive" });
+        toast({
+          title: "Failed to unpublish",
+          description: apiErrorMessage(err, "Please reload the release and try again."),
+          variant: "destructive",
+        });
       }
     });
   };

@@ -41,15 +41,20 @@ export default defineConfig({
               root: path.resolve(import.meta.dirname, '..'),
             }),
           ),
-          await import('@replit/vite-plugin-dev-banner').then((m) =>
-            m.devBanner(),
-          ),
         ]
       : []),
   ],
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, 'src'),
+      // Keep the console on the exact assets shipped in the mobile app.
+      '@mobile-brand': path.resolve(
+        import.meta.dirname,
+        '..',
+        'mobile',
+        'assets',
+        'images',
+      ),
       '@assets': path.resolve(
         import.meta.dirname,
         '..',
@@ -71,6 +76,10 @@ export default defineConfig({
     allowedHosts: true,
     fs: {
       strict: true,
+        allow: [
+          path.resolve(import.meta.dirname),
+          path.resolve(import.meta.dirname, '..', 'mobile', 'assets', 'images'),
+        ],
     },
   },
   preview: {

@@ -59,7 +59,7 @@ export default function Login() {
         mobile,
         code,
         rememberMe: true,
-        device: 'Avarpus Release Console',
+        deviceInfo: 'Avarpus Release Console',
       });
       if (session.user.role !== 'super_admin') {
         setErrorMsg('Access denied. Only super administrators can access the release console.');
