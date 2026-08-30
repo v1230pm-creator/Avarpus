@@ -40,3 +40,10 @@ Build Git trees bottom-up instead: create each directory tree from its immediate
 **Why:** This avoids truncated content, connector replay failures, GitHub tree payload timeouts, and accidental publication of a partial repository tree.
 
 **How to apply:** Use this path only when normal `git push` is unavailable and a recursive local-vs-remote SHA comparison shows broad drift.
+
+## Connector WAF limits
+GitHub connector writes may return a Cloudflare 403 for raw source trees or specific non-build files even when repository access is healthy. Do not reconnect or force-push in response.
+
+**Why:** The same connection can read the repo and create ordinary blobs while a source-heavy tree body is blocked by the proxy/WAF.
+
+**How to apply:** Upload required build files as base64 Git blobs, then create a small SHA-only tree on the verified remote base. Restrict release commits to real build inputs and preserve remote-only files.
