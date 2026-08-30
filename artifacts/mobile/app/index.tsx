@@ -6,6 +6,8 @@ import { useColors } from '@/hooks/useColors';
 import { isLockEnabled, isUnlocked } from '@/utils/appLock';
 import { SplashIntro } from '@/components/ui/SplashIntro';
 
+const SPLASH_STALL_HANDOFF_MS = 3600;
+
 export default function Index() {
   const {
     isAuthenticated,
@@ -18,6 +20,7 @@ export default function Index() {
   const [lockCheck, setLockCheck] = useState<'pending' | 'locked' | 'open'>('pending');
   const [showVerified, setShowVerified] = useState(true);
   const [introFinished, setIntroFinished] = useState(false);
+  const [splashStallHandoffReady, setSplashStallHandoffReady] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -38,8 +41,27 @@ export default function Index() {
     return () => clearTimeout(timer);
   }, [trustedDeviceStatus]);
 
+  useEffect(() => {
+    if (introFinished) return;
+    const timer = setTimeout(
+      () => setSplashStallHandoffReady(true),
+      SPLASH_STALL_HANDOFF_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [introFinished]);
+
+  const startupReady =
+    !isLoading &&
+    lockCheck !== 'pending' &&
+    trustedDeviceStatus !== 'checking';
+
   if (!introFinished) {
-    return <SplashIntro onFinish={() => setIntroFinished(true)} />;
+    return (
+      <SplashIntro
+        onFinish={() => setIntroFinished(true)}
+        loadingReady={startupReady || splashStallHandoffReady}
+      />
+    );
   }
 
   if (isLoading && trustedDeviceStatus === 'checking') {
