@@ -9,12 +9,24 @@ import { InactivityGuard } from '@/components/InactivityGuard';
 import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { canCustomerAccessTabsRoute, canPortalAccessTabsRoute } from '@/utils/tabRouteAccess';
+import {
+  getPrimaryTabsHomeRoute,
+  getVisiblePrimaryTabs,
+  type PrimaryTabName,
+} from '@/utils/tabVisibility';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const MAIN_TABS = [
+const MAIN_TABS: Array<{
+  name: PrimaryTabName;
+  label: string;
+  icon: React.ComponentProps<typeof Feather>['name'];
+}> = [
   { name: 'index', label: 'Chats', icon: 'message-circle' as const },
-  { name: 'updates', label: 'Updates', icon: 'aperture' as const },
+  { name: 'calls', label: 'Calls', icon: 'phone' as const },
+  { name: 'repairs', label: 'Repairs', icon: 'tool' as const },
+  { name: 'customers', label: 'Customers', icon: 'users' as const },
   { name: 'khata', label: 'Khata', icon: 'book-open' as const },
+  { name: 'updates', label: 'Updates', icon: 'bell' as const },
   { name: 'settings', label: 'Settings', icon: 'settings' as const },
 ];
 
@@ -106,12 +118,8 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
   const colors = useColors();
   const { canAccess } = useAuth();
   const isWeb = Platform.OS === 'web';
-  const visibleTabs = MAIN_TABS.filter((tab) => {
-    if (tab.name === 'index') return true;
-    if (customer || portal) return false;
-    if (tab.name === 'khata') return canAccess('payments');
-    return true;
-  });
+  const visibleTabNames = getVisiblePrimaryTabs({ customer, portal, canAccess });
+  const visibleTabs = MAIN_TABS.filter((tab) => visibleTabNames.includes(tab.name));
 
   return (
     <Tabs
@@ -129,7 +137,7 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
           title: 'Chats',
         }}
       />
-      <Tabs.Screen name="calls" options={{ href: null, title: 'Calls' }} />
+      <Tabs.Screen name="calls" options={{ href: customer || portal ? null : undefined, title: 'Calls' }} />
       <Tabs.Screen
         name="repairs"
         options={{
@@ -173,7 +181,7 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
 
 export default function TabLayout() {
   const colors = useColors();
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, canAccess } = useAuth();
   const portal = isDealerPortalRole(user?.role);
   const customer = isCustomerRole(user?.role);
   const segments = useSegments();
@@ -227,6 +235,10 @@ export default function TabLayout() {
   }
   if (portal && !canPortalAccessTabsRoute(segments)) {
     return <Redirect href="/(tabs)" />;
+  }
+  const primaryRoute = getPrimaryTabsHomeRoute({ portal, canAccess });
+  if (portal && segments[1] === undefined && primaryRoute !== '/(tabs)') {
+    return <Redirect href={primaryRoute} />;
   }
 
   if (lockCheck === 'pending') {
