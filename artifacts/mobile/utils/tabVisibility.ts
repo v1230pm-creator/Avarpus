@@ -1,6 +1,8 @@
 export type PrimaryTabName =
   | 'index'
   | 'status'
+  | 'shop'
+  | 'calls'
   | 'repairs'
   | 'customers'
   | 'khata'
@@ -13,18 +15,11 @@ type TabVisibilityInput = {
 };
 
 export function getVisiblePrimaryTabs({
-  customer,
-  portal,
-  canAccess,
+  customer: _customer,
+  portal: _portal,
+  canAccess: _canAccess,
 }: TabVisibilityInput): PrimaryTabName[] {
-  if (customer) return ['index'];
-  if (portal) return canAccess('repairs_portal') ? ['repairs'] : ['index'];
-
-  const tabs: PrimaryTabName[] = ['index', 'status'];
-  if (canAccess('customers')) tabs.push('customers');
-  if (canAccess('payments') || canAccess('repairs')) tabs.push('khata');
-  tabs.push('updates');
-  return tabs;
+  return ['index', 'status', 'shop', 'calls'];
 }
 
 export function getPrimaryTabsHomeRoute({

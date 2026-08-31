@@ -13,6 +13,7 @@ import appUpdatesRouter from "./appUpdates";
 import roleFeaturesRouter from "./roleFeatures";
 import notificationsRouter from "./notifications";
 import chatRouter from "./chat";
+import shopRouter from "./shop";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(appUpdatesRouter);
 router.use(roleFeaturesRouter);
 router.use(notificationsRouter);
 router.use(chatRouter);
+router.use(shopRouter);
 
 export default router;

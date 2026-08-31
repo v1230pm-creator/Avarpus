@@ -21,12 +21,10 @@ const MAIN_TABS: Array<{
   label: string;
   icon: React.ComponentProps<typeof Feather>['name'];
 }> = [
-  { name: 'index', label: 'Chats', icon: 'message-circle' as const },
+  { name: 'index', label: 'Chat', icon: 'message-circle' as const },
   { name: 'status', label: 'Status', icon: 'circle' as const },
-  { name: 'repairs', label: 'Repairs', icon: 'tool' as const },
-  { name: 'customers', label: 'Customers', icon: 'users' as const },
-  { name: 'khata', label: 'Khata', icon: 'book-open' as const },
-  { name: 'updates', label: 'Updates', icon: 'bell' as const },
+  { name: 'shop', label: 'Shop', icon: 'briefcase' as const },
+  { name: 'calls', label: 'Calls', icon: 'phone' as const },
 ];
 
 function PremiumTabBar({
@@ -133,32 +131,34 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
         name="index"
         options={{
           href: undefined,
-          title: 'Chats',
+          title: 'Chat',
         }}
       />
-      <Tabs.Screen name="status" options={{ href: customer || portal ? null : undefined, title: 'Status' }} />
+      <Tabs.Screen name="status" options={{ href: undefined, title: 'Status' }} />
+      <Tabs.Screen name="shop" options={{ href: undefined, title: 'Shop' }} />
+      <Tabs.Screen name="calls" options={{ href: undefined, title: 'Calls' }} />
       <Tabs.Screen
         name="repairs"
         options={{
-          href: customer || !(portal && canAccess('repairs_portal')) ? null : undefined,
+          href: null,
           title: 'Repairs',
         }}
       />
       <Tabs.Screen
         name="customers"
         options={{
-          href: customer || portal || !canAccess('customers') ? null : undefined,
+          href: null,
           title: 'Customers',
         }}
       />
       <Tabs.Screen
         name="khata"
         options={{
-          href: customer || portal || !(canAccess('payments') || canAccess('repairs')) ? null : undefined,
+          href: null,
           title: 'Khata',
         }}
       />
-      <Tabs.Screen name="updates" options={{ href: customer || portal ? null : undefined, title: 'Updates' }} />
+      <Tabs.Screen name="updates" options={{ href: null, title: 'Updates' }} />
       <Tabs.Screen name="settings" options={{ href: null, title: 'Settings' }} />
       <Tabs.Screen
         name="inventory"

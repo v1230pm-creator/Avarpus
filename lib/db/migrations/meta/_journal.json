@@ -316,6 +316,27 @@
       "when": 1788062900000,
       "tag": "0044_user_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1788149300000,
+      "tag": "0045_shop_memberships",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1788235700000,
+      "tag": "0046_shop_invite_expiry",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1788237900000,
+      "tag": "0047_shop_scoped_user_features",
+      "breakpoints": true
     }
   ]
 }

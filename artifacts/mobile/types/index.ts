@@ -23,6 +23,7 @@ export interface User {
   email: string;
   mobile: string;
   role: UserRole;
+  shopId?: string | null;
   isActive: boolean;
   joinDate: string;
   designation?: string;

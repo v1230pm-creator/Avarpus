@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Platform,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { staffCreate, useDealersList } from '@workspace/api-client-react';
+import { shopInvite, staffCreate, useDealersList } from '@workspace/api-client-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
@@ -68,8 +69,8 @@ export default function AddStaffScreen() {
 
   const handleCreate = async () => {
     const e: Record<string, string> = {};
-    if (!name.trim()) e.name = 'Name is required';
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) e.email = 'Valid email is required';
+    if (isPortalRole && !name.trim()) e.name = 'Name is required';
+    if (isPortalRole && (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))) e.email = 'Valid email is required';
     if (!mobile.trim() || mobile.length !== 10) e.mobile = 'Valid 10-digit mobile required';
     if (isPortalRole && !dealerId) e.dealer = 'Select the dealer this login belongs to';
     setErrors(e);
@@ -77,14 +78,25 @@ export default function AddStaffScreen() {
 
     setLoading(true);
     try {
-      await staffCreate({
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        mobile: mobile.trim(),
-        role,
-        designation: designation.trim() || undefined,
-        dealerId: isPortalRole ? dealerId ?? undefined : undefined,
-      });
+      if (isPortalRole) {
+        await staffCreate({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          mobile: mobile.trim(),
+          role,
+          designation: designation.trim() || undefined,
+          dealerId: dealerId ?? undefined,
+        });
+      } else {
+        const invitation = await shopInvite({
+          mobile: mobile.trim(),
+          role: role as 'reception' | 'technician' | 'store_manager' | 'accountant',
+        });
+        Alert.alert(
+          'Staff invitation ready',
+          `Share these once with the staff member:\n\nStaff ID: ${invitation.staffId}\nClaim code: ${invitation.claimCode}\n\nThey can sign in with mobile OTP, open Shop, and choose “Join with Staff ID”.`,
+        );
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     } catch (err: any) {
@@ -106,7 +118,7 @@ export default function AddStaffScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Add Staff</Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Create a staff account for your shop</Text>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Connect an existing Avarpus account</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -188,17 +200,19 @@ export default function AddStaffScreen() {
           <FadeInView animValue={anims[1]} style={styles.section}>
           <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>DETAILS</Text>
           <View style={{ gap: 8 }}>
-            <Input label="Full Name" value={name} onChangeText={setName}
-              placeholder="Staff member's name" leftIcon="user" error={errors.name} />
-            <Input label="Email Address" value={email} onChangeText={setEmail}
-              placeholder="name@company.com" keyboardType="email-address"
-              autoCapitalize="none" leftIcon="mail" error={errors.email} />
+            {isPortalRole && <>
+              <Input label="Full Name" value={name} onChangeText={setName}
+                placeholder="Staff member's name" leftIcon="user" error={errors.name} />
+              <Input label="Email Address" value={email} onChangeText={setEmail}
+                placeholder="name@company.com" keyboardType="email-address"
+                autoCapitalize="none" leftIcon="mail" error={errors.email} />
+            </>}
             <Input label="Mobile Number" value={mobile}
               onChangeText={(t) => setMobile(t.replace(/\D/g, '').slice(0, 10))}
               placeholder="10-digit mobile" keyboardType="phone-pad"
               leftIcon="phone" error={errors.mobile} />
-            <Input label="Designation (Optional)" value={designation} onChangeText={setDesignation}
-              placeholder="e.g. Senior Technician" leftIcon="tag" error={errors.designation} />
+            {isPortalRole && <Input label="Designation (Optional)" value={designation} onChangeText={setDesignation}
+              placeholder="e.g. Senior Technician" leftIcon="tag" error={errors.designation} />}
           </View>
           </FadeInView>
 
@@ -206,11 +220,13 @@ export default function AddStaffScreen() {
           <View style={[styles.infoBox, { backgroundColor: colors.primary + '0F', borderColor: colors.primary + '22', borderRadius: 16 }]}>
             <Feather name="info" size={14} color={colors.primary} />
             <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-              The staff member signs in with their registered mobile and a verification code. Their access is limited by the role you assign.
+              {isPortalRole
+                ? 'This creates a restricted B2B dealer portal login.'
+                : 'The mobile number must already have a personal Avarpus account. You will receive a one-time Staff ID and claim code to share securely.'}
             </Text>
           </View>
 
-          <Button title="Create Staff Account" onPress={handleCreate} loading={loading} fullWidth size="lg" />
+          <Button title={isPortalRole ? 'Create Portal Account' : 'Create Staff Invitation'} onPress={handleCreate} loading={loading} fullWidth size="lg" />
           </FadeInView>
         </KeyboardAwareScrollViewCompat>
     </View>

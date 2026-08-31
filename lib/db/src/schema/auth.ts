@@ -62,11 +62,43 @@ export const shopsTable = pgTable("shops", {
   businessName: text("business_name").notNull(),
   gstNumber: text("gst_number"),
   address: text("address"),
+  businessEmail: text("business_email"),
+  businessEmailVerifiedAt: timestamp("business_email_verified_at", { withTimezone: true }),
   settings: jsonb("settings").notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });
+
+// A personal Avarpus account may belong to more than one business workspace.
+// `users.shopId` remains the active-shop compatibility pointer for existing
+// business endpoints; this table is the source of truth for membership.
+export const shopMembershipsTable = pgTable(
+  "shop_memberships",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    shopId: uuid("shop_id")
+      .notNull()
+      .references(() => shopsTable.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    role: text("role").notNull().default("staff"),
+    staffId: text("staff_id"),
+    status: text("status").notNull().default("active"),
+    inviteCodeHash: text("invite_code_hash"),
+    inviteExpiresAt: timestamp("invite_expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("shop_memberships_shop_user_unique").on(table.shopId, table.userId),
+    uniqueIndex("shop_memberships_shop_staff_id_unique")
+      .on(table.shopId, table.staffId)
+      .where(sql`${table.staffId} is not null`),
+    index("shop_memberships_user_status_idx").on(table.userId, table.status),
+  ],
+);
 
 export const sessionsTable = pgTable("sessions", {
   token: text("token").primaryKey(),
@@ -187,6 +219,7 @@ export const insertUserSchema = createInsertSchema(usersTable).omit({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type DbUser = typeof usersTable.$inferSelect;
 export type DbShop = typeof shopsTable.$inferSelect;
+export type DbShopMembership = typeof shopMembershipsTable.$inferSelect;
 export type DbSession = typeof sessionsTable.$inferSelect;
 export type DbOtpCode = typeof otpCodesTable.$inferSelect;
 export type DbLoginEvent = typeof loginEventsTable.$inferSelect;

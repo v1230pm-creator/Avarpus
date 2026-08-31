@@ -26,7 +26,7 @@ export const roleFeatureSettingsTable = pgTable(
 // for this user only.
 export const userFeatureSettingsTable = pgTable("user_feature_settings", {
   userId: uuid("user_id")
-    .primaryKey()
+    .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
   shopId: uuid("shop_id")
     .notNull()
@@ -35,4 +35,4 @@ export const userFeatureSettingsTable = pgTable("user_feature_settings", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (t) => [primaryKey({ columns: [t.userId, t.shopId] })]);

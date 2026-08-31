@@ -4,6 +4,8 @@ import { getSessionUser } from "../lib/authUtils";
 import { isDealerPortalRole, dealerPortalAllowed } from "../lib/dealerPortal";
 import { customerPortalAllowed } from "../lib/customerPortal";
 import { userHasFeature } from "../lib/roleFeatures";
+import { db, shopMembershipsTable } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
 
 declare global {
   namespace Express {
@@ -79,6 +81,50 @@ export function requireAuth(
             req.user = user;
             req.sessionToken = token;
             next();
+          });
+          return;
+        }
+      }
+      const path = req.path.replace(/\/+$/, "") || "/";
+      const personalOrWorkspaceManaged =
+        path.startsWith("/auth") ||
+        path.startsWith("/chat") ||
+        path.startsWith("/notifications") ||
+        path.startsWith("/shop");
+      if (user.shopId && !personalOrWorkspaceManaged) {
+        let [membership] = await db
+          .select({ id: shopMembershipsTable.id })
+          .from(shopMembershipsTable)
+          .where(and(
+            eq(shopMembershipsTable.userId, user.id),
+            eq(shopMembershipsTable.shopId, user.shopId),
+            eq(shopMembershipsTable.status, "active"),
+          ))
+          .limit(1);
+        if (!membership) {
+          // Compatibility path for accounts created by older code or test
+          // fixtures after the one-time migration. A revoked row is never
+          // reactivated because the unique conflict leaves it unchanged.
+          await db.insert(shopMembershipsTable).values({
+            userId: user.id,
+            shopId: user.shopId,
+            role: user.role === "dealer" || user.role === "super_admin" ? "owner" : user.role,
+            status: "active",
+          }).onConflictDoNothing();
+          [membership] = await db
+            .select({ id: shopMembershipsTable.id })
+            .from(shopMembershipsTable)
+            .where(and(
+              eq(shopMembershipsTable.userId, user.id),
+              eq(shopMembershipsTable.shopId, user.shopId),
+              eq(shopMembershipsTable.status, "active"),
+            ))
+            .limit(1);
+        }
+        if (!membership) {
+          res.status(403).json({
+            message: "Business workspace access is no longer active.",
+            code: "BUSINESS_MEMBERSHIP_REQUIRED",
           });
           return;
         }

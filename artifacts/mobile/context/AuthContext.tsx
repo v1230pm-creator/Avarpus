@@ -229,7 +229,9 @@ export function AuthProvider({
   const refreshUser = async () => {
     try {
       const res = await authMe();
-      setUser(toUser(res.user));
+      const updated = toUser(res.user);
+      await storage.set(KEYS.CURRENT_USER, updated);
+      setUser(updated);
     } catch {
       // keep the cached user on transient failures
     }
@@ -271,7 +273,7 @@ export function AuthProvider({
     refreshFeatures();
     const timer = setInterval(refreshFeatures, 60_000);
     return () => clearInterval(timer);
-  }, [user?.id]);
+  }, [user?.id, user?.role, user?.shopId]);
 
   const applySession = async (
     session: { token: string; user: any },

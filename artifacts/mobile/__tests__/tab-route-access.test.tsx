@@ -29,6 +29,9 @@ describe('restricted account tab routes', () => {
     expect(canAccessTabsRoute(['(tabs)', 'more', 'settings'], { role: 'technician', canAccess: denied })).toBe(true);
     expect(canAccessTabsRoute(['(tabs)', 'more', 'settings-detail'], { role: 'technician', canAccess: denied })).toBe(true);
     expect(canAccessTabsRoute(['(tabs)', 'more', 'finance'], { role: 'technician', canAccess: denied })).toBe(false);
+    expect(canAccessTabsRoute(['(tabs)', 'shop'], { role: 'customer', canAccess: denied })).toBe(true);
+    expect(canAccessTabsRoute(['(tabs)', 'status'], { role: 'customer', canAccess: denied })).toBe(true);
+    expect(canAccessTabsRoute(['(tabs)', 'calls'], { role: 'customer', canAccess: denied })).toBe(true);
   });
 
   it('separates repair-only Khata from payments-only ledger children', () => {

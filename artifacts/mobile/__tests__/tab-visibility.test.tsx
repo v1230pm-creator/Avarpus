@@ -1,39 +1,40 @@
 import { getVisiblePrimaryTabs } from '@/utils/tabVisibility';
 
 describe('primary tab visibility', () => {
-  it('keeps repairs inside Khata and settings outside the bottom bar', () => {
+  it('keeps business tools inside Shop and exposes four personal destinations', () => {
     const visible = getVisiblePrimaryTabs({
       customer: false,
       portal: false,
       canAccess: () => true,
     });
 
-    expect(visible).toEqual(['index', 'status', 'customers', 'khata', 'updates']);
+    expect(visible).toEqual(['index', 'status', 'shop', 'calls']);
     expect(visible).not.toContain('repairs');
+    expect(visible).not.toContain('khata');
     expect(visible).not.toContain('settings');
   });
 
-  it('preserves the repair-only home for dealer portal accounts', () => {
+  it('keeps the same personal destinations for dealer portal accounts', () => {
     expect(getVisiblePrimaryTabs({
       customer: false,
       portal: true,
       canAccess: (feature) => feature === 'repairs_portal',
-    })).toEqual(['repairs']);
+    })).toEqual(['index', 'status', 'shop', 'calls']);
   });
 
-  it('shows Khata as the repair hub for staff without payment access', () => {
+  it('keeps staff permissions out of primary navigation', () => {
     expect(getVisiblePrimaryTabs({
       customer: false,
       portal: false,
       canAccess: (feature) => feature === 'repairs',
-    })).toEqual(['index', 'status', 'khata', 'updates']);
+    })).toEqual(['index', 'status', 'shop', 'calls']);
   });
 
-  it('keeps customer accounts on their compact chat home', () => {
+  it('lets personal-only customers use chat, status, shop and calls', () => {
     expect(getVisiblePrimaryTabs({
       customer: true,
       portal: false,
       canAccess: () => false,
-    })).toEqual(['index']);
+    })).toEqual(['index', 'status', 'shop', 'calls']);
   });
 });

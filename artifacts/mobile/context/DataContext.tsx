@@ -163,6 +163,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     canLoadPurchases,
     canLoadFinance,
     user?.id,
+    user?.shopId,
   ]);
 
   // ---- Automatic cross-device sync -------------------------------------
@@ -184,7 +185,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setPurchases([]);
     setFinance([]);
     setLoadError(null);
-  }, [isAuthenticated, user?.id]);
+  }, [isAuthenticated, user?.id, user?.shopId]);
   // Mutation sequence: bumped by every local write so a background refresh
   // that started before the write cannot overwrite the newer result with a
   // stale snapshot (the next tick re-pulls fresh data including the write).
@@ -263,6 +264,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     isPortal,
     queryClient,
     user?.id,
+    user?.shopId,
     canLoadRepairs,
     canLoadCustomers,
     canLoadInventory,
@@ -336,8 +338,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setCustomers([]);
       return;
     }
+    const epoch = sessionEpoch.current;
+    const policy = policyEpoch.current;
     customersList()
-      .then((c) => setCustomers(c.customers as Customer[]))
+      .then((c) => {
+        if (epoch === sessionEpoch.current && policy === policyEpoch.current) {
+          setCustomers(c.customers as Customer[]);
+        }
+      })
       .catch(() => {}); // non-fatal: stats refresh on next full load
   }, [canLoadCustomers]);
 

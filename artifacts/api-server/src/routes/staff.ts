@@ -4,6 +4,7 @@ import {
   db,
   usersTable,
   dealersTable,
+  shopMembershipsTable,
   userFeatureSettingsTable,
   type DbUser,
 } from "@workspace/db";
@@ -61,10 +62,22 @@ router.get(
       return;
     }
     const rows = await db
-      .select()
-      .from(usersTable)
-      .where(and(eq(usersTable.shopId, me.shopId), ne(usersTable.id, me.id)));
-    res.json({ staff: rows.map(publicUser) });
+      .select({ user: usersTable, membership: shopMembershipsTable })
+      .from(shopMembershipsTable)
+      .innerJoin(usersTable, eq(usersTable.id, shopMembershipsTable.userId))
+      .where(and(
+        eq(shopMembershipsTable.shopId, me.shopId),
+        ne(shopMembershipsTable.role, "owner"),
+        ne(usersTable.id, me.id),
+      ));
+    res.json({
+      staff: rows.map(({ user, membership }) => publicUser({
+        ...user,
+        shopId: membership.shopId,
+        role: membership.role,
+        isActive: membership.status === "active",
+      })),
+    });
   }),
 );
 
@@ -144,14 +157,75 @@ router.post(
           : null,
       joinDate: new Date().toISOString().split("T")[0],
     }).returning();
+    await db.insert(shopMembershipsTable).values({
+      shopId: me.shopId,
+      userId: created.id,
+      role,
+      status: created.isActive ? "active" : "pending",
+    }).onConflictDoNothing();
     res.json({ user: publicUser(created) });
   }),
 );
 
 // ── Shared guard: load a staff user the caller may manage ─────────────────
 async function loadManagedStaff(me: DbUser, id: string): Promise<
-  { ok: true; target: DbUser } | { ok: false; status: number; message: string }
+  { ok: true; target: DbUser; membershipId?: string; personalAccountMembership?: boolean } | { ok: false; status: number; message: string }
 > {
+  if (me.role !== "super_admin" || me.shopId) {
+    if (!me.shopId) return { ok: false, status: 404, message: "Account not found" };
+    const [row] = await db
+      .select({ user: usersTable, membership: shopMembershipsTable })
+      .from(shopMembershipsTable)
+      .innerJoin(usersTable, eq(usersTable.id, shopMembershipsTable.userId))
+      .where(and(
+        eq(shopMembershipsTable.shopId, me.shopId),
+        eq(shopMembershipsTable.userId, id),
+      ))
+      .limit(1);
+    if (!row) {
+      const [legacy] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
+      if (!legacy) return { ok: false, status: 404, message: "Account not found" };
+      if (legacy.role === "dealer" || legacy.role === "super_admin") {
+        return { ok: false, status: 403, message: "This account cannot be managed" };
+      }
+      if (legacy.shopId !== me.shopId) return { ok: false, status: 404, message: "Account not found" };
+      const [backfilled] = await db.insert(shopMembershipsTable).values({
+        shopId: me.shopId,
+        userId: legacy.id,
+        role: legacy.role,
+        status: legacy.isActive ? "active" : "pending",
+      }).onConflictDoNothing().returning();
+      const membership = backfilled ?? (await db.select().from(shopMembershipsTable).where(and(
+        eq(shopMembershipsTable.shopId, me.shopId),
+        eq(shopMembershipsTable.userId, id),
+      )).limit(1))[0];
+      return {
+        ok: true,
+        membershipId: membership.id,
+        personalAccountMembership: !!membership.staffId,
+        target: {
+          ...legacy,
+          shopId: membership.shopId,
+          role: membership.role,
+          isActive: membership.status === "active",
+        },
+      };
+    }
+    if (row.membership.role === "owner") {
+      return { ok: false, status: 403, message: "This account cannot be managed" };
+    }
+    return {
+      ok: true,
+      membershipId: row.membership.id,
+      personalAccountMembership: !!row.membership.staffId,
+      target: {
+        ...row.user,
+        shopId: row.membership.shopId,
+        role: row.membership.role,
+        isActive: row.membership.status === "active",
+      },
+    };
+  }
   const rows = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
   const target = rows[0];
   if (!target) return { ok: false, status: 404, message: "Account not found" };
@@ -163,9 +237,6 @@ async function loadManagedStaff(me: DbUser, id: string): Promise<
   }
   // Dealers may only manage accounts inside their own shop. super_admin
   // (no shop of their own) oversees all shops.
-  if (me.role !== "super_admin" && (!me.shopId || target.shopId !== me.shopId)) {
-    return { ok: false, status: 404, message: "Account not found" };
-  }
   return { ok: true, target };
 }
 
@@ -259,15 +330,17 @@ router.put(
     if (Object.keys(next).length === 0) {
       await db
         .delete(userFeatureSettingsTable)
-        .where(eq(userFeatureSettingsTable.userId, target.id));
+        .where(and(
+          eq(userFeatureSettingsTable.userId, target.id),
+          eq(userFeatureSettingsTable.shopId, target.shopId),
+        ));
     } else {
       await db
         .insert(userFeatureSettingsTable)
         .values({ userId: target.id, shopId: target.shopId, features: next })
         .onConflictDoUpdate({
-          target: userFeatureSettingsTable.userId,
+          target: [userFeatureSettingsTable.userId, userFeatureSettingsTable.shopId],
           set: {
-            shopId: target.shopId,
             features: next,
             updatedAt: new Date(),
           },
@@ -292,6 +365,22 @@ router.patch(
     }
     if (check.target.isActive) {
       res.json({ user: publicUser(check.target) });
+      return;
+    }
+    if (check.membershipId) {
+      await db.update(shopMembershipsTable)
+        .set({ status: "active", updatedAt: new Date() })
+        .where(eq(shopMembershipsTable.id, check.membershipId));
+      if (!check.personalAccountMembership) {
+        await db.update(usersTable).set({ isActive: true }).where(eq(usersTable.id, check.target.id));
+        sendStaffApprovedEmail(check.target.email, check.target.name).catch((err) => {
+          console.error(
+            `[staff] Failed to send approval email to ${check.target.email}:`,
+            err,
+          );
+        });
+      }
+      res.json({ user: publicUser({ ...check.target, isActive: true }) });
       return;
     }
     const [updated] = await db
@@ -386,12 +475,30 @@ router.patch(
       res.json({ user: publicUser(check.target) });
       return;
     }
-    const [updated] = await db
-      .update(usersTable)
-      .set(set)
-      .where(eq(usersTable.id, check.target.id))
-      .returning();
-    res.json({ user: publicUser(updated) });
+    const nextRole = set.role;
+    const userSet = { ...set };
+    delete userSet.role;
+    const [updated] = Object.keys(userSet).length > 0
+      ? await db.update(usersTable).set(userSet).where(eq(usersTable.id, check.target.id)).returning()
+      : await db.select().from(usersTable).where(eq(usersTable.id, check.target.id)).limit(1);
+    if (nextRole && check.membershipId) {
+      await db.update(shopMembershipsTable)
+        .set({ role: nextRole, updatedAt: new Date() })
+        .where(eq(shopMembershipsTable.id, check.membershipId));
+      if (me.shopId) {
+        await db.update(usersTable)
+          .set({ role: nextRole })
+          .where(and(eq(usersTable.id, check.target.id), eq(usersTable.shopId, me.shopId)));
+      }
+    } else if (nextRole) {
+      await db.update(usersTable).set({ role: nextRole }).where(eq(usersTable.id, check.target.id));
+    }
+    res.json({ user: publicUser({
+      ...updated,
+      shopId: check.target.shopId,
+      role: nextRole ?? check.target.role,
+      isActive: check.target.isActive,
+    }) });
   }),
 );
 
@@ -411,6 +518,11 @@ router.delete(
       res.status(400).json({
         message: "Only pending (inactive) accounts can be rejected",
       });
+      return;
+    }
+    if (check.membershipId && check.personalAccountMembership) {
+      await db.delete(shopMembershipsTable).where(eq(shopMembershipsTable.id, check.membershipId));
+      res.json({ message: "Pending workspace membership removed" });
       return;
     }
     // Capture recipient details, delete first, then notify asynchronously.

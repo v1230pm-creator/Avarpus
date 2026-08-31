@@ -22,6 +22,11 @@ const ALLOWED: Array<{ method: string | "*"; re: RegExp }> = [
   { method: "POST",   re: /^\/auth\/sessions\/revoke-others$/ },
   { method: "GET",    re: /^\/auth\/login-history$/ },
 
+  // ── Optional business workspace ─────────────────────────────────────────
+  // Each route performs its own membership/owner checks. Customers need this
+  // entry point to create or claim their first workspace.
+  { method: "*",      re: /^\/shop(?:\/.*)?$/ },
+
   // ── Exact-recipient notifications ───────────────────────────────────────
   { method: "GET",    re: /^\/notifications$/ },
   { method: "POST",   re: /^\/notifications\/read$/ },

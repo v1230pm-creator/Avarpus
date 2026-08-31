@@ -19,13 +19,20 @@ function isPersonalRoute(segments: TabSegments) {
 /** Authorization boundary for every tab deep link, before route screen hooks mount. */
 export function canAccessTabsRoute(segments: TabSegments, { role, canAccess }: AccessInput): boolean {
   if (!role) return false;
-  if (segments[1] === undefined || isChatRoute(segments) || isPersonalRoute(segments)) return true;
+  if (
+    segments[1] === undefined ||
+    isChatRoute(segments) ||
+    isPersonalRoute(segments) ||
+    ['status', 'shop', 'calls'].includes(segments[1] ?? '')
+  ) return true;
   if (isCustomerRole(role)) return false;
   if (isDealerPortalRole(role)) return segments[1] === 'repairs' && canAccess('repairs_portal');
 
   const owner = role === 'dealer' || role === 'super_admin';
   switch (segments[1]) {
     case 'status':
+    case 'shop':
+    case 'calls':
     case 'updates':
       return true;
     case 'repairs':
