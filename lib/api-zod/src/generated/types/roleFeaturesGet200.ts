@@ -5,10 +5,13 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CanonicalPermissionMap } from './canonicalPermissionMap';
 import type { RoleFeaturesGet200Features } from './roleFeaturesGet200Features';
 import type { RoleFeaturesGet200Matrix } from './roleFeaturesGet200Matrix';
 
 export type RoleFeaturesGet200 = {
   features: RoleFeaturesGet200Features;
+  /** Canonical derived business permissions; legacy features remain available for compatibility. */
+  permissions?: CanonicalPermissionMap;
   matrix?: RoleFeaturesGet200Matrix;
 };

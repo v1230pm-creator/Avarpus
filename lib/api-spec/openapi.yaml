@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: auth
     description: Authentication operations
+  - name: shop
+    description: Business workspace setup, membership, switching, and recovery
   - name: business
     description: Shop-scoped business data (repairs, customers, inventory, purchases, finance)
   - name: Storage
@@ -186,6 +188,161 @@ paths:
                   user:
                     $ref: "#/components/schemas/AuthUser"
                 required: [user]
+  # ── Business workspace management ───────────────────────────────────────────
+  /shop/me:
+    get:
+      operationId: shopWorkspaceGet
+      tags: [shop]
+      security:
+        - bearerAuth: []
+      summary: Get the current user's active workspace and memberships
+      responses:
+        "200":
+          description: Active business workspace and all active memberships
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopMeResponse"
+  /shop/setup/request:
+    post:
+      operationId: shopSetupRequestCreate
+      tags: [shop]
+      security:
+        - bearerAuth: []
+      summary: Start business workspace setup and send a verification code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopSetupRequestInput"
+      responses:
+        "200":
+          description: Verification code sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopSetupRequestResult"
+  /shop/setup/verify:
+    post:
+      operationId: shopSetupVerificationCreate
+      tags: [shop]
+      security:
+        - bearerAuth: []
+      summary: Verify the business email and create a workspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopSetupVerifyInput"
+      responses:
+        "200":
+          description: Business workspace created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopUserResult"
+  /shop/invitations:
+    post:
+      operationId: shopInvitationCreate
+      tags: [shop]
+      security:
+        - bearerAuth: []
+      summary: Create or renew a staff invitation for the current workspace owner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopInvitationInput"
+      responses:
+        "200":
+          description: Staff invitation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopInvitationResult"
+  /shop/claim:
+    post:
+      operationId: shopInvitationClaim
+      tags: [shop]
+      security:
+        - bearerAuth: []
+      summary: Claim a pending staff invitation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopClaimInput"
+      responses:
+        "200":
+          description: Staff member joined the workspace
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopUserResult"
+  /shop/switch:
+    post:
+      operationId: shopWorkspaceSwitch
+      tags: [shop]
+      security:
+        - bearerAuth: []
+      summary: Switch the active business workspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopSwitchInput"
+      responses:
+        "200":
+          description: Active workspace changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopSwitchResult"
+  /shop/recovery/request:
+    post:
+      operationId: shopRecoveryCodeRequest
+      tags: [shop]
+      security:
+        - bearerAuth: []
+      summary: Request a recovery code for an active workspace membership
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopRecoveryRequestInput"
+      responses:
+        "200":
+          description: Recovery code sent to the workspace's verified business email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopRecoveryRequestResult"
+  /shop/recovery/verify:
+    post:
+      operationId: shopRecoveryVerificationCreate
+      tags: [shop]
+      security:
+        - bearerAuth: []
+      summary: Verify a workspace recovery code and restore the active workspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopRecoveryVerifyInput"
+      responses:
+        "200":
+          description: Business workspace restored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopUserResult"
   /notifications:
     get:
       operationId: notificationsList
@@ -2617,6 +2774,11 @@ paths:
           description: Room or message not found, or caller not authorised
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
   schemas:
     ProfileUpdateInput:
       type: object
@@ -2942,6 +3104,128 @@ components:
           type: boolean
           description: True only when OTP verification created a new standalone customer account.
       required: [token, user]
+    ShopSummary:
+      type: object
+      properties:
+        id: { type: string }
+        businessName: { type: string }
+        address: { type: ["string", "null"] }
+        businessEmail: { type: ["string", "null"] }
+        businessEmailVerified: { type: boolean }
+        role:
+          type: string
+          enum: [owner, reception, technician, store_manager, accountant]
+        staffId: { type: ["string", "null"] }
+      required: [id, businessName, role]
+    ShopMembershipSummary:
+      type: object
+      properties:
+        id: { type: string }
+        businessName: { type: string }
+        role:
+          type: string
+          enum: [owner, reception, technician, store_manager, accountant]
+        staffId: { type: ["string", "null"] }
+      required: [id, businessName, role]
+    ShopMeResponse:
+      type: object
+      properties:
+        activeShopId: { type: ["string", "null"] }
+        backupDetected: { type: boolean }
+        shop:
+          oneOf:
+            - $ref: "#/components/schemas/ShopSummary"
+            - type: "null"
+        memberships:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShopMembershipSummary"
+      required: [activeShopId, backupDetected, shop, memberships]
+    ShopSetupRequestInput:
+      type: object
+      properties:
+        businessName: { type: string, minLength: 2, maxLength: 160 }
+        email:
+          type: string
+          pattern: "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+        address: { type: string, minLength: 3, maxLength: 500 }
+        gstNumber: { type: string, maxLength: 15 }
+      required: [businessName, email, address]
+    ShopSetupVerifyInput:
+      type: object
+      properties:
+        email: { type: string }
+        code: { type: string }
+      required: [email, code]
+    ShopSetupRequestResult:
+      type: object
+      properties:
+        message: { type: string }
+        email: { type: string }
+      required: [message, email]
+    ShopInvitationInput:
+      type: object
+      properties:
+        mobile:
+          type: string
+          pattern: "^\\d{10}$"
+        role:
+          type: string
+          enum: [reception, technician, store_manager, accountant]
+      required: [mobile, role]
+    ShopInvitationResult:
+      type: object
+      properties:
+        staffId: { type: string }
+        claimCode: { type: string }
+        status: { type: string }
+      required: [staffId, claimCode, status]
+    ShopClaimInput:
+      type: object
+      properties:
+        staffId: { type: string }
+        claimCode: { type: string }
+      required: [staffId, claimCode]
+    ShopSwitchInput:
+      type: object
+      properties:
+        shopId: { type: string }
+      required: [shopId]
+    ShopSwitchResult:
+      type: object
+      properties:
+        shop:
+          $ref: "#/components/schemas/ShopSummary"
+        user:
+          $ref: "#/components/schemas/AuthUser"
+      required: [shop, user]
+    ShopUserResult:
+      type: object
+      properties:
+        message: { type: string }
+        shop:
+          $ref: "#/components/schemas/ShopSummary"
+        user:
+          $ref: "#/components/schemas/AuthUser"
+      required: [message, shop, user]
+    ShopRecoveryRequestInput:
+      type: object
+      properties:
+        shopId: { type: string }
+      required: [shopId]
+    ShopRecoveryRequestResult:
+      type: object
+      properties:
+        message: { type: string }
+        maskedEmail: { type: string }
+      required: [message, maskedEmail]
+    ShopRecoveryVerifyInput:
+      type: object
+      properties:
+        shopId: { type: string }
+        email: { type: string }
+        code: { type: string }
+      required: [shopId, email, code]
     Dealer:
       type: object
       properties:

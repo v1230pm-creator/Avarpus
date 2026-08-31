@@ -40,6 +40,19 @@ export interface RoleFeaturesInput {
   features: FeatureMap;
 }
 
+/**
+ * Canonical permissions derived from the effective legacy feature matrix.
+ */
+export interface CanonicalPermissionMap {
+  VIEW_KHATA: boolean;
+  EDIT_KHATA: boolean;
+  VIEW_REPAIR: boolean;
+  EDIT_REPAIR: boolean;
+  VIEW_BUSINESS_REPORTS: boolean;
+  MANAGE_STAFF: boolean;
+  MANAGE_BUSINESS_SETTINGS: boolean;
+}
+
 export interface IndividualFeatureChanges {[key: string]: boolean | null}
 
 export interface IndividualFeaturesInput {
@@ -74,6 +87,8 @@ export interface IndividualPermissions {
   roleFeatures: FeatureMap;
   overrides: FeatureMap;
   features: FeatureMap;
+  /** Canonical derived permissions, returned alongside legacy feature fields. */
+  permissions: CanonicalPermissionMap;
 }
 
 export interface AppUpdate {
@@ -328,6 +343,141 @@ export interface AuthSession {
   user: AuthUser;
   /** True only when OTP verification created a new standalone customer account. */
   needsDisplayName?: boolean;
+}
+
+export type ShopSummaryRole = typeof ShopSummaryRole[keyof typeof ShopSummaryRole];
+
+
+export const ShopSummaryRole = {
+  owner: 'owner',
+  reception: 'reception',
+  technician: 'technician',
+  store_manager: 'store_manager',
+  accountant: 'accountant',
+} as const;
+
+export interface ShopSummary {
+  id: string;
+  businessName: string;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  businessEmail?: string | null;
+  businessEmailVerified?: boolean;
+  role: ShopSummaryRole;
+  /** @nullable */
+  staffId?: string | null;
+}
+
+export type ShopMembershipSummaryRole = typeof ShopMembershipSummaryRole[keyof typeof ShopMembershipSummaryRole];
+
+
+export const ShopMembershipSummaryRole = {
+  owner: 'owner',
+  reception: 'reception',
+  technician: 'technician',
+  store_manager: 'store_manager',
+  accountant: 'accountant',
+} as const;
+
+export interface ShopMembershipSummary {
+  id: string;
+  businessName: string;
+  role: ShopMembershipSummaryRole;
+  /** @nullable */
+  staffId?: string | null;
+}
+
+export interface ShopMeResponse {
+  /** @nullable */
+  activeShopId: string | null;
+  backupDetected: boolean;
+  shop: ShopSummary | null;
+  memberships: ShopMembershipSummary[];
+}
+
+export interface ShopSetupRequestInput {
+  /**
+     * @minLength 2
+     * @maxLength 160
+     */
+  businessName: string;
+  /** @pattern ^[^\s@]+@[^\s@]+\.[^\s@]+$ */
+  email: string;
+  /**
+     * @minLength 3
+     * @maxLength 500
+     */
+  address: string;
+  /** @maxLength 15 */
+  gstNumber?: string;
+}
+
+export interface ShopSetupVerifyInput {
+  email: string;
+  code: string;
+}
+
+export interface ShopSetupRequestResult {
+  message: string;
+  email: string;
+}
+
+export type ShopInvitationInputRole = typeof ShopInvitationInputRole[keyof typeof ShopInvitationInputRole];
+
+
+export const ShopInvitationInputRole = {
+  reception: 'reception',
+  technician: 'technician',
+  store_manager: 'store_manager',
+  accountant: 'accountant',
+} as const;
+
+export interface ShopInvitationInput {
+  /** @pattern ^\d{10}$ */
+  mobile: string;
+  role: ShopInvitationInputRole;
+}
+
+export interface ShopInvitationResult {
+  staffId: string;
+  claimCode: string;
+  status: string;
+}
+
+export interface ShopClaimInput {
+  staffId: string;
+  claimCode: string;
+}
+
+export interface ShopSwitchInput {
+  shopId: string;
+}
+
+export interface ShopSwitchResult {
+  shop: ShopSummary;
+  user: AuthUser;
+}
+
+export interface ShopUserResult {
+  message: string;
+  shop: ShopSummary;
+  user: AuthUser;
+}
+
+export interface ShopRecoveryRequestInput {
+  shopId: string;
+}
+
+export interface ShopRecoveryRequestResult {
+  message: string;
+  maskedEmail: string;
+}
+
+export interface ShopRecoveryVerifyInput {
+  shopId: string;
+  email: string;
+  code: string;
 }
 
 export interface Dealer {
@@ -1754,6 +1904,8 @@ export type RoleFeaturesGet200Matrix = {[key: string]: {[key: string]: boolean}}
 
 export type RoleFeaturesGet200 = {
   features: RoleFeaturesGet200Features;
+  /** Canonical derived business permissions; legacy features remain available for compatibility. */
+  permissions?: CanonicalPermissionMap;
   matrix?: RoleFeaturesGet200Matrix;
 };
 
@@ -1761,6 +1913,8 @@ export type RoleFeaturesUpdate200Matrix = {[key: string]: {[key: string]: boolea
 
 export type RoleFeaturesUpdate200 = {
   matrix: RoleFeaturesUpdate200Matrix;
+  /** Canonical derived permissions for the caller; legacy matrix fields are unchanged. */
+  permissions?: CanonicalPermissionMap;
 };
 
 export type AuthActivateInvite200 = {

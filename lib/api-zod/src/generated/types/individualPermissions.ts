@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AuthUser } from './authUser';
+import type { CanonicalPermissionMap } from './canonicalPermissionMap';
 import type { FeatureMap } from './featureMap';
 
 export interface IndividualPermissions {
@@ -14,4 +15,6 @@ export interface IndividualPermissions {
   roleFeatures: FeatureMap;
   overrides: FeatureMap;
   features: FeatureMap;
+  /** Canonical derived permissions, returned alongside legacy feature fields. */
+  permissions: CanonicalPermissionMap;
 }

@@ -250,6 +250,259 @@ export const AuthMeUpdateResponse = zod.object({
 
 
 /**
+ * @summary Get the current user's active workspace and memberships
+ */
+export const ShopWorkspaceGetResponse = zod.object({
+  "activeShopId": zod.string().nullable(),
+  "backupDetected": zod.boolean(),
+  "shop": zod.union([zod.object({
+  "id": zod.string(),
+  "businessName": zod.string(),
+  "address": zod.string().nullish(),
+  "businessEmail": zod.string().nullish(),
+  "businessEmailVerified": zod.boolean().optional(),
+  "role": zod.enum(['owner', 'reception', 'technician', 'store_manager', 'accountant']),
+  "staffId": zod.string().nullish()
+}),zod.null()]),
+  "memberships": zod.array(zod.object({
+  "id": zod.string(),
+  "businessName": zod.string(),
+  "role": zod.enum(['owner', 'reception', 'technician', 'store_manager', 'accountant']),
+  "staffId": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Start business workspace setup and send a verification code
+ */
+export const shopSetupRequestCreateBodyBusinessNameMin = 2;
+export const shopSetupRequestCreateBodyBusinessNameMax = 160;
+
+export const shopSetupRequestCreateBodyEmailRegExp = new RegExp('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$');
+export const shopSetupRequestCreateBodyAddressMin = 3;
+export const shopSetupRequestCreateBodyAddressMax = 500;
+
+export const shopSetupRequestCreateBodyGstNumberMax = 15;
+
+
+
+export const ShopSetupRequestCreateBody = zod.object({
+  "businessName": zod.string().min(shopSetupRequestCreateBodyBusinessNameMin).max(shopSetupRequestCreateBodyBusinessNameMax),
+  "email": zod.string().regex(shopSetupRequestCreateBodyEmailRegExp),
+  "address": zod.string().min(shopSetupRequestCreateBodyAddressMin).max(shopSetupRequestCreateBodyAddressMax),
+  "gstNumber": zod.string().max(shopSetupRequestCreateBodyGstNumberMax).optional()
+})
+
+export const ShopSetupRequestCreateResponse = zod.object({
+  "message": zod.string(),
+  "email": zod.string()
+})
+
+
+/**
+ * @summary Verify the business email and create a workspace
+ */
+export const ShopSetupVerificationCreateBody = zod.object({
+  "email": zod.string(),
+  "code": zod.string()
+})
+
+export const ShopSetupVerificationCreateResponse = zod.object({
+  "message": zod.string(),
+  "shop": zod.object({
+  "id": zod.string(),
+  "businessName": zod.string(),
+  "address": zod.string().nullish(),
+  "businessEmail": zod.string().nullish(),
+  "businessEmailVerified": zod.boolean().optional(),
+  "role": zod.enum(['owner', 'reception', 'technician', 'store_manager', 'accountant']),
+  "staffId": zod.string().nullish()
+}),
+  "user": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Create or renew a staff invitation for the current workspace owner
+ */
+export const shopInvitationCreateBodyMobileRegExp = new RegExp('^\\d{10}$');
+
+
+export const ShopInvitationCreateBody = zod.object({
+  "mobile": zod.string().regex(shopInvitationCreateBodyMobileRegExp),
+  "role": zod.enum(['reception', 'technician', 'store_manager', 'accountant'])
+})
+
+export const ShopInvitationCreateResponse = zod.object({
+  "staffId": zod.string(),
+  "claimCode": zod.string(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary Claim a pending staff invitation
+ */
+export const ShopInvitationClaimBody = zod.object({
+  "staffId": zod.string(),
+  "claimCode": zod.string()
+})
+
+export const ShopInvitationClaimResponse = zod.object({
+  "message": zod.string(),
+  "shop": zod.object({
+  "id": zod.string(),
+  "businessName": zod.string(),
+  "address": zod.string().nullish(),
+  "businessEmail": zod.string().nullish(),
+  "businessEmailVerified": zod.boolean().optional(),
+  "role": zod.enum(['owner', 'reception', 'technician', 'store_manager', 'accountant']),
+  "staffId": zod.string().nullish()
+}),
+  "user": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Switch the active business workspace
+ */
+export const ShopWorkspaceSwitchBody = zod.object({
+  "shopId": zod.string()
+})
+
+export const ShopWorkspaceSwitchResponse = zod.object({
+  "shop": zod.object({
+  "id": zod.string(),
+  "businessName": zod.string(),
+  "address": zod.string().nullish(),
+  "businessEmail": zod.string().nullish(),
+  "businessEmailVerified": zod.boolean().optional(),
+  "role": zod.enum(['owner', 'reception', 'technician', 'store_manager', 'accountant']),
+  "staffId": zod.string().nullish()
+}),
+  "user": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Request a recovery code for an active workspace membership
+ */
+export const ShopRecoveryCodeRequestBody = zod.object({
+  "shopId": zod.string()
+})
+
+export const ShopRecoveryCodeRequestResponse = zod.object({
+  "message": zod.string(),
+  "maskedEmail": zod.string()
+})
+
+
+/**
+ * @summary Verify a workspace recovery code and restore the active workspace
+ */
+export const ShopRecoveryVerificationCreateBody = zod.object({
+  "shopId": zod.string(),
+  "email": zod.string(),
+  "code": zod.string()
+})
+
+export const ShopRecoveryVerificationCreateResponse = zod.object({
+  "message": zod.string(),
+  "shop": zod.object({
+  "id": zod.string(),
+  "businessName": zod.string(),
+  "address": zod.string().nullish(),
+  "businessEmail": zod.string().nullish(),
+  "businessEmailVerified": zod.boolean().optional(),
+  "role": zod.enum(['owner', 'reception', 'technician', 'store_manager', 'accountant']),
+  "staffId": zod.string().nullish()
+}),
+  "user": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "mobile": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean(),
+  "designation": zod.string().optional(),
+  "joinDate": zod.string().optional(),
+  "businessName": zod.string().optional(),
+  "gstNumber": zod.string().optional(),
+  "shopAddress": zod.string().optional(),
+  "profilePhoto": zod.string().optional(),
+  "profileAbout": zod.string().optional(),
+  "profileUsername": zod.string().optional(),
+  "profileLinks": zod.array(zod.string()).optional(),
+  "companyLogo": zod.string().optional(),
+  "shopId": zod.string().optional(),
+  "dealerId": zod.string().optional(),
+  "needsDisplayName": zod.boolean()
+})
+})
+
+
+/**
  * @summary Latest in-app notifications for the current user
  */
 export const NotificationsListResponse = zod.object({
@@ -407,7 +660,16 @@ export const StaffPermissionsGetResponse = zod.object({
   "availableFeatures": zod.array(zod.string()),
   "roleFeatures": zod.record(zod.string(), zod.boolean()),
   "overrides": zod.record(zod.string(), zod.boolean()),
-  "features": zod.record(zod.string(), zod.boolean())
+  "features": zod.record(zod.string(), zod.boolean()),
+  "permissions": zod.object({
+  "VIEW_KHATA": zod.boolean(),
+  "EDIT_KHATA": zod.boolean(),
+  "VIEW_REPAIR": zod.boolean(),
+  "EDIT_REPAIR": zod.boolean(),
+  "VIEW_BUSINESS_REPORTS": zod.boolean(),
+  "MANAGE_STAFF": zod.boolean(),
+  "MANAGE_BUSINESS_SETTINGS": zod.boolean()
+}).describe('Canonical derived permissions, returned alongside legacy feature fields.')
 })
 
 
@@ -447,7 +709,16 @@ export const StaffPermissionsUpdateResponse = zod.object({
   "availableFeatures": zod.array(zod.string()),
   "roleFeatures": zod.record(zod.string(), zod.boolean()),
   "overrides": zod.record(zod.string(), zod.boolean()),
-  "features": zod.record(zod.string(), zod.boolean())
+  "features": zod.record(zod.string(), zod.boolean()),
+  "permissions": zod.object({
+  "VIEW_KHATA": zod.boolean(),
+  "EDIT_KHATA": zod.boolean(),
+  "VIEW_REPAIR": zod.boolean(),
+  "EDIT_REPAIR": zod.boolean(),
+  "VIEW_BUSINESS_REPORTS": zod.boolean(),
+  "MANAGE_STAFF": zod.boolean(),
+  "MANAGE_BUSINESS_SETTINGS": zod.boolean()
+}).describe('Canonical derived permissions, returned alongside legacy feature fields.')
 })
 
 
@@ -3191,6 +3462,15 @@ export const UnpublishAppUpdateResponse = zod.object({
  */
 export const RoleFeaturesGetResponse = zod.object({
   "features": zod.record(zod.string(), zod.boolean()),
+  "permissions": zod.object({
+  "VIEW_KHATA": zod.boolean(),
+  "EDIT_KHATA": zod.boolean(),
+  "VIEW_REPAIR": zod.boolean(),
+  "EDIT_REPAIR": zod.boolean(),
+  "VIEW_BUSINESS_REPORTS": zod.boolean(),
+  "MANAGE_STAFF": zod.boolean(),
+  "MANAGE_BUSINESS_SETTINGS": zod.boolean()
+}).optional().describe('Canonical derived business permissions; legacy features remain available for compatibility.'),
   "matrix": zod.record(zod.string(), zod.record(zod.string(), zod.boolean())).optional()
 })
 
@@ -3207,7 +3487,16 @@ export const RoleFeaturesUpdateBody = zod.object({
 })
 
 export const RoleFeaturesUpdateResponse = zod.object({
-  "matrix": zod.record(zod.string(), zod.record(zod.string(), zod.boolean()))
+  "matrix": zod.record(zod.string(), zod.record(zod.string(), zod.boolean())),
+  "permissions": zod.object({
+  "VIEW_KHATA": zod.boolean(),
+  "EDIT_KHATA": zod.boolean(),
+  "VIEW_REPAIR": zod.boolean(),
+  "EDIT_REPAIR": zod.boolean(),
+  "VIEW_BUSINESS_REPORTS": zod.boolean(),
+  "MANAGE_STAFF": zod.boolean(),
+  "MANAGE_BUSINESS_SETTINGS": zod.boolean()
+}).optional().describe('Canonical derived permissions for the caller; legacy matrix fields are unchanged.')
 })
 
 

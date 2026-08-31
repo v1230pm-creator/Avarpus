@@ -162,6 +162,19 @@ import type {
   RoleFeaturesInput,
   RoleFeaturesUpdate200,
   ServiceUnavailable,
+  ShopClaimInput,
+  ShopInvitationInput,
+  ShopInvitationResult,
+  ShopMeResponse,
+  ShopRecoveryRequestInput,
+  ShopRecoveryRequestResult,
+  ShopRecoveryVerifyInput,
+  ShopSetupRequestInput,
+  ShopSetupRequestResult,
+  ShopSetupVerifyInput,
+  ShopSwitchInput,
+  ShopSwitchResult,
+  ShopUserResult,
   StaffActivate200,
   StaffCreate200,
   StaffCreateInput,
@@ -851,6 +864,580 @@ export const useAuthMeUpdate = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAuthMeUpdateMutationOptions(options));
+    }
+
+export const getShopWorkspaceGetUrl = () => {
+
+
+
+
+  return `/api/shop/me`
+}
+
+/**
+ * @summary Get the current user's active workspace and memberships
+ */
+export const shopWorkspaceGet = async ( options?: Parameters<typeof customFetch>[1]): Promise<ShopMeResponse> => {
+
+  return customFetch<ShopMeResponse>(getShopWorkspaceGetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getShopWorkspaceGetQueryKey = () => {
+    return [
+    `/api/shop/me`
+    ] as const;
+    }
+
+
+export const getShopWorkspaceGetQueryOptions = <TData = Awaited<ReturnType<typeof shopWorkspaceGet>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof shopWorkspaceGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getShopWorkspaceGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof shopWorkspaceGet>>> = ({ signal }) => shopWorkspaceGet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof shopWorkspaceGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ShopWorkspaceGetQueryResult = NonNullable<Awaited<ReturnType<typeof shopWorkspaceGet>>>
+export type ShopWorkspaceGetQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the current user's active workspace and memberships
+ */
+
+export function useShopWorkspaceGet<TData = Awaited<ReturnType<typeof shopWorkspaceGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof shopWorkspaceGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getShopWorkspaceGetQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getShopSetupRequestCreateUrl = () => {
+
+
+
+
+  return `/api/shop/setup/request`
+}
+
+/**
+ * @summary Start business workspace setup and send a verification code
+ */
+export const shopSetupRequestCreate = async (shopSetupRequestInput: ShopSetupRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopSetupRequestResult> => {
+
+  return customFetch<ShopSetupRequestResult>(getShopSetupRequestCreateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopSetupRequestInput)
+  }
+);}
+
+
+
+
+
+export const getShopSetupRequestCreateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shopSetupRequestCreate>>, TError,{data: BodyType<ShopSetupRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof shopSetupRequestCreate>>, TError,{data: BodyType<ShopSetupRequestInput>}, TContext> => {
+
+const mutationKey = ['shopSetupRequestCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof shopSetupRequestCreate>>, {data: BodyType<ShopSetupRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  shopSetupRequestCreate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ShopSetupRequestCreateMutationResult = NonNullable<Awaited<ReturnType<typeof shopSetupRequestCreate>>>
+    export type ShopSetupRequestCreateMutationBody = BodyType<ShopSetupRequestInput>
+    export type ShopSetupRequestCreateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Start business workspace setup and send a verification code
+ */
+export const useShopSetupRequestCreate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shopSetupRequestCreate>>, TError,{data: BodyType<ShopSetupRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof shopSetupRequestCreate>>,
+        TError,
+        {data: BodyType<ShopSetupRequestInput>},
+        TContext
+      > => {
+      return useMutation(getShopSetupRequestCreateMutationOptions(options));
+    }
+
+export const getShopSetupVerificationCreateUrl = () => {
+
+
+
+
+  return `/api/shop/setup/verify`
+}
+
+/**
+ * @summary Verify the business email and create a workspace
+ */
+export const shopSetupVerificationCreate = async (shopSetupVerifyInput: ShopSetupVerifyInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopUserResult> => {
+
+  return customFetch<ShopUserResult>(getShopSetupVerificationCreateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopSetupVerifyInput)
+  }
+);}
+
+
+
+
+
+export const getShopSetupVerificationCreateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shopSetupVerificationCreate>>, TError,{data: BodyType<ShopSetupVerifyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof shopSetupVerificationCreate>>, TError,{data: BodyType<ShopSetupVerifyInput>}, TContext> => {
+
+const mutationKey = ['shopSetupVerificationCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof shopSetupVerificationCreate>>, {data: BodyType<ShopSetupVerifyInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  shopSetupVerificationCreate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ShopSetupVerificationCreateMutationResult = NonNullable<Awaited<ReturnType<typeof shopSetupVerificationCreate>>>
+    export type ShopSetupVerificationCreateMutationBody = BodyType<ShopSetupVerifyInput>
+    export type ShopSetupVerificationCreateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Verify the business email and create a workspace
+ */
+export const useShopSetupVerificationCreate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shopSetupVerificationCreate>>, TError,{data: BodyType<ShopSetupVerifyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof shopSetupVerificationCreate>>,
+        TError,
+        {data: BodyType<ShopSetupVerifyInput>},
+        TContext
+      > => {
+      return useMutation(getShopSetupVerificationCreateMutationOptions(options));
+    }
+
+export const getShopInvitationCreateUrl = () => {
+
+
+
+
+  return `/api/shop/invitations`
+}
+
+/**
+ * @summary Create or renew a staff invitation for the current workspace owner
+ */
+export const shopInvitationCreate = async (shopInvitationInput: ShopInvitationInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopInvitationResult> => {
+
+  return customFetch<ShopInvitationResult>(getShopInvitationCreateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopInvitationInput)
+  }
+);}
+
+
+
+
+
+export const getShopInvitationCreateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shopInvitationCreate>>, TError,{data: BodyType<ShopInvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof shopInvitationCreate>>, TError,{data: BodyType<ShopInvitationInput>}, TContext> => {
+
+const mutationKey = ['shopInvitationCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof shopInvitationCreate>>, {data: BodyType<ShopInvitationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  shopInvitationCreate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ShopInvitationCreateMutationResult = NonNullable<Awaited<ReturnType<typeof shopInvitationCreate>>>
+    export type ShopInvitationCreateMutationBody = BodyType<ShopInvitationInput>
+    export type ShopInvitationCreateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create or renew a staff invitation for the current workspace owner
+ */
+export const useShopInvitationCreate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shopInvitationCreate>>, TError,{data: BodyType<ShopInvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof shopInvitationCreate>>,
+        TError,
+        {data: BodyType<ShopInvitationInput>},
+        TContext
+      > => {
+      return useMutation(getShopInvitationCreateMutationOptions(options));
+    }
+
+export const getShopInvitationClaimUrl = () => {
+
+
+
+
+  return `/api/shop/claim`
+}
+
+/**
+ * @summary Claim a pending staff invitation
+ */
+export const shopInvitationClaim = async (shopClaimInput: ShopClaimInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopUserResult> => {
+
+  return customFetch<ShopUserResult>(getShopInvitationClaimUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopClaimInput)
+  }
+);}
+
+
+
+
+
+export const getShopInvitationClaimMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shopInvitationClaim>>, TError,{data: BodyType<ShopClaimInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof shopInvitationClaim>>, TError,{data: BodyType<ShopClaimInput>}, TContext> => {
+
+const mutationKey = ['shopInvitationClaim'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof shopInvitationClaim>>, {data: BodyType<ShopClaimInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  shopInvitationClaim(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ShopInvitationClaimMutationResult = NonNullable<Awaited<ReturnType<typeof shopInvitationClaim>>>
+    export type ShopInvitationClaimMutationBody = BodyType<ShopClaimInput>
+    export type ShopInvitationClaimMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Claim a pending staff invitation
+ */
+export const useShopInvitationClaim = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shopInvitationClaim>>, TError,{data: BodyType<ShopClaimInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof shopInvitationClaim>>,
+        TError,
+        {data: BodyType<ShopClaimInput>},
+        TContext
+      > => {
+      return useMutation(getShopInvitationClaimMutationOptions(options));
+    }
+
+export const getShopWorkspaceSwitchUrl = () => {
+
+
+
+
+  return `/api/shop/switch`
+}
+
+/**
+ * @summary Switch the active business workspace
+ */
+export const shopWorkspaceSwitch = async (shopSwitchInput: ShopSwitchInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopSwitchResult> => {
+
+  return customFetch<ShopSwitchResult>(getShopWorkspaceSwitchUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopSwitchInput)
+  }
+);}
+
+
+
+
+
+export const getShopWorkspaceSwitchMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shopWorkspaceSwitch>>, TError,{data: BodyType<ShopSwitchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof shopWorkspaceSwitch>>, TError,{data: BodyType<ShopSwitchInput>}, TContext> => {
+
+const mutationKey = ['shopWorkspaceSwitch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof shopWorkspaceSwitch>>, {data: BodyType<ShopSwitchInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  shopWorkspaceSwitch(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ShopWorkspaceSwitchMutationResult = NonNullable<Awaited<ReturnType<typeof shopWorkspaceSwitch>>>
+    export type ShopWorkspaceSwitchMutationBody = BodyType<ShopSwitchInput>
+    export type ShopWorkspaceSwitchMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Switch the active business workspace
+ */
+export const useShopWorkspaceSwitch = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shopWorkspaceSwitch>>, TError,{data: BodyType<ShopSwitchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof shopWorkspaceSwitch>>,
+        TError,
+        {data: BodyType<ShopSwitchInput>},
+        TContext
+      > => {
+      return useMutation(getShopWorkspaceSwitchMutationOptions(options));
+    }
+
+export const getShopRecoveryCodeRequestUrl = () => {
+
+
+
+
+  return `/api/shop/recovery/request`
+}
+
+/**
+ * @summary Request a recovery code for an active workspace membership
+ */
+export const shopRecoveryCodeRequest = async (shopRecoveryRequestInput: ShopRecoveryRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopRecoveryRequestResult> => {
+
+  return customFetch<ShopRecoveryRequestResult>(getShopRecoveryCodeRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopRecoveryRequestInput)
+  }
+);}
+
+
+
+
+
+export const getShopRecoveryCodeRequestMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shopRecoveryCodeRequest>>, TError,{data: BodyType<ShopRecoveryRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof shopRecoveryCodeRequest>>, TError,{data: BodyType<ShopRecoveryRequestInput>}, TContext> => {
+
+const mutationKey = ['shopRecoveryCodeRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof shopRecoveryCodeRequest>>, {data: BodyType<ShopRecoveryRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  shopRecoveryCodeRequest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ShopRecoveryCodeRequestMutationResult = NonNullable<Awaited<ReturnType<typeof shopRecoveryCodeRequest>>>
+    export type ShopRecoveryCodeRequestMutationBody = BodyType<ShopRecoveryRequestInput>
+    export type ShopRecoveryCodeRequestMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Request a recovery code for an active workspace membership
+ */
+export const useShopRecoveryCodeRequest = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shopRecoveryCodeRequest>>, TError,{data: BodyType<ShopRecoveryRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof shopRecoveryCodeRequest>>,
+        TError,
+        {data: BodyType<ShopRecoveryRequestInput>},
+        TContext
+      > => {
+      return useMutation(getShopRecoveryCodeRequestMutationOptions(options));
+    }
+
+export const getShopRecoveryVerificationCreateUrl = () => {
+
+
+
+
+  return `/api/shop/recovery/verify`
+}
+
+/**
+ * @summary Verify a workspace recovery code and restore the active workspace
+ */
+export const shopRecoveryVerificationCreate = async (shopRecoveryVerifyInput: ShopRecoveryVerifyInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopUserResult> => {
+
+  return customFetch<ShopUserResult>(getShopRecoveryVerificationCreateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopRecoveryVerifyInput)
+  }
+);}
+
+
+
+
+
+export const getShopRecoveryVerificationCreateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shopRecoveryVerificationCreate>>, TError,{data: BodyType<ShopRecoveryVerifyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof shopRecoveryVerificationCreate>>, TError,{data: BodyType<ShopRecoveryVerifyInput>}, TContext> => {
+
+const mutationKey = ['shopRecoveryVerificationCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof shopRecoveryVerificationCreate>>, {data: BodyType<ShopRecoveryVerifyInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  shopRecoveryVerificationCreate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ShopRecoveryVerificationCreateMutationResult = NonNullable<Awaited<ReturnType<typeof shopRecoveryVerificationCreate>>>
+    export type ShopRecoveryVerificationCreateMutationBody = BodyType<ShopRecoveryVerifyInput>
+    export type ShopRecoveryVerificationCreateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Verify a workspace recovery code and restore the active workspace
+ */
+export const useShopRecoveryVerificationCreate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shopRecoveryVerificationCreate>>, TError,{data: BodyType<ShopRecoveryVerifyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof shopRecoveryVerificationCreate>>,
+        TError,
+        {data: BodyType<ShopRecoveryVerifyInput>},
+        TContext
+      > => {
+      return useMutation(getShopRecoveryVerificationCreateMutationOptions(options));
     }
 
 export const getNotificationsListUrl = () => {

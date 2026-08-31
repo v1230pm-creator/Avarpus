@@ -5,8 +5,11 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CanonicalPermissionMap } from './canonicalPermissionMap';
 import type { RoleFeaturesUpdate200Matrix } from './roleFeaturesUpdate200Matrix';
 
 export type RoleFeaturesUpdate200 = {
   matrix: RoleFeaturesUpdate200Matrix;
+  /** Canonical derived permissions for the caller; legacy matrix fields are unchanged. */
+  permissions?: CanonicalPermissionMap;
 };

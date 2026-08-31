@@ -49,3 +49,4 @@
 - [Android 12 splash handoff](android-12-splash-handoff.md) — never feed full-screen art to the centered system icon; bridge with matching navy until the in-app splash is loaded.
 - [Immutable profile photos](immutable-profile-photos.md) — never attach a presigned-upload key directly; verify bytes, copy to a server-owned final key, then attach that immutable path.
 - [Shop membership authority](shop-membership-authority.md) — membership role/status is authoritative per Shop; users.role/shopId is only the active-workspace compatibility pointer.
+- [OpenAPI email schemas](openapi-email-schemas.md) — Orval emits Zod 4-only email validators for `format: email`; use a regex pattern while api-zod remains on Zod 3.
