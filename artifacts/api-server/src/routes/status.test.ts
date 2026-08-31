@@ -13,6 +13,7 @@ import {
 } from "@workspace/db";
 import { createSession } from "../lib/authUtils";
 import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
+import { cleanupAbandonedStatusUploads, STATUS_UPLOAD_GRACE_MS } from "./status";
 
 const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const digits = suffix.replace(/\D/g, "").slice(-8).padStart(8, "7");
@@ -175,6 +176,158 @@ describe.sequential("personal Status updates", () => {
     }
   });
 
+  it("deletes old unclaimed uploads but retains media attached to a live status", async () => {
+    const attachedPath = `/objects/uploads/status/${authorId}/attached`;
+    const abandonedPath = `/objects/uploads/status/${authorId}/abandoned`;
+    const freshPath = `/objects/uploads/status/${authorId}/fresh`;
+    const attachedDelete = vi.fn();
+    const abandonedDelete = vi.fn();
+    const freshDelete = vi.fn();
+    const listFiles = vi.spyOn(ObjectStorageService.prototype, "listObjectEntityFiles")
+      .mockResolvedValue([
+        {
+          objectPath: attachedPath,
+          file: {
+            getMetadata: async () => [{
+              timeCreated: new Date(Date.now() - STATUS_UPLOAD_GRACE_MS - 1_000).toISOString(),
+            }],
+            delete: attachedDelete,
+          },
+        },
+        {
+          objectPath: abandonedPath,
+          file: {
+            getMetadata: async () => [{
+              timeCreated: new Date(Date.now() - STATUS_UPLOAD_GRACE_MS - 1_000).toISOString(),
+            }],
+            delete: abandonedDelete,
+          },
+        },
+        {
+          objectPath: freshPath,
+          file: {
+            getMetadata: async () => [{
+              timeCreated: new Date(Date.now() - STATUS_UPLOAD_GRACE_MS + 60_000).toISOString(),
+            }],
+            delete: freshDelete,
+          },
+        },
+      ] as never);
+    const [liveStatus] = await db.insert(statusUpdatesTable).values({
+      authorId,
+      kind: "image",
+      objectPath: attachedPath,
+      mimeType: "image/jpeg",
+      sizeBytes: 1,
+      audience: "contacts",
+      expiresAt: new Date(Date.now() + 60_000),
+    }).returning();
+    try {
+      const result = await cleanupAbandonedStatusUploads();
+      expect(result).toMatchObject({
+        listed: 3,
+        retained: 1,
+        deleted: 1,
+        tooNew: 1,
+        failed: 0,
+      });
+      expect(attachedDelete).not.toHaveBeenCalled();
+      expect(abandonedDelete).toHaveBeenCalledOnce();
+      expect(freshDelete).not.toHaveBeenCalled();
+    } finally {
+      listFiles.mockRestore();
+      await db.delete(statusUpdatesTable).where(eq(statusUpdatesTable.id, liveStatus.id));
+    }
+  });
+
+  it("leaves a failed orphan delete for the next cleanup run to retry", async () => {
+    const objectPath = `/objects/uploads/status/${authorId}/retryable`;
+    const deleteFile = vi.fn()
+      .mockRejectedValueOnce(new Error("temporary storage outage"))
+      .mockResolvedValueOnce([]);
+    const listFiles = vi.spyOn(ObjectStorageService.prototype, "listObjectEntityFiles")
+      .mockResolvedValue([{
+        objectPath,
+        file: {
+          getMetadata: async () => [{
+            timeCreated: new Date(Date.now() - STATUS_UPLOAD_GRACE_MS - 1_000).toISOString(),
+          }],
+          delete: deleteFile,
+        },
+      }] as never);
+    try {
+      const first = await cleanupAbandonedStatusUploads();
+      expect(first).toMatchObject({ listed: 1, deleted: 0, failed: 1 });
+      const second = await cleanupAbandonedStatusUploads();
+      expect(second).toMatchObject({ listed: 1, deleted: 1, failed: 0 });
+      expect(deleteFile).toHaveBeenCalledTimes(2);
+    } finally {
+      listFiles.mockRestore();
+    }
+  });
+
+  it("does not delete an old upload while it is being published", async () => {
+    const objectPath = `/objects/uploads/status/${authorId}/publish-race`;
+    let releaseValidation!: () => void;
+    let reportValidationStarted!: () => void;
+    const validationGate = new Promise<void>((resolve) => {
+      releaseValidation = resolve;
+    });
+    const validationStarted = new Promise<void>((resolve) => {
+      reportValidationStarted = resolve;
+    });
+    const fileLookup = vi.spyOn(ObjectStorageService.prototype, "getObjectEntityFile")
+      .mockResolvedValue({
+        getMetadata: async () => {
+          reportValidationStarted();
+          await validationGate;
+          return [{ contentType: "image/jpeg", size: "1" }];
+        },
+      } as never);
+    const cleanupDelete = vi.fn();
+    const listFiles = vi.spyOn(ObjectStorageService.prototype, "listObjectEntityFiles")
+      .mockResolvedValue([{
+        objectPath,
+        file: {
+          getMetadata: async () => [{
+            timeCreated: new Date(Date.now() - STATUS_UPLOAD_GRACE_MS - 1_000).toISOString(),
+          }],
+          delete: cleanupDelete,
+        },
+      }] as never);
+    let publishedId: string | undefined;
+    try {
+      const publishPromise = request(app)
+        .post("/api/statuses")
+        .set("Authorization", `Bearer ${authorToken}`)
+        .send({
+          kind: "image",
+          objectPath,
+          mimeType: "image/jpeg",
+          sizeBytes: 1,
+          audience: "contacts",
+        })
+        .then((response) => response);
+      await validationStarted;
+      const cleanupPromise = cleanupAbandonedStatusUploads();
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      releaseValidation();
+
+      const [published, cleanup] = await Promise.all([publishPromise, cleanupPromise]);
+      publishedId = published.body.status?.id;
+      expect(published.status).toBe(201);
+      expect(cleanup).toMatchObject({ listed: 1, retained: 1, deleted: 0, failed: 0 });
+      expect(cleanupDelete).not.toHaveBeenCalled();
+    } finally {
+      releaseValidation();
+      listFiles.mockRestore();
+      fileLookup.mockRestore();
+      if (publishedId) {
+        await db.delete(statusUpdatesTable).where(eq(statusUpdatesTable.id, publishedId));
+      }
+    }
+  });
+
   it("shows the update to personal direct contacts but not unrelated accounts", async () => {
     const contactFeed = await request(app)
       .get("/api/statuses")
@@ -267,6 +420,45 @@ describe.sequential("personal Status updates", () => {
       .from(statusUpdatesTable)
       .where(eq(statusUpdatesTable.id, expired.id));
     expect(remaining).toBeUndefined();
+  });
+
+  it("keeps shared media when only one of its Status rows has expired", async () => {
+    const objectPath = `/objects/uploads/status/${authorId}/shared`;
+    const fileLookup = vi.spyOn(ObjectStorageService.prototype, "getObjectEntityFile");
+    const [active, expired] = await db.insert(statusUpdatesTable).values([
+      {
+        authorId,
+        kind: "image",
+        objectPath,
+        mimeType: "image/jpeg",
+        sizeBytes: 1,
+        audience: "contacts",
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+      {
+        authorId,
+        kind: "image",
+        objectPath,
+        mimeType: "image/jpeg",
+        sizeBytes: 1,
+        audience: "contacts",
+        expiresAt: new Date(Date.now() - 1_000),
+      },
+    ]).returning();
+    try {
+      const feed = await request(app)
+        .get("/api/statuses")
+        .set("Authorization", `Bearer ${authorToken}`);
+      expect(feed.status).toBe(200);
+      const remaining = await db.select({ id: statusUpdatesTable.id })
+        .from(statusUpdatesTable)
+        .where(inArray(statusUpdatesTable.id, [active.id, expired.id]));
+      expect(remaining.map((row) => row.id)).toEqual([active.id]);
+      expect(fileLookup).not.toHaveBeenCalled();
+    } finally {
+      fileLookup.mockRestore();
+      await db.delete(statusUpdatesTable).where(eq(statusUpdatesTable.id, active.id));
+    }
   });
 
   it("lets only the owner delete a status", async () => {

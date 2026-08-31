@@ -38,6 +38,11 @@ export class ObjectNotFoundError extends Error {
   }
 }
 
+export type ListedObjectEntityFile = {
+  file: File;
+  objectPath: string;
+};
+
 export class ObjectStorageService {
   constructor() {}
 
@@ -213,6 +218,49 @@ export class ObjectStorageService {
       metadata: { contentType },
     });
     return this.normalizeObjectEntityPath(objectFile.publicUrl());
+  }
+
+  /**
+   * List private objects below a relative prefix and return their canonical
+   * entity paths alongside the provider file handles. Callers should keep the
+   * prefix narrow: this method is intended for bounded maintenance jobs, not
+   * user-controlled browsing.
+   */
+  async listObjectEntityFiles(prefix: string): Promise<ListedObjectEntityFile[]> {
+    if (
+      typeof prefix !== "string" ||
+      !prefix ||
+      prefix.startsWith("/") ||
+      prefix.includes("..") ||
+      /[?#]/.test(prefix) ||
+      prefix.split("/").some((segment, index, segments) =>
+        !segment && index !== segments.length - 1,
+      )
+    ) {
+      throw new Error(`Invalid object listing prefix: ${prefix}`);
+    }
+
+    let privateObjectDir = this.getPrivateObjectDir();
+    if (!privateObjectDir.endsWith("/")) {
+      privateObjectDir = `${privateObjectDir}/`;
+    }
+    const { bucketName, objectName: listingPrefix } = parseObjectPath(
+      `${privateObjectDir}${prefix}`,
+    );
+    const [files] = await objectStorageClient
+      .bucket(bucketName)
+      .getFiles({ prefix: listingPrefix });
+    const privateObjectPrefix = listingPrefix.slice(
+      0,
+      listingPrefix.length - prefix.length,
+    );
+
+    return files
+      .filter((file) => file.name.startsWith(`${privateObjectPrefix}${prefix}`))
+      .map((file) => ({
+        file,
+        objectPath: `/objects/${file.name.slice(privateObjectPrefix.length)}`,
+      }));
   }
 
   async getObjectEntityFile(objectPath: string): Promise<File> {

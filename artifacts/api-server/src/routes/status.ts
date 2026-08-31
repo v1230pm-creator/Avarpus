@@ -8,6 +8,7 @@ import {
   isNotNull,
   isNull,
   lte,
+  ne,
   or,
   sql,
 } from "drizzle-orm";
@@ -20,6 +21,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
+import { logger } from "../lib/logger";
 import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
 import { isPersonalContact, statusVisibilityCondition } from "../lib/statusAccess";
 
@@ -37,7 +39,13 @@ const STATUS_IMAGE_TYPES = new Set([
 ]);
 const STATUS_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// This is longer than the 24-hour published lifetime. It gives a composer
+// time to finish and leaves room for a daily maintenance run before an
+// unclaimed upload is removed.
+export const STATUS_UPLOAD_GRACE_MS = 48 * 60 * 60 * 1000;
 type AuthedRequest = Request & { user: DbUser };
+
+class StatusMediaValidationError extends Error {}
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Invalid status";
@@ -105,26 +113,127 @@ async function cleanupInactiveStatuses(onlyIds?: string[]): Promise<void> {
       cleanedIds.push(row.id);
       continue;
     }
+    const objectPath = row.objectPath;
     try {
-      const objectFile = await objectStorageService.getObjectEntityFile(row.objectPath);
-      await objectFile.delete({ ignoreNotFound: true });
-      cleanedIds.push(row.id);
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`
+          SELECT pg_advisory_xact_lock(hashtextextended(${objectPath}, 0))
+        `);
+        const [otherReference] = await tx
+          .select({ id: statusUpdatesTable.id })
+          .from(statusUpdatesTable)
+          .where(and(
+            eq(statusUpdatesTable.objectPath, objectPath),
+            ne(statusUpdatesTable.id, row.id),
+          ))
+          .limit(1);
+        if (!otherReference) {
+          try {
+            const objectFile = await objectStorageService
+              .getObjectEntityFile(objectPath);
+            await objectFile.delete({ ignoreNotFound: true });
+          } catch (error) {
+            if (!(error instanceof ObjectNotFoundError)) {
+              throw error;
+            }
+          }
+        }
+        await tx.delete(statusUpdatesTable).where(eq(statusUpdatesTable.id, row.id));
+      });
     } catch (error) {
-      if (error instanceof ObjectNotFoundError) {
-        cleanedIds.push(row.id);
-      } else {
-        // Keep the tombstone/expired row so the next feed read retries storage
-        // cleanup without ever making the status visible again.
-        console.warn("Status media cleanup will be retried", {
-          statusId: row.id,
-          error: errorMessage(error),
-        });
-      }
+      // Keep the tombstone/expired row so the next feed read retries storage
+      // cleanup without ever making the status visible again.
+      logger.warn({
+        statusId: row.id,
+        error: errorMessage(error),
+      }, "Status media cleanup will be retried");
     }
   }
   if (cleanedIds.length) {
     await db.delete(statusUpdatesTable).where(inArray(statusUpdatesTable.id, cleanedIds));
   }
+}
+
+export type AbandonedStatusUploadCleanupResult = {
+  listed: number;
+  deleted: number;
+  retained: number;
+  tooNew: number;
+  failed: number;
+};
+
+/**
+ * Remove old objects in the Status upload namespace that are not referenced
+ * by a Status row. The provider listing is deliberately internal: this job
+ * never returns object names or media to callers. A failed delete is left in
+ * place so the next scheduled run can retry it.
+ */
+export async function cleanupAbandonedStatusUploads(
+  now = new Date(),
+): Promise<AbandonedStatusUploadCleanupResult> {
+  const result: AbandonedStatusUploadCleanupResult = {
+    listed: 0,
+    deleted: 0,
+    retained: 0,
+    tooNew: 0,
+    failed: 0,
+  };
+  let objects;
+  try {
+    objects = await objectStorageService.listObjectEntityFiles("uploads/status/");
+  } catch (error) {
+    logger.error({ err: error }, "Status upload cleanup listing failed");
+    return result;
+  }
+  result.listed = objects.length;
+  const cutoff = now.getTime() - STATUS_UPLOAD_GRACE_MS;
+
+  for (const { file, objectPath } of objects) {
+    let metadata;
+    try {
+      [metadata] = await file.getMetadata();
+    } catch (error) {
+      result.failed += 1;
+      logger.warn({ err: error }, "Status upload cleanup metadata lookup failed");
+      continue;
+    }
+    const createdAt = Date.parse(String(metadata.timeCreated ?? ""));
+    if (!Number.isFinite(createdAt) || createdAt >= cutoff) {
+      result.tooNew += 1;
+      continue;
+    }
+    try {
+      await db.transaction(async (tx) => {
+        // Publishing takes the same transaction-scoped lock. Re-checking the
+        // exact path after acquisition closes the race between an attachment
+        // snapshot and storage deletion.
+        await tx.execute(sql`
+          SELECT pg_advisory_xact_lock(hashtextextended(${objectPath}, 0))
+        `);
+        const [attached] = await tx
+          .select({ id: statusUpdatesTable.id })
+          .from(statusUpdatesTable)
+          .where(eq(statusUpdatesTable.objectPath, objectPath))
+          .limit(1);
+        if (attached) {
+          result.retained += 1;
+          return;
+        }
+        await file.delete({ ignoreNotFound: true });
+        result.deleted += 1;
+      });
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        result.deleted += 1;
+        continue;
+      }
+      result.failed += 1;
+      logger.warn({ objectPath, err: error }, "Status upload cleanup will be retried");
+    }
+  }
+
+  logger.info({ result }, "Status upload cleanup completed");
+  return result;
 }
 
 async function statusById(id: string) {
@@ -317,28 +426,10 @@ router.post(
         res.status(400).json({ message: "Status media metadata is invalid." });
         return;
       }
-      try {
-        const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
-        const [metadata] = await objectFile.getMetadata();
-        const storedType = String(metadata.contentType ?? "").toLowerCase();
-        const storedSize = Number(metadata.size ?? 0);
-        if (
-          storedType !== mimeType.trim().toLowerCase() ||
-          storedSize <= 0 ||
-          storedSize !== sizeBytes ||
-          storedSize > mediaMaxSize(kind)
-        ) {
-          res.status(400).json({ message: "Uploaded status media failed validation." });
-          return;
-        }
-      } catch {
-        res.status(400).json({ message: "Uploaded status media was not found." });
-        return;
-      }
     }
 
     const now = new Date();
-    const [created] = await db.insert(statusUpdatesTable).values({
+    const values = {
       authorId: me.id,
       kind,
       body: normalizedBody,
@@ -348,7 +439,59 @@ router.post(
       audience: visibility,
       createdAt: now,
       expiresAt: new Date(now.getTime() + STATUS_TTL_MS),
-    }).returning();
+    };
+    let created;
+    if (kind === "text") {
+      [created] = await db.insert(statusUpdatesTable).values(values).returning();
+    } else {
+      try {
+        created = await db.transaction(async (tx) => {
+          const normalizedPath = objectPath.trim();
+          await tx.execute(sql`
+            SELECT pg_advisory_xact_lock(hashtextextended(${normalizedPath}, 0))
+          `);
+          let objectFile;
+          try {
+            objectFile = await objectStorageService.getObjectEntityFile(normalizedPath);
+          } catch {
+            throw new StatusMediaValidationError(
+              "Uploaded status media was not found.",
+            );
+          }
+          let metadata;
+          try {
+            [metadata] = await objectFile.getMetadata();
+          } catch {
+            throw new StatusMediaValidationError(
+              "Uploaded status media was not found.",
+            );
+          }
+          const storedType = String(metadata.contentType ?? "").toLowerCase();
+          const storedSize = Number(metadata.size ?? 0);
+          if (
+            storedType !== mimeType.trim().toLowerCase() ||
+            storedSize <= 0 ||
+            storedSize !== sizeBytes ||
+            storedSize > mediaMaxSize(kind)
+          ) {
+            throw new StatusMediaValidationError(
+              "Uploaded status media failed validation.",
+            );
+          }
+          const [inserted] = await tx
+            .insert(statusUpdatesTable)
+            .values(values)
+            .returning();
+          return inserted;
+        });
+      } catch (error) {
+        if (error instanceof StatusMediaValidationError) {
+          res.status(400).json({ message: error.message });
+          return;
+        }
+        throw error;
+      }
+    }
     const info = await viewerInfo(created.id, me.id, true);
     res.status(201).json({
       status: formatStatus(created, {

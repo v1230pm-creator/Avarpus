@@ -7,6 +7,7 @@ import { seedUsersIfEmpty } from "./lib/seed";
 import { cleanupExpiredAuthData } from "./lib/authUtils";
 import { warnIfMailFromUnset } from "./lib/mailer";
 import { reconcileOtpRateLimitMigrationJournal } from "./lib/migrationJournalRecovery";
+import { cleanupAbandonedStatusUploads } from "./routes/status";
 
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // daily
 
@@ -17,6 +18,13 @@ function runAuthCleanup(): void {
     })
     .catch((err) => {
       logger.error({ err }, "Auth data cleanup failed");
+    });
+}
+
+function runStatusUploadCleanup(): void {
+  cleanupAbandonedStatusUploads()
+    .catch((err) => {
+      logger.error({ err }, "Status upload cleanup failed");
     });
 }
 
@@ -70,6 +78,11 @@ reconcileOtpRateLimitMigrationJournal(migrationsFolder)
       // then daily. unref() so the timer never blocks process shutdown.
       runAuthCleanup();
       setInterval(runAuthCleanup, CLEANUP_INTERVAL_MS).unref();
+
+      // Remove old, unclaimed Status uploads. The job is prefix-scoped and
+      // keeps every object referenced by a published Status.
+      runStatusUploadCleanup();
+      setInterval(runStatusUploadCleanup, CLEANUP_INTERVAL_MS).unref();
     });
   })
   .catch((err) => {
