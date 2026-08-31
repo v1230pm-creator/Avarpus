@@ -337,6 +337,13 @@
       "when": 1788237900000,
       "tag": "0047_shop_scoped_user_features",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1788238000000,
+      "tag": "0048_status_updates",
+      "breakpoints": true
     }
   ]
 }

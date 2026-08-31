@@ -3916,3 +3916,152 @@ export const ChatMessageMediaParams = zod.object({
 export const ChatMessageMediaResponse = zod.unknown()
 
 
+/**
+ * @summary Request a private upload URL for a personal status image or video
+ */
+export const StatusesUploadUrlBody = zod.object({
+  "name": zod.string(),
+  "size": zod.number(),
+  "contentType": zod.string()
+})
+
+export const StatusesUploadUrlResponse = zod.object({
+  "uploadURL": zod.string(),
+  "objectPath": zod.string(),
+  "maxSize": zod.number(),
+  "kind": zod.enum(['image', 'video'])
+})
+
+
+/**
+ * @summary List active Status updates from the caller and eligible personal contacts
+ */
+export const StatusesListResponse = zod.object({
+  "groups": zod.array(zod.object({
+  "userId": zod.string(),
+  "name": zod.string(),
+  "profilePhoto": zod.string().nullable(),
+  "hasUnviewed": zod.boolean(),
+  "latestAt": zod.coerce.date(),
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "authorId": zod.string(),
+  "authorName": zod.string(),
+  "authorPhoto": zod.string().nullable(),
+  "kind": zod.enum(['text', 'image', 'video']),
+  "body": zod.string().nullable(),
+  "objectPath": zod.string().nullable(),
+  "mediaUrl": zod.string().nullable(),
+  "mimeType": zod.string().nullable(),
+  "sizeBytes": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date(),
+  "viewed": zod.boolean(),
+  "viewerCount": zod.number().describe('Total unique viewers for the author\'s own status; always 0 for other authors.')
+}))
+}))
+})
+
+
+/**
+ * @summary Publish a text, image, or video Status update
+ */
+export const statusesCreateBodyBodyMax = 7000;
+
+export const statusesCreateBodyAudienceDefault = `contacts`;
+
+export const StatusesCreateBody = zod.object({
+  "kind": zod.enum(['text', 'image', 'video']),
+  "body": zod.string().max(statusesCreateBodyBodyMax).nullish(),
+  "objectPath": zod.string().nullish(),
+  "mimeType": zod.string().nullish(),
+  "sizeBytes": zod.number().nullish(),
+  "audience": zod.enum(['contacts', 'nobody']).default(statusesCreateBodyAudienceDefault)
+})
+
+export const StatusesCreateResponse = zod.object({
+  "status": zod.object({
+  "id": zod.string(),
+  "authorId": zod.string(),
+  "authorName": zod.string(),
+  "authorPhoto": zod.string().nullable(),
+  "kind": zod.enum(['text', 'image', 'video']),
+  "body": zod.string().nullable(),
+  "objectPath": zod.string().nullable(),
+  "mediaUrl": zod.string().nullable(),
+  "mimeType": zod.string().nullable(),
+  "sizeBytes": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date(),
+  "viewed": zod.boolean(),
+  "viewerCount": zod.number().describe('Total unique viewers for the author\'s own status; always 0 for other authors.')
+})
+})
+
+
+/**
+ * @summary Get an active Status update after server-side visibility checks
+ */
+export const StatusesGetParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const StatusesGetResponse = zod.object({
+  "status": zod.object({
+  "id": zod.string(),
+  "authorId": zod.string(),
+  "authorName": zod.string(),
+  "authorPhoto": zod.string().nullable(),
+  "kind": zod.enum(['text', 'image', 'video']),
+  "body": zod.string().nullable(),
+  "objectPath": zod.string().nullable(),
+  "mediaUrl": zod.string().nullable(),
+  "mimeType": zod.string().nullable(),
+  "sizeBytes": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date(),
+  "viewed": zod.boolean(),
+  "viewerCount": zod.number().describe('Total unique viewers for the author\'s own status; always 0 for other authors.')
+})
+})
+
+
+/**
+ * @summary Delete the caller's active Status update
+ */
+export const StatusesDeleteParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const StatusesDeleteResponse = zod.void()
+
+
+/**
+ * @summary Mark an eligible Status update as viewed
+ */
+export const StatusesViewParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const StatusesViewResponse = zod.object({
+  "viewedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List unique viewers for the caller's active Status update
+ */
+export const StatusesViewersListParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const StatusesViewersListResponse = zod.object({
+  "viewers": zod.array(zod.object({
+  "userId": zod.string(),
+  "name": zod.string(),
+  "profilePhoto": zod.string().nullable(),
+  "viewedAt": zod.coerce.date()
+}))
+})
+
+

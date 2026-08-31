@@ -31,6 +31,18 @@ const ALLOWED: Array<{ method: string | "*"; re: RegExp }> = [
   { method: "GET",    re: /^\/notifications$/ },
   { method: "POST",   re: /^\/notifications\/read$/ },
 
+  // ── Personal Status ─────────────────────────────────────────────────────
+  { method: "GET",    re: /^\/statuses$/ },
+  { method: "POST",   re: /^\/statuses$/ },
+  { method: "POST",   re: /^\/statuses\/upload-url$/ },
+  { method: "GET",    re: new RegExp(`^\\/statuses\\/${UUID}$`) },
+  { method: "POST",   re: new RegExp(`^\\/statuses\\/${UUID}\\/view$`) },
+  { method: "GET",    re: new RegExp(`^\\/statuses\\/${UUID}\\/viewers$`) },
+  { method: "DELETE", re: new RegExp(`^\\/statuses\\/${UUID}$`) },
+  // Status objects remain protected by the storage route's active-status,
+  // audience/contact, block, expiry, and active-author checks.
+  { method: "GET",    re: new RegExp(`^\\/storage\\/objects\\/uploads\\/status\\/${UUID}\\/${UUID}$`) },
+
   // ── Chat ─────────────────────────────────────────────────────────────────
   // Capabilities
   { method: "GET",    re: /^\/chat\/capabilities$/ },

@@ -50,3 +50,4 @@
 - [Immutable profile photos](immutable-profile-photos.md) — never attach a presigned-upload key directly; verify bytes, copy to a server-owned final key, then attach that immutable path.
 - [Shop membership authority](shop-membership-authority.md) — membership role/status is authoritative per Shop; users.role/shopId is only the active-workspace compatibility pointer.
 - [OpenAPI email schemas](openapi-email-schemas.md) — Orval emits Zod 4-only email validators for `format: email`; use a regex pattern while api-zod remains on Zod 3.
+- [Personal Status privacy](personal-status-privacy.md) — Status audience is global-direct contacts only; blocks, active authors, owner-only viewers, and retryable private-media cleanup are mandatory.

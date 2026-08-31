@@ -90,6 +90,8 @@ export function requireAuth(
         path.startsWith("/auth") ||
         path.startsWith("/chat") ||
         path.startsWith("/notifications") ||
+        path.startsWith("/statuses") ||
+        path.startsWith("/storage") ||
         path.startsWith("/shop");
       if (user.shopId && !personalOrWorkspaceManaged) {
         let [membership] = await db

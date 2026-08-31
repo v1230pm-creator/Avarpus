@@ -6,3 +6,4 @@ export * from "./notifications";
 export * from "./chat";
 export * from "./emailDelivery";
 export * from "./phoneVerification";
+export * from "./status";

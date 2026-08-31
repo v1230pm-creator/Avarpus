@@ -1,7 +1,7 @@
 import { Readable } from "stream";
 import { Router, type IRouter, type Request, type Response } from "express";
-import { and, eq, or } from "drizzle-orm";
-import { db, repairsTable, repairPhotosTable, usersTable, type DbUser } from "@workspace/db";
+import { and, eq, isNull, or } from "drizzle-orm";
+import { db, repairsTable, repairPhotosTable, usersTable, statusUpdatesTable, type DbUser } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { isDealerPortalRole } from "../lib/dealerPortal";
@@ -9,6 +9,7 @@ import {
   ObjectNotFoundError,
   ObjectStorageService,
 } from "../lib/objectStorage";
+import { isPersonalContact } from "../lib/statusAccess";
 
 // Object storage (App Storage) routes. Objects hold customer device photos,
 // documents and signatures, so both upload and serving are auth-protected AND
@@ -78,12 +79,35 @@ router.get(
     const me = (req as Request & { user: DbUser }).user;
     const objectPath = `/objects/${wildcardPath}`;
     const isProfilePath = wildcardPath.startsWith("uploads/profiles/");
+    const isStatusPath = wildcardPath.startsWith("uploads/status/");
     if (isProfilePath) {
       // Profile objects are public-to-authenticated-users only while the exact
       // object remains attached to an active account.
       const [profileHit] = await db.select({ id: usersTable.id }).from(usersTable)
         .where(and(eq(usersTable.profilePhoto, objectPath), eq(usersTable.isActive, true))).limit(1);
       if (!profileHit) {
+        res.status(404).json({ error: "Object not found" });
+        return;
+      }
+    } else if (isStatusPath) {
+      const [status] = await db
+        .select({ id: statusUpdatesTable.id, authorId: statusUpdatesTable.authorId, audience: statusUpdatesTable.audience, expiresAt: statusUpdatesTable.expiresAt })
+        .from(statusUpdatesTable)
+        .innerJoin(usersTable, eq(usersTable.id, statusUpdatesTable.authorId))
+        .where(and(
+          eq(statusUpdatesTable.objectPath, objectPath),
+          isNull(statusUpdatesTable.deletedAt),
+          eq(usersTable.isActive, true),
+        ))
+        .limit(1);
+      if (
+        !status ||
+        status.expiresAt <= new Date() ||
+        (
+          status.authorId !== me.id &&
+          (status.audience !== "contacts" || !(await isPersonalContact(me.id, status.authorId)))
+        )
+      ) {
         res.status(404).json({ error: "Object not found" });
         return;
       }

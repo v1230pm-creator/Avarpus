@@ -29,7 +29,9 @@
         "foregroundImage": "./assets/images/avarpus-adaptive-foreground.png",
         "backgroundColor": "#020817"
       },
-      "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES"]
+      "permissions": [
+        "android.permission.REQUEST_INSTALL_PACKAGES"
+      ]
     },
     "androidStatusBar": {
       "barStyle": "light-content",
@@ -83,7 +85,8 @@
         {
           "cameraPermission": "Allow Avarpus to scan repair QR codes and use video calls."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "owner": "avarpus-team",
     "extra": {

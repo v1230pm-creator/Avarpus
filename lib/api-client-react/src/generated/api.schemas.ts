@@ -1482,6 +1482,131 @@ export interface ChatCallTokenResult {
   expiresIn: number;
 }
 
+export interface StatusUploadInput {
+  name: string;
+  size: number;
+  contentType: string;
+}
+
+export type StatusUploadResultKind = typeof StatusUploadResultKind[keyof typeof StatusUploadResultKind];
+
+
+export const StatusUploadResultKind = {
+  image: 'image',
+  video: 'video',
+} as const;
+
+export interface StatusUploadResult {
+  uploadURL: string;
+  objectPath: string;
+  maxSize: number;
+  kind: StatusUploadResultKind;
+}
+
+export type StatusCreateInputKind = typeof StatusCreateInputKind[keyof typeof StatusCreateInputKind];
+
+
+export const StatusCreateInputKind = {
+  text: 'text',
+  image: 'image',
+  video: 'video',
+} as const;
+
+export type StatusCreateInputAudience = typeof StatusCreateInputAudience[keyof typeof StatusCreateInputAudience];
+
+
+export const StatusCreateInputAudience = {
+  contacts: 'contacts',
+  nobody: 'nobody',
+} as const;
+
+export interface StatusCreateInput {
+  kind: StatusCreateInputKind;
+  /**
+     * @maxLength 7000
+     * @nullable
+     */
+  body?: string | null;
+  /** @nullable */
+  objectPath?: string | null;
+  /** @nullable */
+  mimeType?: string | null;
+  /** @nullable */
+  sizeBytes?: number | null;
+  audience?: StatusCreateInputAudience;
+}
+
+export type StatusItemKind = typeof StatusItemKind[keyof typeof StatusItemKind];
+
+
+export const StatusItemKind = {
+  text: 'text',
+  image: 'image',
+  video: 'video',
+} as const;
+
+export interface StatusItem {
+  id: string;
+  authorId: string;
+  authorName: string;
+  /** @nullable */
+  authorPhoto: string | null;
+  kind: StatusItemKind;
+  /** @nullable */
+  body: string | null;
+  /** @nullable */
+  objectPath: string | null;
+  /** @nullable */
+  mediaUrl: string | null;
+  /** @nullable */
+  mimeType: string | null;
+  /** @nullable */
+  sizeBytes?: number | null;
+  createdAt: string;
+  expiresAt: string;
+  viewed: boolean;
+  /** Total unique viewers for the author's own status; always 0 for other authors. */
+  viewerCount: number;
+}
+
+export interface StatusGroup {
+  userId: string;
+  name: string;
+  /** @nullable */
+  profilePhoto: string | null;
+  hasUnviewed: boolean;
+  latestAt: string;
+  items: StatusItem[];
+}
+
+export interface StatusFeed {
+  groups: StatusGroup[];
+}
+
+export interface StatusCreateResult {
+  status: StatusItem;
+}
+
+export interface StatusGetResult {
+  status: StatusItem;
+}
+
+export interface StatusViewResult {
+  viewedAt: string;
+}
+
+export interface StatusViewer {
+  userId: string;
+  name: string;
+  /** @nullable */
+  profilePhoto: string | null;
+  viewedAt: string;
+}
+
+export interface StatusViewersResult {
+  viewers: StatusViewer[];
+}
+
 export interface ServiceUnavailable {
   message: string;
   code?: string;

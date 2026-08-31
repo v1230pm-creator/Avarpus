@@ -80,6 +80,7 @@
     "expo-print": "^15.0.8",
     "expo-secure-store": "^15.0.8",
     "expo-sharing": "^14.0.8",
+    "expo-video": "~3.0.16",
     "js-sha256": "^1.0.0",
     "livekit-client": "2.22.0",
     "react-native-qrcode-svg": "^6.3.21",

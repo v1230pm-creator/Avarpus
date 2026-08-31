@@ -181,6 +181,14 @@ import type {
   StaffList200,
   StaffUpdate200,
   StaffUpdateInput,
+  StatusCreateInput,
+  StatusCreateResult,
+  StatusFeed,
+  StatusGetResult,
+  StatusUploadInput,
+  StatusUploadResult,
+  StatusViewResult,
+  StatusViewersResult,
   StockMovementsList200,
   StockMovementsListParams,
   TrustedDeviceRecoveryInput,
@@ -9546,6 +9554,521 @@ export function useChatMessageMedia<TData = Awaited<ReturnType<typeof chatMessag
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getChatMessageMediaQueryOptions(roomId,messageId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStatusesUploadUrlUrl = () => {
+
+
+
+
+  return `/api/statuses/upload-url`
+}
+
+/**
+ * @summary Request a private upload URL for a personal status image or video
+ */
+export const statusesUploadUrl = async (statusUploadInput: StatusUploadInput, options?: Parameters<typeof customFetch>[1]): Promise<StatusUploadResult> => {
+
+  return customFetch<StatusUploadResult>(getStatusesUploadUrlUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(statusUploadInput)
+  }
+);}
+
+
+
+
+
+export const getStatusesUploadUrlMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof statusesUploadUrl>>, TError,{data: BodyType<StatusUploadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof statusesUploadUrl>>, TError,{data: BodyType<StatusUploadInput>}, TContext> => {
+
+const mutationKey = ['statusesUploadUrl'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof statusesUploadUrl>>, {data: BodyType<StatusUploadInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  statusesUploadUrl(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StatusesUploadUrlMutationResult = NonNullable<Awaited<ReturnType<typeof statusesUploadUrl>>>
+    export type StatusesUploadUrlMutationBody = BodyType<StatusUploadInput>
+    export type StatusesUploadUrlMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Request a private upload URL for a personal status image or video
+ */
+export const useStatusesUploadUrl = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof statusesUploadUrl>>, TError,{data: BodyType<StatusUploadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof statusesUploadUrl>>,
+        TError,
+        {data: BodyType<StatusUploadInput>},
+        TContext
+      > => {
+      return useMutation(getStatusesUploadUrlMutationOptions(options));
+    }
+
+export const getStatusesListUrl = () => {
+
+
+
+
+  return `/api/statuses`
+}
+
+/**
+ * @summary List active Status updates from the caller and eligible personal contacts
+ */
+export const statusesList = async ( options?: Parameters<typeof customFetch>[1]): Promise<StatusFeed> => {
+
+  return customFetch<StatusFeed>(getStatusesListUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getStatusesListQueryKey = () => {
+    return [
+    `/api/statuses`
+    ] as const;
+    }
+
+
+export const getStatusesListQueryOptions = <TData = Awaited<ReturnType<typeof statusesList>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof statusesList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getStatusesListQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof statusesList>>> = ({ signal }) => statusesList({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof statusesList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type StatusesListQueryResult = NonNullable<Awaited<ReturnType<typeof statusesList>>>
+export type StatusesListQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List active Status updates from the caller and eligible personal contacts
+ */
+
+export function useStatusesList<TData = Awaited<ReturnType<typeof statusesList>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof statusesList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getStatusesListQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStatusesCreateUrl = () => {
+
+
+
+
+  return `/api/statuses`
+}
+
+/**
+ * @summary Publish a text, image, or video Status update
+ */
+export const statusesCreate = async (statusCreateInput: StatusCreateInput, options?: Parameters<typeof customFetch>[1]): Promise<StatusCreateResult> => {
+
+  return customFetch<StatusCreateResult>(getStatusesCreateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(statusCreateInput)
+  }
+);}
+
+
+
+
+
+export const getStatusesCreateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof statusesCreate>>, TError,{data: BodyType<StatusCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof statusesCreate>>, TError,{data: BodyType<StatusCreateInput>}, TContext> => {
+
+const mutationKey = ['statusesCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof statusesCreate>>, {data: BodyType<StatusCreateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  statusesCreate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StatusesCreateMutationResult = NonNullable<Awaited<ReturnType<typeof statusesCreate>>>
+    export type StatusesCreateMutationBody = BodyType<StatusCreateInput>
+    export type StatusesCreateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Publish a text, image, or video Status update
+ */
+export const useStatusesCreate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof statusesCreate>>, TError,{data: BodyType<StatusCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof statusesCreate>>,
+        TError,
+        {data: BodyType<StatusCreateInput>},
+        TContext
+      > => {
+      return useMutation(getStatusesCreateMutationOptions(options));
+    }
+
+export const getStatusesGetUrl = (id: string,) => {
+
+
+
+
+  return `/api/statuses/${id}`
+}
+
+/**
+ * @summary Get an active Status update after server-side visibility checks
+ */
+export const statusesGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<StatusGetResult> => {
+
+  return customFetch<StatusGetResult>(getStatusesGetUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getStatusesGetQueryKey = (id: string,) => {
+    return [
+    `/api/statuses/${id}`
+    ] as const;
+    }
+
+
+export const getStatusesGetQueryOptions = <TData = Awaited<ReturnType<typeof statusesGet>>, TError = ErrorType<void>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof statusesGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getStatusesGetQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof statusesGet>>> = ({ signal }) => statusesGet(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof statusesGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type StatusesGetQueryResult = NonNullable<Awaited<ReturnType<typeof statusesGet>>>
+export type StatusesGetQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get an active Status update after server-side visibility checks
+ */
+
+export function useStatusesGet<TData = Awaited<ReturnType<typeof statusesGet>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof statusesGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getStatusesGetQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStatusesDeleteUrl = (id: string,) => {
+
+
+
+
+  return `/api/statuses/${id}`
+}
+
+/**
+ * @summary Delete the caller's active Status update
+ */
+export const statusesDelete = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getStatusesDeleteUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getStatusesDeleteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof statusesDelete>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof statusesDelete>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['statusesDelete'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof statusesDelete>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  statusesDelete(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StatusesDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof statusesDelete>>>
+
+    export type StatusesDeleteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete the caller's active Status update
+ */
+export const useStatusesDelete = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof statusesDelete>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof statusesDelete>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getStatusesDeleteMutationOptions(options));
+    }
+
+export const getStatusesViewUrl = (id: string,) => {
+
+
+
+
+  return `/api/statuses/${id}/view`
+}
+
+/**
+ * @summary Mark an eligible Status update as viewed
+ */
+export const statusesView = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<StatusViewResult> => {
+
+  return customFetch<StatusViewResult>(getStatusesViewUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getStatusesViewMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof statusesView>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof statusesView>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['statusesView'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof statusesView>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  statusesView(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StatusesViewMutationResult = NonNullable<Awaited<ReturnType<typeof statusesView>>>
+
+    export type StatusesViewMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark an eligible Status update as viewed
+ */
+export const useStatusesView = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof statusesView>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof statusesView>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getStatusesViewMutationOptions(options));
+    }
+
+export const getStatusesViewersListUrl = (id: string,) => {
+
+
+
+
+  return `/api/statuses/${id}/viewers`
+}
+
+/**
+ * @summary List unique viewers for the caller's active Status update
+ */
+export const statusesViewersList = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<StatusViewersResult> => {
+
+  return customFetch<StatusViewersResult>(getStatusesViewersListUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getStatusesViewersListQueryKey = (id: string,) => {
+    return [
+    `/api/statuses/${id}/viewers`
+    ] as const;
+    }
+
+
+export const getStatusesViewersListQueryOptions = <TData = Awaited<ReturnType<typeof statusesViewersList>>, TError = ErrorType<void>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof statusesViewersList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getStatusesViewersListQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof statusesViewersList>>> = ({ signal }) => statusesViewersList(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof statusesViewersList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type StatusesViewersListQueryResult = NonNullable<Awaited<ReturnType<typeof statusesViewersList>>>
+export type StatusesViewersListQueryError = ErrorType<void>
+
+
+/**
+ * @summary List unique viewers for the caller's active Status update
+ */
+
+export function useStatusesViewersList<TData = Awaited<ReturnType<typeof statusesViewersList>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof statusesViewersList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getStatusesViewersListQueryOptions(id,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

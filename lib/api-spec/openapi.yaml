@@ -2773,6 +2773,128 @@ paths:
         "404":
           description: Room or message not found, or caller not authorised
 
+  # ── Personal Status updates ────────────────────────────────────────────────
+  /statuses/upload-url:
+    post:
+      operationId: statusesUploadUrl
+      tags: [status]
+      summary: Request a private upload URL for a personal status image or video
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatusUploadInput"
+      responses:
+        "200":
+          description: Upload URL and personal status object path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusUploadResult"
+
+  /statuses:
+    get:
+      operationId: statusesList
+      tags: [status]
+      summary: List active Status updates from the caller and eligible personal contacts
+      responses:
+        "200":
+          description: Grouped active Status updates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusFeed"
+    post:
+      operationId: statusesCreate
+      tags: [status]
+      summary: Publish a text, image, or video Status update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatusCreateInput"
+      responses:
+        "201":
+          description: Published Status update
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusCreateResult"
+
+  /statuses/{id}:
+    get:
+      operationId: statusesGet
+      tags: [status]
+      summary: Get an active Status update after server-side visibility checks
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Status update
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusGetResult"
+        "404":
+          description: Status not found, expired, or not visible to caller
+    delete:
+      operationId: statusesDelete
+      tags: [status]
+      summary: Delete the caller's active Status update
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Status deleted
+
+  /statuses/{id}/view:
+    post:
+      operationId: statusesView
+      tags: [status]
+      summary: Mark an eligible Status update as viewed
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: View recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusViewResult"
+        "404":
+          description: Status not found, expired, or not visible to caller
+
+  /statuses/{id}/viewers:
+    get:
+      operationId: statusesViewersList
+      tags: [status]
+      summary: List unique viewers for the caller's active Status update
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Status viewers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusViewersResult"
+        "404":
+          description: Status not found or not owned by caller
+
 components:
   securitySchemes:
     bearerAuth:
@@ -4085,6 +4207,105 @@ components:
         roomName: { type: string }
         expiresIn: { type: number }
       required: [token, url, roomName, expiresIn]
+    StatusUploadInput:
+      type: object
+      properties:
+        name: { type: string }
+        size: { type: number }
+        contentType: { type: string }
+      required: [name, size, contentType]
+    StatusUploadResult:
+      type: object
+      properties:
+        uploadURL: { type: string }
+        objectPath: { type: string }
+        maxSize: { type: number }
+        kind: { type: string, enum: [image, video] }
+      required: [uploadURL, objectPath, maxSize, kind]
+    StatusCreateInput:
+      type: object
+      properties:
+        kind: { type: string, enum: [text, image, video] }
+        body: { type: [string, "null"], maxLength: 7000 }
+        objectPath: { type: [string, "null"] }
+        mimeType: { type: [string, "null"] }
+        sizeBytes: { type: [number, "null"] }
+        audience: { type: string, enum: [contacts, nobody], default: contacts }
+      required: [kind]
+    StatusItem:
+      type: object
+      properties:
+        id: { type: string }
+        authorId: { type: string }
+        authorName: { type: string }
+        authorPhoto: { type: [string, "null"] }
+        kind: { type: string, enum: [text, image, video] }
+        body: { type: [string, "null"] }
+        objectPath: { type: [string, "null"] }
+        mediaUrl: { type: [string, "null"] }
+        mimeType: { type: [string, "null"] }
+        sizeBytes: { type: [number, "null"] }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        viewed: { type: boolean }
+        viewerCount:
+          type: number
+          description: Total unique viewers for the author's own status; always 0 for other authors.
+      required: [id, authorId, authorName, authorPhoto, kind, body, objectPath, mediaUrl, mimeType, createdAt, expiresAt, viewed, viewerCount]
+    StatusGroup:
+      type: object
+      properties:
+        userId: { type: string }
+        name: { type: string }
+        profilePhoto: { type: [string, "null"] }
+        hasUnviewed: { type: boolean }
+        latestAt: { type: string, format: date-time }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatusItem"
+      required: [userId, name, profilePhoto, hasUnviewed, latestAt, items]
+    StatusFeed:
+      type: object
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatusGroup"
+      required: [groups]
+    StatusCreateResult:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusItem"
+      required: [status]
+    StatusGetResult:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusItem"
+      required: [status]
+    StatusViewResult:
+      type: object
+      properties:
+        viewedAt: { type: string, format: date-time }
+      required: [viewedAt]
+    StatusViewer:
+      type: object
+      properties:
+        userId: { type: string }
+        name: { type: string }
+        profilePhoto: { type: [string, "null"] }
+        viewedAt: { type: string, format: date-time }
+      required: [userId, name, profilePhoto, viewedAt]
+    StatusViewersResult:
+      type: object
+      properties:
+        viewers:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatusViewer"
+      required: [viewers]
     ServiceUnavailable:
       type: object
       properties:
