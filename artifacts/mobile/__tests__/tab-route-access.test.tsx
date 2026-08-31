@@ -28,6 +28,8 @@ describe('restricted account tab routes', () => {
     expect(canAccessTabsRoute(['(tabs)', 'more', 'profile'], { role: 'technician', canAccess: denied })).toBe(true);
     expect(canAccessTabsRoute(['(tabs)', 'more', 'settings'], { role: 'technician', canAccess: denied })).toBe(true);
     expect(canAccessTabsRoute(['(tabs)', 'more', 'settings-detail'], { role: 'technician', canAccess: denied })).toBe(true);
+    expect(canAccessTabsRoute(['(tabs)', 'more', 'chats'], { role: 'technician', canAccess: denied })).toBe(true);
+    expect(canAccessTabsRoute(['(tabs)', 'more', 'chat-backup'], { role: 'technician', canAccess: denied })).toBe(true);
     expect(canAccessTabsRoute(['(tabs)', 'more', 'finance'], { role: 'technician', canAccess: denied })).toBe(false);
     expect(canAccessTabsRoute(['(tabs)', 'shop'], { role: 'customer', canAccess: denied })).toBe(true);
     expect(canAccessTabsRoute(['(tabs)', 'status'], { role: 'customer', canAccess: denied })).toBe(true);

@@ -14,6 +14,7 @@ export default function MoreLayout() {
       <Stack.Screen name="reports" />
       <Stack.Screen name="settings" />
       <Stack.Screen name="chats" />
+      <Stack.Screen name="chat-backup" />
       <Stack.Screen name="settings-detail" />
       <Stack.Screen name="account" />
       <Stack.Screen name="permissions" />

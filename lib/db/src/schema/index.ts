@@ -8,3 +8,4 @@ export * from "./emailDelivery";
 export * from "./phoneVerification";
 export * from "./status";
 export * from "./pendingUploads";
+export * from "./driveBackup";

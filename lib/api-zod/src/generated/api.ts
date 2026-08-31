@@ -3558,6 +3558,89 @@ export const AuthActivateInviteResponse = zod.object({
 
 
 /**
+ * @summary Get the current user's Google Drive backup account, quota, and settings
+ */
+export const DriveBackupGetResponse = zod.object({
+  "connected": zod.boolean(),
+  "email": zod.string().nullable(),
+  "quota": zod.union([zod.object({
+  "limitBytes": zod.string().nullable(),
+  "usageBytes": zod.string().nullable()
+}),zod.null()]),
+  "automaticFrequency": zod.enum(['never', 'daily', 'weekly', 'monthly']),
+  "allowCellular": zod.boolean(),
+  "includeVideos": zod.boolean(),
+  "lastBackupAt": zod.coerce.date().nullable(),
+  "lastBackupSizeBytes": zod.string().nullable(),
+  "nextBackupAt": zod.coerce.date().nullable(),
+  "backupDue": zod.boolean(),
+  "lastError": zod.string().nullable()
+})
+
+
+/**
+ * @summary Start per-user Google OAuth for chat backup
+ */
+export const DriveBackupOauthStartResponse = zod.object({
+  "url": zod.string()
+})
+
+
+/**
+ * @summary Update the current user's chat backup preferences
+ */
+export const DriveBackupSettingsUpdateBody = zod.object({
+  "automaticFrequency": zod.enum(['never', 'daily', 'weekly', 'monthly']),
+  "allowCellular": zod.boolean(),
+  "includeVideos": zod.boolean()
+})
+
+export const DriveBackupSettingsUpdateResponse = zod.object({
+  "connected": zod.boolean(),
+  "email": zod.string().nullable(),
+  "quota": zod.union([zod.object({
+  "limitBytes": zod.string().nullable(),
+  "usageBytes": zod.string().nullable()
+}),zod.null()]),
+  "automaticFrequency": zod.enum(['never', 'daily', 'weekly', 'monthly']),
+  "allowCellular": zod.boolean(),
+  "includeVideos": zod.boolean(),
+  "lastBackupAt": zod.coerce.date().nullable(),
+  "lastBackupSizeBytes": zod.string().nullable(),
+  "nextBackupAt": zod.coerce.date().nullable(),
+  "backupDue": zod.boolean(),
+  "lastError": zod.string().nullable()
+})
+
+
+/**
+ * @summary Export the current user's member chats to their connected Google Drive
+ */
+export const DriveBackupRunResponse = zod.object({
+  "connected": zod.boolean(),
+  "email": zod.string().nullable(),
+  "quota": zod.union([zod.object({
+  "limitBytes": zod.string().nullable(),
+  "usageBytes": zod.string().nullable()
+}),zod.null()]),
+  "automaticFrequency": zod.enum(['never', 'daily', 'weekly', 'monthly']),
+  "allowCellular": zod.boolean(),
+  "includeVideos": zod.boolean(),
+  "lastBackupAt": zod.coerce.date().nullable(),
+  "lastBackupSizeBytes": zod.string().nullable(),
+  "nextBackupAt": zod.coerce.date().nullable(),
+  "backupDue": zod.boolean(),
+  "lastError": zod.string().nullable()
+})
+
+
+/**
+ * @summary Revoke and disconnect the current user's Google backup account
+ */
+export const DriveBackupAccountDisconnectResponse = zod.void()
+
+
+/**
  * @summary Describe available chat capabilities and provider status
  */
 export const ChatCapabilitiesResponse = zod.object({

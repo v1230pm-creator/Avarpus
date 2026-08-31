@@ -91,6 +91,7 @@ export function requireAuth(
         path.startsWith("/chat") ||
         path.startsWith("/notifications") ||
         path.startsWith("/statuses") ||
+        path.startsWith("/drive-backup") ||
         path.startsWith("/storage") ||
         path.startsWith("/shop");
       if (user.shopId && !personalOrWorkspaceManaged) {

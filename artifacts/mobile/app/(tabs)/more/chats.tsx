@@ -236,12 +236,7 @@ export default function ChatsSettingsScreen() {
         <ActionRow
           icon="upload-cloud"
           title="Chat backup"
-          onPress={() =>
-            showUnavailable(
-              'Chat backup',
-              'Your Avarpus chats are stored securely with your account. Cloud backup controls are not available yet.',
-            )
-          }
+          onPress={() => router.push('/(tabs)/more/chat-backup')}
           colors={colors}
         />
         <ActionRow

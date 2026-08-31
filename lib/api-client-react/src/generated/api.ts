@@ -81,6 +81,9 @@ import type {
   DealersUpdate200,
   DeliveryOtpVerify200,
   DeliveryOtpVerifyInput,
+  DriveBackupOauthStart200,
+  DriveBackupSettingsInput,
+  DriveBackupStatus,
   ErrorEnvelope,
   EstimateApprovalCreateInput,
   EstimateApprovalDecideInput,
@@ -8517,6 +8520,373 @@ export const useAuthActivateInvite = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAuthActivateInviteMutationOptions(options));
+    }
+
+export const getDriveBackupGetUrl = () => {
+
+
+
+
+  return `/api/drive-backup`
+}
+
+/**
+ * @summary Get the current user's Google Drive backup account, quota, and settings
+ */
+export const driveBackupGet = async ( options?: Parameters<typeof customFetch>[1]): Promise<DriveBackupStatus> => {
+
+  return customFetch<DriveBackupStatus>(getDriveBackupGetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDriveBackupGetQueryKey = () => {
+    return [
+    `/api/drive-backup`
+    ] as const;
+    }
+
+
+export const getDriveBackupGetQueryOptions = <TData = Awaited<ReturnType<typeof driveBackupGet>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof driveBackupGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDriveBackupGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof driveBackupGet>>> = ({ signal }) => driveBackupGet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof driveBackupGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DriveBackupGetQueryResult = NonNullable<Awaited<ReturnType<typeof driveBackupGet>>>
+export type DriveBackupGetQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the current user's Google Drive backup account, quota, and settings
+ */
+
+export function useDriveBackupGet<TData = Awaited<ReturnType<typeof driveBackupGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof driveBackupGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDriveBackupGetQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDriveBackupOauthStartUrl = () => {
+
+
+
+
+  return `/api/drive-backup/oauth/start`
+}
+
+/**
+ * @summary Start per-user Google OAuth for chat backup
+ */
+export const driveBackupOauthStart = async ( options?: Parameters<typeof customFetch>[1]): Promise<DriveBackupOauthStart200> => {
+
+  return customFetch<DriveBackupOauthStart200>(getDriveBackupOauthStartUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDriveBackupOauthStartQueryKey = () => {
+    return [
+    `/api/drive-backup/oauth/start`
+    ] as const;
+    }
+
+
+export const getDriveBackupOauthStartQueryOptions = <TData = Awaited<ReturnType<typeof driveBackupOauthStart>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof driveBackupOauthStart>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDriveBackupOauthStartQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof driveBackupOauthStart>>> = ({ signal }) => driveBackupOauthStart({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof driveBackupOauthStart>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DriveBackupOauthStartQueryResult = NonNullable<Awaited<ReturnType<typeof driveBackupOauthStart>>>
+export type DriveBackupOauthStartQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Start per-user Google OAuth for chat backup
+ */
+
+export function useDriveBackupOauthStart<TData = Awaited<ReturnType<typeof driveBackupOauthStart>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof driveBackupOauthStart>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDriveBackupOauthStartQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDriveBackupSettingsUpdateUrl = () => {
+
+
+
+
+  return `/api/drive-backup/settings`
+}
+
+/**
+ * @summary Update the current user's chat backup preferences
+ */
+export const driveBackupSettingsUpdate = async (driveBackupSettingsInput: DriveBackupSettingsInput, options?: Parameters<typeof customFetch>[1]): Promise<DriveBackupStatus> => {
+
+  return customFetch<DriveBackupStatus>(getDriveBackupSettingsUpdateUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(driveBackupSettingsInput)
+  }
+);}
+
+
+
+
+
+export const getDriveBackupSettingsUpdateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof driveBackupSettingsUpdate>>, TError,{data: BodyType<DriveBackupSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof driveBackupSettingsUpdate>>, TError,{data: BodyType<DriveBackupSettingsInput>}, TContext> => {
+
+const mutationKey = ['driveBackupSettingsUpdate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof driveBackupSettingsUpdate>>, {data: BodyType<DriveBackupSettingsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  driveBackupSettingsUpdate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DriveBackupSettingsUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof driveBackupSettingsUpdate>>>
+    export type DriveBackupSettingsUpdateMutationBody = BodyType<DriveBackupSettingsInput>
+    export type DriveBackupSettingsUpdateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update the current user's chat backup preferences
+ */
+export const useDriveBackupSettingsUpdate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof driveBackupSettingsUpdate>>, TError,{data: BodyType<DriveBackupSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof driveBackupSettingsUpdate>>,
+        TError,
+        {data: BodyType<DriveBackupSettingsInput>},
+        TContext
+      > => {
+      return useMutation(getDriveBackupSettingsUpdateMutationOptions(options));
+    }
+
+export const getDriveBackupRunUrl = () => {
+
+
+
+
+  return `/api/drive-backup/run`
+}
+
+/**
+ * @summary Export the current user's member chats to their connected Google Drive
+ */
+export const driveBackupRun = async ( options?: Parameters<typeof customFetch>[1]): Promise<DriveBackupStatus> => {
+
+  return customFetch<DriveBackupStatus>(getDriveBackupRunUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDriveBackupRunMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof driveBackupRun>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof driveBackupRun>>, TError,void, TContext> => {
+
+const mutationKey = ['driveBackupRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof driveBackupRun>>, void> = () => {
+
+
+          return  driveBackupRun(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DriveBackupRunMutationResult = NonNullable<Awaited<ReturnType<typeof driveBackupRun>>>
+
+    export type DriveBackupRunMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Export the current user's member chats to their connected Google Drive
+ */
+export const useDriveBackupRun = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof driveBackupRun>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof driveBackupRun>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDriveBackupRunMutationOptions(options));
+    }
+
+export const getDriveBackupAccountDisconnectUrl = () => {
+
+
+
+
+  return `/api/drive-backup/account`
+}
+
+/**
+ * @summary Revoke and disconnect the current user's Google backup account
+ */
+export const driveBackupAccountDisconnect = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDriveBackupAccountDisconnectUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDriveBackupAccountDisconnectMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof driveBackupAccountDisconnect>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof driveBackupAccountDisconnect>>, TError,void, TContext> => {
+
+const mutationKey = ['driveBackupAccountDisconnect'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof driveBackupAccountDisconnect>>, void> = () => {
+
+
+          return  driveBackupAccountDisconnect(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DriveBackupAccountDisconnectMutationResult = NonNullable<Awaited<ReturnType<typeof driveBackupAccountDisconnect>>>
+
+    export type DriveBackupAccountDisconnectMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Revoke and disconnect the current user's Google backup account
+ */
+export const useDriveBackupAccountDisconnect = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof driveBackupAccountDisconnect>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof driveBackupAccountDisconnect>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDriveBackupAccountDisconnectMutationOptions(options));
     }
 
 export const getChatCapabilitiesUrl = () => {

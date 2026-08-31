@@ -28,6 +28,10 @@ const ALLOWED: Array<{ method: string; re: RegExp }> = [
   { method: "POST", re: /^\/auth\/.*$/ },
   { method: "PATCH", re: /^\/auth\/.*$/ },
   { method: "DELETE", re: /^\/auth\/.*$/ },
+  { method: "GET", re: /^\/drive-backup(?:\/.*)?$/ },
+  { method: "POST", re: /^\/drive-backup(?:\/.*)?$/ },
+  { method: "PATCH", re: /^\/drive-backup(?:\/.*)?$/ },
+  { method: "DELETE", re: /^\/drive-backup(?:\/.*)?$/ },
   // Exact-recipient notifications
   { method: "GET", re: /^\/notifications$/ },
   { method: "POST", re: /^\/notifications\/read$/ },

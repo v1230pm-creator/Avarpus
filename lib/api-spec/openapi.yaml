@@ -2385,6 +2385,77 @@ paths:
                     $ref: "#/components/schemas/AuthUser"
                 required: [message, user]
 
+  # ── Per-user Google Drive chat backup ───────────────────────────────────────
+  /drive-backup:
+    get:
+      operationId: driveBackupGet
+      tags: [chat]
+      summary: Get the current user's Google Drive backup account, quota, and settings
+      responses:
+        "200":
+          description: Drive backup status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DriveBackupStatus"
+
+  /drive-backup/oauth/start:
+    get:
+      operationId: driveBackupOauthStart
+      tags: [chat]
+      summary: Start per-user Google OAuth for chat backup
+      responses:
+        "200":
+          description: Short-lived Google authorization URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string }
+                required: [url]
+
+  /drive-backup/settings:
+    patch:
+      operationId: driveBackupSettingsUpdate
+      tags: [chat]
+      summary: Update the current user's chat backup preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DriveBackupSettingsInput"
+      responses:
+        "200":
+          description: Updated Drive backup status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DriveBackupStatus"
+
+  /drive-backup/run:
+    post:
+      operationId: driveBackupRun
+      tags: [chat]
+      summary: Export the current user's member chats to their connected Google Drive
+      responses:
+        "200":
+          description: Completed backup status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DriveBackupStatus"
+
+  /drive-backup/account:
+    delete:
+      operationId: driveBackupAccountDisconnect
+      tags: [chat]
+      summary: Revoke and disconnect the current user's Google backup account
+      responses:
+        "204":
+          description: Google backup account disconnected
+
   # ── Chat capabilities ────────────────────────────────────────────────────────
   /chat/capabilities:
     get:
@@ -4085,6 +4156,53 @@ components:
         lastMessage:
           $ref: "#/components/schemas/ChatMessage"
       required: [id, shopId, scope, kind, name, isArchived, createdAt]
+    DriveBackupQuota:
+      type: object
+      properties:
+        limitBytes: { type: ["string", "null"] }
+        usageBytes: { type: ["string", "null"] }
+      required: [limitBytes, usageBytes]
+    DriveBackupFrequency:
+      type: string
+      enum: [never, daily, weekly, monthly]
+    DriveBackupSettingsInput:
+      type: object
+      properties:
+        automaticFrequency:
+          $ref: "#/components/schemas/DriveBackupFrequency"
+        allowCellular: { type: boolean }
+        includeVideos: { type: boolean }
+      required: [automaticFrequency, allowCellular, includeVideos]
+    DriveBackupStatus:
+      type: object
+      properties:
+        connected: { type: boolean }
+        email: { type: ["string", "null"] }
+        quota:
+          oneOf:
+            - $ref: "#/components/schemas/DriveBackupQuota"
+            - type: "null"
+        automaticFrequency:
+          $ref: "#/components/schemas/DriveBackupFrequency"
+        allowCellular: { type: boolean }
+        includeVideos: { type: boolean }
+        lastBackupAt: { type: ["string", "null"], format: date-time }
+        lastBackupSizeBytes: { type: ["string", "null"] }
+        nextBackupAt: { type: ["string", "null"], format: date-time }
+        backupDue: { type: boolean }
+        lastError: { type: ["string", "null"] }
+      required:
+        - connected
+        - email
+        - quota
+        - automaticFrequency
+        - allowCellular
+        - includeVideos
+        - lastBackupAt
+        - lastBackupSizeBytes
+        - nextBackupAt
+        - backupDue
+        - lastError
     ChatBlockResult:
       type: object
       properties:

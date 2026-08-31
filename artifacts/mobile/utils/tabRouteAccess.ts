@@ -13,7 +13,17 @@ function isChatRoute(segments: TabSegments) {
 
 function isPersonalRoute(segments: TabSegments) {
   return segments[1] === 'more' &&
-    [undefined, 'profile', 'account', 'security', 'notifications', 'settings', 'settings-detail'].includes(segments[2]);
+    [
+      undefined,
+      'profile',
+      'account',
+      'security',
+      'notifications',
+      'settings',
+      'settings-detail',
+      'chats',
+      'chat-backup',
+    ].includes(segments[2]);
 }
 
 /** Authorization boundary for every tab deep link, before route screen hooks mount. */

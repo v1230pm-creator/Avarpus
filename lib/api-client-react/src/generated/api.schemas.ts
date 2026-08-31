@@ -1374,6 +1374,48 @@ export interface ChatRoom {
   lastMessage?: ChatMessage;
 }
 
+export interface DriveBackupQuota {
+  /** @nullable */
+  limitBytes: string | null;
+  /** @nullable */
+  usageBytes: string | null;
+}
+
+export type DriveBackupFrequency = typeof DriveBackupFrequency[keyof typeof DriveBackupFrequency];
+
+
+export const DriveBackupFrequency = {
+  never: 'never',
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
+
+export interface DriveBackupSettingsInput {
+  automaticFrequency: DriveBackupFrequency;
+  allowCellular: boolean;
+  includeVideos: boolean;
+}
+
+export interface DriveBackupStatus {
+  connected: boolean;
+  /** @nullable */
+  email: string | null;
+  quota: DriveBackupQuota | null;
+  automaticFrequency: DriveBackupFrequency;
+  allowCellular: boolean;
+  includeVideos: boolean;
+  /** @nullable */
+  lastBackupAt: string | null;
+  /** @nullable */
+  lastBackupSizeBytes: string | null;
+  /** @nullable */
+  nextBackupAt: string | null;
+  backupDue: boolean;
+  /** @nullable */
+  lastError: string | null;
+}
+
 export interface ChatBlockResult {
   isBlocked: boolean;
   blockedByMe: boolean;
@@ -2045,6 +2087,10 @@ export type RoleFeaturesUpdate200 = {
 export type AuthActivateInvite200 = {
   message: string;
   user: AuthUser;
+};
+
+export type DriveBackupOauthStart200 = {
+  url: string;
 };
 
 export type ChatContactsMatch200 = {
