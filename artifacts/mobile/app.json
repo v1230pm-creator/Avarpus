@@ -73,6 +73,18 @@
         }
       ],
       [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Avarpus to show recent photos you choose to share in chats."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Avarpus to get your current location when you choose to share it in a chat."
+        }
+      ],
+      [
         "expo-audio",
         {
           "microphonePermission": "Allow Avarpus to record voice notes and use audio calls."

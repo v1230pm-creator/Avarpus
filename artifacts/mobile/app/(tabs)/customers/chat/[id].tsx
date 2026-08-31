@@ -9,21 +9,29 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
+  Linking,
+  PanResponder,
   Platform,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
   useColorScheme,
+  useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
+import * as Contacts from 'expo-contacts';
 import {
   useAudioPlayer,
   useAudioPlayerStatus,
@@ -35,6 +43,9 @@ import {
 } from 'expo-audio';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
@@ -510,6 +521,417 @@ interface PendingUpload {
   uploadedObjectPath?: string;
 }
 
+type AttachmentSheetColors = {
+  background: string;
+  card: string;
+  border: string;
+  foreground: string;
+  mutedForeground: string;
+  primary: string;
+  primaryForeground: string;
+  backgroundSecondary: string;
+  destructive: string;
+};
+
+type RecentMediaAccess = 'idle' | 'granted' | 'limited' | 'denied' | 'error' | 'unavailable';
+
+interface AttachmentSheetProps {
+  expanded: boolean;
+  visible: boolean;
+  recentAssets: MediaLibrary.Asset[];
+  recentLoading: boolean;
+  recentLoadingMore: boolean;
+  recentHasMore: boolean;
+  recentMediaAccess: RecentMediaAccess;
+  contactsMode: boolean;
+  contacts: Contacts.ExistingContact[];
+  contactsLoading: boolean;
+  colors: AttachmentSheetColors;
+  bottomInset: number;
+  onClose: () => void;
+  onExpand: () => void;
+  onCollapse: () => void;
+  onGallery: () => void;
+  onDocument: () => void;
+  onLocation: () => void;
+  onContact: () => void;
+  onBackFromContacts: () => void;
+  onRetryRecents: () => void;
+  onOpenSettings: () => void;
+  onLoadMoreRecents: () => void;
+  onSelectRecent: (asset: MediaLibrary.Asset) => void;
+  onSelectContact: (contact: Contacts.ExistingContact) => void;
+}
+
+function AttachmentSheet({
+  expanded,
+  visible,
+  recentAssets,
+  recentLoading,
+  recentLoadingMore,
+  recentHasMore,
+  recentMediaAccess,
+  contactsMode,
+  contacts,
+  contactsLoading,
+  colors,
+  bottomInset,
+  onClose,
+  onExpand,
+  onCollapse,
+  onGallery,
+  onDocument,
+  onLocation,
+  onContact,
+  onBackFromContacts,
+  onRetryRecents,
+  onOpenSettings,
+  onLoadMoreRecents,
+  onSelectRecent,
+  onSelectContact,
+}: AttachmentSheetProps) {
+  const sheetProgress = useRef(new Animated.Value(expanded ? 1 : 0)).current;
+  const { height: windowHeight } = useWindowDimensions();
+  const sheetHeight = Math.max(430, windowHeight - 104);
+  const collapsedOffset = Math.max(0, sheetHeight - 286);
+
+  useEffect(() => {
+    Animated.spring(sheetProgress, {
+      toValue: expanded ? 1 : 0,
+      useNativeDriver: true,
+      damping: 22,
+      stiffness: 210,
+      mass: 0.85,
+    }).start();
+  }, [expanded, sheetProgress]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          Math.abs(gesture.dy) > 8 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        onPanResponderRelease: (_, gesture) => {
+          if (gesture.dy < -45) onExpand();
+          else if (gesture.dy > 45) onCollapse();
+        },
+      }),
+    [onCollapse, onExpand],
+  );
+
+  if (!visible) return null;
+
+  const sheetTranslateY = sheetProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [collapsedOffset, 0],
+  });
+
+  return (
+    <View style={styles.attachmentSheetOverlay} testID="attachment-sheet">
+      <Pressable
+        style={styles.attachmentSheetBackdrop}
+        onPress={onClose}
+        accessibilityLabel="Close attachment panel"
+      />
+      <Animated.View
+        style={[
+          styles.attachmentSheet,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            height: sheetHeight,
+            paddingBottom: Math.max(bottomInset, 14),
+            transform: [{ translateY: sheetTranslateY }],
+          },
+        ]}
+      >
+        <View
+          testID="attachment-sheet-drag-handle"
+          {...panResponder.panHandlers}
+        >
+          <View style={styles.attachmentSheetHandle} />
+          <View style={styles.attachmentSheetHeader}>
+            <TouchableOpacity
+              onPress={contactsMode ? onBackFromContacts : expanded ? onCollapse : onClose}
+              style={styles.attachmentSheetClose}
+              accessibilityLabel={
+                contactsMode
+                  ? 'Back to attachment options'
+                  : expanded
+                  ? 'Collapse recent gallery'
+                  : 'Close attachment panel'
+              }
+            >
+              <Feather
+                name={contactsMode ? 'chevron-left' : 'x'}
+                size={22}
+                color={colors.foreground}
+              />
+            </TouchableOpacity>
+            <Text
+              style={[
+                styles.attachmentSheetTitle,
+                { color: colors.foreground, fontFamily: 'Inter_700Bold' },
+              ]}
+            >
+              {contactsMode ? 'Choose contact' : expanded ? 'Recents' : 'Attach'}
+            </Text>
+            <View style={styles.attachmentSheetHeaderSpacer} />
+          </View>
+        </View>
+
+        {contactsMode ? (
+          <ScrollView
+            style={styles.contactPickerList}
+            contentContainerStyle={styles.contactPickerContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {contactsLoading ? (
+              <View style={styles.attachmentEmptyState}>
+                <ActivityIndicator color={colors.primary} />
+                <Text style={[styles.attachmentEmptyText, { color: colors.mutedForeground }]}>
+                  Reading contacts…
+                </Text>
+              </View>
+            ) : contacts.length === 0 ? (
+              <View style={styles.attachmentEmptyState}>
+                <Feather name="users" size={26} color={colors.mutedForeground} />
+                <Text style={[styles.attachmentEmptyText, { color: colors.mutedForeground }]}>
+                  No contacts with a phone number were found.
+                </Text>
+              </View>
+            ) : (
+              contacts.map((contact) => {
+                const phone = contact.phoneNumbers?.find((item) => item.number)?.number;
+                return (
+                  <TouchableOpacity
+                    key={contact.id}
+                    style={[styles.contactRow, { borderBottomColor: colors.border }]}
+                    onPress={() => onSelectContact(contact)}
+                    accessibilityLabel={`Share contact ${contact.name}`}
+                  >
+                    <View style={[styles.contactAvatar, { backgroundColor: colors.primary + '18' }]}>
+                      <Feather name="user" size={18} color={colors.primary} />
+                    </View>
+                    <View style={styles.contactCopy}>
+                      <Text
+                        style={[
+                          styles.contactName,
+                          { color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {contact.name}
+                      </Text>
+                      {phone ? (
+                        <Text
+                          style={[
+                            styles.contactPhone,
+                            { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+                          ]}
+                        >
+                          {phone}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Feather name="send" size={16} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </ScrollView>
+        ) : (
+          <>
+            <View style={styles.attachmentActionRow}>
+              <AttachmentAction
+                icon="image"
+                label="Gallery"
+                colors={colors}
+                onPress={onGallery}
+                testID="attachment-gallery"
+              />
+              <AttachmentAction
+                icon="map-pin"
+                label="Location"
+                colors={colors}
+                onPress={onLocation}
+                testID="attachment-location"
+              />
+              <AttachmentAction
+                icon="user"
+                label="Contact"
+                colors={colors}
+                onPress={onContact}
+                testID="attachment-contact"
+              />
+              <AttachmentAction
+                icon="file-text"
+                label="Document"
+                colors={colors}
+                onPress={onDocument}
+                testID="attachment-document"
+              />
+            </View>
+            <View style={styles.attachmentRecentHeader}>
+              <Text
+                style={[
+                  styles.attachmentRecentTitle,
+                  { color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
+                ]}
+              >
+                Recents
+              </Text>
+              {!expanded ? (
+                <TouchableOpacity
+                  onPress={onExpand}
+                  accessibilityLabel="View all recent photos"
+                  style={styles.attachmentSeeAll}
+                >
+                  <Text style={[styles.attachmentSeeAllText, { color: colors.primary }]}>
+                    See all
+                  </Text>
+                  <Feather name="chevron-up" size={15} color={colors.primary} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            {recentMediaAccess === 'limited' ? (
+              <View style={[styles.attachmentPermissionNote, { backgroundColor: colors.backgroundSecondary }]}>
+                <Feather name="shield" size={13} color={colors.mutedForeground} />
+                <Text style={[styles.attachmentPermissionText, { color: colors.mutedForeground }]}>
+                  Showing the photos you allowed Avarpus to access.
+                </Text>
+                <TouchableOpacity onPress={onOpenSettings} accessibilityLabel="Manage photo access">
+                  <Text style={[styles.attachmentPermissionAction, { color: colors.primary }]}>
+                    Manage
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            {recentLoading ? (
+              <View style={styles.attachmentLoadingRow}>
+                <ActivityIndicator color={colors.primary} />
+                <Text style={[styles.attachmentEmptyText, { color: colors.mutedForeground }]}>
+                  Loading photos…
+                </Text>
+              </View>
+            ) : recentAssets.length === 0 ? (
+              <View style={styles.attachmentEmptyState}>
+                <Feather name="image" size={26} color={colors.mutedForeground} />
+                <Text style={[styles.attachmentEmptyText, { color: colors.mutedForeground }]}>
+                  {recentMediaAccess === 'denied'
+                    ? 'Photo access is off. Allow access to show recent photos here.'
+                    : recentMediaAccess === 'error'
+                    ? 'Recent photos could not be loaded.'
+                    : recentMediaAccess === 'unavailable'
+                    ? 'Recent photos are available in the native mobile app.'
+                    : 'No recent photos were found.'}
+                </Text>
+                <TouchableOpacity
+                  onPress={
+                    recentMediaAccess === 'denied'
+                      ? onOpenSettings
+                      : recentMediaAccess === 'error'
+                      ? onRetryRecents
+                      : onGallery
+                  }
+                  style={[styles.attachmentEmptyButton, { borderColor: colors.border }]}
+                >
+                  <Text style={[styles.attachmentEmptyButtonText, { color: colors.primary }]}>
+                    {recentMediaAccess === 'denied'
+                      ? 'Open settings'
+                      : recentMediaAccess === 'error'
+                      ? 'Try again'
+                      : 'Open gallery'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView
+                testID="attachment-recents-scroll"
+                horizontal={!expanded}
+                style={expanded ? styles.attachmentRecentScroll : undefined}
+                showsHorizontalScrollIndicator={false}
+                scrollEventThrottle={120}
+                onScroll={
+                  expanded
+                    ? ({ nativeEvent }) => {
+                        const distanceFromBottom =
+                          nativeEvent.contentSize.height -
+                          nativeEvent.layoutMeasurement.height -
+                          nativeEvent.contentOffset.y;
+                        if (distanceFromBottom < 180) onLoadMoreRecents();
+                      }
+                    : undefined
+                }
+                contentContainerStyle={
+                  expanded ? styles.attachmentGrid : styles.attachmentStrip
+                }
+              >
+                {recentAssets.map((asset) => (
+                  <TouchableOpacity
+                    key={asset.id}
+                    onPress={() => onSelectRecent(asset)}
+                    style={expanded ? styles.attachmentGridItem : styles.attachmentStripItem}
+                    accessibilityLabel={`Select ${asset.filename}`}
+                  >
+                    <Image
+                      source={{ uri: asset.uri }}
+                      style={styles.attachmentRecentImage}
+                      contentFit="cover"
+                    />
+                    {asset.mediaType === 'video' ? (
+                      <View style={styles.attachmentVideoBadge}>
+                        <Feather name="play" size={11} color="#FFFFFF" />
+                      </View>
+                    ) : null}
+                  </TouchableOpacity>
+                ))}
+                {expanded && recentLoadingMore ? (
+                  <View style={styles.attachmentPageLoader}>
+                    <ActivityIndicator color={colors.primary} />
+                  </View>
+                ) : null}
+                {expanded && !recentHasMore && recentAssets.length > 0 ? (
+                  <Text style={[styles.attachmentEndText, { color: colors.mutedForeground }]}>
+                    You’re all caught up
+                  </Text>
+                ) : null}
+              </ScrollView>
+            )}
+          </>
+        )}
+      </Animated.View>
+    </View>
+  );
+}
+
+function AttachmentAction({
+  icon,
+  label,
+  colors,
+  onPress,
+  testID,
+}: {
+  icon: React.ComponentProps<typeof Feather>['name'];
+  label: string;
+  colors: AttachmentSheetColors;
+  onPress: () => void;
+  testID: string;
+}) {
+  return (
+    <TouchableOpacity
+      style={styles.attachmentAction}
+      onPress={onPress}
+      accessibilityLabel={label}
+      testID={testID}
+    >
+      <View style={[styles.attachmentActionIcon, { backgroundColor: colors.primary + '18' }]}>
+        <Feather name={icon} size={20} color={colors.primary} />
+      </View>
+      <Text style={[styles.attachmentActionLabel, { color: colors.foreground }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
 // ── Recording state machine ───────────────────────────────────────────────
 
 type RecordingPhase =
@@ -589,6 +1011,19 @@ export default function ChatScreen() {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isSendingUpload, setIsSendingUpload] = useState(false);
+
+  // ── Attachment sheet state ──────────────────────────────────────────────
+  const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
+  const [attachmentSheetExpanded, setAttachmentSheetExpanded] = useState(false);
+  const [recentAssets, setRecentAssets] = useState<MediaLibrary.Asset[]>([]);
+  const [recentAssetsLoading, setRecentAssetsLoading] = useState(false);
+  const [recentAssetsLoadingMore, setRecentAssetsLoadingMore] = useState(false);
+  const [recentAssetsCursor, setRecentAssetsCursor] = useState<string | null>(null);
+  const [recentAssetsHasMore, setRecentAssetsHasMore] = useState(false);
+  const [recentMediaAccess, setRecentMediaAccess] = useState<RecentMediaAccess>('idle');
+  const [contactsMode, setContactsMode] = useState(false);
+  const [deviceContacts, setDeviceContacts] = useState<Contacts.ExistingContact[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
 
   // ── Voice recording state ───────────────────────────────────────────────
   const [recordingPhase, setRecordingPhase] = useState<RecordingPhase>('idle');
@@ -856,8 +1291,8 @@ export default function ChatScreen() {
   // ── Send text message ───────────────────────────────────────────────────
   const sendMutation = useChatMessagesSend();
 
-  const handleSend = useCallback(() => {
-    const trimmed = text.trim();
+  const sendTextValue = useCallback((value: string) => {
+    const trimmed = value.trim();
     if (!trimmed || !resolvedRoomId || isBlocked) return;
     const clientRequestId =
       pendingSendRef.current?.body === trimmed
@@ -896,7 +1331,11 @@ export default function ChatScreen() {
         },
       },
     );
-  }, [text, resolvedRoomId, isBlocked, user, sendMutation, msgsRefetch]);
+  }, [resolvedRoomId, isBlocked, user, sendMutation, msgsRefetch]);
+
+  const handleSend = useCallback(() => {
+    sendTextValue(text);
+  }, [sendTextValue, text]);
 
   // ── Upload URL mutation ─────────────────────────────────────────────────
   const uploadUrlMutation = useChatUploadUrl();
@@ -1017,11 +1456,172 @@ export default function ChatScreen() {
     }
   }, [pendingUpload, resolvedRoomId, uploadUrlMutation, sendMutation, msgsRefetch]);
 
-  // ── Pick file attachment ─────────────────────────────────────────────────
-  const handlePickAttachment = useCallback(async () => {
-    if (!providerAvailable || !resolvedRoomId) return;
-    if (uploadProgress !== null || isSendingUpload || recordingPhase !== 'idle') return;
+  const attachEnabled =
+    providerAvailable &&
+    !isBlocked &&
+    !!resolvedRoomId &&
+    uploadProgress === null &&
+    !isSendingUpload &&
+    recordingPhase === 'idle';
 
+  // ── Attachment sheet and native pickers ──────────────────────────────────
+  const queueUpload = useCallback(
+    async (
+      uri: string,
+      name: string,
+      mimeType: string | null | undefined,
+      fileSize?: number | null,
+    ) => {
+      const contentType = resolveContentType(mimeType, name);
+      if (!contentType) {
+        setUploadError(
+          `Unsupported file type "${mimeType ?? name.split('.').pop()}". ` +
+          'Allowed: images (JPEG/PNG/GIF/WebP/HEIC), video (MP4/MOV), PDF.',
+        );
+        return;
+      }
+
+      let size = fileSize ?? 0;
+      if ((fileSize === undefined || fileSize === null) && Platform.OS !== 'web') {
+        const info = await FileSystem.getInfoAsync(uri);
+        size = info.exists && 'size' in info ? (info as any).size : 0;
+      }
+      if (size > MAX_FILE_BYTES) {
+        setUploadError(`File is too large (${formatBytes(size)}). Maximum is 50 MB.`);
+        return;
+      }
+
+      setPendingUpload({
+        uri,
+        name,
+        size,
+        contentType,
+        clientRequestId: makeClientRequestId('attach'),
+      });
+      setUploadError(null);
+    },
+    [],
+  );
+
+  const loadRecentAssets = useCallback(async () => {
+    if (Platform.OS === 'web') {
+      setRecentAssets([]);
+      setRecentAssetsCursor(null);
+      setRecentAssetsHasMore(false);
+      setRecentMediaAccess('unavailable');
+      return;
+    }
+    setRecentAssetsLoading(true);
+    setRecentMediaAccess('idle');
+    try {
+      let permission = await MediaLibrary.getPermissionsAsync(false, ['photo', 'video']);
+      if (!permission.granted) {
+        permission = await MediaLibrary.requestPermissionsAsync(false, ['photo', 'video']);
+      }
+      if (!permission.granted) {
+        setRecentAssets([]);
+        setRecentAssetsCursor(null);
+        setRecentAssetsHasMore(false);
+        setRecentMediaAccess('denied');
+        return;
+      }
+      const result = await MediaLibrary.getAssetsAsync({
+        first: 30,
+        mediaType: ['photo', 'video'],
+        sortBy: [['creationTime', false]],
+      });
+      setRecentAssets(result.assets);
+      setRecentAssetsCursor(result.endCursor || null);
+      setRecentAssetsHasMore(result.hasNextPage);
+      setRecentMediaAccess(permission.accessPrivileges === 'limited' ? 'limited' : 'granted');
+    } catch {
+      setRecentAssets([]);
+      setRecentAssetsCursor(null);
+      setRecentAssetsHasMore(false);
+      setRecentMediaAccess('error');
+    } finally {
+      setRecentAssetsLoading(false);
+    }
+  }, []);
+
+  const loadMoreRecentAssets = useCallback(async () => {
+    if (
+      Platform.OS === 'web' ||
+      !recentAssetsHasMore ||
+      !recentAssetsCursor ||
+      recentAssetsLoadingMore
+    ) {
+      return;
+    }
+    setRecentAssetsLoadingMore(true);
+    try {
+      const result = await MediaLibrary.getAssetsAsync({
+        first: 30,
+        after: recentAssetsCursor,
+        mediaType: ['photo', 'video'],
+        sortBy: [['creationTime', false]],
+      });
+      setRecentAssets((current) => {
+        const knownIds = new Set(current.map((asset) => asset.id));
+        return [...current, ...result.assets.filter((asset) => !knownIds.has(asset.id))];
+      });
+      setRecentAssetsCursor(result.endCursor || null);
+      setRecentAssetsHasMore(result.hasNextPage);
+    } catch {
+      setRecentMediaAccess('error');
+    } finally {
+      setRecentAssetsLoadingMore(false);
+    }
+  }, [recentAssetsCursor, recentAssetsHasMore, recentAssetsLoadingMore]);
+
+  const closeAttachmentSheet = useCallback(() => {
+    setAttachmentSheetOpen(false);
+    setAttachmentSheetExpanded(false);
+    setContactsMode(false);
+  }, []);
+
+  const handleOpenMediaSettings = useCallback(() => {
+    void Linking.openSettings().catch(() => {
+      Alert.alert('Open Settings', 'Open your device settings and allow photo access for Avarpus.');
+    });
+  }, []);
+
+  const openAttachmentSheet = useCallback(() => {
+    if (!attachEnabled) return;
+    Keyboard.dismiss();
+    setContactsMode(false);
+    setAttachmentSheetExpanded(false);
+    setAttachmentSheetOpen(true);
+    void loadRecentAssets();
+  }, [attachEnabled, loadRecentAssets]);
+
+  const handleGallery = useCallback(async () => {
+    if (!attachEnabled) return;
+    closeAttachmentSheet();
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        quality: 0.9,
+        videoMaxDuration: 60,
+        allowsMultipleSelection: false,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      const fallbackName = `${asset.type === 'video' ? 'video' : 'photo'}-${Date.now()}.${asset.type === 'video' ? 'mp4' : 'jpg'}`;
+      await queueUpload(
+        asset.uri,
+        asset.fileName ?? fallbackName,
+        asset.mimeType,
+        asset.fileSize,
+      );
+    } catch (error: any) {
+      setUploadError(error?.message ?? 'Could not open the photo gallery.');
+    }
+  }, [attachEnabled, closeAttachmentSheet, queueUpload]);
+
+  const handlePickDocument = useCallback(async () => {
+    if (!attachEnabled) return;
+    closeAttachmentSheet();
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: [
@@ -1037,46 +1637,98 @@ export default function ChatScreen() {
         copyToCacheDirectory: true,
         multiple: false,
       });
-
       if (result.canceled || !result.assets?.length) return;
-
       const asset = result.assets[0];
-
-      // Resolve content type: never fall back to octet-stream
-      const contentType = resolveContentType(asset.mimeType, asset.name);
-      if (!contentType) {
-        setUploadError(
-          `Unsupported file type "${asset.mimeType ?? asset.name.split('.').pop()}". ` +
-          'Allowed: images (JPEG/PNG/GIF/WebP/HEIC), video (MP4/MOV), PDF.',
-        );
-        return;
-      }
-
-      // Size — try asset.size first; fall back to FileSystem on native
-      let size = asset.size;
-      if ((size === undefined || size === null) && Platform.OS !== 'web') {
-        const info = await FileSystem.getInfoAsync(asset.uri);
-        size = info.exists && 'size' in info ? (info as any).size : 0;
-      }
-      size = size ?? 0;
-
-      if (size > MAX_FILE_BYTES) {
-        setUploadError(`File is too large (${formatBytes(size)}). Maximum is 50 MB.`);
-        return;
-      }
-
-      setPendingUpload({
-        uri: asset.uri,
-        name: asset.name,
-        size,
-        contentType,
-        clientRequestId: makeClientRequestId('attach'),
-      });
-      setUploadError(null);
-    } catch {
-      // User cancelled or picker error — silently ignore
+      await queueUpload(asset.uri, asset.name, asset.mimeType, asset.size);
+    } catch (error: any) {
+      setUploadError(error?.message ?? 'Could not open the document picker.');
     }
-  }, [providerAvailable, resolvedRoomId, uploadProgress, isSendingUpload, recordingPhase]);
+  }, [attachEnabled, closeAttachmentSheet, queueUpload]);
+
+  const handleSelectRecent = useCallback(
+    async (asset: MediaLibrary.Asset) => {
+      if (!attachEnabled) return;
+      closeAttachmentSheet();
+      try {
+        const info = await MediaLibrary.getAssetInfoAsync(asset);
+        const name = asset.filename || `${asset.mediaType === 'video' ? 'video' : 'photo'}-${Date.now()}`;
+        const fallbackType = asset.mediaType === 'video' ? 'video/mp4' : 'image/jpeg';
+        await queueUpload(info.localUri ?? asset.uri, name, resolveContentType(undefined, name) ?? fallbackType);
+      } catch (error: any) {
+        setUploadError(error?.message ?? 'Could not prepare that photo.');
+      }
+    },
+    [attachEnabled, closeAttachmentSheet, queueUpload],
+  );
+
+  const handleLocation = useCallback(async () => {
+    if (!attachEnabled) return;
+    closeAttachmentSheet();
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Location permission needed', 'Allow Avarpus to access your location to share it in this chat.');
+        return;
+      }
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const { latitude, longitude } = location.coords;
+      const locationMessage =
+        `📍 My location\nhttps://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+      Alert.alert(
+        'Send current location?',
+        'This will share your precise current location in this conversation.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Send location',
+            onPress: () => sendTextValue(locationMessage),
+          },
+        ],
+      );
+    } catch (error: any) {
+      Alert.alert('Could not get location', error?.message ?? 'Try again when location is available.');
+    }
+  }, [attachEnabled, closeAttachmentSheet, sendTextValue]);
+
+  const handleContact = useCallback(async () => {
+    if (!attachEnabled) return;
+    setContactsMode(true);
+    setAttachmentSheetExpanded(true);
+    setAttachmentSheetOpen(true);
+    if (deviceContacts.length > 0) return;
+    setContactsLoading(true);
+    try {
+      const permission = await Contacts.requestPermissionsAsync();
+      if (!permission.granted) {
+        setContactsMode(false);
+        setAttachmentSheetExpanded(false);
+        Alert.alert('Contacts permission needed', 'Allow Avarpus to choose a contact to share in this chat.');
+        return;
+      }
+      const result = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers],
+        pageSize: 100,
+      });
+      setDeviceContacts(
+        result.data.filter((contact) => Boolean(contact.name && contact.phoneNumbers?.some((phone) => phone.number))),
+      );
+    } catch (error: any) {
+      Alert.alert('Could not read contacts', error?.message ?? 'Try again when contacts are available.');
+    } finally {
+      setContactsLoading(false);
+    }
+  }, [attachEnabled, deviceContacts.length]);
+
+  const handleSelectContact = useCallback(
+    (contact: Contacts.ExistingContact) => {
+      const phone = contact.phoneNumbers?.find((item) => item.number)?.number;
+      closeAttachmentSheet();
+      sendTextValue(`👤 ${contact.name}${phone ? `\nPhone: ${phone}` : ''}`);
+    },
+    [closeAttachmentSheet, sendTextValue],
+  );
 
   // ── Voice recording ──────────────────────────────────────────────────────
 
@@ -1227,14 +1879,6 @@ export default function ChatScreen() {
   );
 
   // ── Derived flags ───────────────────────────────────────────────────────
-  const attachEnabled =
-    providerAvailable &&
-    !isBlocked &&
-    !!resolvedRoomId &&
-    uploadProgress === null &&
-    !isSendingUpload &&
-    recordingPhase === 'idle';
-
   const micEnabled =
     providerAvailable &&
     !isBlocked &&
@@ -1671,7 +2315,7 @@ export default function ChatScreen() {
               blurOnSubmit={false}
             />
             <TouchableOpacity
-              onPress={handlePickAttachment}
+              onPress={openAttachmentSheet}
               disabled={!attachEnabled}
               style={[styles.inlineComposerAction, { opacity: attachEnabled ? 1 : 0.4 }]}
               accessibilityLabel={attachEnabled ? 'Add attachment' : 'Attachments not available'}
@@ -1683,7 +2327,7 @@ export default function ChatScreen() {
               />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={handlePickAttachment}
+              onPress={handleGallery}
               disabled={!attachEnabled}
               style={[styles.inlineComposerAction, { opacity: attachEnabled ? 1 : 0.4 }]}
               accessibilityLabel={attachEnabled ? 'Attach photo' : 'Camera unavailable'}
@@ -1849,6 +2493,40 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      <AttachmentSheet
+        visible={attachmentSheetOpen}
+        expanded={attachmentSheetExpanded}
+        recentAssets={recentAssets}
+        recentLoading={recentAssetsLoading}
+        recentLoadingMore={recentAssetsLoadingMore}
+        recentHasMore={recentAssetsHasMore}
+        recentMediaAccess={recentMediaAccess}
+        contactsMode={contactsMode}
+        contacts={deviceContacts}
+        contactsLoading={contactsLoading}
+        colors={colors}
+        bottomInset={insets.bottom}
+        onClose={closeAttachmentSheet}
+        onExpand={() => setAttachmentSheetExpanded(true)}
+        onCollapse={() => {
+          setContactsMode(false);
+          setAttachmentSheetExpanded(false);
+        }}
+        onGallery={handleGallery}
+        onDocument={handlePickDocument}
+        onLocation={handleLocation}
+        onContact={handleContact}
+        onBackFromContacts={() => {
+          setContactsMode(false);
+          setAttachmentSheetExpanded(false);
+        }}
+        onRetryRecents={() => void loadRecentAssets()}
+        onOpenSettings={handleOpenMediaSettings}
+        onLoadMoreRecents={() => void loadMoreRecentAssets()}
+        onSelectRecent={handleSelectRecent}
+        onSelectContact={handleSelectContact}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -2100,4 +2778,184 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   errorText: { flex: 1, fontSize: 12 },
+  attachmentSheetOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    zIndex: 20,
+  },
+  attachmentSheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(2, 8, 23, 0.34)',
+  },
+  attachmentSheet: {
+    height: 472,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#020817',
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -5 },
+    elevation: 18,
+  },
+  attachmentSheetHandle: {
+    alignSelf: 'center',
+    width: 42,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CBD5E1',
+    marginTop: 9,
+    marginBottom: 3,
+  },
+  attachmentSheetHeader: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+  },
+  attachmentSheetClose: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachmentSheetTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
+  },
+  attachmentSheetHeaderSpacer: { width: 38 },
+  attachmentActionRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 10,
+    paddingTop: 4,
+    paddingBottom: 12,
+  },
+  attachmentAction: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+  },
+  attachmentActionIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachmentActionLabel: { fontSize: 11, fontFamily: 'Inter_500Medium' },
+  attachmentRecentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 9,
+  },
+  attachmentRecentTitle: { fontSize: 14 },
+  attachmentSeeAll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: 4,
+    paddingLeft: 8,
+  },
+  attachmentSeeAllText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  attachmentStrip: { paddingHorizontal: 14, gap: 8 },
+  attachmentRecentScroll: { flex: 1 },
+  attachmentPermissionNote: {
+    marginHorizontal: 14,
+    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  attachmentPermissionText: { flex: 1, fontSize: 12, lineHeight: 16 },
+  attachmentPermissionAction: { fontSize: 12, fontWeight: '700' },
+  attachmentGrid: {
+    paddingHorizontal: 12,
+    gap: 7,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  attachmentStripItem: {
+    width: 82,
+    height: 82,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  attachmentGridItem: {
+    width: '31.8%',
+    aspectRatio: 1,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  attachmentRecentImage: { width: '100%', height: '100%', backgroundColor: '#E2E8F0' },
+  attachmentVideoBadge: {
+    position: 'absolute',
+    right: 6,
+    bottom: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(2, 8, 23, 0.68)',
+  },
+  attachmentPageLoader: {
+    width: '100%',
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  attachmentEndText: {
+    width: '100%',
+    textAlign: 'center',
+    fontSize: 12,
+    paddingVertical: 18,
+  },
+  attachmentLoadingRow: {
+    minHeight: 116,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  attachmentEmptyState: {
+    minHeight: 116,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingHorizontal: 24,
+  },
+  attachmentEmptyText: { fontSize: 12, textAlign: 'center' },
+  attachmentEmptyButton: {
+    marginTop: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  attachmentEmptyButtonText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  contactPickerList: { flex: 1 },
+  contactPickerContent: { paddingHorizontal: 14 },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    paddingVertical: 11,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  contactAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  contactCopy: { flex: 1 },
+  contactName: { fontSize: 14 },
+  contactPhone: { fontSize: 12, marginTop: 2 },
 });

@@ -52,3 +52,4 @@
 - [OpenAPI email schemas](openapi-email-schemas.md) — Orval emits Zod 4-only email validators for `format: email`; use a regex pattern while api-zod remains on Zod 3.
 - [Personal Status privacy](personal-status-privacy.md) — Status audience is global-direct contacts only; blocks, active authors, owner-only viewers, and retryable private-media cleanup are mandatory.
 - [Pending upload cleanup fencing](pending-upload-cleanup-fencing.md) — cleanup must use exclusive token-fenced leases, revalidation, bounded side effects, and narrow namespace listings.
+- [Native chat attachment safety](native-chat-attachment-safety.md) — keep sheet drags off nested galleries, paginate device media, and confirm precise location before sending.

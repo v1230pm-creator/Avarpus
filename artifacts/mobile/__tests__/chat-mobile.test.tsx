@@ -141,6 +141,31 @@ jest.mock('expo-contacts', () => ({
   Fields: { PhoneNumbers: 'phoneNumbers' },
 }));
 
+const mockLaunchImageLibraryAsync = jest.fn();
+jest.mock('expo-image-picker', () => ({
+  launchImageLibraryAsync: (...args: any[]) => mockLaunchImageLibraryAsync(...args),
+  MediaTypeOptions: { All: 'All' },
+}));
+
+const mockGetMediaPermissionsAsync = jest.fn();
+const mockRequestMediaPermissionsAsync = jest.fn();
+const mockGetAssetsAsync = jest.fn();
+const mockGetAssetInfoAsync = jest.fn();
+jest.mock('expo-media-library', () => ({
+  getPermissionsAsync: (...args: any[]) => mockGetMediaPermissionsAsync(...args),
+  requestPermissionsAsync: (...args: any[]) => mockRequestMediaPermissionsAsync(...args),
+  getAssetsAsync: (...args: any[]) => mockGetAssetsAsync(...args),
+  getAssetInfoAsync: (...args: any[]) => mockGetAssetInfoAsync(...args),
+}));
+
+const mockRequestLocationPermissionsAsync = jest.fn();
+const mockGetCurrentPositionAsync = jest.fn();
+jest.mock('expo-location', () => ({
+  requestForegroundPermissionsAsync: (...args: any[]) => mockRequestLocationPermissionsAsync(...args),
+  getCurrentPositionAsync: (...args: any[]) => mockGetCurrentPositionAsync(...args),
+  Accuracy: { Balanced: 3 },
+}));
+
 // Mock expo-document-picker
 const mockGetDocumentAsync = jest.fn();
 jest.mock('expo-document-picker', () => ({
@@ -291,6 +316,15 @@ beforeEach(() => {
   });
   mockRequestContactsPermissionsAsync.mockResolvedValue({ granted: true });
   mockGetContactsAsync.mockResolvedValue({ data: [] });
+  mockLaunchImageLibraryAsync.mockResolvedValue({ canceled: true, assets: [] });
+  mockGetMediaPermissionsAsync.mockResolvedValue({ granted: true, accessPrivileges: 'all' });
+  mockRequestMediaPermissionsAsync.mockResolvedValue({ granted: true, accessPrivileges: 'all' });
+  mockGetAssetsAsync.mockResolvedValue({ assets: [], endCursor: '', hasNextPage: false });
+  mockGetAssetInfoAsync.mockImplementation(async (asset: any) => ({ ...asset, localUri: asset.uri }));
+  mockRequestLocationPermissionsAsync.mockResolvedValue({ granted: true });
+  mockGetCurrentPositionAsync.mockResolvedValue({
+    coords: { latitude: 28.6139, longitude: 77.209 },
+  });
   mockGetDocumentAsync.mockResolvedValue({ canceled: true, assets: null });
   mockGetInfoAsync.mockResolvedValue({ exists: true, size: 1024 });
   mockCreateUploadTask.mockReturnValue({ uploadAsync: jest.fn().mockResolvedValue({ status: 200 }) });
@@ -498,8 +532,9 @@ describe('Inbox — no fake data', () => {
 
     render(<HomeScreen />);
     fireEvent.press(screen.getByTestId('account-menu-control'));
+    fireEvent.press(screen.getByText('Settings'));
 
-    expect(push).toHaveBeenCalledWith('/(tabs)/more');
+    expect(push).toHaveBeenCalledWith('/(tabs)/more/settings');
   });
 
   it('explains denied contact permission without querying contacts', async () => {
@@ -1036,11 +1071,191 @@ describe('Chat screen — attachments', () => {
     expect(btn.props.accessibilityState?.disabled).toBeFalsy();
   });
 
+  it('opens the attachment panel with four native actions and expands Recents', async () => {
+    mockGetAssetsAsync.mockResolvedValueOnce({
+      assets: [{
+        id: 'asset-1',
+        filename: 'recent.jpg',
+        uri: 'file:///photos/recent.jpg',
+        mediaType: 'photo',
+        width: 100,
+        height: 100,
+        creationTime: 1,
+        modificationTime: 1,
+        duration: 0,
+      }],
+      endCursor: 'asset-1',
+      hasNextPage: false,
+    });
+    render(<ChatRoomScreen />);
+
+    fireEvent.press(screen.getByLabelText('Add attachment'));
+    expect(screen.getByTestId('attachment-sheet')).toBeTruthy();
+    expect(screen.getByLabelText('Gallery')).toBeTruthy();
+    expect(screen.getByLabelText('Location')).toBeTruthy();
+    expect(screen.getByLabelText('Contact')).toBeTruthy();
+    expect(screen.getByLabelText('Document')).toBeTruthy();
+
+    await waitFor(() => expect(screen.getByLabelText('Select recent.jpg')).toBeTruthy());
+    fireEvent.press(screen.getByLabelText('View all recent photos'));
+    expect(screen.getAllByText('Recents').length).toBeGreaterThan(0);
+    fireEvent.press(screen.getByLabelText('Collapse recent gallery'));
+    expect(screen.getByText('Attach')).toBeTruthy();
+  });
+
+  it('explains denied photo access instead of showing a misleading empty gallery', async () => {
+    mockGetMediaPermissionsAsync.mockResolvedValueOnce({ granted: false, accessPrivileges: 'none' });
+    mockRequestMediaPermissionsAsync.mockResolvedValueOnce({ granted: false, accessPrivileges: 'none' });
+    render(<ChatRoomScreen />);
+
+    fireEvent.press(screen.getByLabelText('Add attachment'));
+
+    expect(
+      await screen.findByText('Photo access is off. Allow access to show recent photos here.'),
+    ).toBeTruthy();
+    expect(screen.getByText('Open settings')).toBeTruthy();
+  });
+
+  it('loads additional recent-photo pages when the expanded grid nears its end', async () => {
+    const firstAsset = {
+      id: 'asset-1',
+      filename: 'first.jpg',
+      uri: 'file:///photos/first.jpg',
+      mediaType: 'photo',
+      width: 100,
+      height: 100,
+      creationTime: 2,
+      modificationTime: 2,
+      duration: 0,
+    };
+    const secondAsset = {
+      ...firstAsset,
+      id: 'asset-2',
+      filename: 'second.jpg',
+      uri: 'file:///photos/second.jpg',
+      creationTime: 1,
+      modificationTime: 1,
+    };
+    mockGetAssetsAsync
+      .mockResolvedValueOnce({
+        assets: [firstAsset],
+        endCursor: 'asset-1',
+        hasNextPage: true,
+      })
+      .mockResolvedValueOnce({
+        assets: [secondAsset],
+        endCursor: 'asset-2',
+        hasNextPage: false,
+      });
+    render(<ChatRoomScreen />);
+
+    fireEvent.press(screen.getByLabelText('Add attachment'));
+    await screen.findByLabelText('Select first.jpg');
+    fireEvent.press(screen.getByLabelText('View all recent photos'));
+    fireEvent.scroll(screen.getByTestId('attachment-recents-scroll'), {
+      nativeEvent: {
+        contentOffset: { y: 300, x: 0 },
+        contentSize: { height: 700, width: 400 },
+        layoutMeasurement: { height: 500, width: 400 },
+      },
+    });
+
+    await waitFor(() =>
+      expect(mockGetAssetsAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({ after: 'asset-1' }),
+      ),
+    );
+    expect(await screen.findByLabelText('Select second.jpg')).toBeTruthy();
+  });
+
+  it('uses the native gallery picker and queues its selected photo', async () => {
+    mockLaunchImageLibraryAsync.mockResolvedValueOnce({
+      canceled: false,
+      assets: [{
+        uri: 'file:///photos/gallery.jpg',
+        fileName: 'gallery.jpg',
+        mimeType: 'image/jpeg',
+        fileSize: 3210,
+        type: 'image',
+      }],
+    });
+    render(<ChatRoomScreen />);
+
+    fireEvent.press(screen.getByLabelText('Add attachment'));
+    fireEvent.press(screen.getByLabelText('Gallery'));
+
+    await waitFor(() => expect(mockLaunchImageLibraryAsync).toHaveBeenCalled());
+    expect(await screen.findByText('gallery.jpg')).toBeTruthy();
+    expect(screen.getByLabelText('Send attachment')).toBeTruthy();
+  });
+
+  it('shares the real current coordinates through the existing text-message flow', async () => {
+    const sendMutate = jest.fn();
+    mockUseChatMessagesSend.mockReturnValue({ mutate: sendMutate, isPending: false });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+    render(<ChatRoomScreen />);
+
+    fireEvent.press(screen.getByLabelText('Add attachment'));
+    fireEvent.press(screen.getByLabelText('Location'));
+
+    await waitFor(() => expect(mockGetCurrentPositionAsync).toHaveBeenCalled());
+    expect(sendMutate).not.toHaveBeenCalled();
+    const buttons = alertSpy.mock.calls.at(-1)?.[2] as Array<{ text?: string; onPress?: () => void }>;
+    const sendLocationButton = buttons.find((button) => button.text === 'Send location');
+    expect(sendLocationButton).toBeTruthy();
+    act(() => sendLocationButton?.onPress?.());
+    expect(sendMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roomId: 'room-1',
+        data: expect.objectContaining({
+          kind: 'text',
+          body: expect.stringContaining('28.6139,77.209'),
+        }),
+      }),
+      expect.anything(),
+    );
+    alertSpy.mockRestore();
+  });
+
+  it('reads device contacts and shares the selected real contact', async () => {
+    mockGetContactsAsync.mockResolvedValueOnce({
+      data: [{
+        id: 'contact-1',
+        name: 'Priya',
+        contactType: 'person',
+        phoneNumbers: [{ id: 'phone-1', number: '+91 98765 43210', label: 'mobile' }],
+      }],
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+    const sendMutate = jest.fn();
+    mockUseChatMessagesSend.mockReturnValue({ mutate: sendMutate, isPending: false });
+    render(<ChatRoomScreen />);
+
+    fireEvent.press(screen.getByLabelText('Add attachment'));
+    fireEvent.press(screen.getByLabelText('Contact'));
+    const contactRow = await screen.findByLabelText('Share contact Priya');
+    fireEvent.press(contactRow);
+
+    expect(mockRequestContactsPermissionsAsync).toHaveBeenCalled();
+    expect(sendMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roomId: 'room-1',
+        data: expect.objectContaining({
+          kind: 'text',
+          body: expect.stringContaining('+91 98765 43210'),
+        }),
+      }),
+      expect.anything(),
+    );
+  });
+
   it('picker cancel clears pending attachment without error', async () => {
     // getDocumentAsync returns canceled=true
     mockGetDocumentAsync.mockResolvedValueOnce({ canceled: true, assets: null });
     render(<ChatRoomScreen />);
     fireEvent.press(screen.getByLabelText('Add attachment'));
+    fireEvent.press(screen.getByLabelText('Document'));
     await waitFor(() => expect(mockGetDocumentAsync).toHaveBeenCalled());
     // No attachment preview should appear
     expect(screen.queryByLabelText('Send attachment')).toBeNull();
@@ -1081,6 +1296,7 @@ describe('Chat screen — attachments', () => {
 
     // Open picker
     fireEvent.press(screen.getByLabelText('Add attachment'));
+    fireEvent.press(screen.getByLabelText('Document'));
     await waitFor(() => screen.getByLabelText('Send attachment'));
 
     // Send the attachment
@@ -1159,6 +1375,7 @@ describe('Chat screen — attachments', () => {
     render(<ChatRoomScreen />);
 
     fireEvent.press(screen.getByLabelText('Add attachment'));
+    fireEvent.press(screen.getByLabelText('Document'));
     await waitFor(() => screen.getByLabelText('Send attachment'));
 
     // First attempt — will fail on upload URL
@@ -1200,6 +1417,7 @@ describe('Chat screen — attachments', () => {
 
     render(<ChatRoomScreen />);
     fireEvent.press(screen.getByLabelText('Add attachment'));
+    fireEvent.press(screen.getByLabelText('Document'));
     await waitFor(() => screen.getByLabelText('Send attachment'));
 
     fireEvent.press(screen.getByLabelText('Send attachment'));
@@ -1303,6 +1521,7 @@ describe('Chat screen — attachments', () => {
 
     render(<ChatRoomScreen />);
     fireEvent.press(screen.getByLabelText('Add attachment'));
+    fireEvent.press(screen.getByLabelText('Document'));
     await waitFor(() => screen.getByLabelText('Send attachment'));
     fireEvent.press(screen.getByLabelText('Send attachment'));
 
