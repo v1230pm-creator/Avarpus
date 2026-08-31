@@ -51,3 +51,4 @@
 - [Shop membership authority](shop-membership-authority.md) — membership role/status is authoritative per Shop; users.role/shopId is only the active-workspace compatibility pointer.
 - [OpenAPI email schemas](openapi-email-schemas.md) — Orval emits Zod 4-only email validators for `format: email`; use a regex pattern while api-zod remains on Zod 3.
 - [Personal Status privacy](personal-status-privacy.md) — Status audience is global-direct contacts only; blocks, active authors, owner-only viewers, and retryable private-media cleanup are mandatory.
+- [Pending upload cleanup fencing](pending-upload-cleanup-fencing.md) — cleanup must use exclusive token-fenced leases, revalidation, bounded side effects, and narrow namespace listings.

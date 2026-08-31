@@ -8,6 +8,7 @@ import { cleanupExpiredAuthData } from "./lib/authUtils";
 import { warnIfMailFromUnset } from "./lib/mailer";
 import { reconcileOtpRateLimitMigrationJournal } from "./lib/migrationJournalRecovery";
 import { cleanupAbandonedStatusUploads } from "./routes/status";
+import { cleanupAbandonedChatAndProfileUploads } from "./lib/pendingUploads";
 
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // daily
 
@@ -25,6 +26,13 @@ function runStatusUploadCleanup(): void {
   cleanupAbandonedStatusUploads()
     .catch((err) => {
       logger.error({ err }, "Status upload cleanup failed");
+    });
+}
+
+function runChatAndProfileUploadCleanup(): void {
+  cleanupAbandonedChatAndProfileUploads()
+    .catch((err) => {
+      logger.error({ err }, "Chat/Profile upload cleanup failed");
     });
 }
 
@@ -83,6 +91,11 @@ reconcileOtpRateLimitMigrationJournal(migrationsFolder)
       // keeps every object referenced by a published Status.
       runStatusUploadCleanup();
       setInterval(runStatusUploadCleanup, CLEANUP_INTERVAL_MS).unref();
+
+      // Reclaim private Chat/Profile objects that never became a durable
+      // message or active profile photo.
+      runChatAndProfileUploadCleanup();
+      setInterval(runChatAndProfileUploadCleanup, CLEANUP_INTERVAL_MS).unref();
     });
   })
   .catch((err) => {

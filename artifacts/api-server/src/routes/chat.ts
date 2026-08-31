@@ -68,6 +68,14 @@ import {
 } from "../lib/chatProviders";
 import { generateToken, sha256 } from "../lib/authUtils";
 import { notifyUser } from "../lib/notify";
+import {
+  claimPendingUpload,
+  CHAT_PROVIDER_SEND_TIMEOUT_MS,
+  completePendingUpload,
+  refreshPendingUploadClaim,
+  registerPendingUpload,
+  releasePendingUpload,
+} from "../lib/pendingUploads";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -1746,6 +1754,50 @@ router.post(
       resolvedDurationMs = durationMs;
     }
 
+    let mediaClaimToken: string | null = null;
+    if (resolvedObjectPath) {
+      const claim = await claimPendingUpload({
+        objectPath: resolvedObjectPath,
+        ownerUserId: me.id,
+        purpose: "chat",
+      });
+      if (!claim) {
+        res.status(400).json({
+          message: "Uploaded attachment is invalid, busy, or does not belong to this account",
+        });
+        return;
+      }
+      mediaClaimToken = claim.token;
+      try {
+        await objectStorageService.getObjectEntityFile(resolvedObjectPath);
+      } catch {
+        await releasePendingUpload({
+          objectPath: resolvedObjectPath,
+          ownerUserId: me.id,
+          purpose: "chat",
+          token: mediaClaimToken,
+        });
+        res.status(400).json({
+          message: "Uploaded attachment is no longer available. Please upload it again.",
+          code: "CHAT_MEDIA_EXPIRED",
+        });
+        return;
+      }
+      const renewed = await refreshPendingUploadClaim({
+        objectPath: resolvedObjectPath,
+        ownerUserId: me.id,
+        purpose: "chat",
+        token: mediaClaimToken,
+      });
+      if (!renewed) {
+        res.status(409).json({
+          message: "Attachment processing expired. Please try again.",
+          code: "CHAT_MEDIA_CLAIM_EXPIRED",
+        });
+        return;
+      }
+    }
+
     const msgtype: "m.text" | "m.image" | "m.file" | "m.audio" =
       kind === "image"
         ? "m.image"
@@ -1772,8 +1824,17 @@ router.post(
         // For voice notes, include Matrix content info.duration (milliseconds).
         info: resolvedDurationMs !== null ? { duration: resolvedDurationMs } : undefined,
         txnId,
+        signal: AbortSignal.timeout(CHAT_PROVIDER_SEND_TIMEOUT_MS),
       });
     } catch (err) {
+      if (resolvedObjectPath && mediaClaimToken) {
+        await releasePendingUpload({
+          objectPath: resolvedObjectPath,
+          ownerUserId: me.id,
+          purpose: "chat",
+          token: mediaClaimToken,
+        }).catch(() => undefined);
+      }
       const code = (err as NodeJS.ErrnoException).code ?? "";
       if (code === "PROVIDER_UNAVAILABLE") {
         res.status(503).json({
@@ -1788,6 +1849,22 @@ router.post(
         });
       }
       return;
+    }
+
+    if (resolvedObjectPath && mediaClaimToken) {
+      const renewed = await refreshPendingUploadClaim({
+        objectPath: resolvedObjectPath,
+        ownerUserId: me.id,
+        purpose: "chat",
+        token: mediaClaimToken,
+      });
+      if (!renewed) {
+        res.status(409).json({
+          message: "Attachment processing expired. Please retry this message.",
+          code: "CHAT_MEDIA_CLAIM_EXPIRED",
+        });
+        return;
+      }
     }
 
     // ── Persist after successful Matrix delivery (idempotent on conflict) ────
@@ -1816,6 +1893,17 @@ router.post(
         where: isNotNull(chatMessagesTable.clientRequestId),
       })
       .returning();
+
+    if (resolvedObjectPath && mediaClaimToken && inserted.length > 0) {
+      await completePendingUpload({
+        objectPath: resolvedObjectPath,
+        ownerUserId: me.id,
+        purpose: "chat",
+        token: mediaClaimToken,
+      }).catch((error) => {
+        req.log.warn({ err: error }, "Attached chat upload claim cleanup failed");
+      });
+    }
 
     if (inserted.length > 0) {
       if (directPeerUserId) {
@@ -1859,6 +1947,19 @@ router.post(
         ),
       )
       .limit(1);
+    if (resolvedObjectPath && mediaClaimToken) {
+      const finishClaim = raced?.objectPath === resolvedObjectPath
+        ? completePendingUpload
+        : releasePendingUpload;
+      await finishClaim({
+        objectPath: resolvedObjectPath,
+        ownerUserId: me.id,
+        purpose: "chat",
+        token: mediaClaimToken,
+      }).catch((error) => {
+        req.log.warn({ err: error }, "Raced chat upload claim cleanup failed");
+      });
+    }
     res.json({ message: formatMessage(raced) });
   }),
 );
@@ -2009,6 +2110,11 @@ router.post(
       await objectStorageService.getObjectEntityUploadURLWithPrefix(
          `${storageScope}/chat/${roomId}`,
       );
+    await registerPendingUpload({
+      objectPath,
+      ownerUserId: me.id,
+      purpose: "chat",
+    });
 
     res.json({ uploadURL, objectPath });
   }),

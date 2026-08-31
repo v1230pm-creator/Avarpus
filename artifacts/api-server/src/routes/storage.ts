@@ -10,6 +10,7 @@ import {
   ObjectStorageService,
 } from "../lib/objectStorage";
 import { isPersonalContact } from "../lib/statusAccess";
+import { registerPendingUpload } from "../lib/pendingUploads";
 
 // Object storage (App Storage) routes. Objects hold customer device photos,
 // documents and signatures, so both upload and serving are auth-protected AND
@@ -66,6 +67,11 @@ router.post(
     const me = (req as Request & { user: DbUser }).user;
     const { uploadURL, objectPath } = await objectStorageService
       .getObjectEntityUploadURLWithPrefix(`profiles/${me.id}`);
+    await registerPendingUpload({
+      objectPath,
+      ownerUserId: me.id,
+      purpose: "profile",
+    });
     res.json({ uploadURL, objectPath, metadata: { name, size, contentType } });
   }),
 );

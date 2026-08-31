@@ -344,6 +344,20 @@
       "when": 1788238000000,
       "tag": "0048_status_updates",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1788239000000,
+      "tag": "0049_pending_uploads",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1788240000000,
+      "tag": "0050_pending_upload_claim_tokens",
+      "breakpoints": true
     }
   ]
 }

@@ -21,6 +21,9 @@ const ALLOWED: Array<{ method: string | "*"; re: RegExp }> = [
   { method: "DELETE", re: new RegExp(`^\\/auth\\/sessions\\/${UUID}$`) },
   { method: "POST",   re: /^\/auth\/sessions\/revoke-others$/ },
   { method: "GET",    re: /^\/auth\/login-history$/ },
+  // Profile image upload is still self-service; the storage route scopes the
+  // object path to the authenticated user's ID before issuing the signed URL.
+  { method: "POST",   re: /^\/storage\/profiles\/upload-url$/ },
 
   // ── Optional business workspace ─────────────────────────────────────────
   // Each route performs its own membership/owner checks. Customers need this

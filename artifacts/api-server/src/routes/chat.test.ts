@@ -24,6 +24,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
+import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
   db,
@@ -45,6 +46,7 @@ import {
   chatReportsTable,
   sessionsTable,
   notificationsTable,
+  pendingUploadsTable,
 } from "@workspace/db";
 
 vi.mock("../lib/mailer", () => ({
@@ -71,6 +73,8 @@ beforeAll(() => {
 
 const { default: app } = await import("../app");
 const { hashPassword, generateToken, sha256, createSession } = await import("../lib/authUtils");
+const { ObjectStorageService } = await import("../lib/objectStorage");
+const { registerPendingUpload } = await import("../lib/pendingUploads");
 
 async function issueContactMatchGrant(callerUserId: string, targetUserId: string, shopId: string) {
   const rawToken = generateToken();
@@ -981,15 +985,22 @@ describe("Provider-mocked room creation + idempotent send", () => {
 
   it("valid audio send: stores durationMs + sends Matrix m.audio with info.duration", async () => {
     const crid = `audio-ok-${RUN}`;
-    const objectPath = `/objects/uploads/${shopA.id}/chat/${createdRoomId}/note.m4a`;
-    const res = await request(app)
-      .post(`/api/chat/rooms/${createdRoomId}/messages`)
-      .set("Authorization", `Bearer ${dealerTokenA}`)
-      .send({ kind: "audio", body: "Voice note", objectPath, durationMs: 4200, clientRequestId: crid });
-    expect(res.status).toBe(200);
-    expect(res.body.message.kind).toBe("audio");
-    expect(res.body.message.durationMs).toBe(4200);
-    expect(res.body.message.objectPath).toBe(objectPath);
+    const objectPath = `/objects/uploads/${shopA.id}/chat/${createdRoomId}/${randomUUID()}`;
+    await registerPendingUpload({ objectPath, ownerUserId: dealerA.id, purpose: "chat" });
+    const getFile = vi.spyOn(ObjectStorageService.prototype, "getObjectEntityFile")
+      .mockResolvedValue({} as never);
+    try {
+      const res = await request(app)
+        .post(`/api/chat/rooms/${createdRoomId}/messages`)
+        .set("Authorization", `Bearer ${dealerTokenA}`)
+        .send({ kind: "audio", body: "Voice note", objectPath, durationMs: 4200, clientRequestId: crid });
+      expect(res.status).toBe(200);
+      expect(res.body.message.kind).toBe("audio");
+      expect(res.body.message.durationMs).toBe(4200);
+      expect(res.body.message.objectPath).toBe(objectPath);
+    } finally {
+      getFile.mockRestore();
+    }
 
     // Matrix content: m.audio, url = opaque objectPath, info.duration = ms
     expect(lastSendContent).toBeTruthy();
@@ -1067,7 +1078,10 @@ describe("Provider-mocked room creation + idempotent send", () => {
 
   it("audio send provider failure → 503, zero DB write", async () => {
     const crid = `audio-provfail-${RUN}`;
-    const objectPath = `/objects/uploads/${shopA.id}/chat/${createdRoomId}/fail.m4a`;
+    const objectPath = `/objects/uploads/${shopA.id}/chat/${createdRoomId}/${randomUUID()}`;
+    await registerPendingUpload({ objectPath, ownerUserId: dealerA.id, purpose: "chat" });
+    const getFile = vi.spyOn(ObjectStorageService.prototype, "getObjectEntityFile")
+      .mockResolvedValue({} as never);
     sendFailStatus = 403;
     try {
       const res = await request(app)
@@ -1078,6 +1092,8 @@ describe("Provider-mocked room creation + idempotent send", () => {
       expect(res.body.code).toBe("MATRIX_SEND_FAILED");
     } finally {
       sendFailStatus = null;
+      getFile.mockRestore();
+      await db.delete(pendingUploadsTable).where(eq(pendingUploadsTable.objectPath, objectPath));
     }
     const rows = await db.select().from(chatMessagesTable)
       .where(and(eq(chatMessagesTable.roomId, createdRoomId!), eq(chatMessagesTable.clientRequestId, crid)));

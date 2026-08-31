@@ -40,6 +40,12 @@ import {
   normaliseIndianMobile,
 } from "../lib/hanuOtp";
 import { ObjectStorageService } from "../lib/objectStorage";
+import {
+  claimPendingUpload,
+  completePendingUpload,
+  refreshPendingUploadClaim,
+  releasePendingUpload,
+} from "../lib/pendingUploads";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -575,6 +581,8 @@ router.patch("/auth/me", requireAuth, asyncHandler(async (req, res) => {
     name: string; mobile: string; profilePhoto: string | null; profileAbout: string | null;
     profileUsername: string | null; profileLinks: string[] | null; displayNameCompletedAt: Date;
   }> = {};
+  let claimedProfileUploadPath: string | null = null;
+  let claimedProfileUploadToken: string | null = null;
   if (name !== undefined) {
     const validatedName = validateDisplayName(name);
     if ("message" in validatedName) {
@@ -613,9 +621,39 @@ router.patch("/auth/me", requireAuth, asyncHandler(async (req, res) => {
       res.status(400).json({ message: "Profile photo must be uploaded to your profile storage path" });
       return;
     } else {
+      const claim = await claimPendingUpload({
+        objectPath: profilePhoto,
+        ownerUserId: me.id,
+        purpose: "profile",
+      });
+      if (!claim) {
+        res.status(400).json({ message: "Profile photo does not belong to this account" });
+        return;
+      }
+      claimedProfileUploadPath = profilePhoto;
+      claimedProfileUploadToken = claim.token;
       const validation = await validateStoredProfilePhoto(profilePhoto, me.id);
       if (!validation.valid) {
+        await releasePendingUpload({
+          objectPath: profilePhoto,
+          ownerUserId: me.id,
+          purpose: "profile",
+          token: claimedProfileUploadToken,
+        }).catch(() => undefined);
         res.status(400).json({ message: validation.message });
+        return;
+      }
+      const renewed = await refreshPendingUploadClaim({
+        objectPath: profilePhoto,
+        ownerUserId: me.id,
+        purpose: "profile",
+        token: claimedProfileUploadToken,
+      });
+      if (!renewed) {
+        res.status(409).json({
+          message: "Profile photo processing expired. Please upload it again.",
+          code: "PROFILE_PHOTO_CLAIM_EXPIRED",
+        });
         return;
       }
       set.profilePhoto = validation.finalPath;
@@ -665,8 +703,26 @@ router.patch("/auth/me", requireAuth, asyncHandler(async (req, res) => {
       .set(set)
       .where(eq(usersTable.id, me.id))
       .returning();
+    if (claimedProfileUploadPath && claimedProfileUploadToken) {
+      await completePendingUpload({
+        objectPath: claimedProfileUploadPath,
+        ownerUserId: me.id,
+        purpose: "profile",
+        token: claimedProfileUploadToken,
+      }).catch((claimError) => {
+        req.log.warn({ err: claimError }, "Attached profile upload claim cleanup failed");
+      });
+    }
     res.json({ user: publicUser(updated) });
   } catch (error: unknown) {
+    if (claimedProfileUploadPath && claimedProfileUploadToken) {
+      await releasePendingUpload({
+        objectPath: claimedProfileUploadPath,
+        ownerUserId: me.id,
+        purpose: "profile",
+        token: claimedProfileUploadToken,
+      }).catch(() => undefined);
+    }
     // The preflight check makes the usual case friendly; the unique index is
     // still authoritative when two requests race to claim the same handle.
     if (

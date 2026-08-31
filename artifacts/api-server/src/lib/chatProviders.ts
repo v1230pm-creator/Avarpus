@@ -653,6 +653,7 @@ export async function matrixSendMessage(opts: {
    * REQUIRED — callers derive it from roomId+senderId+clientRequestId.
    */
   txnId: string;
+  signal?: AbortSignal;
 }): Promise<string> {
   requireMatrixConfigured();
   // Use the AS impersonation query param (?user_id=) so the event appears from
@@ -678,6 +679,7 @@ export async function matrixSendMessage(opts: {
     method: "PUT",
     headers: matrixHeaders(),
     body: JSON.stringify(content),
+    signal: opts.signal,
   });
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");

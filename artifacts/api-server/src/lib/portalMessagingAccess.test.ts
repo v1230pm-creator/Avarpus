@@ -8,6 +8,11 @@ function req(method: string, path: string): Request {
 }
 
 describe("restricted-account messaging allowlists", () => {
+  it("allows customer Profile image uploads without opening generic storage", () => {
+    expect(customerPortalAllowed(req("POST", "/storage/profiles/upload-url"))).toBe(true);
+    expect(customerPortalAllowed(req("GET", "/storage/objects/arbitrary"))).toBe(false);
+  });
+
   for (const [label, allowed] of [
     ["customer", customerPortalAllowed],
     ["dealer portal", dealerPortalAllowed],
