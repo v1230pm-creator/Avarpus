@@ -961,7 +961,7 @@ export default function RepairDetailScreen() {
         </View>
       </View>
 
-      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight + 120, paddingHorizontal: 16 }]} bottomOffset={24}>
+      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 24, paddingHorizontal: 16 }]} bottomOffset={24}>
 
         <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 16, marginBottom: 20 }}>
           
@@ -1365,7 +1365,7 @@ export default function RepairDetailScreen() {
       </KeyboardAwareScrollViewCompat>
 
       {/* STICKY PRIMARY ACTIONS */}
-      <View style={[styles.actionBar, { backgroundColor: colors.background, borderTopColor: colors.border, bottom: tabBarHeight, paddingBottom: 12 }]}>
+      <View style={[styles.actionBar, { backgroundColor: colors.background, borderTopColor: colors.border, marginBottom: tabBarHeight, paddingBottom: 12 }]}>
         {repair.status === 'delivered' ? (
           isDealer ? (
             <View>
@@ -2654,7 +2654,10 @@ const styles = StyleSheet.create({
   galleryBadgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
   sigImg: { width: '100%', height: 80, backgroundColor: '#FFF', borderRadius: 8, borderWidth: 1, borderColor: '#EEE' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
-  actionBar: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 12, zIndex: 10, elevation: 10 },
+  // Keep the primary actions in normal layout flow. An absolute footer overlaps
+  // the last card on short Android screens and makes the detail page appear to
+  // collapse behind the payment controls.
+  actionBar: { borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 12 },
   doneBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderRadius: 12, paddingVertical: 14 },
   paidChip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderRadius: 12 },
   sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
