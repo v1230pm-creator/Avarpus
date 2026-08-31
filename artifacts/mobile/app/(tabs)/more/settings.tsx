@@ -40,6 +40,7 @@ const SETTINGS_ITEMS = [
     icon: 'message-circle',
     title: 'Chats',
     subtitle: 'Chat history, backup',
+    route: '/(tabs)/more/chats',
   },
   {
     id: 'appearance',
