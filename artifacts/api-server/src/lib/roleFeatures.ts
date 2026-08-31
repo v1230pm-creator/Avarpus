@@ -42,6 +42,25 @@ export const PORTAL_FEATURES = ["portal_repairs"] as const;
 
 export type FeatureKey = (typeof STAFF_FEATURES)[number] | (typeof PORTAL_FEATURES)[number];
 
+// Canonical, API-facing permission vocabulary. Feature keys above remain the
+// stored/configurable vocabulary for backwards compatibility; these values are
+// derived from the effective feature map and must never be persisted as toggles.
+export const CANONICAL_PERMISSIONS = [
+  "VIEW_KHATA",
+  "EDIT_KHATA",
+  "VIEW_REPAIR",
+  "EDIT_REPAIR",
+  "VIEW_BUSINESS_REPORTS",
+  "MANAGE_STAFF",
+  "MANAGE_BUSINESS_SETTINGS",
+] as const;
+export type CanonicalPermission = (typeof CANONICAL_PERMISSIONS)[number];
+
+export const OWNER_ROLES = ["dealer", "super_admin"] as const;
+function isOwnerRole(role: string): boolean {
+  return (OWNER_ROLES as readonly string[]).includes(role);
+}
+
 export function featureKeysForRole(role: string): readonly string[] {
   if ((PORTAL_ROLES as readonly string[]).includes(role)) return PORTAL_FEATURES;
   if ((STAFF_ROLES as readonly string[]).includes(role)) return STAFF_FEATURES;
@@ -219,9 +238,53 @@ export async function getUserFeatureOverrides(user: DbUser): Promise<Record<stri
 /** Effective feature map for one user (owner roles get everything). */
 export async function effectiveFeaturesForUser(user: DbUser): Promise<Record<string, boolean>> {
   const roleFeatures = await roleFeaturesForUser(user);
-  if (user.role === "dealer" || user.role === "super_admin") return roleFeatures;
+  if (isOwnerRole(user.role)) return roleFeatures;
   const overrides = await getUserFeatureOverrides(user);
   return { ...roleFeatures, ...overrides };
+}
+
+/** Canonical permissions derived from the legacy effective feature matrix. */
+export function canonicalPermissionsForFeatures(
+  role: string,
+  features: Record<string, boolean>,
+): Record<CanonicalPermission, boolean> {
+  if (isOwnerRole(role)) {
+    return Object.fromEntries(CANONICAL_PERMISSIONS.map((permission) => [permission, true])) as Record<
+      CanonicalPermission,
+      boolean
+    >;
+  }
+  // Customer users never acquire business permissions, even if an unrelated
+  // feature row were introduced for them in the future.
+  if (role === "customer") {
+    return Object.fromEntries(CANONICAL_PERMISSIONS.map((permission) => [permission, false])) as Record<
+      CanonicalPermission,
+      boolean
+    >;
+  }
+  return {
+    VIEW_KHATA: features.payments === true,
+    EDIT_KHATA: features.payments === true,
+    VIEW_REPAIR: features.repairs === true || features.portal_repairs === true,
+    EDIT_REPAIR: features.repairs_update === true,
+    VIEW_BUSINESS_REPORTS: features.reports === true,
+    MANAGE_STAFF: false,
+    MANAGE_BUSINESS_SETTINGS: false,
+  };
+}
+
+export async function effectivePermissionsForUser(
+  user: DbUser,
+): Promise<Record<CanonicalPermission, boolean>> {
+  if (isOwnerRole(user.role) || user.role === "customer") {
+    return canonicalPermissionsForFeatures(user.role, {});
+  }
+  return canonicalPermissionsForFeatures(user.role, await effectiveFeaturesForUser(user));
+}
+
+export async function userHasPermission(user: DbUser, permission: CanonicalPermission): Promise<boolean> {
+  if (isOwnerRole(user.role)) return true;
+  return (await effectivePermissionsForUser(user))[permission];
 }
 
 /** True when `user` may use `feature`. Owner roles always pass. */
@@ -244,6 +307,40 @@ export function requireFeature(feature: FeatureKey) {
         res.status(403).json({
           code: "FEATURE_DISABLED",
           message: "This feature has been turned off for your account. Ask the shop owner to enable it in Permission Settings.",
+        });
+      })
+      .catch(next);
+  };
+}
+
+/** Require one of the existing feature keys. Useful where two legacy access
+ * paths intentionally exist (for example staff repairs and dealer portal
+ * repairs) without turning either into a broader canonical alias. */
+export function requireAnyFeature(...features: FeatureKey[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = (req as Request & { user: DbUser }).user;
+    Promise.all(features.map((feature) => userHasFeature(user, feature)))
+      .then((allowed) => {
+        if (allowed.some(Boolean)) return next();
+        res.status(403).json({
+          code: "FEATURE_DISABLED",
+          message: "This feature has been turned off for your account. Ask the shop owner to enable it in Permission Settings.",
+        });
+      })
+      .catch(next);
+  };
+}
+
+/** Require a canonical permission. Owner roles always pass. */
+export function requirePermission(permission: CanonicalPermission) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = (req as Request & { user: DbUser }).user;
+    userHasPermission(user, permission)
+      .then((allowed) => {
+        if (allowed) return next();
+        res.status(403).json({
+          code: "PERMISSION_DENIED",
+          message: "You do not have permission to access this business data.",
         });
       })
       .catch(next);

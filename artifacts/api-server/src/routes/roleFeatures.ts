@@ -8,6 +8,7 @@ import {
   DEFAULT_ROLE_FEATURES,
   type ConfigurableRole,
   effectiveFeaturesForUser,
+  effectivePermissionsForUser,
   featureKeysForRole,
   getShopRoleFeatureMatrix,
   invalidateRoleFeatureCache,
@@ -28,12 +29,15 @@ router.get(
   requireAuth,
   asyncHandler(async (req, res) => {
     const me = (req as AuthedRequest).user;
-    const features = await effectiveFeaturesForUser(me);
+    const [features, permissions] = await Promise.all([
+      effectiveFeaturesForUser(me),
+      effectivePermissionsForUser(me),
+    ]);
     if (isOwner(me) && me.shopId) {
       const matrix = await getShopRoleFeatureMatrix(me.shopId);
-      return res.json({ features, matrix });
+      return res.json({ features, permissions, matrix });
     }
-    return res.json({ features });
+    return res.json({ features, permissions });
   }),
 );
 
@@ -81,7 +85,8 @@ router.put(
     invalidateRoleFeatureCache(me.shopId);
 
     const matrix = await getShopRoleFeatureMatrix(me.shopId);
-    return res.json({ matrix });
+    const permissions = await effectivePermissionsForUser(me);
+    return res.json({ matrix, permissions });
   }),
 );
 

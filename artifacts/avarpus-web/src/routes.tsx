@@ -86,7 +86,7 @@ export function ProtectedRoutes() {
         <Route path="/customers"><ProtectedRoute component={CustomersPage} feature="customers" /></Route>
         <Route path="/inventory"><ProtectedRoute component={InventoryPage} feature="inventory" /></Route>
         <Route path="/purchases"><ProtectedRoute component={PurchasesPage} feature="purchases" /></Route>
-        <Route path="/returns"><ProtectedRoute component={ReturnsPage} feature="returns" /></Route>
+        <Route path="/returns"><ProtectedRoute component={ReturnsPage} feature="repairs_update" /></Route>
         <Route path="/payments"><ProtectedRoute component={PaymentsPage} feature="payments" /></Route>
         <Route path="/finance"><ProtectedRoute component={FinancePage} feature="finance" /></Route>
         <Route path="/reports"><ProtectedRoute component={ReportsPage} feature="reports" /></Route>

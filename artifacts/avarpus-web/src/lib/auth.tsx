@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode, useMe
 import { setBaseUrl, setAuthTokenGetter, setUnauthorizedHandler } from "@workspace/api-client-react";
 import { useAuthMe, getAuthMeQueryKey, useRoleFeaturesGet } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 
 const AUTH_KEY = "avarpus_auth_token";
 const API_BASE_URL = import.meta.env.VITE_API_URL?.trim() || null;
@@ -41,7 +42,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   super_admin: ['*'],
-  dealer: ['repairs', 'inventory', 'customers', 'finance', 'payments', 'staff', 'reports', 'settings', 'purchases', 'attendance', 'backup', 'profit', 'income', 'expense'],
+  dealer: ['dashboard', 'repairs', 'inventory', 'customers', 'finance', 'payments', 'staff', 'reports', 'settings', 'purchases', 'attendance', 'backup', 'profit', 'income', 'expense'],
   reception: ['repairs', 'repairs_create', 'customers'],
   technician: ['repairs', 'repairs_update', 'customers'],
   store_manager: ['inventory', 'purchases'],
@@ -70,18 +71,30 @@ const PERM_TO_FEATURE: Record<string, string> = {
   repairs_portal: 'portal_repairs',
 };
 
+const PERSONAL_PERMISSIONS = new Set(['settings', 'notifications', 'chat', 'logout']);
+const CANONICAL_TO_FEATURE: Record<string, string> = {
+  VIEW_KHATA: 'payments',
+  EDIT_KHATA: 'payments',
+  VIEW_REPAIR: 'repairs',
+  EDIT_REPAIR: 'repairs_update',
+  VIEW_BUSINESS_REPORTS: 'reports',
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(localStorage.getItem(AUTH_KEY));
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      void queryClient.cancelQueries();
+      queryClient.clear();
       setToken(null);
       localStorage.removeItem(AUTH_KEY);
       setLocation("/login");
     });
     return () => setUnauthorizedHandler(null);
-  }, [setLocation]);
+  }, [queryClient, setLocation]);
 
   const { data: authData, isLoading: isAuthLoading } = useAuthMe({
     query: {
@@ -95,34 +108,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = !!user;
   const isCustomerRole = user?.role === 'customer';
 
-  const { data: featuresData, isLoading: isFeaturesLoading } = useRoleFeaturesGet({
+  const {
+    data: featuresData,
+    isLoading: isFeaturesLoading,
+    isError: isFeaturesError,
+  } = useRoleFeaturesGet({
     query: {
-      queryKey: ["roleFeatures"],
+      queryKey: ["roleFeatures", user?.id],
       enabled: !!user && !isCustomerRole,
       staleTime: 60000,
+      refetchInterval: 60000,
     }
   });
 
   const setSession = (newToken: string) => {
+    void queryClient.cancelQueries();
+    queryClient.clear();
     localStorage.setItem(AUTH_KEY, newToken);
     setToken(newToken);
   };
 
   const logout = () => {
+    void queryClient.cancelQueries();
+    queryClient.clear();
     localStorage.removeItem(AUTH_KEY);
     setToken(null);
     setLocation("/login");
   };
 
-  const features = featuresData?.features || {};
+  // Undefined is materially different from an empty response: while the
+  // request is loading or has failed, staff business access must fail closed.
+  const features = isFeaturesError ? undefined : featuresData?.features;
 
   const canAccess = useMemo(() => {
     return (feature: string): boolean => {
       if (!user) return false;
-      // Account settings are personal rather than a shop feature; every
-      // authenticated browser user needs access to sign out and inspect their
-      // profile.
-      if (feature === 'settings') return true;
+      if (PERSONAL_PERMISSIONS.has(feature)) return true;
       if (user.role === 'super_admin' || user.role === 'dealer') {
         const perms = ROLE_PERMISSIONS[user.role];
         return !!perms && (perms.includes('*') || perms.includes(feature));
@@ -131,11 +152,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const perms = ROLE_PERMISSIONS['customer'];
         return !!perms && perms.includes(feature);
       }
-      
-      const key = PERM_TO_FEATURE[feature];
-      if (key && features && typeof features[key] === 'boolean') {
-        return features[key];
+      if (user.role === 'dealer_owner' || user.role === 'dealer_staff') {
+        if (feature === 'repairs_portal' || feature === 'VIEW_REPAIR') {
+          return features?.portal_repairs === true;
+        }
+        return false;
       }
+      const key = PERM_TO_FEATURE[feature] ?? CANONICAL_TO_FEATURE[feature];
+      if (key) return features?.[key] === true;
       const perms = ROLE_PERMISSIONS[user.role];
       if (!perms) return false;
       return perms.includes('*') || perms.includes(feature);

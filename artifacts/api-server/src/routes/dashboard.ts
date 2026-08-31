@@ -14,7 +14,7 @@ import {
   type DbUser,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
-import { requireFeature } from "../lib/roleFeatures";
+import { requireFeature, userHasFeature } from "../lib/roleFeatures";
 import { asyncHandler } from "../lib/asyncHandler";
 import type { Request, Response } from "express";
 
@@ -37,13 +37,6 @@ function shopIdOr403(req: Request, res: Response): string | null {
   return me.shopId;
 }
 
-// Roles allowed to see money figures. Mirrors the finance-visibility rule used
-// elsewhere: dealer + super_admin own the shop, accountant handles books.
-const FINANCE_ROLES = ["dealer", "super_admin", "accountant"];
-function canSeeFinance(req: Request): boolean {
-  return FINANCE_ROLES.includes((req as AuthedRequest).user.role);
-}
-
 // Roles allowed to view the cross-shop activity feed / audit log.
 const ACTIVITY_ROLES = ["dealer", "super_admin"];
 
@@ -60,7 +53,7 @@ router.get(
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
     const today = todayStr();
-    const seeFinance = canSeeFinance(req);
+    const seeFinance = await userHasFeature((req as AuthedRequest).user, "finance");
 
     // Operational counts — computed in SQL, shop-scoped.
     const [ops] = await db

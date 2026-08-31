@@ -21,22 +21,24 @@ interface MenuItem {
   roles: string[];
   /** When set, staff visibility follows the shop's feature toggles instead of the fixed role list. */
   feature?: string;
+  section: 'personal' | 'business';
 }
 
 const MENU_ITEMS: MenuItem[] = [
-  { id: 'my-profile', label: 'My Profile', icon: 'user', route: '/(tabs)/more/profile', color: '#0866FF', description: 'Name and mobile number', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'] },
-  { id: 'notifications', label: 'Notifications', icon: 'bell', route: '/(tabs)/more/notifications', color: '#F2B84B', description: 'Chats, repairs and approvals', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'] },
-  { id: 'activity', label: 'Activity Log', icon: 'activity', route: '/(tabs)/more/activity', color: '#20C878', description: 'View system events', roles: ['super_admin', 'dealer'] },
-  { id: 'finance', label: 'Finance', icon: 'bar-chart-2', route: '/(tabs)/more/finance', color: '#20C878', description: 'Income, expense, cash book', roles: ['super_admin', 'dealer'], feature: 'finance' },
-  { id: 'approvals', label: 'Approvals', icon: 'check-circle', route: '/(tabs)/more/approvals', color: '#FF4D4F', description: 'Backdated entry requests', roles: ['super_admin', 'dealer'], feature: 'approvals' },
-  { id: 'staff', label: 'Staff', icon: 'users', route: '/(tabs)/more/staff', color: '#8B5CF6', description: 'Manage staff and roles', roles: ['super_admin', 'dealer'] },
-  { id: 'permissions', label: 'Staff Permissions', icon: 'sliders', route: '/(tabs)/more/permissions', color: '#D9A441', description: 'Turn features on/off per role', roles: ['super_admin', 'dealer'] },
-  { id: 'purchases', label: 'Purchases', icon: 'shopping-bag', route: '/(tabs)/more/purchases', color: '#0866FF', description: 'Purchase orders, suppliers', roles: ['super_admin', 'dealer'], feature: 'purchases' },
-  { id: 'reports', label: 'Reports', icon: 'file-text', route: '/(tabs)/more/reports', color: '#F2B84B', description: 'Generate and export reports', roles: ['super_admin', 'dealer'], feature: 'reports' },
-  { id: 'inventory', label: 'Inventory', icon: 'package', route: '/(tabs)/inventory', color: '#F2B84B', description: 'Manage stock and parts', roles: ['super_admin', 'dealer'], feature: 'inventory' },
-  { id: 'settings', label: 'Settings', icon: 'settings', route: '/(tabs)/more/settings', color: '#718096', description: 'Company, app configuration', roles: ['super_admin', 'dealer'] },
-  { id: 'app-update', label: 'App Update', icon: 'download-cloud', route: '/(tabs)/more/app-update', color: '#0866FF', description: 'Check for new app versions', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician'] },
-  { id: 'update-manager', label: 'App Update Manager', icon: 'upload-cloud', route: '/(tabs)/more/update-manager', color: '#8B5CF6', description: 'Publish new app releases', roles: ['super_admin'] },
+  { id: 'my-profile', label: 'Personal Profile', icon: 'user', route: '/(tabs)/more/profile', color: '#0866FF', description: 'Name and mobile number', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'], section: 'personal' },
+  { id: 'notifications', label: 'Personal Notifications', icon: 'bell', route: '/(tabs)/more/notifications', color: '#F2B84B', description: 'Chats, repairs and approvals', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'], section: 'personal' },
+  { id: 'account', label: 'Account & Security', icon: 'shield', route: '/(tabs)/more/account', color: '#718096', description: 'Sessions, app lock and account access', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'], section: 'personal' },
+  { id: 'settings', label: 'Personal Settings', icon: 'settings', route: '/(tabs)/more/settings', color: '#718096', description: 'Privacy, chats, notifications and appearance', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'], section: 'personal' },
+  { id: 'activity', label: 'Activity Log', icon: 'activity', route: '/(tabs)/more/activity', color: '#20C878', description: 'View system events', roles: ['super_admin', 'dealer'], section: 'business' },
+  { id: 'finance', label: 'Finance', icon: 'bar-chart-2', route: '/(tabs)/more/finance', color: '#20C878', description: 'Income, expense, cash book', roles: ['super_admin', 'dealer'], feature: 'finance', section: 'business' },
+  { id: 'approvals', label: 'Approvals', icon: 'check-circle', route: '/(tabs)/more/approvals', color: '#FF4D4F', description: 'Backdated entry requests', roles: ['super_admin', 'dealer'], feature: 'approvals', section: 'business' },
+  { id: 'staff', label: 'Staff', icon: 'users', route: '/(tabs)/more/staff', color: '#8B5CF6', description: 'Manage staff and roles', roles: ['super_admin', 'dealer'], section: 'business' },
+  { id: 'permissions', label: 'Staff Permissions', icon: 'sliders', route: '/(tabs)/more/permissions', color: '#D9A441', description: 'Turn features on/off per role', roles: ['super_admin', 'dealer'], section: 'business' },
+  { id: 'purchases', label: 'Purchases', icon: 'shopping-bag', route: '/(tabs)/more/purchases', color: '#0866FF', description: 'Purchase orders, suppliers', roles: ['super_admin', 'dealer'], feature: 'purchases', section: 'business' },
+  { id: 'reports', label: 'Reports', icon: 'file-text', route: '/(tabs)/more/reports', color: '#F2B84B', description: 'Generate and export reports', roles: ['super_admin', 'dealer'], feature: 'reports', section: 'business' },
+  { id: 'inventory', label: 'Inventory', icon: 'package', route: '/(tabs)/inventory', color: '#F2B84B', description: 'Manage stock and parts', roles: ['super_admin', 'dealer'], feature: 'inventory', section: 'business' },
+  { id: 'app-update', label: 'App Update', icon: 'download-cloud', route: '/(tabs)/more/app-update', color: '#0866FF', description: 'Check for new app versions', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician'], section: 'business' },
+  { id: 'update-manager', label: 'App Update Manager', icon: 'upload-cloud', route: '/(tabs)/more/update-manager', color: '#8B5CF6', description: 'Publish new app releases', roles: ['super_admin'], section: 'business' },
 ];
 
 export default function MoreScreen() {
@@ -113,16 +115,22 @@ export default function MoreScreen() {
           </View>
         </View>
 
-        {/* Menu Items */}
-        <View style={[styles.menuGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          {visibleItems.map((item, idx) => (
+        {(['personal', 'business'] as const).map((section) => {
+          const items = visibleItems.filter((item) => item.section === section);
+          if (!items.length) return null;
+          return <View key={section} style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
+            {section === 'personal' ? 'PERSONAL ACCOUNT' : 'BUSINESS WORKSPACE'}
+          </Text>
+          <View style={[styles.menuGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {items.map((item, idx) => (
             <TouchableOpacity
               key={item.id}
               onPress={() => router.push(item.route as any)}
               activeOpacity={0.7}
               style={[
                 styles.menuItem,
-                idx < visibleItems.length - 1 && [styles.menuItemBorder, { borderBottomColor: colors.border }],
+                idx < items.length - 1 && [styles.menuItemBorder, { borderBottomColor: colors.border }],
               ]}
             >
               <View style={[styles.menuIconWrap, { backgroundColor: item.color + '1A' }]}>
@@ -150,7 +158,8 @@ export default function MoreScreen() {
               <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
             </TouchableOpacity>
           ))}
-        </View>
+          </View></View>;
+        })}
 
         {/* Logout */}
         <TouchableOpacity
@@ -213,6 +222,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden' 
   },
+  section: { gap: 6 },
+  sectionLabel: { fontSize: 11, letterSpacing: 0.8, paddingHorizontal: 4, marginTop: 6 },
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
   menuItemBorder: { borderBottomWidth: 1 },
   menuIconWrap: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },

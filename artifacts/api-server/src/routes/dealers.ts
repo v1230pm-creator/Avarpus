@@ -144,6 +144,7 @@ router.get(
 router.get(
   "/dealers/detect",
   requireAuth,
+  requireFeature("customers"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -169,6 +170,7 @@ router.get(
 router.get(
   "/dealers",
   requireAuth,
+  requireFeature("customers"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -289,6 +291,7 @@ router.get(
 router.get(
   "/dealers/:id",
   requireAuth,
+  requireFeature("customers"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;

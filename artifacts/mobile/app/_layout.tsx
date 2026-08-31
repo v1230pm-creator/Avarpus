@@ -17,7 +17,7 @@ import {
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { setAuthTokenGetter, setBaseUrl } from '@workspace/api-client-react';
-import { AuthProvider } from '@/context/AuthContext';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { DataProvider } from '@/context/DataContext';
 import { storage, KEYS } from '@/utils/storage';
 
@@ -36,6 +36,11 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     </Stack>
   );
+}
+
+function IdentityBoundDataProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  return <DataProvider key={user?.id ?? 'signed-out'}>{children}</DataProvider>;
 }
 
 export default function RootLayout() {
@@ -59,8 +64,8 @@ export default function RootLayout() {
       />
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <DataProvider>
+          <AuthProvider queryClient={queryClient}>
+            <IdentityBoundDataProvider>
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <KeyboardProvider>
                   <BackgroundRelock>
@@ -69,7 +74,7 @@ export default function RootLayout() {
                   </BackgroundRelock>
                 </KeyboardProvider>
               </GestureHandlerRootView>
-            </DataProvider>
+            </IdentityBoundDataProvider>
           </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>

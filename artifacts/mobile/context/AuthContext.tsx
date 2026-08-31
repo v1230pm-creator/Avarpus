@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import type { QueryClient } from '@tanstack/react-query';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import {
@@ -9,7 +10,7 @@ import {
   roleFeaturesGet,
   setUnauthorizedHandler,
 } from '@workspace/api-client-react';
-import { User, UserRole, isCustomerRole } from '@/types';
+import { User, UserRole, isCustomerRole, isDealerPortalRole } from '@/types';
 import { storage, KEYS } from '@/utils/storage';
 import { seedIfNeeded } from '@/utils/seedData';
 import {
@@ -56,7 +57,7 @@ const AuthContext = createContext<AuthContextType>({
 
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   super_admin: ['*'],
-  dealer: ['repairs', 'inventory', 'customers', 'finance', 'payments', 'staff', 'reports', 'settings', 'purchases', 'attendance', 'backup', 'profit', 'income', 'expense'],
+  dealer: ['dashboard', 'repairs', 'inventory', 'customers', 'finance', 'payments', 'staff', 'reports', 'settings', 'purchases', 'attendance', 'backup', 'profit', 'income', 'expense'],
   reception: ['repairs', 'repairs_create', 'customers'],
   technician: ['repairs', 'repairs_update', 'customers'],
   store_manager: ['inventory', 'purchases'],
@@ -92,6 +93,17 @@ const PERM_TO_FEATURE: Record<string, string> = {
   repairs_portal: 'portal_repairs',
 };
 
+// These describe an individual's account, rather than a shop capability. They
+// deliberately do not wait for the role-feature request.
+const PERSONAL_PERMISSIONS = new Set(['chat', 'profile', 'personal_settings', 'notifications', 'logout']);
+const CANONICAL_TO_FEATURE: Record<string, string> = {
+  VIEW_KHATA: 'payments',
+  EDIT_KHATA: 'payments',
+  VIEW_REPAIR: 'repairs',
+  EDIT_REPAIR: 'repairs_update',
+  VIEW_BUSINESS_REPORTS: 'reports',
+};
+
 function apiErrorMessage(err: unknown, fallback: string): string {
   const data = (err as { data?: { message?: string } })?.data;
   if (data?.message) return data.message;
@@ -111,14 +123,25 @@ function toUser(u: any): User {
   return { ...u, role: u.role as UserRole } as User;
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+  queryClient,
+}: {
+  children: React.ReactNode;
+  queryClient?: QueryClient;
+}) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [signedOutNotice, setSignedOutNotice] = useState<string | null>(null);
   const [trustedDeviceStatus, setTrustedDeviceStatus] = useState<TrustedDeviceStatus>('idle');
   const recoveryAttemptRef = useRef(0);
+  const featureRequestRef = useRef(0);
   // Effective per-role feature toggles from the server (null until loaded).
   const [features, setFeatures] = useState<Record<string, boolean> | null>(null);
+  const resetIdentityCache = () => {
+    void queryClient?.cancelQueries();
+    queryClient?.clear();
+  };
 
   // Track whether a user is currently signed in without re-registering the
   // global 401 handler on every render.
@@ -132,9 +155,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUnauthorizedHandler(() => {
       if (!userRef.current) return; // not signed in — nothing to do
       recoveryAttemptRef.current += 1;
+      featureRequestRef.current += 1;
+      resetIdentityCache();
       userRef.current = null;
       setSignedOutNotice('You were signed out. Please sign in again.');
       setUser(null);
+      setFeatures(null);
       setIsLoading(false);
       // Fire-and-forget: local state is already cleared for the UI.
       storage.remove(KEYS.AUTH_TOKEN).catch(() => {});
@@ -210,17 +236,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const refreshFeatures = async () => {
+    const requestId = ++featureRequestRef.current;
+    const userId = userRef.current?.id;
+    if (!userId) {
+      setFeatures(null);
+      return;
+    }
     try {
       const res = await roleFeaturesGet();
+      if (requestId !== featureRequestRef.current || userRef.current?.id !== userId) return;
       setFeatures(res.features ?? {});
     } catch {
-      // Keep whatever we had; canAccess falls back to role defaults when null.
+      if (requestId !== featureRequestRef.current || userRef.current?.id !== userId) return;
+      // Do not retain a possibly stale grant after a refresh failure. Business
+      // access must fail closed until the server supplies a current policy.
+      setFeatures(null);
     }
   };
 
   // Load feature toggles whenever a user signs in, and refresh periodically so
   // owner changes reach staff devices without needing a re-login.
   useEffect(() => {
+    featureRequestRef.current += 1;
     if (!user) {
       setFeatures(null);
       return;
@@ -240,6 +277,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session: { token: string; user: any },
     shouldApply: () => boolean = () => true,
   ): Promise<boolean> => {
+    if (!shouldApply()) return false;
+    resetIdentityCache();
+    featureRequestRef.current += 1;
     await storage.set(KEYS.AUTH_TOKEN, session.token);
     if (!shouldApply()) {
       if ((await storage.get<string>(KEYS.AUTH_TOKEN)) === session.token) {
@@ -259,6 +299,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return false;
     }
+    setFeatures(null);
     setUser(u);
     return true;
   };
@@ -289,16 +330,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     recoveryAttemptRef.current += 1;
-    try {
-      await authLogout();
-    } catch {
-      // Session may already be invalid server-side; clear local state regardless
-    }
-    await storage.remove(KEYS.AUTH_TOKEN);
-    await storage.remove(KEYS.CURRENT_USER);
+    featureRequestRef.current += 1;
+    const logoutRequest = authLogout().catch(() => {
+      // Session may already be invalid server-side; local state is still cleared.
+    });
+    resetIdentityCache();
+    userRef.current = null;
     setUser(null);
+    setFeatures(null);
     setTrustedDeviceStatus('idle');
     setIsLoading(false);
+    await storage.remove(KEYS.AUTH_TOKEN);
+    await storage.remove(KEYS.CURRENT_USER);
+    await logoutRequest;
   };
 
   const useOtpInstead = () => {
@@ -309,6 +353,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const canAccess = (feature: string): boolean => {
     if (!user) return false;
+    if (PERSONAL_PERMISSIONS.has(feature)) return true;
     // Owner roles are never restricted by the per-role toggles.
     if (user.role === 'super_admin' || user.role === 'dealer') {
       const perms = ROLE_PERMISSIONS[user.role];
@@ -319,9 +364,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const perms = ROLE_PERMISSIONS['customer'];
       return perms.includes(feature);
     }
-    // Staff/portal roles: honor the shop's feature toggles when loaded.
-    const key = PERM_TO_FEATURE[feature];
-    if (key && features) return features[key] === true;
+    // Dealer-portal accounts have an explicit, fixed portal policy. They are
+    // not staff feature-toggle users.
+    if (isDealerPortalRole(user.role)) {
+      if (feature === 'repairs_portal' || feature === 'VIEW_REPAIR') {
+        return features?.portal_repairs === true;
+      }
+      return false;
+    }
+    // Staff business capabilities are entirely server-controlled. In
+    // particular, a loading or failed feature request must never fall back to
+    // a locally cached role default.
+    const key = PERM_TO_FEATURE[feature] ?? CANONICAL_TO_FEATURE[feature];
+    if (key) return features?.[key] === true;
     const perms = ROLE_PERMISSIONS[user.role];
     if (!perms) return false;
     return perms.includes('*') || perms.includes(feature);

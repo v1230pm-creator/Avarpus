@@ -30,7 +30,7 @@ const NAV_ITEMS = [
   { href: "/chats", label: "Inbox", icon: MessageSquare, feature: "chat" },
   { href: "/inventory", label: "Inventory", icon: Package, feature: "inventory" },
   { href: "/purchases", label: "Purchases", icon: ShoppingCart, feature: "purchases" },
-  { href: "/returns", label: "Returns", icon: RotateCcw, feature: "returns" },
+  { href: "/returns", label: "Returns", icon: RotateCcw, feature: "repairs_update" },
   { href: "/payments", label: "Payments", icon: CreditCard, feature: "payments" },
   { href: "/finance", label: "Finance", icon: PieChart, feature: "finance" },
   { href: "/reports", label: "Reports", icon: LineChart, feature: "reports" },

@@ -8,7 +8,7 @@ import { isLockEnabled, isUnlocked, subscribeLockState } from '@/utils/appLock';
 import { InactivityGuard } from '@/components/InactivityGuard';
 import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { canCustomerAccessTabsRoute, canPortalAccessTabsRoute } from '@/utils/tabRouteAccess';
+import { canAccessTabsRoute } from '@/utils/tabRouteAccess';
 import {
   getPrimaryTabsHomeRoute,
   getVisiblePrimaryTabs,
@@ -154,7 +154,7 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
       <Tabs.Screen
         name="khata"
         options={{
-          href: customer || portal || !canAccess('payments') ? null : undefined,
+          href: customer || portal || !(canAccess('payments') || canAccess('repairs')) ? null : undefined,
           title: 'Khata',
         }}
       />
@@ -226,13 +226,9 @@ export default function TabLayout() {
     return <Redirect href="/(auth)" />;
   }
 
-  // A hidden tab is not an authorization boundary. Restricted accounts may
-  // enter their primary area, direct-chat rooms, and the compact account menu
-  // including chat notifications. Other business routes fail closed here.
-  if (customer && !canCustomerAccessTabsRoute(segments)) {
-    return <Redirect href="/(tabs)" />;
-  }
-  if (portal && !canPortalAccessTabsRoute(segments)) {
+  // A hidden tab is not an authorization boundary. This runs above all nested
+  // tab routes so denied deep links never mount sensitive screen hooks.
+  if (user && !canAccessTabsRoute(segments, { role: user.role, canAccess })) {
     return <Redirect href="/(tabs)" />;
   }
   const primaryRoute = getPrimaryTabsHomeRoute({ portal, canAccess });

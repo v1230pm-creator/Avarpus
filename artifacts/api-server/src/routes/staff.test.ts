@@ -7,6 +7,7 @@ import request from "supertest";
 import { eq, like } from "drizzle-orm";
 import {
   db,
+  dealersTable,
   loginEventsTable,
   pool,
   sessionsTable,
@@ -264,6 +265,19 @@ describe("shop isolation for staff management", () => {
     await flush();
     expect(sendStaffRejectedEmailMock).not.toHaveBeenCalled();
   });
+
+  it("does not treat another dealer account as manageable staff", async () => {
+    const [otherDealer] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.shopId, otherDealerShopId))
+      .limit(1);
+    expect(otherDealer.role).toBe("dealer");
+    const activate = await auth(request(app).patch(`/api/staff/${otherDealer.id}/activate`));
+    const remove = await auth(request(app).delete(`/api/staff/${otherDealer.id}`));
+    expect(activate.status).toBe(403);
+    expect(remove.status).toBe(403);
+  });
 });
 
 describe("individual permission settings", () => {
@@ -281,6 +295,9 @@ describe("individual permission settings", () => {
     expect(initial.body.roleFeatures.dashboard).toBe(true);
     expect(initial.body.overrides).toEqual({});
     expect(initial.body.features.dashboard).toBe(true);
+    expect(initial.body.permissions.VIEW_REPAIR).toBe(true);
+    expect(initial.body.permissions.EDIT_REPAIR).toBe(true);
+    expect(initial.body.permissions.MANAGE_STAFF).toBe(false);
 
     const disabled = await auth(request(app)
       .put(`/api/staff/${staff.id}/permissions`)
@@ -288,6 +305,37 @@ describe("individual permission settings", () => {
     expect(disabled.status).toBe(200);
     expect(disabled.body.overrides.dashboard).toBe(false);
     expect(disabled.body.features.dashboard).toBe(false);
+    expect(disabled.body.permissions.VIEW_REPAIR).toBe(true);
+
+    const repairsDisabled = await auth(request(app)
+      .put(`/api/staff/${staff.id}/permissions`)
+      .send({ features: { repairs: false } }));
+    expect(repairsDisabled.status).toBe(200);
+    expect(repairsDisabled.body.permissions.VIEW_REPAIR).toBe(false);
+    const repairReadDenied = await staffAuth(request(app).get("/api/repairs"));
+    expect(repairReadDenied.status).toBe(403);
+    expect(repairReadDenied.body.code).toBe("FEATURE_DISABLED");
+    const ownerRepairRead = await auth(request(app).get("/api/repairs"));
+    expect(ownerRepairRead.status).toBe(200);
+
+    const returnsDisabled = await auth(request(app)
+      .put(`/api/staff/${staff.id}/permissions`)
+      .send({ features: { repairs_update: false } }));
+    expect(returnsDisabled.status).toBe(200);
+    expect((await staffAuth(request(app).get("/api/returns"))).status).toBe(403);
+    expect((await staffAuth(request(app).get("/api/refunds"))).status).toBe(403);
+    expect((await auth(request(app).get("/api/returns"))).status).toBe(200);
+    expect((await auth(request(app).get("/api/refunds"))).status).toBe(200);
+    await auth(request(app)
+      .put(`/api/staff/${staff.id}/permissions`)
+      .send({ features: { repairs_update: true } }));
+
+    const repairsInherited = await auth(request(app)
+      .put(`/api/staff/${staff.id}/permissions`)
+      .send({ features: { repairs: true } }));
+    expect(repairsInherited.status).toBe(200);
+    expect(repairsInherited.body.overrides.repairs).toBeUndefined();
+    expect(repairsInherited.body.permissions.VIEW_REPAIR).toBe(true);
 
     const ownFeatures = await staffAuth(request(app).get("/api/role-features"));
     expect(ownFeatures.status).toBe(200);
@@ -327,5 +375,80 @@ describe("individual permission settings", () => {
     const unchanged = await auth(request(app).get(`/api/staff/${staff.id}/permissions`));
     expect(unchanged.status).toBe(200);
     expect(unchanged.body.overrides).toEqual({});
+  });
+
+  it("removes dashboard finance totals and approval reads when effective features are revoked", async () => {
+    const staff = await createPendingStaff("accountant-revocation", "76");
+    await db
+      .update(usersTable)
+      .set({ isActive: true, role: "accountant" })
+      .where(eq(usersTable.id, staff.id));
+    const token = await createSession(staff.id, false, "test fixture");
+    const staffAuth = (r: request.Test) => r.set("Authorization", `Bearer ${token}`);
+
+    const before = await staffAuth(request(app).get("/api/dashboard/stats"));
+    expect(before.status).toBe(200);
+    expect(before.body.stats.canSeeFinance).toBe(true);
+
+    await auth(request(app)
+      .put(`/api/staff/${staff.id}/permissions`)
+      .send({ features: { finance: false, approvals: false } }));
+    const after = await staffAuth(request(app).get("/api/dashboard/stats"));
+    expect(after.status).toBe(200);
+    expect(after.body.stats.canSeeFinance).toBe(false);
+    expect(after.body.stats.todayIncome).toBeUndefined();
+    expect((await staffAuth(request(app).get("/api/finance"))).status).toBe(403);
+    expect((await staffAuth(request(app).get("/api/approvals"))).status).toBe(403);
+  });
+});
+
+describe("dealer portal repair reads", () => {
+  it("retains the portal_repairs read-only path", async () => {
+    const [partner] = await db.insert(dealersTable).values({
+      shopId: dealerShopId,
+      dealerCode: `PORTAL-${RUN}`,
+      name: "Portal Partner",
+      mobile: mob("98"),
+    }).returning();
+    const [portalUser] = await db.insert(usersTable).values({
+      name: "Portal Reader",
+      email: mail("portal-reader"),
+      mobile: mob("99"),
+      passwordHash: hashPassword(PASSWORD),
+      role: "dealer_staff",
+      shopId: dealerShopId,
+      dealerId: partner.id,
+      isActive: true,
+    }).returning();
+    const portalToken = await createSession(portalUser.id, false, "test fixture");
+
+    const featureState = await request(app)
+      .get("/api/role-features")
+      .set("Authorization", `Bearer ${portalToken}`);
+    expect(featureState.status).toBe(200);
+    expect(featureState.body.features.portal_repairs).toBe(true);
+
+    const res = await request(app)
+      .get("/api/repairs")
+      .set("Authorization", `Bearer ${portalToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.repairs).toEqual([]);
+
+    const revoked = await auth(request(app)
+      .put(`/api/staff/${portalUser.id}/permissions`)
+      .send({ features: { portal_repairs: false } }));
+    expect(revoked.status).toBe(200);
+    expect(revoked.body.features.portal_repairs).toBe(false);
+    const revokedState = await request(app)
+      .get("/api/role-features")
+      .set("Authorization", `Bearer ${portalToken}`);
+    expect(revokedState.status).toBe(403);
+    expect(revokedState.body.code).toBe("FEATURE_DISABLED");
+    expect((await request(app)
+      .get("/api/repairs")
+      .set("Authorization", `Bearer ${portalToken}`)).status).toBe(403);
+    await db.delete(sessionsTable).where(eq(sessionsTable.userId, portalUser.id));
+    await db.delete(usersTable).where(eq(usersTable.id, portalUser.id));
+    await db.delete(dealersTable).where(eq(dealersTable.id, partner.id));
   });
 });

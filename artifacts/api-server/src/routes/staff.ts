@@ -16,6 +16,7 @@ import type { Request } from "express";
 import {
   CONFIGURABLE_ROLES,
   effectiveFeaturesForUser,
+  effectivePermissionsForUser,
   featureKeysForRole,
   getUserFeatureOverrides,
   invalidateUserFeatureCache,
@@ -157,7 +158,7 @@ async function loadManagedStaff(me: DbUser, id: string): Promise<
   if (target.id === me.id) {
     return { ok: false, status: 400, message: "You cannot manage your own account here" };
   }
-  if (target.role === "super_admin") {
+  if (target.role === "super_admin" || target.role === "dealer") {
     return { ok: false, status: 403, message: "This account cannot be managed" };
   }
   // Dealers may only manage accounts inside their own shop. super_admin
@@ -169,10 +170,11 @@ async function loadManagedStaff(me: DbUser, id: string): Promise<
 }
 
 async function permissionResponse(target: DbUser) {
-  const [roleFeatures, overrides, features] = await Promise.all([
+  const [roleFeatures, overrides, features, permissions] = await Promise.all([
     roleFeaturesForUser(target),
     getUserFeatureOverrides(target),
     effectiveFeaturesForUser(target),
+    effectivePermissionsForUser(target),
   ]);
   return {
     user: publicUser(target),
@@ -180,6 +182,7 @@ async function permissionResponse(target: DbUser) {
     roleFeatures,
     overrides,
     features,
+    permissions,
   };
 }
 

@@ -21,7 +21,7 @@ import {
   type DbUser,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
-import { requireFeature, userHasFeature } from "../lib/roleFeatures";
+import { requireAnyFeature, requireFeature, userHasFeature } from "../lib/roleFeatures";
 import { asyncHandler } from "../lib/asyncHandler";
 import { sha256, generateOtpCode } from "../lib/authUtils";
 import { sendOtpEmail } from "../lib/mailer";
@@ -131,6 +131,7 @@ function customerOut(c: typeof customersTable.$inferSelect) {
 router.get(
   "/customers",
   requireAuth,
+  requireFeature("customers"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -413,6 +414,8 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
 router.get(
   "/repairs",
   requireAuth,
+  // Dealer portal access is intentionally the only alternate read path.
+  requireAnyFeature("repairs", "portal_repairs"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -1443,6 +1446,7 @@ async function repairAccessible(req: Request, shopId: string, id: string) {
 router.get(
   "/repairs/:id/photos",
   requireAuth,
+  requireAnyFeature("repairs", "portal_repairs"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -1524,6 +1528,7 @@ router.post(
 router.get(
   "/repairs/:id/events",
   requireAuth,
+  requireAnyFeature("repairs", "portal_repairs"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -1578,6 +1583,7 @@ function paymentOut(p: typeof repairPaymentsTable.$inferSelect) {
 router.get(
   "/repairs/:id/payments",
   requireAuth,
+  requireAnyFeature("repairs", "portal_repairs"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -1779,14 +1785,10 @@ router.post(
 router.get(
   "/payments",
   requireAuth,
+  requireFeature("reports"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
-    const me = (req as AuthedRequest).user;
-    if (!(await userHasFeature(me, "reports"))) {
-      res.status(403).json({ message: "Finance access required." });
-      return;
-    }
     const qstr = (k: string): string | null => {
       const v = req.query[k];
       return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v.trim()) ? v.trim() : null;
@@ -2036,6 +2038,7 @@ function estimateApprovalOut(a: typeof estimateApprovalsTable.$inferSelect) {
 router.get(
   "/repairs/:id/estimate-approvals",
   requireAuth,
+  requireAnyFeature("repairs", "portal_repairs"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -2448,6 +2451,7 @@ router.get(
 router.get(
   "/customers/:id/summary",
   requireAuth,
+  requireFeature("customers"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -2605,6 +2609,7 @@ function repairPartOut(p: typeof repairPartsTable.$inferSelect, canSeeCosts: boo
 router.get(
   "/repairs/:id/parts",
   requireAuth,
+  requireAnyFeature("repairs", "portal_repairs"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -2778,6 +2783,7 @@ function inventoryOut(i: typeof inventoryItemsTable.$inferSelect, canSeeCosts = 
 router.get(
   "/inventory",
   requireAuth,
+  requireFeature("inventory"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -2887,6 +2893,7 @@ function purchaseOut(p: typeof purchasesTable.$inferSelect) {
 router.get(
   "/purchases",
   requireAuth,
+  requireFeature("purchases"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -3020,14 +3027,10 @@ function financeOut(f: typeof financeEntriesTable.$inferSelect) {
 router.get(
   "/finance",
   requireAuth,
+  requireFeature("finance"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
-    // NOTE: GET /finance is intentionally NOT finance-gated yet. The mobile
-    // DataContext loads finance for every role in a blocking Promise.all, so a
-    // 403 here would break the whole app for non-finance staff. Gating this
-    // must be done together with a mobile change (role-gate or non-blocking
-    // fetch). Tracked as a follow-up — see the money-visibility audit.
     const rows = await db
       .select()
       .from(financeEntriesTable)

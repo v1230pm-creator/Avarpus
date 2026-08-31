@@ -1,5 +1,6 @@
 import React from 'react';
 import { act, render, waitFor } from '@testing-library/react-native';
+import { QueryClient } from '@tanstack/react-query';
 
 const mockRecover = jest.fn();
 const mockOtpVerify = jest.fn();
@@ -67,6 +68,7 @@ function deferred<T>() {
 describe('AuthProvider trusted-device flow', () => {
   const originalPlatform = Platform.OS;
   let auth: ReturnType<typeof useAuth>;
+  let queryClient: QueryClient;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -75,6 +77,7 @@ describe('AuthProvider trusted-device flow', () => {
     mockGetDeviceId.mockResolvedValue('a1b2c3d4e5f60708');
     mockStorageGet.mockResolvedValue(null);
     mockRecover.mockResolvedValue(session);
+    queryClient = new QueryClient();
   });
 
   afterEach(() => {
@@ -83,7 +86,7 @@ describe('AuthProvider trusted-device flow', () => {
 
   function mount() {
     return render(
-      <AuthProvider>
+      <AuthProvider queryClient={queryClient}>
         <AuthProbe onChange={(value) => { auth = value; }} />
       </AuthProvider>,
     );
@@ -207,6 +210,31 @@ describe('AuthProvider trusted-device flow', () => {
     expect(auth.user).toBeNull();
     expect(auth.isAuthenticated).toBe(false);
     expect(auth.isLoading).toBe(false);
+    view.unmount();
+  });
+
+  it('clears all cached identity data before account replacement and logout', async () => {
+    mockCanRecover.mockReturnValue(false);
+    const view = mount();
+    await waitFor(() => expect(auth.isLoading).toBe(false));
+
+    queryClient.setQueryData(['repairs'], { repairs: [{ id: 'shop-a-repair' }] });
+    queryClient.setQueryData(['finance'], { entries: [{ id: 'shop-a-finance' }] });
+    await act(async () => {
+      await auth.adoptSession({
+        token: 'shop-b-token',
+        user: { id: 'user-2', name: 'Second User', role: 'technician' },
+      });
+    });
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+    expect(auth.user?.id).toBe('user-2');
+
+    queryClient.setQueryData(['customers'], { customers: [{ id: 'shop-b-customer' }] });
+    await act(async () => {
+      await auth.logout();
+    });
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+    expect(auth.user).toBeNull();
     view.unmount();
   });
 });

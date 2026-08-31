@@ -2129,6 +2129,9 @@ paths:
                   features:
                     type: object
                     additionalProperties: { type: boolean }
+                  permissions:
+                    description: Canonical derived business permissions; legacy features remain available for compatibility.
+                    $ref: "#/components/schemas/CanonicalPermissionMap"
                   matrix:
                     type: object
                     additionalProperties:
@@ -2164,6 +2167,9 @@ paths:
                     additionalProperties:
                       type: object
                       additionalProperties: { type: boolean }
+                  permissions:
+                    description: Canonical derived permissions for the caller; legacy matrix fields are unchanged.
+                    $ref: "#/components/schemas/CanonicalPermissionMap"
                 required: [matrix]
   /healthz:
     get:
@@ -2651,6 +2657,18 @@ components:
     FeatureMap:
       type: object
       additionalProperties: { type: boolean }
+    CanonicalPermissionMap:
+      type: object
+      description: Canonical permissions derived from the effective legacy feature matrix.
+      properties:
+        VIEW_KHATA: { type: boolean }
+        EDIT_KHATA: { type: boolean }
+        VIEW_REPAIR: { type: boolean }
+        EDIT_REPAIR: { type: boolean }
+        VIEW_BUSINESS_REPORTS: { type: boolean }
+        MANAGE_STAFF: { type: boolean }
+        MANAGE_BUSINESS_SETTINGS: { type: boolean }
+      required: [VIEW_KHATA, EDIT_KHATA, VIEW_REPAIR, EDIT_REPAIR, VIEW_BUSINESS_REPORTS, MANAGE_STAFF, MANAGE_BUSINESS_SETTINGS]
     IndividualFeatureChanges:
       type: object
       additionalProperties:
@@ -2675,7 +2693,10 @@ components:
           $ref: "#/components/schemas/FeatureMap"
         features:
           $ref: "#/components/schemas/FeatureMap"
-      required: [user, availableFeatures, roleFeatures, overrides, features]
+        permissions:
+          description: Canonical derived permissions, returned alongside legacy feature fields.
+          $ref: "#/components/schemas/CanonicalPermissionMap"
+      required: [user, availableFeatures, roleFeatures, overrides, features, permissions]
     AppUpdate:
       type: object
       properties:

@@ -80,11 +80,16 @@ const DataContext = createContext<DataContextType>({
 });
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, canAccess } = useAuth();
   // Dealer-portal accounts are read-only and only allowed to fetch their own
   // repairs — bulk shop data (customers/inventory/purchases/finance) would
   // just 403 server-side, so skip loading it entirely.
   const isPortal = isDealerPortalRole(user?.role);
+  const canLoadRepairs = isPortal ? canAccess('repairs_portal') : canAccess('repairs');
+  const canLoadCustomers = !isPortal && canAccess('customers');
+  const canLoadInventory = !isPortal && canAccess('inventory');
+  const canLoadPurchases = !isPortal && canAccess('purchases');
+  const canLoadFinance = !isPortal && canAccess('finance');
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -92,15 +97,36 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [finance, setFinance] = useState<FinanceEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const policyEpoch = useRef(0);
+  useEffect(() => {
+    policyEpoch.current += 1;
+  }, [canLoadRepairs, canLoadCustomers, canLoadInventory, canLoadPurchases, canLoadFinance]);
 
   const loadAll = useCallback(async () => {
+    const session = sessionEpoch.current;
+    const policy = policyEpoch.current;
+    // Permission revocation must remove already-loaded business data even if a
+    // different allowed request later fails.
+    if (!canLoadRepairs) setRepairs([]);
+    if (!canLoadCustomers) setCustomers([]);
+    if (!canLoadInventory) setInventory([]);
+    if (!canLoadPurchases) setPurchases([]);
+    if (!canLoadFinance) setFinance([]);
+
     if (isPortal) {
       // Portal accounts: only their own repairs (server-scoped).
+      if (!canLoadRepairs) {
+        setLoadError(null);
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
       setLoadError(null);
       try {
         const r = await repairsList();
-        setRepairs(r.repairs as Repair[]);
+        if (session === sessionEpoch.current && policy === policyEpoch.current) {
+          setRepairs(r.repairs as Repair[]);
+        }
       } catch (err) {
         setLoadError(err instanceof Error ? err.message : 'Could not load repairs');
       } finally {
@@ -112,23 +138,32 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setLoadError(null);
     try {
       const [r, c, i, p, f] = await Promise.all([
-        repairsList(),
-        customersList(),
-        inventoryList(),
-        purchasesList(),
-        financeList(),
+        canLoadRepairs ? repairsList() : Promise.resolve(null),
+        canLoadCustomers ? customersList() : Promise.resolve(null),
+        canLoadInventory ? inventoryList() : Promise.resolve(null),
+        canLoadPurchases ? purchasesList() : Promise.resolve(null),
+        canLoadFinance ? financeList() : Promise.resolve(null),
       ]);
-      setRepairs(r.repairs as Repair[]);
-      setCustomers(c.customers as Customer[]);
-      setInventory(i.items as InventoryItem[]);
-      setPurchases(p.purchases as Purchase[]);
-      setFinance(f.entries as FinanceEntry[]);
+      if (session !== sessionEpoch.current || policy !== policyEpoch.current) return;
+      setRepairs(r ? r.repairs as Repair[] : []);
+      setCustomers(c ? c.customers as Customer[] : []);
+      setInventory(i ? i.items as InventoryItem[] : []);
+      setPurchases(p ? p.purchases as Purchase[] : []);
+      setFinance(f ? f.entries as FinanceEntry[] : []);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Could not load shop data');
     } finally {
       setIsLoading(false);
     }
-  }, [isPortal]);
+  }, [
+    isPortal,
+    canLoadRepairs,
+    canLoadCustomers,
+    canLoadInventory,
+    canLoadPurchases,
+    canLoadFinance,
+    user?.id,
+  ]);
 
   // ---- Automatic cross-device sync -------------------------------------
   // Every signed-in device silently re-pulls shop data on a timer and on app
@@ -143,6 +178,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const sessionEpoch = useRef(0);
   useEffect(() => {
     sessionEpoch.current += 1;
+    setRepairs([]);
+    setCustomers([]);
+    setInventory([]);
+    setPurchases([]);
+    setFinance([]);
+    setLoadError(null);
   }, [isAuthenticated, user?.id]);
   // Mutation sequence: bumped by every local write so a background refresh
   // that started before the write cannot overwrite the newer result with a
@@ -151,39 +192,48 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const silentRefresh = useCallback(async () => {
     if (syncInFlight.current) return;
+    if (!canLoadRepairs) setRepairs([]);
+    if (!canLoadCustomers) setCustomers([]);
+    if (!canLoadInventory) setInventory([]);
+    if (!canLoadPurchases) setPurchases([]);
+    if (!canLoadFinance) setFinance([]);
     syncInFlight.current = true;
     const epoch = sessionEpoch.current;
+    const policy = policyEpoch.current;
     const startSeq = mutationSeq.current;
     // Commit fetched snapshots only if nothing changed while we were fetching.
     const canCommit = () =>
-      epoch === sessionEpoch.current && startSeq === mutationSeq.current;
+      epoch === sessionEpoch.current &&
+      policy === policyEpoch.current &&
+      startSeq === mutationSeq.current;
     try {
       if (isPortal) {
+        if (!canLoadRepairs) return;
         const r = await repairsList();
         if (canCommit()) setRepairs(r.repairs as Repair[]);
       } else {
         const [r, c, i, p, f] = await Promise.all([
-          repairsList(),
-          customersList(),
-          inventoryList(),
-          purchasesList(),
-          financeList(),
+          canLoadRepairs ? repairsList() : Promise.resolve(null),
+          canLoadCustomers ? customersList() : Promise.resolve(null),
+          canLoadInventory ? inventoryList() : Promise.resolve(null),
+          canLoadPurchases ? purchasesList() : Promise.resolve(null),
+          canLoadFinance ? financeList() : Promise.resolve(null),
         ]);
         if (canCommit()) {
-          setRepairs(r.repairs as Repair[]);
-          setCustomers(c.customers as Customer[]);
-          setInventory(i.items as InventoryItem[]);
-          setPurchases(p.purchases as Purchase[]);
-          setFinance(f.entries as FinanceEntry[]);
+          setRepairs(r ? r.repairs as Repair[] : []);
+          setCustomers(c ? c.customers as Customer[] : []);
+          setInventory(i ? i.items as InventoryItem[] : []);
+          setPurchases(p ? p.purchases as Purchase[] : []);
+          setFinance(f ? f.entries as FinanceEntry[] : []);
         }
         // Repairs queued while offline: push them up as soon as a background
         // sync succeeds (network is clearly back), then re-pull.
         const queue = await offlineQueue.getQueue();
-        if (epoch === sessionEpoch.current && queue.some((q) => q.status === 'pending')) {
+        if (canCommit() && queue.some((q) => q.status === 'pending')) {
           const { success } = await offlineQueue.flush();
-          if (success > 0 && epoch === sessionEpoch.current) {
+          if (success > 0 && canCommit()) {
             const r2 = await repairsList();
-            if (epoch === sessionEpoch.current && startSeq === mutationSeq.current) {
+            if (canCommit()) {
               setRepairs(r2.repairs as Repair[]);
             }
           }
@@ -209,7 +259,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     } finally {
       syncInFlight.current = false;
     }
-  }, [isPortal, queryClient, user?.id]);
+  }, [
+    isPortal,
+    queryClient,
+    user?.id,
+    canLoadRepairs,
+    canLoadCustomers,
+    canLoadInventory,
+    canLoadPurchases,
+    canLoadFinance,
+  ]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -273,10 +332,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // Best-effort refresh of the customers list (used after repair mutations,
   // which change customers' server-derived dueAmount/totalRepairs).
   const refreshCustomers = useCallback(() => {
+    if (!canLoadCustomers) {
+      setCustomers([]);
+      return;
+    }
     customersList()
       .then((c) => setCustomers(c.customers as Customer[]))
       .catch(() => {}); // non-fatal: stats refresh on next full load
-  }, []);
+  }, [canLoadCustomers]);
 
   // Wrap a mutation so failures surface a short, user-friendly Error message
   // (network vs server vs validation) that screens can show directly in an

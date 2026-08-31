@@ -18,7 +18,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
-import { requireFeature } from "../lib/roleFeatures";
+import { requireFeature, userHasFeature } from "../lib/roleFeatures";
 import type { Request, Response } from "express";
 
 // Return / Rework / Refund workflow.
@@ -38,14 +38,6 @@ const DEALER_ROLES = ["dealer", "super_admin"];
 // are always shown.
 function isPrivileged(req: Request): boolean {
   return DEALER_ROLES.includes((req as AuthedRequest).user.role);
-}
-// Finance visibility: roles allowed to read money figures across the shop
-// (refund amounts, finance ledger). Mirrors the dashboard FINANCE_ROLES so the
-// rule is consistent everywhere. dealer + super_admin own the shop, accountant
-// handles the books.
-const FINANCE_ROLES = ["dealer", "super_admin", "accountant"];
-function canSeeFinance(req: Request): boolean {
-  return FINANCE_ROLES.includes((req as AuthedRequest).user.role);
 }
 const RETURN_STATUSES = [
   "returned",
@@ -317,6 +309,7 @@ router.post(
 router.get(
   "/returns",
   requireAuth,
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -334,9 +327,12 @@ router.get(
 router.get(
   "/returns/:id",
   requireAuth,
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    const canViewRefunds = await userHasFeature(me, "finance");
     const found = await loadReturn(res, shopId, String(req.params.id ?? ""));
     if (!found) return;
     const [parts, refunds] = await Promise.all([
@@ -345,11 +341,13 @@ router.get(
         .from(returnPartsTable)
         .where(and(eq(returnPartsTable.returnId, found.ret.id), eq(returnPartsTable.shopId, shopId)))
         .orderBy(desc(returnPartsTable.createdAt)),
-      db
-        .select()
-        .from(refundsTable)
-        .where(and(eq(refundsTable.returnId, found.ret.id), eq(refundsTable.shopId, shopId)))
-        .orderBy(desc(refundsTable.createdAt)),
+      canViewRefunds
+        ? db
+            .select()
+            .from(refundsTable)
+            .where(and(eq(refundsTable.returnId, found.ret.id), eq(refundsTable.shopId, shopId)))
+            .orderBy(desc(refundsTable.createdAt))
+        : Promise.resolve([]),
     ]);
     const canSeeCosts = isPrivileged(req);
     res.json({
@@ -750,15 +748,10 @@ router.post(
 router.get(
   "/refunds",
   requireAuth,
+  requireFeature("finance"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
-    // Refund amounts are money figures — only finance-visible roles may list
-    // them. Other staff get 403 (consistent with the dashboard finance gate).
-    if (!canSeeFinance(req)) {
-      res.status(403).json({ message: "Only dealer/owner or accountant may view refunds." });
-      return;
-    }
     const rows = await db
       .select({ refund: refundsTable, repair: repairsTable, ret: repairReturnsTable })
       .from(refundsTable)

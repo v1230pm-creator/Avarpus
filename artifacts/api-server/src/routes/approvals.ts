@@ -78,6 +78,7 @@ function approvalOut(a: DbApprovalRequest) {
 router.get(
   "/approvals",
   requireAuth,
+  requireFeature("approvals"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;

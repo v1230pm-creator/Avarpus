@@ -22,6 +22,7 @@ const ALLOWED: Array<{ method: string; re: RegExp }> = [
   { method: "GET", re: new RegExp(`^\\/repairs\\/${UUID}\\/events$`) },
   { method: "GET", re: new RegExp(`^\\/repairs\\/${UUID}\\/photos$`) },
   { method: "GET", re: new RegExp(`^\\/repairs\\/${UUID}\\/payments$`) },
+  { method: "GET", re: /^\/role-features$/ },
   // Account self-service (profile, sessions, logout live under /auth)
   { method: "GET", re: /^\/auth\/.*$/ },
   { method: "POST", re: /^\/auth\/.*$/ },
