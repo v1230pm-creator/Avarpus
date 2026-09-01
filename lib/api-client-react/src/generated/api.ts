@@ -63,6 +63,9 @@ import type {
   ChatUploadUrlResult,
   CustomerInput,
   CustomerInviteResult,
+  CustomerKhataLedger,
+  CustomerKhataTransactionInput,
+  CustomerKhataTransactionResult,
   CustomerSummary200,
   CustomersCreate200,
   CustomersList200,
@@ -3237,6 +3240,155 @@ export const useCustomersUpdate = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCustomersUpdateMutationOptions(options));
+    }
+
+export const getCustomersKhataGetUrl = (id: string,) => {
+
+
+
+
+  return `/api/customers/${id}/khata`
+}
+
+/**
+ * @summary Get a customer's unified repair and manual khata ledger
+ */
+export const customersKhataGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<CustomerKhataLedger> => {
+
+  return customFetch<CustomerKhataLedger>(getCustomersKhataGetUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCustomersKhataGetQueryKey = (id: string,) => {
+    return [
+    `/api/customers/${id}/khata`
+    ] as const;
+    }
+
+
+export const getCustomersKhataGetQueryOptions = <TData = Awaited<ReturnType<typeof customersKhataGet>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof customersKhataGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCustomersKhataGetQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof customersKhataGet>>> = ({ signal }) => customersKhataGet(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof customersKhataGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type CustomersKhataGetQueryResult = NonNullable<Awaited<ReturnType<typeof customersKhataGet>>>
+export type CustomersKhataGetQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get a customer's unified repair and manual khata ledger
+ */
+
+export function useCustomersKhataGet<TData = Awaited<ReturnType<typeof customersKhataGet>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof customersKhataGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getCustomersKhataGetQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCustomersKhataTransactionsCreateUrl = (id: string,) => {
+
+
+
+
+  return `/api/customers/${id}/khata/transactions`
+}
+
+/**
+ * @summary Append a manual customer khata transaction
+ */
+export const customersKhataTransactionsCreate = async (id: string,
+    customerKhataTransactionInput: CustomerKhataTransactionInput, options?: Parameters<typeof customFetch>[1]): Promise<CustomerKhataTransactionResult> => {
+
+  return customFetch<CustomerKhataTransactionResult>(getCustomersKhataTransactionsCreateUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(customerKhataTransactionInput)
+  }
+);}
+
+
+
+
+
+export const getCustomersKhataTransactionsCreateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof customersKhataTransactionsCreate>>, TError,{id: string;data: BodyType<CustomerKhataTransactionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof customersKhataTransactionsCreate>>, TError,{id: string;data: BodyType<CustomerKhataTransactionInput>}, TContext> => {
+
+const mutationKey = ['customersKhataTransactionsCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof customersKhataTransactionsCreate>>, {id: string;data: BodyType<CustomerKhataTransactionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  customersKhataTransactionsCreate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CustomersKhataTransactionsCreateMutationResult = NonNullable<Awaited<ReturnType<typeof customersKhataTransactionsCreate>>>
+    export type CustomersKhataTransactionsCreateMutationBody = BodyType<CustomerKhataTransactionInput>
+    export type CustomersKhataTransactionsCreateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Append a manual customer khata transaction
+ */
+export const useCustomersKhataTransactionsCreate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof customersKhataTransactionsCreate>>, TError,{id: string;data: BodyType<CustomerKhataTransactionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof customersKhataTransactionsCreate>>,
+        TError,
+        {id: string;data: BodyType<CustomerKhataTransactionInput>},
+        TContext
+      > => {
+      return useMutation(getCustomersKhataTransactionsCreateMutationOptions(options));
     }
 
 export const getRepairsListUrl = (params?: RepairsListParams,) => {

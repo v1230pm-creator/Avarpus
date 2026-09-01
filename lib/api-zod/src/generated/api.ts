@@ -1102,6 +1102,87 @@ export const CustomersUpdateResponse = zod.object({
 
 
 /**
+ * @summary Get a customer's unified repair and manual khata ledger
+ */
+export const CustomersKhataGetParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const CustomersKhataGetResponse = zod.object({
+  "customer": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "mobile": zod.string(),
+  "alternateMobile": zod.string().optional(),
+  "email": zod.string().optional(),
+  "address": zod.string().optional(),
+  "dueAmount": zod.number(),
+  "totalRepairs": zod.number(),
+  "isSample": zod.boolean(),
+  "createdAt": zod.string()
+}),
+  "ledger": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['repair_bill', 'repair_payment', 'repair_payment_void', 'refund', 'manual']),
+  "direction": zod.enum(['given', 'received']),
+  "amount": zod.number(),
+  "note": zod.string().optional(),
+  "method": zod.string().optional(),
+  "repairId": zod.string().optional(),
+  "bookDate": zod.string(),
+  "createdAt": zod.string(),
+  "runningBalance": zod.number()
+})),
+  "totals": zod.object({
+  "totalGiven": zod.number(),
+  "totalReceived": zod.number(),
+  "balance": zod.number()
+})
+})
+
+
+/**
+ * @summary Append a manual customer khata transaction
+ */
+export const CustomersKhataTransactionsCreateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const customersKhataTransactionsCreateBodyAmountExclusiveMin = 0;
+
+export const customersKhataTransactionsCreateBodyNoteMax = 2000;
+
+export const customersKhataTransactionsCreateBodyBookDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const customersKhataTransactionsCreateBodyClientRequestIdMax = 200;
+
+
+
+export const CustomersKhataTransactionsCreateBody = zod.object({
+  "direction": zod.enum(['given', 'received']),
+  "amount": zod.number().gt(customersKhataTransactionsCreateBodyAmountExclusiveMin),
+  "note": zod.string().max(customersKhataTransactionsCreateBodyNoteMax).optional(),
+  "method": zod.enum(['Cash', 'UPI', 'Card', 'Bank Transfer', 'Other']),
+  "bookDate": zod.string().regex(customersKhataTransactionsCreateBodyBookDateRegExp),
+  "clientRequestId": zod.string().min(1).max(customersKhataTransactionsCreateBodyClientRequestIdMax).optional()
+})
+
+export const CustomersKhataTransactionsCreateResponse = zod.object({
+  "transaction": zod.object({
+  "id": zod.string(),
+  "direction": zod.enum(['given', 'received']),
+  "amount": zod.number(),
+  "note": zod.string().optional(),
+  "method": zod.string(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "clientRequestId": zod.string().optional(),
+  "bookDate": zod.string(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
  * @summary List repairs of the caller's shop (search + pagination)
  */
 export const RepairsListQueryParams = zod.object({

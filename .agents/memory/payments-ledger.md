@@ -11,3 +11,6 @@ description: How customer money moves through the system — append-only ledger,
 - Estimate approvals: approve applies delta to repairCharge so total = approved amount; status customer_approval ↔ diagnosing.
 - Testing gate: transition to ready/delivered from repair phase 400s TESTING_REQUIRED until testingConfirmedAt set.
 - Offline intake: clientRequestId idempotency — (shopId, clientRequestId) partial unique index; POST /repairs returns existing row on repeat, so client retries are safe.
+- Customer Khata is append-only and uses one authoritative receivable policy: delivered repair dues + paid refunds + manual Given − manual Received. Mobile retries must reuse one stable clientRequestId until a definitive result.
+**Why:** mixing active repair bills with delivered dues made list/detail balances diverge, while regenerated retry IDs could duplicate money after a lost response.
+**How to apply:** keep customer cache, Khata detail, and overview on this policy; scope idempotency by shop + customer + retry ID and refetch customer aggregates after writes.

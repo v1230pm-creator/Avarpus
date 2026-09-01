@@ -3,7 +3,14 @@ import type { PaymentsList200PaymentsItem } from '@workspace/api-client-react';
 
 export type KhataPartyType = 'customer' | 'dealer';
 
-export type LedgerEntryType = 'bill' | 'payment' | 'refund' | 'void' | 'fallback_advance';
+export type LedgerEntryType =
+  | 'bill'
+  | 'payment'
+  | 'refund'
+  | 'void'
+  | 'fallback_advance'
+  | 'manual_given'
+  | 'manual_received';
 
 export interface LedgerEntry {
   id: string;
@@ -15,6 +22,7 @@ export interface LedgerEntry {
   repairDbId: string; // Database ID
   type: LedgerEntryType;
   label: string;
+  note?: string;
   method?: string;
   debit: number; // Increases what they owe
   credit: number; // Decreases what they owe
@@ -206,4 +214,32 @@ export function computeLedgerTotals(ledger: LedgerEntry[]): KhataTotals {
     paid: money(paid),
     due: money(due),
   };
+}
+
+export interface LedgerPartySummary {
+  partyId: string;
+  partyName: string;
+  partyType: KhataPartyType;
+  balance: number;
+  lastActivity: string;
+}
+
+export function groupLedgerByParty(ledger: LedgerEntry[]): LedgerPartySummary[] {
+  const seen = new Set<string>();
+  const parties: LedgerPartySummary[] = [];
+
+  for (const entry of ledger) {
+    if (!seen.has(entry.partyId)) {
+      seen.add(entry.partyId);
+      parties.push({
+        partyId: entry.partyId,
+        partyName: entry.partyName,
+        partyType: entry.partyType,
+        balance: entry.partyBalance,
+        lastActivity: entry.date,
+      });
+    }
+  }
+
+  return parties;
 }

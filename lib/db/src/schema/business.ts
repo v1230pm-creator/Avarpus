@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  date,
   doublePrecision,
   integer,
   jsonb,
@@ -10,7 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { shopsTable } from "./auth";
+import { shopsTable, usersTable } from "./auth";
 
 // ── Shop-scoped business data ───────────────────────────────────────────────
 // Every table carries a required shopId; the API layer always filters by the
@@ -445,6 +446,35 @@ export const repairPaymentsTable = pgTable("repair_payments", {
     .defaultNow(),
 });
 
+// Manual customer khata adjustments. Rows are append-only: correcting a
+// balance always creates the opposite entry so the customer audit trail stays
+// intact. "given" increases the amount receivable from the customer; received
+// decreases it.
+export const customerKhataTransactionsTable = pgTable("customer_khata_transactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  shopId: uuid("shop_id")
+    .notNull()
+    .references(() => shopsTable.id, { onDelete: "cascade" }),
+  customerId: uuid("customer_id")
+    .notNull()
+    .references(() => customersTable.id, { onDelete: "cascade" }),
+  direction: text("direction").notNull(), // given | received
+  amount: doublePrecision("amount").notNull(),
+  note: text("note"),
+  method: text("method").notNull().default("Cash"),
+  createdById: uuid("created_by_id").references(() => usersTable.id, { onDelete: "set null" }),
+  createdByName: text("created_by_name"),
+  clientRequestId: text("client_request_id"),
+  bookDate: date("book_date", { mode: "string" }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (t) => [
+  uniqueIndex("customer_khata_transactions_shop_client_request_id_unique")
+    .on(t.shopId, t.customerId, t.clientRequestId)
+    .where(sql`${t.clientRequestId} IS NOT NULL`),
+]);
+
 // Append-only inventory movement ledger. Written in the same transaction as
 // the stock change (repair part used, rework part used, purchase received,
 // manual adjustment).
@@ -518,6 +548,7 @@ export const customerOtpCodesTable = pgTable("customer_otp_codes", {
 });
 
 export type DbRepairPayment = typeof repairPaymentsTable.$inferSelect;
+export type DbCustomerKhataTransaction = typeof customerKhataTransactionsTable.$inferSelect;
 export type DbStockMovement = typeof stockMovementsTable.$inferSelect;
 export type DbEstimateApproval = typeof estimateApprovalsTable.$inferSelect;
 export type DbCustomerOtpCode = typeof customerOtpCodesTable.$inferSelect;

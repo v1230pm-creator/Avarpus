@@ -560,6 +560,110 @@ export interface CustomerInput {
   address?: string;
 }
 
+export type CustomerKhataTransactionInputDirection = typeof CustomerKhataTransactionInputDirection[keyof typeof CustomerKhataTransactionInputDirection];
+
+
+export const CustomerKhataTransactionInputDirection = {
+  given: 'given',
+  received: 'received',
+} as const;
+
+export type CustomerKhataTransactionInputMethod = typeof CustomerKhataTransactionInputMethod[keyof typeof CustomerKhataTransactionInputMethod];
+
+
+export const CustomerKhataTransactionInputMethod = {
+  Cash: 'Cash',
+  UPI: 'UPI',
+  Card: 'Card',
+  Bank_Transfer: 'Bank Transfer',
+  Other: 'Other',
+} as const;
+
+export interface CustomerKhataTransactionInput {
+  direction: CustomerKhataTransactionInputDirection;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /** @maxLength 2000 */
+  note?: string;
+  method: CustomerKhataTransactionInputMethod;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  bookDate: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  clientRequestId?: string;
+}
+
+export type CustomerKhataTransactionDirection = typeof CustomerKhataTransactionDirection[keyof typeof CustomerKhataTransactionDirection];
+
+
+export const CustomerKhataTransactionDirection = {
+  given: 'given',
+  received: 'received',
+} as const;
+
+export interface CustomerKhataTransaction {
+  id: string;
+  direction: CustomerKhataTransactionDirection;
+  amount: number;
+  note?: string;
+  method: string;
+  createdById?: string;
+  createdByName?: string;
+  clientRequestId?: string;
+  bookDate: string;
+  createdAt: string;
+}
+
+export interface CustomerKhataTransactionResult {
+  transaction: CustomerKhataTransaction;
+}
+
+export type CustomerKhataLedgerEntryType = typeof CustomerKhataLedgerEntryType[keyof typeof CustomerKhataLedgerEntryType];
+
+
+export const CustomerKhataLedgerEntryType = {
+  repair_bill: 'repair_bill',
+  repair_payment: 'repair_payment',
+  repair_payment_void: 'repair_payment_void',
+  refund: 'refund',
+  manual: 'manual',
+} as const;
+
+export type CustomerKhataLedgerEntryDirection = typeof CustomerKhataLedgerEntryDirection[keyof typeof CustomerKhataLedgerEntryDirection];
+
+
+export const CustomerKhataLedgerEntryDirection = {
+  given: 'given',
+  received: 'received',
+} as const;
+
+export interface CustomerKhataLedgerEntry {
+  id: string;
+  type: CustomerKhataLedgerEntryType;
+  direction: CustomerKhataLedgerEntryDirection;
+  amount: number;
+  note?: string;
+  method?: string;
+  repairId?: string;
+  bookDate: string;
+  createdAt: string;
+  runningBalance: number;
+}
+
+export interface CustomerKhataTotals {
+  totalGiven: number;
+  totalReceived: number;
+  balance: number;
+}
+
+export interface CustomerKhataLedger {
+  customer: Customer;
+  ledger: CustomerKhataLedgerEntry[];
+  totals: CustomerKhataTotals;
+}
+
 export type RepairPhysicalCondition = {[key: string]: boolean};
 
 export type RepairPaymentStatus = typeof RepairPaymentStatus[keyof typeof RepairPaymentStatus];

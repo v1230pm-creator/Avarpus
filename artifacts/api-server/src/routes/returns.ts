@@ -8,6 +8,7 @@ import {
   returnPartsTable,
   refundsTable,
   repairPaymentsTable,
+  customersTable,
   inventoryItemsTable,
   financeEntriesTable,
   stockMovementsTable,
@@ -950,6 +951,15 @@ router.post(
         ...(referenceNo ? { referenceNo } : {}),
       });
       if ("error" in claimed) return claimed;
+      if (claimed.customerId) {
+        await tx
+          .update(customersTable)
+          .set({ dueAmount: sql`${customersTable.dueAmount} + ${claimed.amount}` })
+          .where(and(
+            eq(customersTable.id, claimed.customerId),
+            eq(customersTable.shopId, shopId),
+          ));
+      }
       // The refund is a separate financial transaction — the original income
       // stays untouched in the books.
       const [ret] = await tx

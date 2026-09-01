@@ -9,6 +9,7 @@ import {
   repairPartsTable,
   repairEventsTable,
   repairPaymentsTable,
+  customerKhataTransactionsTable,
   stockMovementsTable,
   estimateApprovalsTable,
   customerOtpCodesTable,
@@ -203,6 +204,240 @@ router.patch(
   }),
 );
 
+// ── Customer khata (append-only manual ledger + repair activity) ────────────
+
+const KHATA_DIRECTIONS = ["given", "received"] as const;
+
+function khataTransactionOut(t: typeof customerKhataTransactionsTable.$inferSelect) {
+  return {
+    id: t.id,
+    direction: t.direction,
+    amount: t.amount,
+    note: t.note ?? undefined,
+    method: t.method,
+    createdById: t.createdById ?? undefined,
+    createdByName: t.createdByName ?? undefined,
+    clientRequestId: t.clientRequestId ?? undefined,
+    bookDate: t.bookDate,
+    createdAt: iso(t.createdAt),
+  };
+}
+
+router.get(
+  "/customers/:id/khata",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    if (!(await userHasFeature(me, "payments"))) {
+      res.status(403).json({ message: "You do not have permission to view khata", code: "FORBIDDEN" });
+      return;
+    }
+    const customerId = String(req.params.id ?? "");
+    const [customer] = await db.select().from(customersTable).where(and(
+      eq(customersTable.id, customerId),
+      eq(customersTable.shopId, shopId),
+    ));
+    if (!customer) {
+      res.status(404).json({ message: "Customer not found" });
+      return;
+    }
+    const [repairs, payments, refunds, manual] = await Promise.all([
+      db.select().from(repairsTable).where(and(
+        eq(repairsTable.shopId, shopId), eq(repairsTable.customerId, customerId),
+        eq(repairsTable.status, "delivered"),
+      )),
+      db.select().from(repairPaymentsTable).where(and(
+        eq(repairPaymentsTable.shopId, shopId), eq(repairPaymentsTable.customerId, customerId),
+      )),
+      db.select().from(refundsTable).where(and(
+        eq(refundsTable.shopId, shopId), eq(refundsTable.customerId, customerId),
+        eq(refundsTable.status, "paid"),
+      )),
+      db.select().from(customerKhataTransactionsTable).where(and(
+        eq(customerKhataTransactionsTable.shopId, shopId),
+        eq(customerKhataTransactionsTable.customerId, customerId),
+      )),
+    ]);
+    type LedgerEntry = {
+      id: string; type: string; direction: "given" | "received"; amount: number;
+      note?: string; method?: string; repairId?: string; bookDate: string; createdAt: string;
+    };
+    const deliveredRepairIds = new Set(repairs.map((repair) => repair.id));
+    const entries: LedgerEntry[] = [
+      ...repairs.map<LedgerEntry>((repair) => ({
+        id: `repair-bill:${repair.id}`,
+        type: "repair_bill",
+        direction: "given" as const,
+        amount: computeTotals(repair).totalAmount,
+        note: `Repair bill ${repair.repairId}`,
+        repairId: repair.repairId,
+        bookDate: repair.deliveryDate ?? repair.receiveDate,
+        createdAt: iso(repair.createdAt),
+      })),
+      ...payments.filter((payment) => deliveredRepairIds.has(payment.repairId)).flatMap<LedgerEntry>((payment) => {
+        const displayRepairId = repairs.find((repair) => repair.id === payment.repairId)?.repairId;
+        const bookDate = (payment.voidedAt ?? payment.createdAt).toISOString().slice(0, 10);
+        if (payment.voidedAt) {
+          // A void is a visible audit event only. The original payment is
+          // excluded below, so representing the void with zero avoids a
+          // second reversal/double count.
+          return [{
+            id: `repair-payment-void:${payment.id}`,
+            type: "repair_payment_void",
+            direction: "given" as const,
+            amount: 0,
+            note: payment.voidReason ?? "Repair payment voided",
+            method: payment.method,
+            repairId: displayRepairId,
+            bookDate,
+            createdAt: iso(payment.voidedAt),
+          }];
+        }
+        return [{
+          id: `repair-payment:${payment.id}`,
+          type: "repair_payment",
+          direction: "received" as const,
+          amount: payment.amount,
+          note: payment.note ?? undefined,
+          method: payment.method,
+          repairId: displayRepairId,
+          bookDate,
+          createdAt: iso(payment.createdAt),
+        }];
+      }),
+      ...refunds.filter((refund) => deliveredRepairIds.has(refund.repairId)).map<LedgerEntry>((refund) => ({
+        id: `refund:${refund.id}`,
+        type: "refund",
+        direction: "given" as const,
+        amount: refund.amount,
+        note: refund.reason,
+        method: refund.method,
+        repairId: repairs.find((repair) => repair.id === refund.repairId)?.repairId,
+        bookDate: (refund.paidAt ?? refund.createdAt).toISOString().slice(0, 10),
+        createdAt: iso(refund.paidAt ?? refund.createdAt),
+      })),
+      ...manual.map<LedgerEntry>((transaction) => ({
+        id: `manual:${transaction.id}`,
+        type: "manual",
+        direction: transaction.direction as "given" | "received",
+        amount: transaction.amount,
+        note: transaction.note ?? undefined,
+        method: transaction.method,
+        bookDate: transaction.bookDate,
+        createdAt: iso(transaction.createdAt),
+      })),
+    ];
+    entries.sort((a, b) =>
+      a.bookDate.localeCompare(b.bookDate) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+    );
+    let balance = 0, totalGiven = 0, totalReceived = 0;
+    const ledger = entries.map((entry) => {
+      if (entry.direction === "given") {
+        totalGiven += entry.amount;
+        balance += entry.amount;
+      } else {
+        totalReceived += entry.amount;
+        balance -= entry.amount;
+      }
+      return { ...entry, runningBalance: Math.round(balance * 100) / 100 };
+    });
+    res.json({
+      customer: customerOut(customer),
+      ledger,
+      totals: {
+        totalGiven: Math.round(totalGiven * 100) / 100,
+        totalReceived: Math.round(totalReceived * 100) / 100,
+        balance: Math.round(balance * 100) / 100,
+      },
+    });
+  }),
+);
+
+router.post(
+  "/customers/:id/khata/transactions",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    if (!(await userHasFeature(me, "payments"))) {
+      res.status(403).json({ message: "You do not have permission to record khata transactions", code: "FORBIDDEN" });
+      return;
+    }
+    const b = req.body ?? {};
+    const amount = num(b.amount, NaN);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      res.status(400).json({ message: "A positive transaction amount is required", code: "INVALID_AMOUNT" });
+      return;
+    }
+    const direction = KHATA_DIRECTIONS.includes(b.direction) ? b.direction : null;
+    if (!direction) {
+      res.status(400).json({ message: "Direction must be given or received", code: "INVALID_DIRECTION" });
+      return;
+    }
+    const method = PAYMENT_METHODS.includes(b.method) ? b.method : null;
+    if (!method) {
+      res.status(400).json({ message: "A valid payment method is required", code: "INVALID_METHOD" });
+      return;
+    }
+    if (b.note !== undefined && (typeof b.note !== "string" || b.note.trim().length > 2000)) {
+      res.status(400).json({ message: "Note must be a string up to 2000 characters", code: "INVALID_NOTE" });
+      return;
+    }
+    if (
+      b.clientRequestId !== undefined &&
+      (typeof b.clientRequestId !== "string" || !b.clientRequestId.trim() || b.clientRequestId.trim().length > 200)
+    ) {
+      res.status(400).json({ message: "clientRequestId must be a non-empty string up to 200 characters", code: "INVALID_CLIENT_REQUEST_ID" });
+      return;
+    }
+    const bookDate = validBookDateOr400(res, str(b.bookDate) ?? "");
+    if (!bookDate) return;
+    if (backdateBlocked(req, res, bookDate)) return;
+    const customerId = String(req.params.id ?? "");
+    const clientRequestId = str(b.clientRequestId);
+    const result = await db.transaction(async (tx) => {
+      const [customer] = await tx.select().from(customersTable).where(and(
+        eq(customersTable.id, customerId), eq(customersTable.shopId, shopId),
+      )).for("update");
+      if (!customer) return { error: { status: 404, message: "Customer not found" } };
+      if (clientRequestId) {
+        const [existing] = await tx.select().from(customerKhataTransactionsTable).where(and(
+          eq(customerKhataTransactionsTable.shopId, shopId),
+          eq(customerKhataTransactionsTable.customerId, customerId),
+          eq(customerKhataTransactionsTable.clientRequestId, clientRequestId),
+        ));
+        if (existing) return { row: existing, duplicate: true };
+      }
+      const [inserted] = await tx.insert(customerKhataTransactionsTable).values({
+        shopId, customerId, direction, amount, method, note: str(b.note),
+        clientRequestId, bookDate, createdById: me.id, createdByName: me.name,
+      }).onConflictDoNothing().returning();
+      if (!inserted) {
+        // The partial unique index is the final idempotency backstop when two
+        // identical offline retries reach different transactions concurrently.
+        const [existing] = await tx.select().from(customerKhataTransactionsTable).where(and(
+          eq(customerKhataTransactionsTable.shopId, shopId),
+          eq(customerKhataTransactionsTable.customerId, customerId),
+          eq(customerKhataTransactionsTable.clientRequestId, clientRequestId!),
+        ));
+        if (existing) return { row: existing, duplicate: true };
+        throw new Error("Khata transaction insert was not applied");
+      }
+      const row = inserted;
+      await syncCustomerStats(tx, shopId, customerId);
+      return { row, duplicate: false };
+    });
+    if ("error" in result && result.error) {
+      res.status(result.error.status).json({ message: result.error.message });
+      return;
+    }
+    res.status(result.duplicate ? 200 : 201).json({ transaction: khataTransactionOut(result.row) });
+  }),
+);
+
 // ── Repairs ────────────────────────────────────────────────────────────────
 
 const REPAIR_STATUSES = [
@@ -237,8 +472,8 @@ async function logRepairEvent(
 
 // Recompute a customer's derived stats from their repairs:
 // - totalRepairs: number of non-cancelled repairs linked to the customer
-// - dueAmount: sum over delivered repairs of (repairCharge + partsCharge − advance),
-//   clamped at 0 per repair so an overpaid advance never produces a negative due.
+// - dueAmount: delivered repair dues plus manual khata given/received entries.
+//   A given entry is an additional receivable; received settles one.
 async function syncCustomerStats(
   tx: Pick<typeof db, "select" | "update">,
   shopId: string,
@@ -253,9 +488,32 @@ async function syncCustomerStats(
     })
     .from(repairsTable)
     .where(and(eq(repairsTable.shopId, shopId), eq(repairsTable.customerId, customerId)));
+  const [khata] = await tx
+    .select({
+      balance: sql<number>`coalesce(sum(case when ${customerKhataTransactionsTable.direction} = 'given' then ${customerKhataTransactionsTable.amount} else -${customerKhataTransactionsTable.amount} end), 0)::float`,
+    })
+    .from(customerKhataTransactionsTable)
+    .where(and(
+      eq(customerKhataTransactionsTable.shopId, shopId),
+      eq(customerKhataTransactionsTable.customerId, customerId),
+    ));
+  const [refunds] = await tx
+    .select({
+      total: sql<number>`coalesce(sum(${refundsTable.amount}) filter (where ${refundsTable.status} = 'paid'), 0)::float`,
+    })
+    .from(refundsTable)
+    .where(and(
+      eq(refundsTable.shopId, shopId),
+      eq(refundsTable.customerId, customerId),
+    ));
   await tx
     .update(customersTable)
-    .set({ totalRepairs: stats?.total ?? 0, dueAmount: stats?.due ?? 0 })
+    .set({
+      totalRepairs: stats?.total ?? 0,
+      dueAmount: Math.round(
+        ((stats?.due ?? 0) + (khata?.balance ?? 0) + (refunds?.total ?? 0)) * 100,
+      ) / 100,
+    })
     .where(and(eq(customersTable.id, customerId), eq(customersTable.shopId, shopId)));
 }
 
