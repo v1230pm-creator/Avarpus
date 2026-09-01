@@ -84,7 +84,10 @@ import type {
   DealersUpdate200,
   DeliveryOtpVerify200,
   DeliveryOtpVerifyInput,
+  DriveBackupCompletionInput,
   DriveBackupOauthStart200,
+  DriveBackupPreparation,
+  DriveBackupRecoveryPreparation,
   DriveBackupSettingsInput,
   DriveBackupStatus,
   ErrorEnvelope,
@@ -8899,20 +8902,20 @@ export const useDriveBackupSettingsUpdate = <TError = ErrorType<unknown>,
       return useMutation(getDriveBackupSettingsUpdateMutationOptions(options));
     }
 
-export const getDriveBackupRunUrl = () => {
+export const getDriveBackupPrepareUrl = () => {
 
 
 
 
-  return `/api/drive-backup/run`
+  return `/api/drive-backup/prepare`
 }
 
 /**
- * @summary Export the current user's member chats to their connected Google Drive
+ * @summary Prepare plaintext chat data and a short-lived Drive token for client-side encryption
  */
-export const driveBackupRun = async ( options?: Parameters<typeof customFetch>[1]): Promise<DriveBackupStatus> => {
+export const driveBackupPrepare = async ( options?: Parameters<typeof customFetch>[1]): Promise<DriveBackupPreparation> => {
 
-  return customFetch<DriveBackupStatus>(getDriveBackupRunUrl(),
+  return customFetch<DriveBackupPreparation>(getDriveBackupPrepareUrl(),
   {
     ...options,
     method: 'POST'
@@ -8925,11 +8928,11 @@ export const driveBackupRun = async ( options?: Parameters<typeof customFetch>[1
 
 
 
-export const getDriveBackupRunMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof driveBackupRun>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof driveBackupRun>>, TError,void, TContext> => {
+export const getDriveBackupPrepareMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof driveBackupPrepare>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof driveBackupPrepare>>, TError,void, TContext> => {
 
-const mutationKey = ['driveBackupRun'];
+const mutationKey = ['driveBackupPrepare'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -8939,10 +8942,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof driveBackupRun>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof driveBackupPrepare>>, void> = () => {
 
 
-          return  driveBackupRun(requestOptions)
+          return  driveBackupPrepare(requestOptions)
         }
 
 
@@ -8952,22 +8955,164 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type DriveBackupRunMutationResult = NonNullable<Awaited<ReturnType<typeof driveBackupRun>>>
+    export type DriveBackupPrepareMutationResult = NonNullable<Awaited<ReturnType<typeof driveBackupPrepare>>>
 
-    export type DriveBackupRunMutationError = ErrorType<unknown>
+    export type DriveBackupPrepareMutationError = ErrorType<unknown>
 
     /**
- * @summary Export the current user's member chats to their connected Google Drive
+ * @summary Prepare plaintext chat data and a short-lived Drive token for client-side encryption
  */
-export const useDriveBackupRun = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof driveBackupRun>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useDriveBackupPrepare = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof driveBackupPrepare>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof driveBackupRun>>,
+        Awaited<ReturnType<typeof driveBackupPrepare>>,
         TError,
         void,
         TContext
       > => {
-      return useMutation(getDriveBackupRunMutationOptions(options));
+      return useMutation(getDriveBackupPrepareMutationOptions(options));
+    }
+
+export const getDriveBackupCompleteUrl = () => {
+
+
+
+
+  return `/api/drive-backup/complete`
+}
+
+/**
+ * @summary Validate a client-encrypted Drive archive and record successful completion
+ */
+export const driveBackupComplete = async (driveBackupCompletionInput: DriveBackupCompletionInput, options?: Parameters<typeof customFetch>[1]): Promise<DriveBackupStatus> => {
+
+  return customFetch<DriveBackupStatus>(getDriveBackupCompleteUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(driveBackupCompletionInput)
+  }
+);}
+
+
+
+
+
+export const getDriveBackupCompleteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof driveBackupComplete>>, TError,{data: BodyType<DriveBackupCompletionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof driveBackupComplete>>, TError,{data: BodyType<DriveBackupCompletionInput>}, TContext> => {
+
+const mutationKey = ['driveBackupComplete'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof driveBackupComplete>>, {data: BodyType<DriveBackupCompletionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  driveBackupComplete(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DriveBackupCompleteMutationResult = NonNullable<Awaited<ReturnType<typeof driveBackupComplete>>>
+    export type DriveBackupCompleteMutationBody = BodyType<DriveBackupCompletionInput>
+    export type DriveBackupCompleteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Validate a client-encrypted Drive archive and record successful completion
+ */
+export const useDriveBackupComplete = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof driveBackupComplete>>, TError,{data: BodyType<DriveBackupCompletionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof driveBackupComplete>>,
+        TError,
+        {data: BodyType<DriveBackupCompletionInput>},
+        TContext
+      > => {
+      return useMutation(getDriveBackupCompleteMutationOptions(options));
+    }
+
+export const getDriveBackupRecoveryPrepareUrl = () => {
+
+
+
+
+  return `/api/drive-backup/recovery/prepare`
+}
+
+/**
+ * @summary Return ciphertext download details for client-side recovery
+ */
+export const driveBackupRecoveryPrepare = async ( options?: Parameters<typeof customFetch>[1]): Promise<DriveBackupRecoveryPreparation> => {
+
+  return customFetch<DriveBackupRecoveryPreparation>(getDriveBackupRecoveryPrepareUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDriveBackupRecoveryPrepareMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof driveBackupRecoveryPrepare>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof driveBackupRecoveryPrepare>>, TError,void, TContext> => {
+
+const mutationKey = ['driveBackupRecoveryPrepare'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof driveBackupRecoveryPrepare>>, void> = () => {
+
+
+          return  driveBackupRecoveryPrepare(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DriveBackupRecoveryPrepareMutationResult = NonNullable<Awaited<ReturnType<typeof driveBackupRecoveryPrepare>>>
+
+    export type DriveBackupRecoveryPrepareMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Return ciphertext download details for client-side recovery
+ */
+export const useDriveBackupRecoveryPrepare = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof driveBackupRecoveryPrepare>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof driveBackupRecoveryPrepare>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDriveBackupRecoveryPrepareMutationOptions(options));
     }
 
 export const getDriveBackupAccountDisconnectUrl = () => {

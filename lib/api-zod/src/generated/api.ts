@@ -214,7 +214,6 @@ export const authMeUpdateBodyProfileLinksItemMax = 2048;
 export const authMeUpdateBodyProfileLinksMax = 8;
 
 
-
 export const AuthMeUpdateBody = zod.object({
   "name": zod.string().optional(),
   "mobile": zod.string().optional(),
@@ -284,7 +283,6 @@ export const shopSetupRequestCreateBodyAddressMin = 3;
 export const shopSetupRequestCreateBodyAddressMax = 500;
 
 export const shopSetupRequestCreateBodyGstNumberMax = 15;
-
 
 
 export const ShopSetupRequestCreateBody = zod.object({
@@ -1154,7 +1152,6 @@ export const customersKhataTransactionsCreateBodyNoteMax = 2000;
 
 export const customersKhataTransactionsCreateBodyBookDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 export const customersKhataTransactionsCreateBodyClientRequestIdMax = 200;
-
 
 
 export const CustomersKhataTransactionsCreateBody = zod.object({
@@ -3651,6 +3648,7 @@ export const DriveBackupGetResponse = zod.object({
   "automaticFrequency": zod.enum(['never', 'daily', 'weekly', 'monthly']),
   "allowCellular": zod.boolean(),
   "includeVideos": zod.boolean(),
+  "encryptionEnabled": zod.boolean(),
   "lastBackupAt": zod.coerce.date().nullable(),
   "lastBackupSizeBytes": zod.string().nullable(),
   "nextBackupAt": zod.coerce.date().nullable(),
@@ -3686,6 +3684,7 @@ export const DriveBackupSettingsUpdateResponse = zod.object({
   "automaticFrequency": zod.enum(['never', 'daily', 'weekly', 'monthly']),
   "allowCellular": zod.boolean(),
   "includeVideos": zod.boolean(),
+  "encryptionEnabled": zod.boolean(),
   "lastBackupAt": zod.coerce.date().nullable(),
   "lastBackupSizeBytes": zod.string().nullable(),
   "nextBackupAt": zod.coerce.date().nullable(),
@@ -3695,9 +3694,30 @@ export const DriveBackupSettingsUpdateResponse = zod.object({
 
 
 /**
- * @summary Export the current user's member chats to their connected Google Drive
+ * @summary Prepare plaintext chat data and a short-lived Drive token for client-side encryption
  */
-export const DriveBackupRunResponse = zod.object({
+export const DriveBackupPrepareResponse = zod.object({
+  "archiveBase64": zod.string(),
+  "accessToken": zod.string(),
+  "existingFileId": zod.string().nullable(),
+  "driveEtag": zod.string().nullable(),
+  "uploadLeaseToken": zod.string(),
+  "encryptionSalt": zod.string().nullable()
+})
+
+
+/**
+ * @summary Validate a client-encrypted Drive archive and record successful completion
+ */
+export const DriveBackupCompleteBody = zod.object({
+  "fileId": zod.string(),
+  "sizeBytes": zod.string(),
+  "encryptionSalt": zod.string(),
+  "encryptionVerifier": zod.string(),
+  "uploadLeaseToken": zod.string()
+})
+
+export const DriveBackupCompleteResponse = zod.object({
   "connected": zod.boolean(),
   "email": zod.string().nullable(),
   "quota": zod.union([zod.object({
@@ -3707,11 +3727,22 @@ export const DriveBackupRunResponse = zod.object({
   "automaticFrequency": zod.enum(['never', 'daily', 'weekly', 'monthly']),
   "allowCellular": zod.boolean(),
   "includeVideos": zod.boolean(),
+  "encryptionEnabled": zod.boolean(),
   "lastBackupAt": zod.coerce.date().nullable(),
   "lastBackupSizeBytes": zod.string().nullable(),
   "nextBackupAt": zod.coerce.date().nullable(),
   "backupDue": zod.boolean(),
   "lastError": zod.string().nullable()
+})
+
+
+/**
+ * @summary Return ciphertext download details for client-side recovery
+ */
+export const DriveBackupRecoveryPrepareResponse = zod.object({
+  "accessToken": zod.string(),
+  "fileId": zod.string(),
+  "encryptionSalt": zod.string()
 })
 
 
@@ -3735,7 +3766,6 @@ export const ChatCapabilitiesResponse = zod.object({
  * @summary Match exact phone numbers to active users for global direct chat
  */
 export const chatContactsMatchBodyPhonesMax = 50;
-
 
 
 export const ChatContactsMatchBody = zod.object({
@@ -3931,7 +3961,6 @@ export const chatReportsCreateBodyClientRequestIdMax = 200;
 export const chatReportsCreateBodyDetailsMax = 1000;
 
 
-
 export const ChatReportsCreateBody = zod.object({
   "clientRequestId": zod.string().min(1).max(chatReportsCreateBodyClientRequestIdMax),
   "reason": zod.enum(['spam', 'harassment', 'scam', 'inappropriate', 'other']),
@@ -3989,7 +4018,6 @@ export const ChatMessagesSendParams = zod.object({
 })
 
 export const chatMessagesSendBodyDurationMsMax = 600000;
-
 
 
 export const ChatMessagesSendBody = zod.object({
@@ -4227,5 +4255,4 @@ export const StatusesViewersListResponse = zod.object({
   "viewedAt": zod.coerce.date()
 }))
 })
-
 

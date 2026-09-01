@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import {
   db,
+  driveBackupConnectionsTable,
   driveBackupOauthStatesTable,
   driveBackupSettingsTable,
   usersTable,
@@ -17,6 +18,7 @@ process.env.SESSION_SECRET ??= "drive-backup-test-session-secret";
 
 const { default: app } = await import("../app");
 const { createSession } = await import("../lib/authUtils");
+const { encryptRefreshToken } = await import("../lib/driveBackup");
 
 const run = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 let userId: string;
@@ -60,6 +62,7 @@ describe("Drive backup routes", () => {
       automaticFrequency: "never",
       allowCellular: false,
       includeVideos: false,
+      encryptionEnabled: false,
       backupDue: false,
     });
   });
@@ -77,22 +80,22 @@ describe("Drive backup routes", () => {
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
       connected: false,
-      automaticFrequency: "weekly",
+      automaticFrequency: "never",
       allowCellular: true,
       includeVideos: true,
     });
-    expect(response.body.nextBackupAt).not.toBeNull();
+    expect(response.body.nextBackupAt).toBeNull();
 
     const [stored] = await db
       .select()
       .from(driveBackupSettingsTable)
       .where(eq(driveBackupSettingsTable.userId, userId));
-    expect(stored?.automaticFrequency).toBe("weekly");
+    expect(stored?.automaticFrequency).toBe("never");
   });
 
   it("rejects a backup until the user connects Google Drive", async () => {
     const response = await request(app)
-      .post("/api/drive-backup/run")
+      .post("/api/drive-backup/prepare")
       .set("Authorization", `Bearer ${token}`);
 
     expect(response.status).toBe(409);
@@ -134,5 +137,29 @@ describe("Drive backup routes", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.location).toBe("vmcelectronicerp://google-backup?status=error");
+  });
+
+  it("does not accept recovery passwords at any server endpoint", async () => {
+    const response = await request(app)
+      .post("/api/drive-backup/encryption")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        recoveryPassword: "correct horse battery staple",
+        recoveryPasswordConfirmation: "a different long password",
+      });
+
+    expect(response.status).toBe(404);
+  });
+
+  it("rejects malformed client-side encrypted backup completions", async () => {
+    const response = await request(app)
+      .post("/api/drive-backup/complete")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        fileId: "drive-file",
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toContain("Invalid encrypted backup");
   });
 });

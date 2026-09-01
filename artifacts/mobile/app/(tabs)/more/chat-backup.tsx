@@ -1,13 +1,15 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -17,20 +19,43 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import * as WebBrowser from 'expo-web-browser';
 import * as Network from 'expo-network';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import {
+  customFetch,
   driveBackupOauthStart,
   getDriveBackupGetQueryKey,
   useDriveBackupAccountDisconnect,
   useDriveBackupGet,
-  useDriveBackupRun,
   useDriveBackupSettingsUpdate,
-  type DriveBackupFrequency,
   type DriveBackupStatus,
 } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
+import {
+  bytesToBase64,
+  decryptDriveBackup,
+  encryptDriveBackup,
+} from '@/utils/driveBackupCrypto';
 
 const GOOGLE_STORAGE_URL = 'https://one.google.com/storage/management';
 const OAUTH_RETURN_URL = 'vmcelectronicerp://google-backup';
+const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
+const DRIVE_FILES = 'https://www.googleapis.com/drive/v3/files';
+
+type BackupPreparation = {
+  archiveBase64: string;
+  accessToken: string;
+  existingFileId: string | null;
+  driveEtag: string | null;
+  uploadLeaseToken: string;
+  encryptionSalt: string | null;
+};
+
+type RecoveryPreparation = {
+  accessToken: string;
+  fileId: string;
+  encryptionSalt: string;
+};
 
 function formatBytes(value: string | null | undefined): string {
   if (!value) return '0 B';
@@ -59,16 +84,19 @@ function formatBackupTime(value: string | null | undefined): string {
   });
 }
 
-function frequencyLabel(value: DriveBackupFrequency): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
 export default function ChatBackupScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const automaticRunAttempted = useRef(false);
+  const [encryptionDialog, setEncryptionDialog] = React.useState<
+    'setup' | 'run' | 'verify' | null
+  >(null);
+  const [recoveryPassword, setRecoveryPassword] = React.useState('');
+  const [recoveryPasswordConfirmation, setRecoveryPasswordConfirmation] = React.useState('');
+  const [recoveryPasswordError, setRecoveryPasswordError] = React.useState<string | null>(null);
+  const [backupPending, setBackupPending] = React.useState(false);
+  const [recoveryPending, setRecoveryPending] = React.useState(false);
   const statusQuery = useDriveBackupGet({
     query: {
       queryKey: getDriveBackupGetQueryKey(),
@@ -90,19 +118,9 @@ export default function ChatBackupScreen() {
       onError: () => Alert.alert('Could not save', 'Please check your connection and try again.'),
     },
   });
-  const backupMutation = useDriveBackupRun({
-    mutation: {
-      onSuccess: (status) => {
-        updateCachedStatus(status);
-        Alert.alert('Backup complete', 'Your chats were backed up to your Google Drive.');
-      },
-      onError: () => Alert.alert('Backup failed', 'Your chats could not be backed up. Please try again.'),
-    },
-  });
   const disconnectMutation = useDriveBackupAccountDisconnect({
     mutation: {
       onSuccess: () => {
-        automaticRunAttempted.current = false;
         void queryClient.invalidateQueries({ queryKey: getDriveBackupGetQueryKey() });
       },
       onError: () => Alert.alert('Could not disconnect', 'Please try again.'),
@@ -110,6 +128,7 @@ export default function ChatBackupScreen() {
   });
 
   const status = statusQuery.data;
+  const backupMutation = { isPending: backupPending };
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
   const canRunOnCurrentNetwork = useCallback(async (): Promise<boolean> => {
@@ -122,23 +141,173 @@ export default function ChatBackupScreen() {
     return true;
   }, [status?.allowCellular]);
 
+  const uploadEncryptedArchive = useCallback(async (
+    encryptedBytes: Uint8Array,
+    accessToken: string,
+    existingFileId: string | null,
+    driveEtag: string | null,
+  ): Promise<{ id: string; size: string }> => {
+    const target = existingFileId
+      ? `${DRIVE_UPLOAD}/${encodeURIComponent(existingFileId)}?uploadType=media&fields=id,size`
+      : `${DRIVE_UPLOAD}?uploadType=media&fields=id,size`;
+    const response = await fetch(target, {
+      method: existingFileId ? 'PATCH' : 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/octet-stream',
+        ...(existingFileId && driveEtag ? { 'If-Match': driveEtag } : {}),
+      },
+      body: new Blob([encryptedBytes as unknown as BlobPart]),
+    });
+    if (!response.ok) throw new Error(`Google Drive upload failed (HTTP ${response.status}).`);
+    const uploaded = await response.json() as { id: string; size?: string };
+    const metadataResponse = await fetch(`${DRIVE_FILES}/${encodeURIComponent(uploaded.id)}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: 'Avarpus Chat Backup.avb',
+        mimeType: 'application/octet-stream',
+        appProperties: {
+          source: 'avarpus-chat-backup',
+          version: '2',
+          encrypted: 'true',
+        },
+      }),
+    });
+    if (!metadataResponse.ok) throw new Error('Google Drive could not finalize the backup file.');
+    return { id: uploaded.id, size: uploaded.size ?? String(encryptedBytes.byteLength) };
+  }, []);
+
+  const performBackup = useCallback(async (password: string, enabling = false) => {
+    setBackupPending(true);
+    try {
+      const prepared = await customFetch<BackupPreparation>('/api/drive-backup/prepare', {
+        method: 'POST',
+        responseType: 'json',
+      });
+      const encrypted = encryptDriveBackup(
+        prepared.archiveBase64,
+        password,
+        prepared.encryptionSalt,
+      );
+      const uploaded = await uploadEncryptedArchive(
+        encrypted.encryptedBytes,
+        prepared.accessToken,
+        prepared.existingFileId,
+        prepared.driveEtag,
+      );
+      const nextStatus = await customFetch<DriveBackupStatus>('/api/drive-backup/complete', {
+        method: 'POST',
+        responseType: 'json',
+        body: JSON.stringify({
+          fileId: uploaded.id,
+          sizeBytes: uploaded.size,
+          encryptionSalt: encrypted.salt,
+          encryptionVerifier: encrypted.verifier,
+          uploadLeaseToken: prepared.uploadLeaseToken,
+        }),
+      });
+      updateCachedStatus(nextStatus);
+      setEncryptionDialog(null);
+      setRecoveryPasswordConfirmation('');
+      setRecoveryPassword('');
+      Alert.alert(
+        enabling ? 'Encryption enabled' : 'Backup complete',
+        enabling
+          ? 'Your Drive backup is now encrypted on this device before upload. Encrypted backups are manual so the recovery password is never stored. Write it down: Avarpus cannot recover or reset it.'
+          : 'Your chats were encrypted on this device and backed up to Google Drive.',
+      );
+    } catch (error) {
+      Alert.alert(
+        enabling ? 'Could not enable encryption' : 'Backup failed',
+        error instanceof Error ? error.message : 'Please check your connection and try again.',
+      );
+    } finally {
+      setBackupPending(false);
+    }
+  }, [updateCachedStatus, uploadEncryptedArchive]);
+
   const runBackup = useCallback(async () => {
     if (!status?.connected) return;
     if (!(await canRunOnCurrentNetwork())) return;
-    backupMutation.mutate();
-  }, [backupMutation, canRunOnCurrentNetwork, status?.connected]);
-
-  useEffect(() => {
-    if (
-      status?.connected &&
-      status.backupDue &&
-      !automaticRunAttempted.current &&
-      !backupMutation.isPending
-    ) {
-      automaticRunAttempted.current = true;
-      void runBackup();
+    if (!status.encryptionEnabled) {
+      setRecoveryPassword('');
+      setRecoveryPasswordConfirmation('');
+      setRecoveryPasswordError(null);
+      setEncryptionDialog('setup');
+      return;
     }
-  }, [backupMutation.isPending, runBackup, status?.backupDue, status?.connected]);
+    if (recoveryPassword.length === 0) {
+      setEncryptionDialog('run');
+      return;
+    }
+    await performBackup(recoveryPassword);
+  }, [
+    canRunOnCurrentNetwork,
+    performBackup,
+    recoveryPassword,
+    status?.connected,
+    status?.encryptionEnabled,
+  ]);
+
+  const recoverBackup = useCallback(async () => {
+    setRecoveryPending(true);
+    try {
+      const prepared = await customFetch<RecoveryPreparation>('/api/drive-backup/recovery/prepare', {
+        method: 'POST',
+        responseType: 'json',
+      });
+      const response = await fetch(
+        `${DRIVE_FILES}/${encodeURIComponent(prepared.fileId)}?alt=media`,
+        { headers: { Authorization: `Bearer ${prepared.accessToken}` } },
+      );
+      if (!response.ok) throw new Error(`Google Drive download failed (HTTP ${response.status}).`);
+      const encryptedBytes = new Uint8Array(await response.arrayBuffer());
+      const archive = decryptDriveBackup(
+        encryptedBytes,
+        recoveryPassword,
+        prepared.encryptionSalt,
+      );
+      const parsed = JSON.parse(new TextDecoder().decode(archive)) as Record<string, unknown>;
+      if (parsed.format !== 'avarpus-chat-backup' || parsed.version !== 1) {
+        throw new Error('The decrypted file is not a valid Avarpus chat backup.');
+      }
+      const filename = `Avarpus-Chat-Backup-${new Date().toISOString().slice(0, 10)}.json`;
+      if (Platform.OS === 'web') {
+        const url = URL.createObjectURL(new Blob([archive as unknown as BlobPart], { type: 'application/json' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const uri = `${FileSystem.cacheDirectory}${filename}`;
+        await FileSystem.writeAsStringAsync(uri, bytesToBase64(archive), {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        if (!(await Sharing.isAvailableAsync())) {
+          throw new Error('File sharing is not available on this device.');
+        }
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/json',
+          dialogTitle: 'Save recovered Avarpus chat backup',
+        });
+      }
+      setEncryptionDialog(null);
+      setRecoveryPassword('');
+      Alert.alert('Backup recovered', 'The decrypted chat archive is ready to save or share.');
+    } catch (error) {
+      Alert.alert(
+        'Could not recover backup',
+        error instanceof Error ? error.message : 'The encrypted backup could not be opened.',
+      );
+    } finally {
+      setRecoveryPending(false);
+    }
+  }, [recoveryPassword]);
 
   const addGoogleAccount = useCallback(async () => {
     try {
@@ -170,15 +339,11 @@ export default function ChatBackupScreen() {
 
   const chooseFrequency = useCallback(() => {
     if (!status) return;
-    const values: DriveBackupFrequency[] = ['never', 'daily', 'weekly', 'monthly'];
-    Alert.alert('Automatic backups', 'Choose how often chats should be backed up.', [
-      ...values.map((value) => ({
-        text: frequencyLabel(value),
-        onPress: () => saveSettings({ automaticFrequency: value }),
-      })),
-      { text: 'Cancel', style: 'cancel' as const },
-    ]);
-  }, [saveSettings, status]);
+    Alert.alert(
+      'Manual backups only',
+      'End-to-end encrypted backups run only when you enter the recovery password. Avarpus never stores it.',
+    );
+  }, [status]);
 
   const manageAccount = useCallback(() => {
     Alert.alert(status?.email ?? 'Google Account', 'Manage the account used for chat backup.', [
@@ -191,6 +356,64 @@ export default function ChatBackupScreen() {
       { text: 'Cancel', style: 'cancel' },
     ]);
   }, [addGoogleAccount, disconnectMutation, status?.email]);
+
+  const openEncryptionDialog = useCallback(() => {
+    if (!status) return;
+    if (status.encryptionEnabled) {
+      Alert.alert(
+        'Encrypted backup',
+        'Your recovery password is never stored by Avarpus. If you lose it, existing encrypted backups cannot be restored and the password cannot be reset.',
+        [
+          {
+            text: 'Recover backup file',
+            onPress: () => {
+              setRecoveryPassword('');
+              setEncryptionDialog('verify');
+            },
+          },
+          { text: 'Close', style: 'cancel' },
+        ],
+      );
+      return;
+    }
+    setRecoveryPassword('');
+    setRecoveryPasswordConfirmation('');
+      setRecoveryPasswordError(null);
+    setEncryptionDialog('setup');
+  }, [status]);
+
+  const submitEncryptionDialog = useCallback(() => {
+    if (encryptionDialog === 'setup') {
+      if (recoveryPassword.length < 12) {
+        setRecoveryPasswordError('Use at least 12 characters for your recovery password.');
+        return;
+      }
+      if (recoveryPassword !== recoveryPasswordConfirmation) {
+        setRecoveryPasswordError('Enter the same recovery password twice.');
+        return;
+      }
+      setRecoveryPasswordError(null);
+      void performBackup(recoveryPassword, true);
+      return;
+    }
+    if (encryptionDialog === 'run' && recoveryPassword.length > 0) {
+      if (recoveryPassword.length < 12) {
+        setRecoveryPasswordError('Use at least 12 characters for your recovery password.');
+        return;
+      }
+      void performBackup(recoveryPassword);
+      return;
+    }
+    if (encryptionDialog === 'verify' && recoveryPassword.length > 0) {
+      void recoverBackup();
+    }
+  }, [
+    encryptionDialog,
+    performBackup,
+    recoverBackup,
+    recoveryPassword,
+    recoveryPasswordConfirmation,
+  ]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -292,7 +515,7 @@ export default function ChatBackupScreen() {
               <View style={styles.rowCopy}>
                 <Text style={[styles.rowTitle, { color: colors.foreground }]}>Automatic backups</Text>
                 <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>
-                  {frequencyLabel(status.automaticFrequency)}
+                  Manual only — recovery password is never stored
                 </Text>
               </View>
             </TouchableOpacity>
@@ -341,24 +564,134 @@ export default function ChatBackupScreen() {
             </Text>
             <TouchableOpacity
               style={styles.encryptionRow}
-              onPress={() =>
-                Alert.alert(
-                  'End-to-end encrypted backup',
-                  'This requires a recovery password and restore flow. It remains off until both are available, so Avarpus does not make a false encryption claim.',
-                )
-              }
+              onPress={openEncryptionDialog}
             >
               <Feather name="lock" size={22} color={colors.mutedForeground} />
               <View style={styles.encryptionCopy}>
                 <Text style={[styles.rowTitle, { color: colors.foreground }]}>
                   End-to-end encrypted backup
                 </Text>
-                <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>Off</Text>
+                <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>
+                  {status.encryptionEnabled ? 'On · Recovery password protected' : 'Off'}
+                </Text>
               </View>
+              <Feather
+                name="chevron-right"
+                size={20}
+                color={colors.mutedForeground}
+              />
             </TouchableOpacity>
           </>
         ) : null}
       </ScrollView>
+
+      <Modal
+        visible={encryptionDialog !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEncryptionDialog(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: colors.background }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+              {encryptionDialog === 'setup'
+                ? 'Set recovery password'
+                : encryptionDialog === 'verify'
+                  ? 'Recover backup'
+                  : 'Enter recovery password'}
+            </Text>
+            <Text style={[styles.modalDescription, { color: colors.mutedForeground }]}>
+              {encryptionDialog === 'setup'
+                ? 'This password encrypts your backup before upload. Avarpus cannot recover it, so save it somewhere safe.'
+                : encryptionDialog === 'verify'
+                  ? 'The encrypted Drive backup will be decrypted only on this device, then opened as a JSON file you can save or share.'
+                : 'This password is required to encrypt this backup. It is not saved by Avarpus.'}
+            </Text>
+            <TextInput
+              value={recoveryPassword}
+              onChangeText={(value) => {
+                setRecoveryPassword(value);
+                setRecoveryPasswordError(null);
+              }}
+              placeholder="Recovery password"
+              placeholderTextColor={colors.mutedForeground}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[
+                styles.passwordInput,
+                { color: colors.foreground, borderColor: colors.border },
+              ]}
+              accessibilityLabel="Recovery password"
+            />
+            {encryptionDialog === 'setup' ? (
+              <TextInput
+                value={recoveryPasswordConfirmation}
+                onChangeText={(value) => {
+                  setRecoveryPasswordConfirmation(value);
+                  setRecoveryPasswordError(null);
+                }}
+                placeholder="Confirm recovery password"
+                placeholderTextColor={colors.mutedForeground}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={[
+                  styles.passwordInput,
+                  { color: colors.foreground, borderColor: colors.border },
+                ]}
+                accessibilityLabel="Confirm recovery password"
+              />
+            ) : null}
+            {recoveryPasswordError ? (
+              <Text
+                style={[styles.validationError, { color: colors.destructive }]}
+                accessibilityRole="alert"
+              >
+                {recoveryPasswordError}
+              </Text>
+            ) : null}
+            <Text style={[styles.warningText, { color: colors.destructive }]}>
+              Lost passwords cannot be recovered. Existing encrypted backups will be permanently inaccessible.
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                onPress={() => setEncryptionDialog(null)}
+                style={styles.modalCancel}
+                disabled={
+                  recoveryPending ||
+                  backupMutation.isPending
+                }
+              >
+                <Text style={[styles.modalCancelText, { color: colors.mutedForeground }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={submitEncryptionDialog}
+                style={[styles.modalSubmit, { backgroundColor: colors.success }]}
+                disabled={
+                  recoveryPending ||
+                  backupMutation.isPending
+                }
+              >
+                {recoveryPending ||
+                backupMutation.isPending ? (
+                  <ActivityIndicator color={colors.background} />
+                ) : (
+                  <Text style={[styles.modalSubmitText, { color: colors.background }]}>
+                    {encryptionDialog === 'setup'
+                      ? 'Enable'
+                      : encryptionDialog === 'verify'
+                        ? 'Recover'
+                        : 'Back up'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -441,4 +774,45 @@ const styles = StyleSheet.create({
     gap: 28,
   },
   encryptionCopy: { flex: 1 },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
+  modalCard: {
+    borderRadius: 16,
+    padding: 22,
+    gap: 12,
+  },
+  modalTitle: { fontSize: 20, fontFamily: 'Inter_600SemiBold' },
+  modalDescription: { fontSize: 14, lineHeight: 20, fontFamily: 'Inter_400Regular' },
+  passwordInput: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    fontFamily: 'Inter_400Regular',
+  },
+  warningText: { fontSize: 13, lineHeight: 18, fontFamily: 'Inter_500Medium' },
+  validationError: { fontSize: 13, lineHeight: 18, fontFamily: 'Inter_500Medium' },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 18,
+    marginTop: 4,
+  },
+  modalCancel: { paddingVertical: 10, paddingHorizontal: 4 },
+  modalCancelText: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  modalSubmit: {
+    minWidth: 92,
+    minHeight: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  modalSubmitText: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
 });

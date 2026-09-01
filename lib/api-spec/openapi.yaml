@@ -2480,18 +2480,50 @@ paths:
               schema:
                 $ref: "#/components/schemas/DriveBackupStatus"
 
-  /drive-backup/run:
+  /drive-backup/prepare:
     post:
-      operationId: driveBackupRun
+      operationId: driveBackupPrepare
       tags: [chat]
-      summary: Export the current user's member chats to their connected Google Drive
+      summary: Prepare plaintext chat data and a short-lived Drive token for client-side encryption
       responses:
         "200":
-          description: Completed backup status
+          description: Client-side backup preparation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DriveBackupPreparation"
+
+  /drive-backup/complete:
+    post:
+      operationId: driveBackupComplete
+      tags: [chat]
+      summary: Validate a client-encrypted Drive archive and record successful completion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DriveBackupCompletionInput"
+      responses:
+        "200":
+          description: Completed encrypted backup status
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/DriveBackupStatus"
+
+  /drive-backup/recovery/prepare:
+    post:
+      operationId: driveBackupRecoveryPrepare
+      tags: [chat]
+      summary: Return ciphertext download details for client-side recovery
+      responses:
+        "200":
+          description: Client-side recovery preparation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DriveBackupRecoveryPreparation"
 
   /drive-backup/account:
     delete:
@@ -4296,6 +4328,7 @@ components:
           $ref: "#/components/schemas/DriveBackupFrequency"
         allowCellular: { type: boolean }
         includeVideos: { type: boolean }
+        encryptionEnabled: { type: boolean }
         lastBackupAt: { type: ["string", "null"], format: date-time }
         lastBackupSizeBytes: { type: ["string", "null"] }
         nextBackupAt: { type: ["string", "null"], format: date-time }
@@ -4308,11 +4341,38 @@ components:
         - automaticFrequency
         - allowCellular
         - includeVideos
+        - encryptionEnabled
         - lastBackupAt
         - lastBackupSizeBytes
         - nextBackupAt
         - backupDue
         - lastError
+    DriveBackupPreparation:
+      type: object
+      properties:
+        archiveBase64: { type: string }
+        accessToken: { type: string }
+        existingFileId: { type: ["string", "null"] }
+        driveEtag: { type: ["string", "null"] }
+        uploadLeaseToken: { type: string }
+        encryptionSalt: { type: ["string", "null"] }
+      required: [archiveBase64, accessToken, existingFileId, driveEtag, uploadLeaseToken, encryptionSalt]
+    DriveBackupCompletionInput:
+      type: object
+      properties:
+        fileId: { type: string }
+        sizeBytes: { type: string }
+        encryptionSalt: { type: string }
+        encryptionVerifier: { type: string }
+        uploadLeaseToken: { type: string }
+      required: [fileId, sizeBytes, encryptionSalt, encryptionVerifier, uploadLeaseToken]
+    DriveBackupRecoveryPreparation:
+      type: object
+      properties:
+        accessToken: { type: string }
+        fileId: { type: string }
+        encryptionSalt: { type: string }
+      required: [accessToken, fileId, encryptionSalt]
     ChatBlockResult:
       type: object
       properties:

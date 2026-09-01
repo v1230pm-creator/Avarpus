@@ -16,6 +16,7 @@ export interface DriveBackupStatus {
   automaticFrequency: DriveBackupFrequency;
   allowCellular: boolean;
   includeVideos: boolean;
+  encryptionEnabled: boolean;
   /** @nullable */
   lastBackupAt: Date | null;
   /** @nullable */

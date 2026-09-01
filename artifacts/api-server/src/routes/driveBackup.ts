@@ -11,13 +11,15 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import {
   DRIVE_SCOPES,
+  completeClientDriveBackup,
   encryptRefreshToken,
   ensureBackupSettings,
   getDriveBackupStatus,
   googleBackupOauthClient,
   nextBackupAt,
+  prepareClientDriveBackup,
+  prepareClientDriveRecovery,
   revokeDriveConnection,
-  runDriveBackup,
   type BackupFrequency,
 } from "../lib/driveBackup";
 
@@ -145,16 +147,17 @@ router.patch(
       return;
     }
     const current = await ensureBackupSettings(req.user!.id);
+    const effectiveFrequency = "never";
     await db
       .update(driveBackupSettingsTable)
       .set({
-        automaticFrequency: frequency,
+        automaticFrequency: effectiveFrequency,
         allowCellular,
         includeVideos,
         nextBackupAt:
-          frequency === "never"
+          effectiveFrequency === "never"
             ? null
-            : current.nextBackupAt ?? nextBackupAt(frequency, current.lastBackupAt ?? new Date()),
+            : current.nextBackupAt ?? nextBackupAt(effectiveFrequency, current.lastBackupAt ?? new Date()),
         updatedAt: new Date(),
       })
       .where(eq(driveBackupSettingsTable.userId, req.user!.id));
@@ -163,14 +166,92 @@ router.patch(
 );
 
 router.post(
-  "/drive-backup/run",
+  "/drive-backup/prepare",
   requireAuth,
   asyncHandler(async (req, res) => {
     try {
-      res.json(await runDriveBackup(req.user!.id));
+      res.json(await prepareClientDriveBackup(req.user!.id));
     } catch (error) {
-      if (error instanceof Error && error.message === "GOOGLE_ACCOUNT_REQUIRED") {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "GOOGLE_ACCOUNT_REQUIRED") {
         res.status(409).json({ message: "Add a Google account before backing up." });
+        return;
+      }
+      if (code === "BACKUP_DRIVE_VERSION_UNAVAILABLE") {
+        res.status(409).json({
+          message: "The current Drive backup version could not be locked. Please try again.",
+        });
+        return;
+      }
+      if (code === "BACKUP_UPLOAD_IN_PROGRESS") {
+        res.status(409).json({
+          message: "Another device is already preparing this backup. Try again shortly.",
+        });
+        return;
+      }
+      throw error;
+    }
+  }),
+);
+
+router.post(
+  "/drive-backup/complete",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const input = req.body;
+    if (
+      typeof input?.fileId !== "string" ||
+      typeof input?.sizeBytes !== "string" ||
+      typeof input?.encryptionSalt !== "string" ||
+      typeof input?.encryptionVerifier !== "string" ||
+      typeof input?.uploadLeaseToken !== "string"
+    ) {
+      res.status(400).json({ message: "Invalid encrypted backup completion." });
+      return;
+    }
+    try {
+      res.json(await completeClientDriveBackup(req.user!.id, input));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "BACKUP_RECOVERY_PASSWORD_INVALID") {
+        res.status(409).json({ message: "That recovery password is incorrect." });
+        return;
+      }
+      if (code === "BACKUP_ARCHIVE_INVALID") {
+        res.status(422).json({ message: "The uploaded encrypted backup is invalid." });
+        return;
+      }
+      if (code === "BACKUP_FILE_REPLACEMENT_REQUIRED") {
+        res.status(409).json({
+          message: "The existing Drive backup must be replaced before encryption can be enabled.",
+        });
+        return;
+      }
+      if (code === "BACKUP_UPLOAD_LEASE_INVALID") {
+        res.status(409).json({
+          message: "This backup upload expired or was replaced by another device. Start again.",
+        });
+        return;
+      }
+      throw error;
+    }
+  }),
+);
+
+router.post(
+  "/drive-backup/recovery/prepare",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await prepareClientDriveRecovery(req.user!.id));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "BACKUP_NOT_FOUND") {
+        res.status(404).json({ message: "No encrypted backup is available yet." });
+        return;
+      }
+      if (code === "GOOGLE_ACCOUNT_REQUIRED") {
+        res.status(409).json({ message: "Reconnect Google Drive to recover this backup." });
         return;
       }
       throw error;

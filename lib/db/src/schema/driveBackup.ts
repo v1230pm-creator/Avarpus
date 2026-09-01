@@ -36,9 +36,14 @@ export const driveBackupSettingsTable = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
-    automaticFrequency: text("automatic_frequency").notNull().default("daily"),
+    automaticFrequency: text("automatic_frequency").notNull().default("never"),
     allowCellular: boolean("allow_cellular").notNull().default(true),
     includeVideos: boolean("include_videos").notNull().default(true),
+    encryptionEnabled: boolean("encryption_enabled").notNull().default(false),
+    recoveryPasswordSalt: text("recovery_password_salt"),
+    recoveryPasswordVerifier: text("recovery_password_verifier"),
+    uploadLeaseHash: text("upload_lease_hash"),
+    uploadLeaseExpiresAt: timestamp("upload_lease_expires_at", { withTimezone: true }),
     backupFileId: text("backup_file_id"),
     lastBackupAt: timestamp("last_backup_at", { withTimezone: true }),
     lastBackupSizeBytes: text("last_backup_size_bytes"),

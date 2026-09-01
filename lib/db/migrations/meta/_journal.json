@@ -372,6 +372,20 @@
       "when": 1788242000000,
       "tag": "0052_customer_khata_transactions",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1788242000001,
+      "tag": "0053_drive_backup_encryption",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1788243000000,
+      "tag": "0053_drive_backup_upload_lease",
+      "breakpoints": true
     }
   ]
 }

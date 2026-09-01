@@ -1509,6 +1509,7 @@ export interface DriveBackupStatus {
   automaticFrequency: DriveBackupFrequency;
   allowCellular: boolean;
   includeVideos: boolean;
+  encryptionEnabled: boolean;
   /** @nullable */
   lastBackupAt: string | null;
   /** @nullable */
@@ -1518,6 +1519,32 @@ export interface DriveBackupStatus {
   backupDue: boolean;
   /** @nullable */
   lastError: string | null;
+}
+
+export interface DriveBackupPreparation {
+  archiveBase64: string;
+  accessToken: string;
+  /** @nullable */
+  existingFileId: string | null;
+  /** @nullable */
+  driveEtag: string | null;
+  uploadLeaseToken: string;
+  /** @nullable */
+  encryptionSalt: string | null;
+}
+
+export interface DriveBackupCompletionInput {
+  fileId: string;
+  sizeBytes: string;
+  encryptionSalt: string;
+  encryptionVerifier: string;
+  uploadLeaseToken: string;
+}
+
+export interface DriveBackupRecoveryPreparation {
+  accessToken: string;
+  fileId: string;
+  encryptionSalt: string;
 }
 
 export interface ChatBlockResult {
@@ -2234,4 +2261,3 @@ export type ChatMessagesList200 = {
 export type ChatMessagesSend200 = {
   message: ChatMessage;
 };
-
