@@ -1,5 +1,5 @@
 - [VMC BMS Architecture](vmc-bms-arch.md) — Expo app now API-backed: auth AND business data (repairs/customers/inventory/purchases/finance) live server-side, shop-scoped; no on-device seed data.
-- [Drizzle journal drift](drizzle-journal-drift.md) — boot fails with "relation already exists" when DB drifts from the migration journal; backfill journal rows, don't drop tables.
+- [Database schema ownership](drizzle-journal-drift.md) — API startup must not run migrations; development schema push and Replit Publish own schema application.
 - [App lock enforcement](app-lock.md) — opt-in biometric/device-credential lock; inactivity may relock but must never sign out an unlocked account.
 - [Lock-state mutations](lock-state-mutations.md) — settings toggles require OS authentication and must re-read persisted state after write failures.
 - [Stale api-client d.ts](api-client-dist-types.md) — mobile typecheck reads lib types from dist declarations; rebuild them after changing lib exports or you get phantom TS2305 errors.
@@ -54,4 +54,4 @@
 - [Pending upload cleanup fencing](pending-upload-cleanup-fencing.md) — cleanup must use exclusive token-fenced leases, revalidation, bounded side effects, and narrow namespace listings.
 - [Native chat attachment safety](native-chat-attachment-safety.md) — keep sheet drags off nested galleries, paginate device media, and confirm precise location before sending.
 - [Drive backup privacy](drive-backup-privacy.md) — cloud backup defaults off; never claim end-to-end encryption until a user-held recovery secret protects archive contents.
-- [Artifact service environment](artifact-service-env.md) — runtime-required ports belong in service-level env; nested production-run env can validate yet disappear during artifact startup.
+- [Artifact service environment](artifact-service-env.md) — runtime-required variables belong in service-level env, but a missing port is not proven until startup logs confirm it.

@@ -1,12 +1,8 @@
-import path from "path";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import app from "./app";
-import { db } from "@workspace/db";
 import { logger } from "./lib/logger";
 import { seedUsersIfEmpty } from "./lib/seed";
 import { cleanupExpiredAuthData } from "./lib/authUtils";
 import { warnIfMailFromUnset } from "./lib/mailer";
-import { reconcileOtpRateLimitMigrationJournal } from "./lib/migrationJournalRecovery";
 import { cleanupAbandonedStatusUploads } from "./routes/status";
 import { cleanupAbandonedChatAndProfileUploads } from "./lib/pendingUploads";
 
@@ -50,55 +46,40 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// Run DB migrations (idempotent) then start the server.
-// __dirname is set to the dist/ folder by the esbuild banner, so migrations
-// are available at dist/migrations/ after the build copies them.
-const migrationsFolder = path.resolve(__dirname, "migrations");
-
-reconcileOtpRateLimitMigrationJournal(migrationsFolder)
-  .then((recovered) => {
-    if (recovered > 0) {
-      logger.warn(
-        { recovered },
-        "Recovered missing OTP rate-limit migration journal entries",
-      );
+function startServer(): void {
+  app.listen(port, (err) => {
+    if (err) {
+      logger.error({ err }, "Error listening on port");
+      process.exit(1);
     }
-    return migrate(db, { migrationsFolder });
-  })
-  .then(() => {
-    logger.info("Database migrations applied");
 
-    app.listen(port, (err) => {
-      if (err) {
-        logger.error({ err }, "Error listening on port");
-        process.exit(1);
-      }
+    logger.info({ port }, "Server listening");
 
-      logger.info({ port }, "Server listening");
+    warnIfMailFromUnset();
 
-      warnIfMailFromUnset();
-
-      seedUsersIfEmpty().catch((err) => {
-        logger.error({ err }, "Failed to seed initial users");
-      });
-
-      // Prune expired sessions/OTP codes and old login events on boot,
-      // then daily. unref() so the timer never blocks process shutdown.
-      runAuthCleanup();
-      setInterval(runAuthCleanup, CLEANUP_INTERVAL_MS).unref();
-
-      // Remove old, unclaimed Status uploads. The job is prefix-scoped and
-      // keeps every object referenced by a published Status.
-      runStatusUploadCleanup();
-      setInterval(runStatusUploadCleanup, CLEANUP_INTERVAL_MS).unref();
-
-      // Reclaim private Chat/Profile objects that never became a durable
-      // message or active profile photo.
-      runChatAndProfileUploadCleanup();
-      setInterval(runChatAndProfileUploadCleanup, CLEANUP_INTERVAL_MS).unref();
+    seedUsersIfEmpty().catch((err) => {
+      logger.error({ err }, "Failed to seed initial users");
     });
-  })
-  .catch((err) => {
-    logger.error({ err }, "Database migration failed — server will not start");
-    process.exit(1);
+
+    // Prune expired sessions/OTP codes and old login events on boot,
+    // then daily. unref() so the timer never blocks process shutdown.
+    runAuthCleanup();
+    setInterval(runAuthCleanup, CLEANUP_INTERVAL_MS).unref();
+
+    // Remove old, unclaimed Status uploads. The job is prefix-scoped and
+    // keeps every object referenced by a published Status.
+    runStatusUploadCleanup();
+    setInterval(runStatusUploadCleanup, CLEANUP_INTERVAL_MS).unref();
+
+    // Reclaim private Chat/Profile objects that never became a durable
+    // message or active profile photo.
+    runChatAndProfileUploadCleanup();
+    setInterval(runChatAndProfileUploadCleanup, CLEANUP_INTERVAL_MS).unref();
   });
+}
+
+// Development schema changes are applied by the project schema-push flow;
+// production schema changes are applied by Replit Publish. Running DDL here
+// can replay stale migrations or block deployment startup health checks.
+logger.info("Database schema managed externally; skipping runtime migrations");
+startServer();
