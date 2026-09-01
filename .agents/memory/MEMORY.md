@@ -22,6 +22,7 @@
 - [Dealer portal](dealer-portal.md) — B2B dealers vs owner `dealer` role; portal subresources need dealer-level (not just shop) checks; DataContext.addRepair maps fields explicitly.
 - [Technician access scoping](technician-scoping.md) — assigned-only gating REMOVED; techs get full shop view; repair-mutating subroutes must carry requireFeature('repairs_update').
 - [GitHub push via API fallback](github-push-api-fallback.md) — when auth() gives no token, push via proxyFetch Git Data API; local/remote SHAs then diverge, reconcile before next token push.
+- [GitHub connector vs Git transport](github-connector-git-transport.md) — an Active GitHub integration authorizes API calls, not shell Git; use a repo deploy key when normal HTTPS/SSH credentials are absent.
 - [Testing pass lock](testing-pass-lock.md) — testingChecklist true=Pass is immutable; validate in tx with FOR UPDATE; omission keeps passes, drops fails; Pass→Fail = 409 TESTING_ITEM_LOCKED.
 - [Role feature toggles](role-feature-toggles.md) — owner-editable per-role Staff Permissions; new mutation endpoints in toggleable areas must add requireFeature; never gate shared GET collections.
 - [Route-level feature gates](route-level-feature-gates.md) — hidden tabs are not protection; sensitive mobile routes must deny access before their data hooks mount.
