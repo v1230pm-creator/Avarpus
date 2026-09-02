@@ -264,19 +264,17 @@ describe('failed update alerts and keeps edited values', () => {
     unmount();
   });
 
-  it('status update failure alerts, keeps the picker open, and the status unchanged', async () => {
+  it('status update failure alerts and keeps the status unchanged', async () => {
     mockRepairsUpdate.mockRejectedValue(new Error('boom'));
     const { unmount } = await renderDetail();
 
-    await press('Continue & Save');
-    expect(screen.getByText('Move job to testing')).toBeTruthy(); // picker open, next step unlocked
-    await press('Move job to testing');
+    await press('Continue as Testing');
 
     await waitFor(() =>
       expect(alertSpy).toHaveBeenCalledWith('Update failed', expect.stringContaining('update the repair')),
     );
-    // Picker stayed open so staff can retry; status untouched in the list.
-    expect(screen.getByText('Move job to testing')).toBeTruthy();
+    // The stage-specific action stays available so staff can retry.
+    expect(screen.getByText('Continue as Testing')).toBeTruthy();
     expect(screen.getByText('repair:r1:repairing:Old diagnosis')).toBeTruthy();
     unmount();
   });
@@ -374,7 +372,7 @@ describe('successful update replaces the record in the list', () => {
     unmount();
   });
 
-  it('status change to Testing updates the record in the list and closes the picker', async () => {
+  it('status change to Testing updates the record directly', async () => {
     mockRepairsUpdate.mockImplementation(async (id: string, patch: Record<string, unknown>) => {
       const updated = { ...baseRepair, ...patch, id };
       mockLists.repairs = [updated];
@@ -382,8 +380,7 @@ describe('successful update replaces the record in the list', () => {
     });
     const { unmount } = await renderDetail();
 
-    await press('Continue & Save');
-    await press('Move job to testing');
+    await press('Continue as Testing');
 
     await waitFor(() => expect(screen.getByText('repair:r1:testing:Old diagnosis')).toBeTruthy());
     expect(screen.queryByText('repair:r1:repairing:Old diagnosis')).toBeNull();

@@ -16,7 +16,6 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import SignatureScreen, { SignatureViewRef } from 'react-native-signature-canvas';
 import QRCode from 'react-native-qrcode-svg';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -223,14 +222,11 @@ export default function NewRepairScreen() {
   const [forceApprovalMode, setForceApprovalMode] = useState(false);
 
   const [photos, setPhotos] = useState<{ uri: string, kind: string }[]>([]);
-  const [receivingSignatureUri, setReceivingSignatureUri] = useState<string | null>(null);
   const [customerConfirmed, setCustomerConfirmed] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const [showSignature, setShowSignature] = useState(false);
-  const sigPadRef = useRef<SignatureViewRef>(null);
   const [showPhotoKindModal, setShowPhotoKindModal] = useState<string | null>(null);
 
   const [createdRepair, setCreatedRepair] = useState<Repair | null>(null);
@@ -441,14 +437,6 @@ export default function NewRepairScreen() {
         }
       }
 
-      let sigPath;
-      if (receivingSignatureUri) {
-        sigPath = await uploadToGcs(receivingSignatureUri, 'image/png');
-        if (sigPath) {
-          await updateRepair({ ...repair, receivingSignaturePath: sigPath });
-        }
-      }
-
       for (const p of photos) {
         const path = await uploadToGcs(p.uri, 'image/jpeg');
         if (path) {
@@ -489,19 +477,6 @@ export default function NewRepairScreen() {
     }
   };
 
-  const handleSignatureOK = async (signature: string) => {
-    try {
-      const path = FileSystem.cacheDirectory + `sig_${Date.now()}.png`;
-      await FileSystem.writeAsStringAsync(path, signature.replace('data:image/png;base64,', ''), {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      setReceivingSignatureUri(path);
-      setShowSignature(false);
-    } catch (err) {
-      Alert.alert('Error', 'Failed to save signature.');
-    }
-  };
-
   const generatePDF = async () => {
     if (!createdRepair) return;
     try {
@@ -512,17 +487,6 @@ export default function NewRepairScreen() {
             resolve(`data:image/png;base64,${dataURL}`);
           });
         });
-      }
-
-      // Signature image (if captured) as base64 for embedding
-      let sigBase64 = '';
-      if (receivingSignatureUri) {
-        try {
-          const b64 = await FileSystem.readAsStringAsync(receivingSignatureUri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          sigBase64 = `data:image/png;base64,${b64}`;
-        } catch {}
       }
 
       const esc = (v: any) =>
@@ -637,18 +601,6 @@ export default function NewRepairScreen() {
               The final charge may vary after diagnosis; any change will be confirmed with the customer before proceeding.
             </div>
 
-            <div class="sigblock">
-              <table><tr>
-                <td style="width:50%;">
-                  ${sigBase64 ? `<img class="sigimg" src="${sigBase64}" />` : '<br/><br/>_______________________'}
-                  <div>Customer Signature</div>
-                </td>
-                <td style="width:50%; text-align:right;">
-                  <br/><br/>_______________________
-                  <div>For ${esc(shopName)}</div>
-                </td>
-              </tr></table>
-            </div>
           </body>
         </html>
       `;
@@ -1265,24 +1217,6 @@ export default function NewRepairScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Signature */}
-              <View style={styles.section}>
-                <SectionHeader title="Customer Authorization" />
-                {receivingSignatureUri ? (
-                  <View style={[styles.sigPreviewWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                    <Image source={{ uri: receivingSignatureUri }} style={styles.sigPreview} resizeMode="contain" />
-                    <TouchableOpacity style={[styles.sigClear, { backgroundColor: colors.destructive }]} onPress={() => setReceivingSignatureUri(null)}>
-                      <Feather name="x" size={16} color="#FFF" />
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity onPress={() => setShowSignature(true)} style={[styles.sigBtn, { borderColor: colors.primary, backgroundColor: colors.primary + '11' }]}>
-                    <Feather name="edit-3" size={20} color={colors.primary} />
-                    <Text style={[styles.sigBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Capture Signature</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
               <View style={{ alignItems: 'center', marginTop: 10 }}>
                 <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
                   Received by: {user?.name || 'System'}
@@ -1303,44 +1237,6 @@ export default function NewRepairScreen() {
 
         </FadeInView>
       </KeyboardAwareScrollViewCompat>
-
-      {/* Signature Modal */}
-      <Modal visible={showSignature} animationType="slide" transparent onRequestClose={() => setShowSignature(false)}>
-        <View style={[styles.modalOverlay, { backgroundColor: colors.background }]}>
-          <View style={[styles.sigScreen, { paddingTop: topPad + 8, paddingBottom: Math.max(insets.bottom, 20) }]}>
-            <View style={styles.sigHeaderRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Customer Signature</Text>
-                <Text style={[styles.sigSubtitle, { color: colors.mutedForeground }]}>Ask the customer to sign in the box below</Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowSignature(false)} style={[styles.sigCloseBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Feather name="x" size={20} color={colors.foreground} />
-              </TouchableOpacity>
-            </View>
-            <View style={[styles.sigCard, { borderColor: colors.border }]}>
-              <SignatureScreen
-                ref={sigPadRef}
-                onOK={handleSignatureOK}
-                onEmpty={() => Alert.alert('Empty', 'Please provide a signature')}
-                descriptionText=""
-                webStyle={`.m-signature-pad {box-shadow: none; border: none; height: 100%; margin: 0;}
-                            .m-signature-pad--body {border: none; height: 100%;}
-                            .m-signature-pad--footer {display: none;}
-                            body,html {height: 100%; margin: 0;}`
-                        }
-              />
-              <View pointerEvents="none" style={styles.sigBaseline}>
-                <Feather name="edit-3" size={14} color="#9CA3AF" />
-                <Text style={styles.sigBaselineText}>Sign here</Text>
-              </View>
-            </View>
-            <View style={styles.sigFooterRow}>
-              <View style={{ flex: 1 }}><Button title="Clear" variant="outline" onPress={() => sigPadRef.current?.clearSignature()} /></View>
-              <View style={{ flex: 2 }}><Button title="Done" onPress={() => sigPadRef.current?.readSignature()} /></View>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       {/* Photo Kind Modal */}
       <Modal visible={!!showPhotoKindModal} animationType="fade" transparent onRequestClose={() => setShowPhotoKindModal(null)}>
