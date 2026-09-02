@@ -1144,11 +1144,31 @@ export default function NewRepairScreen() {
               {/* Financials */}
               <View style={styles.section}>
                 <SectionHeader title="Estimate" />
-                <Input label="Estimated Repair Cost (₹)" value={repairCharge} onChangeText={setRepairCharge} placeholder="0" keyboardType="decimal-pad" leftText="₹" />
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1, minWidth: 0, paddingTop: 19 }}>
+                    <Input
+                      value={repairCharge}
+                      onChangeText={setRepairCharge}
+                      placeholder="0"
+                      keyboardType="decimal-pad"
+                      leftText="₹"
+                      accessibilityLabel="Estimate"
+                    />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Input
+                      label="Advance Paid (₹) — optional"
+                      value={advancePaid}
+                      onChangeText={setAdvancePaid}
+                      placeholder="0"
+                      keyboardType="decimal-pad"
+                      leftText="₹"
+                    />
+                  </View>
+                </View>
                 <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4, marginBottom: 10, fontFamily: 'Inter_400Regular' }}>
                   This is only an estimate — the final bill is prepared when the repair is completed.
                 </Text>
-                <Input label="Advance Paid (₹) — optional" value={advancePaid} onChangeText={setAdvancePaid} placeholder="0" keyboardType="decimal-pad" leftText="₹" />
                 {(parseFloat(advancePaid) || 0) > 0 && (
                   <>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
