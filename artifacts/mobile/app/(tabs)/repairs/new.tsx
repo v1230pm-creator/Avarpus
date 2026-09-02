@@ -1143,9 +1143,9 @@ export default function NewRepairScreen() {
 
               {/* Financials */}
               <View style={styles.section}>
-                <SectionHeader title="Estimate" />
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <View style={{ flex: 1, minWidth: 0, paddingTop: 19 }}>
+                <View style={styles.estimateRow}>
+                  <View style={styles.estimateColumn}>
+                    <Text style={[styles.estimateLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Estimate</Text>
                     <Input
                       value={repairCharge}
                       onChangeText={setRepairCharge}
@@ -1155,9 +1155,9 @@ export default function NewRepairScreen() {
                       accessibilityLabel="Estimate"
                     />
                   </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
+                  <View style={styles.estimateColumn}>
+                    <Text style={[styles.estimateLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Advance Paid (₹)</Text>
                     <Input
-                      label="Advance Paid (₹) — optional"
                       value={advancePaid}
                       onChangeText={setAdvancePaid}
                       placeholder="0"
@@ -1401,6 +1401,9 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16 },
   scroll: { paddingHorizontal: 12, paddingTop: 8 },
   section: { gap: 10 },
+  estimateRow: { flexDirection: 'row', gap: 10 },
+  estimateColumn: { flex: 1, minWidth: 0, gap: 7 },
+  estimateLabel: { fontSize: 12, lineHeight: 16, letterSpacing: 0.1 },
   threeColumnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   compactField: { flex: 1, minWidth: 0, gap: 8 },
   compactFieldLabel: { fontSize: 11, lineHeight: 14 },
