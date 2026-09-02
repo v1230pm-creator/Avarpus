@@ -676,7 +676,25 @@ export default function NewRepairScreen() {
             <>
               {/* Customer */}
               <View style={styles.section}>
-                <SectionHeader title="Customer Details" />
+                <View style={styles.customerHeaderRow}>
+                  <SectionHeader title="Customer Details" />
+                  {!isDealerPortalUser && (
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => setShowDealerPick(v => !v)}
+                      style={[styles.dealerLinkButton, { backgroundColor: colors.card, borderColor: dealerId ? colors.primary : colors.border }]}
+                    >
+                      <Feather name="briefcase" size={15} color={dealerId ? colors.primary : colors.mutedForeground} />
+                      <Text
+                        numberOfLines={1}
+                        style={[styles.dealerLinkLabel, { color: dealerId ? colors.primary : colors.foreground, fontFamily: 'Inter_600SemiBold' }]}
+                      >
+                        {selectedDealer ? selectedDealer.dealerCode : 'Link Dealer'}
+                      </Text>
+                      <Feather name={showDealerPick ? 'chevron-up' : 'chevron-down'} size={15} color={colors.mutedForeground} />
+                    </TouchableOpacity>
+                  )}
+                </View>
                 <Input label="Name *" value={customerName} onChangeText={setCustomerName} placeholder="Full name" leftIcon="user" error={errors.customerName} />
                 <Input label="Mobile *" value={mobile} onChangeText={setMobile} placeholder="10-digit number" keyboardType="phone-pad" leftIcon="phone" error={errors.mobile} />
                 {detectedDealer && (
@@ -714,29 +732,8 @@ export default function NewRepairScreen() {
                     ))}
                   </View>
                 )}
-                <Input label="Alternate Mobile" value={alternateMobile} onChangeText={setAlternateMobile} placeholder="Optional" keyboardType="phone-pad" leftIcon="phone" />
-                <Input label="Email" value={email} onChangeText={setEmail} placeholder="Optional" keyboardType="email-address" leftIcon="mail" autoCapitalize="none" />
-                <Input label="Address" value={address} onChangeText={setAddress} placeholder="Optional" leftIcon="map-pin" />
-              </View>
-
-              {/* Dealer (optional B2B link) — shop staff can select any
-                  dealer in their shop. Dealer portal accounts remain excluded
-                  so they cannot browse the shop's dealer directory. */}
-              {!isDealerPortalUser && <View style={styles.section}>
-                <SectionHeader title="Dealer (Optional)" />
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => setShowDealerPick(v => !v)}
-                  style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: dealerId ? colors.primary : colors.border }]}
-                >
-                  <Feather name="briefcase" size={16} color={dealerId ? colors.primary : colors.mutedForeground} />
-                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
-                    {selectedDealer ? `${selectedDealer.dealerCode} · ${selectedDealer.name}` : 'Link to a Dealer'}
-                  </Text>
-                  <Feather name={showDealerPick ? 'chevron-up' : 'chevron-down'} size={16} color={colors.mutedForeground} />
-                </TouchableOpacity>
-                {showDealerPick && (
-                  <View style={{ gap: 8 }}>
+                {showDealerPick && !isDealerPortalUser && (
+                  <View style={{ gap: 8, marginBottom: 12 }}>
                     {(dealersData?.dealers || []).map((d) => {
                       const active = dealerId === d.id;
                       return (
@@ -744,8 +741,7 @@ export default function NewRepairScreen() {
                           key={d.id}
                           onPress={() => {
                             // Manual pick/removal always overrides auto-detection:
-                            // removal must serialize as an explicit dealerId: null
-                            // so the server does not silently re-link by phone.
+                            // removal must serialize as an explicit dealerId: null.
                             setDealerId(active ? null : d.id);
                             setAutoDetected(false);
                             setDealerCleared(active);
@@ -779,7 +775,10 @@ export default function NewRepairScreen() {
                     </TouchableOpacity>
                   </View>
                 )}
-              </View>}
+                <Input label="Alternate Mobile" value={alternateMobile} onChangeText={setAlternateMobile} placeholder="Optional" keyboardType="phone-pad" leftIcon="phone" />
+                <Input label="Email" value={email} onChangeText={setEmail} placeholder="Optional" keyboardType="email-address" leftIcon="mail" autoCapitalize="none" />
+                <Input label="Address" value={address} onChangeText={setAddress} placeholder="Optional" leftIcon="map-pin" />
+              </View>
 
               {/* Device */}
               <View style={styles.section}>
@@ -1280,8 +1279,11 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16 },
   scroll: { paddingHorizontal: 12, paddingTop: 8 },
   section: { gap: 10 },
+  customerHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   sectionHeader: { borderLeftWidth: 2, paddingLeft: 8, marginTop: 4, marginBottom: 2 },
   sectionTitle: { fontSize: 14 },
+  dealerLinkButton: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '52%', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, borderWidth: 1 },
+  dealerLinkLabel: { fontSize: 12, flexShrink: 1 },
   checklistGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   sectionToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10, borderWidth: 1 },
   sectionToggleLabel: { fontSize: 13, flex: 1 },

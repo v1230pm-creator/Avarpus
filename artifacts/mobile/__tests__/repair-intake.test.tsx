@@ -192,12 +192,12 @@ afterEach(() => {
 it('shows the manual dealer picker to shop staff but not dealer portal accounts', async () => {
   mockAuthUser.role = 'reception';
   const staffScreen = await renderIntake();
-  expect(screen.getByText('Dealer (Optional)')).toBeTruthy();
+  expect(screen.getByText('Link Dealer')).toBeTruthy();
   staffScreen.unmount();
 
   mockAuthUser.role = 'dealer_staff';
   await renderIntake();
-  expect(screen.queryByText('Dealer (Optional)')).toBeNull();
+  expect(screen.queryByText('Link Dealer')).toBeNull();
 });
 
 /** Fills every required intake field on step 1 (brand is a chip selector). */
