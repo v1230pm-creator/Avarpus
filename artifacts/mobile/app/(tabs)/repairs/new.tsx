@@ -775,19 +775,19 @@ export default function NewRepairScreen() {
                 <SectionHeader title="Device Details" />
                 <View style={styles.threeColumnRow}>
                   <View style={styles.compactField}>
+                    <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Device Type *</Text>
                     <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => setShowDeviceType(v => !v)}
+                      activeOpacity={0.7}
+                      onPress={() => setShowDeviceType(v => !v)}
                       style={[styles.compactToggle, { backgroundColor: colors.card, borderColor: showDeviceType ? colors.primary : colors.border }]}
                     >
-                  <View style={[styles.checkbox, { backgroundColor: deviceType ? colors.primary : 'transparent', borderColor: deviceType ? colors.primary : colors.muted }]}>
-                    {!!deviceType && <Feather name="check" size={14} color="#FFF" />}
-                  </View>
-                      <Text numberOfLines={1} style={[styles.compactToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Device Type *</Text>
-                  <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
-                    <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{deviceType}</Text>
-                  </View>
-                  <Feather name={showDeviceType ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
+                      <View style={[styles.checkbox, { backgroundColor: deviceType ? colors.primary : 'transparent', borderColor: deviceType ? colors.primary : colors.muted }]}>
+                        {!!deviceType && <Feather name="check" size={14} color="#FFF" />}
+                      </View>
+                      <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
+                        <Text numberOfLines={1} style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{deviceType}</Text>
+                      </View>
+                      <Feather name={showDeviceType ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
                     </TouchableOpacity>
                     {showDeviceType && (
                       <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
@@ -815,21 +815,29 @@ export default function NewRepairScreen() {
                   </View>
 
                   <View style={styles.compactField}>
+                    <Text
+                      onPress={() => setShowBrand(v => !v)}
+                      accessibilityRole="button"
+                      style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}
+                    >
+                      Brand *
+                    </Text>
                     <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => setShowBrand(v => !v)}
+                      activeOpacity={0.7}
+                      onPress={() => setShowBrand(v => !v)}
                       style={[styles.compactToggle, { backgroundColor: colors.card, borderColor: errors.brand ? colors.destructive : showBrand ? colors.primary : colors.border }]}
                     >
-                  <View style={[styles.checkbox, { backgroundColor: brand ? colors.primary : 'transparent', borderColor: brand ? colors.primary : colors.muted }]}>
-                    {!!brand && <Feather name="check" size={14} color="#FFF" />}
-                  </View>
-                      <Text numberOfLines={1} style={[styles.compactToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Brand *</Text>
-                  {!!brand && (
-                    <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
-                      <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{brand}</Text>
-                    </View>
-                  )}
-                  <Feather name={showBrand ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
+                      <View style={[styles.checkbox, { backgroundColor: brand ? colors.primary : 'transparent', borderColor: brand ? colors.primary : colors.muted }]}>
+                        {!!brand && <Feather name="check" size={14} color="#FFF" />}
+                      </View>
+                      {brand ? (
+                        <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
+                          <Text numberOfLines={1} style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{brand}</Text>
+                        </View>
+                      ) : (
+                        <Text numberOfLines={1} style={[styles.compactToggleLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Select brand</Text>
+                      )}
+                      <Feather name={showBrand ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
                     </TouchableOpacity>
                     {!!errors.brand && (
                       <Text style={[styles.fieldError, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>{errors.brand}</Text>
@@ -860,7 +868,8 @@ export default function NewRepairScreen() {
                   </View>
 
                   <View style={styles.compactField}>
-                    <Input label="Model *" value={model} onChangeText={setModel} placeholder="Enter your model" leftIcon="smartphone" error={errors.model} />
+                    <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Model *</Text>
+                    <Input value={model} onChangeText={setModel} placeholder="Enter your model" leftIcon="smartphone" error={errors.model} />
                   </View>
                 </View>
 
@@ -1405,10 +1414,10 @@ const styles = StyleSheet.create({
   estimateColumn: { flex: 1, minWidth: 0, gap: 7 },
   estimateLabel: { fontSize: 12, lineHeight: 16, letterSpacing: 0.1 },
   threeColumnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  compactField: { flex: 1, minWidth: 0, gap: 8 },
-  compactFieldLabel: { fontSize: 11, lineHeight: 14 },
-  compactToggle: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 8, borderRadius: 9, borderWidth: 1 },
-  compactToggleLabel: { flex: 1, fontSize: 11 },
+  compactField: { flex: 1, minWidth: 0, gap: 7 },
+  compactFieldLabel: { fontSize: 11, lineHeight: 16 },
+  compactToggle: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 0, borderRadius: 9, borderWidth: 1 },
+  compactToggleLabel: { flex: 1, minWidth: 0, fontSize: 11, lineHeight: 16 },
   customerHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   sectionHeader: { borderLeftWidth: 2, paddingLeft: 8, marginTop: 4, marginBottom: 2 },
   sectionTitle: { fontSize: 14 },
