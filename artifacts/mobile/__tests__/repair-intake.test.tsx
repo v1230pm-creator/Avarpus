@@ -288,7 +288,9 @@ describe('failed save shows the alert and keeps entered values', () => {
     mockRepairsCreate.mockRejectedValue(new Error('boom'));
     const { unmount } = await renderIntake();
     await fillRequiredFields();
-    await press('Accessories Received'); // open the collapsed accessories section
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Accessories'));
+    }); // open the collapsed accessories section
     type('e.g. Broken cover, mixed cables...', 'Charger, Cover');
     fireEvent.changeText(screen.getAllByPlaceholderText('0')[0], '2500'); // estimate (advance input also uses placeholder 0)
     await reviewConfirmAndSubmit();

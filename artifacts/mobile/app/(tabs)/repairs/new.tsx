@@ -884,16 +884,17 @@ export default function NewRepairScreen() {
               {/* Accessories */}
               <View style={styles.threeColumnRow}>
                 <View style={styles.compactField}>
+                <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Accessories</Text>
                 <View style={styles.section}>
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={() => setShowAccessories(v => !v)}
+                  accessibilityLabel="Accessories"
                   style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: showAccessories ? colors.primary : colors.border }]}
                 >
                   <View style={[styles.checkbox, { backgroundColor: showAccessories ? colors.primary : 'transparent', borderColor: showAccessories ? colors.primary : colors.muted }]}>
                     {showAccessories && <Feather name="check" size={14} color="#FFF" />}
                   </View>
-                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Accessories Received</Text>
                   {accessoriesList.length > 0 && (
                     <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
                       <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{accessoriesList.length}</Text>
@@ -931,16 +932,17 @@ export default function NewRepairScreen() {
 
               {/* Physical Condition */}
               <View style={styles.compactField}>
+              <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Physical</Text>
               <View style={styles.section}>
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={() => setShowPhysical(v => !v)}
+                  accessibilityLabel="Physical"
                   style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: showPhysical ? colors.primary : colors.border }]}
                 >
                   <View style={[styles.checkbox, { backgroundColor: showPhysical ? colors.primary : 'transparent', borderColor: showPhysical ? colors.primary : colors.muted }]}>
                     {showPhysical && <Feather name="check" size={14} color="#FFF" />}
                   </View>
-                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Physical Condition</Text>
                   {Object.values(physicalCondition).filter(Boolean).length > 0 && (
                     <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
                       <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{Object.values(physicalCondition).filter(Boolean).length}</Text>
@@ -975,16 +977,17 @@ export default function NewRepairScreen() {
 
               {/* Checklist */}
               <View style={styles.compactField}>
+              <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Pre Repair</Text>
               <View style={styles.section}>
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={() => setShowChecklist(v => !v)}
+                  accessibilityLabel="Pre Repair"
                   style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: showChecklist ? colors.primary : colors.border }]}
                 >
                   <View style={[styles.checkbox, { backgroundColor: showChecklist ? colors.primary : 'transparent', borderColor: showChecklist ? colors.primary : colors.muted }]}>
                     {showChecklist && <Feather name="check" size={14} color="#FFF" />}
                   </View>
-                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Pre-Repair Checklist (Functions)</Text>
                   {Object.values(checklist).filter(Boolean).length > 0 && (
                     <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
                       <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{Object.values(checklist).filter(Boolean).length}</Text>
@@ -1353,6 +1356,7 @@ const styles = StyleSheet.create({
   section: { gap: 10 },
   threeColumnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   compactField: { flex: 1, minWidth: 0, gap: 8 },
+  compactFieldLabel: { fontSize: 11, lineHeight: 14 },
   compactToggle: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 8, borderRadius: 9, borderWidth: 1 },
   compactToggleLabel: { flex: 1, fontSize: 11 },
   customerHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
