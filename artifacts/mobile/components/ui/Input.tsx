@@ -10,6 +10,7 @@ interface InputProps extends TextInputProps {
   leftText?: string;
   rightIcon?: keyof typeof Feather.glyphMap;
   onRightIconPress?: () => void;
+  rightIconAccessibilityLabel?: string;
   containerStyle?: ViewStyle;
   isPassword?: boolean;
   dark?: boolean;
@@ -28,7 +29,7 @@ const DARK = {
 };
 
 export function Input({
-  label, error, leftIcon, leftText, rightIcon, onRightIconPress,
+  label, error, leftIcon, leftText, rightIcon, onRightIconPress, rightIconAccessibilityLabel,
   containerStyle, isPassword = false, dark = false, ...props
 }: InputProps) {
   const themeColors = useColors();
@@ -78,7 +79,11 @@ export function Input({
           </TouchableOpacity>
         )}
         {rightIcon && !isPassword && (
-          <TouchableOpacity onPress={onRightIconPress} style={styles.rightIcon}>
+          <TouchableOpacity
+            onPress={onRightIconPress}
+            style={styles.rightIcon}
+            accessibilityLabel={rightIconAccessibilityLabel}
+          >
             <Feather name={rightIcon} size={18} color={colors.mutedForeground} />
           </TouchableOpacity>
         )}

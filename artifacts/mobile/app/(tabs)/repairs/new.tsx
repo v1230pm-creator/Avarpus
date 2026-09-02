@@ -137,6 +137,7 @@ export default function NewRepairScreen() {
   const [customerName, setCustomerName] = useState('');
   const [mobile, setMobile] = useState('');
   const [alternateMobile, setAlternateMobile] = useState('');
+  const [showAlternateMobile, setShowAlternateMobile] = useState(false);
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
 
@@ -705,7 +706,21 @@ export default function NewRepairScreen() {
                   )}
                 </View>
                 <Input label="Name *" value={customerName} onChangeText={setCustomerName} placeholder="Full name" leftIcon="user" error={errors.customerName} />
-                <Input label="Mobile *" value={mobile} onChangeText={setMobile} placeholder="10-digit number" keyboardType="phone-pad" leftIcon="phone" error={errors.mobile} />
+                <Input
+                  label="Mobile *"
+                  value={mobile}
+                  onChangeText={setMobile}
+                  placeholder="10-digit number"
+                  keyboardType="phone-pad"
+                  leftIcon="phone"
+                  rightIcon={showAlternateMobile ? 'x' : 'plus'}
+                  onRightIconPress={() => {
+                    if (showAlternateMobile) setAlternateMobile('');
+                    setShowAlternateMobile((visible) => !visible);
+                  }}
+                  rightIconAccessibilityLabel={showAlternateMobile ? 'Remove alternate mobile' : 'Add alternate mobile'}
+                  error={errors.mobile}
+                />
                 {detectedDealer && (
                   <View style={{ borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.card, borderRadius: 12, padding: 12, marginBottom: 12 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -741,7 +756,16 @@ export default function NewRepairScreen() {
                     ))}
                   </View>
                 )}
-                <Input label="Alternate Mobile" value={alternateMobile} onChangeText={setAlternateMobile} placeholder="Optional" keyboardType="phone-pad" leftIcon="phone" />
+                {showAlternateMobile && (
+                  <Input
+                    label="Alternative Mobile"
+                    value={alternateMobile}
+                    onChangeText={setAlternateMobile}
+                    placeholder="10-digit alternative number"
+                    keyboardType="phone-pad"
+                    leftIcon="phone"
+                  />
+                )}
                 <Input label="Email" value={email} onChangeText={setEmail} placeholder="Optional" keyboardType="email-address" leftIcon="mail" autoCapitalize="none" />
                 <Input label="Address" value={address} onChangeText={setAddress} placeholder="Optional" leftIcon="map-pin" />
               </View>

@@ -204,6 +204,22 @@ it('shows the manual dealer picker to shop staff but not dealer portal accounts'
   expect(screen.queryByText('Link Dealer')).toBeNull();
 });
 
+it('adds the alternative mobile field from the Mobile input', async () => {
+  const { unmount } = await renderIntake();
+
+  expect(screen.queryByPlaceholderText('10-digit alternative number')).toBeNull();
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Add alternate mobile'));
+  });
+  expect(screen.getByPlaceholderText('10-digit alternative number')).toBeTruthy();
+
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Remove alternate mobile'));
+  });
+  expect(screen.queryByPlaceholderText('10-digit alternative number')).toBeNull();
+  unmount();
+});
+
 /** Fills every required intake field on step 1 (brand is a chip selector). */
 const fillRequiredFields = async () => {
   type('Full name', 'Asha Kumar');
