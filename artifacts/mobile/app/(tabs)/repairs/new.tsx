@@ -872,21 +872,24 @@ export default function NewRepairScreen() {
                     <Input label="IMEI 2" value={imei2} onChangeText={setImei2} placeholder="Optional" keyboardType="number-pad" />
                   </View>
                 </View>
-                <Input label="Serial Number" value={serialNumber} onChangeText={setSerialNumber} placeholder="Optional" />
-
-                <View style={{ position: 'relative' }}>
-                  <Input
-                    label="Device Password / Pattern"
-                    value={devicePassword}
-                    onChangeText={setDevicePassword}
-                    placeholder="Optional"
-                    secureTextEntry={!showDevicePassword}
-                  />
-                  {!!devicePassword && (
-                    <TouchableOpacity style={{ position: 'absolute', right: 12, top: 40 }} onPress={() => setShowDevicePassword(!showDevicePassword)}>
-                      <Feather name={showDevicePassword ? 'eye-off' : 'eye'} size={20} color={colors.mutedForeground} />
-                    </TouchableOpacity>
-                  )}
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Input label="Serial Number" value={serialNumber} onChangeText={setSerialNumber} placeholder="Optional" />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+                    <Input
+                      label="Device Password / Pattern"
+                      value={devicePassword}
+                      onChangeText={setDevicePassword}
+                      placeholder="Optional"
+                      secureTextEntry={!showDevicePassword}
+                    />
+                    {!!devicePassword && (
+                      <TouchableOpacity style={{ position: 'absolute', right: 12, top: 40 }} onPress={() => setShowDevicePassword(!showDevicePassword)}>
+                        <Feather name={showDevicePassword ? 'eye-off' : 'eye'} size={20} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
