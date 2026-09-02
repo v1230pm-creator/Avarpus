@@ -1,6 +1,6 @@
 import React from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -45,11 +45,13 @@ export default function MoreScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { scope } = useLocalSearchParams<{ scope?: string }>();
   const { user, logout, canAccess } = useAuth();
   const role = user?.role ?? '';
   const isPortal = role === 'dealer_owner' || role === 'dealer_staff';
   const isCustomer = role === 'customer';
   const isOwner = role === 'dealer' || role === 'super_admin';
+  const businessOnly = scope === 'business';
   const currentVersion = getAppVersion();
   const currentBuild = getAppBuildNumber();
   
@@ -76,8 +78,10 @@ export default function MoreScreen() {
   // per-role feature toggles (More → Staff Permissions) when `feature` is set.
   const visibleItems = MENU_ITEMS.filter(
     (item) =>
+      (!businessOnly || item.section === 'business') &&
       item.roles.includes(role) ||
-      (!isPortal && !isCustomer && !!item.feature && canAccess(item.feature)),
+      ((!businessOnly || item.section === 'business') &&
+        !isPortal && !isCustomer && !!item.feature && canAccess(item.feature)),
   );
 
   const handleLogout = async () => {
@@ -96,7 +100,9 @@ export default function MoreScreen() {
           >
             <Feather name="arrow-left" size={24} color={colors.foreground} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Settings</Text>
+          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+            {businessOnly ? 'Shop Settings' : 'Settings'}
+          </Text>
         </View>
       </View>
 
@@ -115,7 +121,7 @@ export default function MoreScreen() {
           </View>
         </View>
 
-        {(['personal', 'business'] as const).map((section) => {
+        {(businessOnly ? (['business'] as const) : (['personal', 'business'] as const)).map((section) => {
           const items = visibleItems.filter((item) => item.section === section);
           if (!items.length) return null;
           return <View key={section} style={styles.section}>
