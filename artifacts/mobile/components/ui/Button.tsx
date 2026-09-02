@@ -67,6 +67,7 @@ export function Button({
   const padV = { sm: 8, md: 13, lg: 17 }[size];
   const padH = { sm: 14, md: 20, lg: 26 }[size];
   const fontSize = { sm: 13, md: 15, lg: 17 }[size];
+  const minHeight = { sm: 40, md: 48, lg: 56 }[size];
 
   // Layout styles (flex, width, margins…) must apply to the outer wrapper.
   // If they only reach the inner TouchableOpacity, the auto-sized wrapper
@@ -119,7 +120,8 @@ export function Button({
             backgroundColor: bgColor,
             borderColor: variant === 'outline' ? colors.primary : 'transparent',
             borderWidth: variant === 'outline' ? 1.5 : 0,
-            paddingVertical: padV,
+             minHeight,
+             paddingVertical: 0,
             paddingHorizontal: padH,
             borderRadius: colors.radius,
             opacity: disabled ? 0.5 : 1,
@@ -143,5 +145,5 @@ export function Button({
 
 const styles = StyleSheet.create({
   btn: { alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
-  text: { fontWeight: '600' },
+  text: { fontWeight: '600', lineHeight: 20, textAlign: 'center' },
 });
