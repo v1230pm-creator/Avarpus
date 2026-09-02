@@ -749,87 +749,96 @@ export default function NewRepairScreen() {
               {/* Device */}
               <View style={styles.section}>
                 <SectionHeader title="Device Details" />
-                <TouchableOpacity
+                <View style={styles.threeColumnRow}>
+                  <View style={styles.compactField}>
+                    <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={() => setShowDeviceType(v => !v)}
-                  style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: showDeviceType ? colors.primary : colors.border }]}
-                >
+                      style={[styles.compactToggle, { backgroundColor: colors.card, borderColor: showDeviceType ? colors.primary : colors.border }]}
+                    >
                   <View style={[styles.checkbox, { backgroundColor: deviceType ? colors.primary : 'transparent', borderColor: deviceType ? colors.primary : colors.muted }]}>
                     {!!deviceType && <Feather name="check" size={14} color="#FFF" />}
                   </View>
-                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Device Type *</Text>
+                      <Text numberOfLines={1} style={[styles.compactToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Device Type *</Text>
                   <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
                     <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{deviceType}</Text>
                   </View>
                   <Feather name={showDeviceType ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
-                </TouchableOpacity>
-                {showDeviceType && (
-                  <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                    <ScrollView style={styles.vList} nestedScrollEnabled showsVerticalScrollIndicator>
-                      {DEVICE_TYPES.map((dt) => {
-                        const selected = deviceType === dt;
-                        return (
-                          <TouchableOpacity
-                            key={dt}
-                            activeOpacity={0.7}
-                            onPress={() => { setDeviceType(dt); setShowDeviceType(false); }}
-                            style={[styles.vItem, { borderBottomColor: colors.border, backgroundColor: selected ? colors.primary + '10' : 'transparent' }]}
-                          >
-                            <View style={[styles.radioOuter, { borderColor: selected ? colors.primary : colors.muted }]}>
-                              {selected && <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />}
-                            </View>
-                            <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>{dt}</Text>
-                            {selected && <Feather name="check" size={16} color={colors.primary} />}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
+                    </TouchableOpacity>
+                    {showDeviceType && (
+                      <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                        <ScrollView style={styles.vList} nestedScrollEnabled showsVerticalScrollIndicator>
+                          {DEVICE_TYPES.map((dt) => {
+                            const selected = deviceType === dt;
+                            return (
+                              <TouchableOpacity
+                                key={dt}
+                                activeOpacity={0.7}
+                                onPress={() => { setDeviceType(dt); setShowDeviceType(false); }}
+                                style={[styles.vItem, { borderBottomColor: colors.border, backgroundColor: selected ? colors.primary + '10' : 'transparent' }]}
+                              >
+                                <View style={[styles.radioOuter, { borderColor: selected ? colors.primary : colors.muted }]}>
+                                  {selected && <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />}
+                                </View>
+                                <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>{dt}</Text>
+                                {selected && <Feather name="check" size={16} color={colors.primary} />}
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </ScrollView>
+                      </View>
+                    )}
                   </View>
-                )}
 
-                <TouchableOpacity
+                  <View style={styles.compactField}>
+                    <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={() => setShowBrand(v => !v)}
-                  style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: errors.brand ? colors.destructive : showBrand ? colors.primary : colors.border }]}
-                >
+                      style={[styles.compactToggle, { backgroundColor: colors.card, borderColor: errors.brand ? colors.destructive : showBrand ? colors.primary : colors.border }]}
+                    >
                   <View style={[styles.checkbox, { backgroundColor: brand ? colors.primary : 'transparent', borderColor: brand ? colors.primary : colors.muted }]}>
                     {!!brand && <Feather name="check" size={14} color="#FFF" />}
                   </View>
-                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Brand *</Text>
+                      <Text numberOfLines={1} style={[styles.compactToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Brand *</Text>
                   {!!brand && (
                     <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
                       <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{brand}</Text>
                     </View>
                   )}
                   <Feather name={showBrand ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
-                </TouchableOpacity>
-                {!!errors.brand && (
-                  <Text style={[styles.fieldError, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>{errors.brand}</Text>
-                )}
-                {showBrand && (
-                  <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                    <ScrollView style={styles.vList} nestedScrollEnabled showsVerticalScrollIndicator>
-                      {BRANDS.map((b) => {
-                        const selected = brand === b;
-                        return (
-                          <TouchableOpacity
-                            key={b}
-                            activeOpacity={0.7}
-                            onPress={() => { setBrand(b); setShowBrand(false); }}
-                            style={[styles.vItem, { borderBottomColor: colors.border, backgroundColor: selected ? colors.primary + '10' : 'transparent' }]}
-                          >
-                            <View style={[styles.radioOuter, { borderColor: selected ? colors.primary : colors.muted }]}>
-                              {selected && <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />}
-                            </View>
-                            <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>{b}</Text>
-                            {selected && <Feather name="check" size={16} color={colors.primary} />}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
+                    </TouchableOpacity>
+                    {!!errors.brand && (
+                      <Text style={[styles.fieldError, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>{errors.brand}</Text>
+                    )}
+                    {showBrand && (
+                      <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                        <ScrollView style={styles.vList} nestedScrollEnabled showsVerticalScrollIndicator>
+                          {BRANDS.map((b) => {
+                            const selected = brand === b;
+                            return (
+                              <TouchableOpacity
+                                key={b}
+                                activeOpacity={0.7}
+                                onPress={() => { setBrand(b); setShowBrand(false); }}
+                                style={[styles.vItem, { borderBottomColor: colors.border, backgroundColor: selected ? colors.primary + '10' : 'transparent' }]}
+                              >
+                                <View style={[styles.radioOuter, { borderColor: selected ? colors.primary : colors.muted }]}>
+                                  {selected && <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />}
+                                </View>
+                                <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>{b}</Text>
+                                {selected && <Feather name="check" size={16} color={colors.primary} />}
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </ScrollView>
+                      </View>
+                    )}
                   </View>
-                )}
-                <Input label="Model *" value={model} onChangeText={setModel} placeholder="Enter your model" leftIcon="smartphone" error={errors.model} />
+
+                  <View style={styles.compactField}>
+                    <Input label="Model *" value={model} onChangeText={setModel} placeholder="Enter your model" leftIcon="smartphone" error={errors.model} />
+                  </View>
+                </View>
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
@@ -840,12 +849,6 @@ export default function NewRepairScreen() {
                   </View>
                 </View>
                 <Input label="Serial Number" value={serialNumber} onChangeText={setSerialNumber} placeholder="Optional" />
-
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <View style={{ flex: 1 }}><Input label="Color" value={colorAttr} onChangeText={setColorAttr} placeholder="Optional" /></View>
-                  <View style={{ flex: 1 }}><Input label="Storage" value={storage} onChangeText={setStorage} placeholder="e.g. 128GB" /></View>
-                  <View style={{ flex: 1 }}><Input label="RAM" value={ram} onChangeText={setRam} placeholder="e.g. 8GB" /></View>
-                </View>
 
                 <View style={{ position: 'relative' }}>
                   <Input
@@ -879,7 +882,9 @@ export default function NewRepairScreen() {
               </View>
 
               {/* Accessories */}
-              <View style={styles.section}>
+              <View style={styles.threeColumnRow}>
+                <View style={styles.compactField}>
+                <View style={styles.section}>
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={() => setShowAccessories(v => !v)}
@@ -921,9 +926,11 @@ export default function NewRepairScreen() {
                     <Input label="Other Accessories Notes" value={otherAccessories} onChangeText={setOtherAccessories} placeholder="e.g. Broken cover, mixed cables..." />
                   </>
                 )}
-              </View>
+                </View>
+                </View>
 
               {/* Physical Condition */}
+              <View style={styles.compactField}>
               <View style={styles.section}>
                 <TouchableOpacity
                   activeOpacity={0.7}
@@ -964,8 +971,10 @@ export default function NewRepairScreen() {
                   </View>
                 )}
               </View>
+              </View>
 
               {/* Checklist */}
+              <View style={styles.compactField}>
               <View style={styles.section}>
                 <TouchableOpacity
                   activeOpacity={0.7}
@@ -1005,6 +1014,8 @@ export default function NewRepairScreen() {
                     </ScrollView>
                   </View>
                 )}
+              </View>
+              </View>
               </View>
 
               {/* Photos */}
@@ -1340,6 +1351,10 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16 },
   scroll: { paddingHorizontal: 12, paddingTop: 8 },
   section: { gap: 10 },
+  threeColumnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  compactField: { flex: 1, minWidth: 0, gap: 8 },
+  compactToggle: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 8, borderRadius: 9, borderWidth: 1 },
+  compactToggleLabel: { flex: 1, fontSize: 11 },
   customerHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   sectionHeader: { borderLeftWidth: 2, paddingLeft: 8, marginTop: 4, marginBottom: 2 },
   sectionTitle: { fontSize: 14 },
