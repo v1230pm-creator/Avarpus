@@ -62,7 +62,10 @@ export function buildKhataLedger(repairs: Repair[], payments: PaymentsList200Pay
   }
 
   for (const repair of repairs) {
-    if (repair.status === 'cancelled') continue;
+    // Khata is a posted financial ledger, not a live repair estimate. A job
+    // enters it only after delivery, when the operator has either collected
+    // payment or explicitly accepted the remaining balance as due.
+    if (repair.status !== 'delivered') continue;
 
     const isDealer = !!repair.dealerId;
     const partyId = isDealer ? repair.dealerId! : repair.customerId;

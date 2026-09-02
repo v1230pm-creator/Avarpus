@@ -12,7 +12,7 @@ const mockRepair = (overrides: Partial<Repair>): Repair => ({
   brand: 'Apple',
   model: 'iPhone 12',
   problem: 'Screen broken',
-  status: 'received',
+  status: 'delivered',
   priority: 'normal',
   repairCharge: 0,
   partsCharge: 0,
@@ -34,6 +34,21 @@ const mockPayment = (overrides: Partial<PaymentsList200PaymentsItem>): PaymentsL
 });
 
 describe('khata-ledger', () => {
+  it('does not post received, in-progress, ready, cancelled, or cannot-repair jobs', () => {
+    const repairs = [
+      mockRepair({ id: 'received', status: 'received', totalAmount: 1000 }),
+      mockRepair({ id: 'repairing', status: 'repairing', totalAmount: 1000 }),
+      mockRepair({ id: 'ready', status: 'ready', totalAmount: 1000 }),
+      mockRepair({ id: 'cancelled', status: 'cancelled', totalAmount: 1000 }),
+      mockRepair({ id: 'cannot-repair', status: 'cannot_repair', totalAmount: 1000 }),
+    ];
+    const payments = repairs.map((repair, index) =>
+      mockPayment({ id: `hidden-payment-${index}`, repairId: repair.id, amount: 500 }),
+    );
+
+    expect(buildKhataLedger(repairs, payments)).toEqual([]);
+  });
+
   it('orders entries newest first', () => {
     const repairs = [
       mockRepair({ id: 'r1', repairId: 'TKT-1', totalAmount: 1000, createdAt: '2026-08-01T10:00:00.000Z' }),

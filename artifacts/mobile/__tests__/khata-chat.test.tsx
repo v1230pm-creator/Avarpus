@@ -207,7 +207,7 @@ const repair = (overrides: Partial<Repair>): Repair => ({
   brand: 'Brand',
   model: 'Model',
   problem: 'Issue',
-  status: 'received',
+  status: 'delivered',
   priority: 'normal',
   repairCharge: 1000,
   partsCharge: 0,
@@ -278,12 +278,30 @@ describe('Khata display calculations', () => {
     ]);
   });
 
-  it('excludes cancelled repairs from every Khata total and account group', () => {
-    const activeRepair = repair({
-      id: 'active-repair',
+  it('posts only delivered repairs to every Khata total and account group', () => {
+    const deliveredRepair = repair({
+      id: 'delivered-repair',
       totalAmount: 1200,
       paidAmount: 200,
       balance: 1000,
+    });
+    const inProgressRepair = repair({
+      id: 'in-progress-repair',
+      customerId: 'in-progress-customer',
+      customerName: 'In Progress Customer',
+      status: 'repairing',
+      totalAmount: 5000,
+      paidAmount: 1000,
+      balance: 4000,
+    });
+    const readyRepair = repair({
+      id: 'ready-repair',
+      customerId: 'ready-customer',
+      customerName: 'Ready Customer',
+      status: 'ready',
+      totalAmount: 3000,
+      paidAmount: 0,
+      balance: 3000,
     });
     const cancelledRepair = repair({
       id: 'cancelled-repair',
@@ -296,9 +314,9 @@ describe('Khata display calculations', () => {
       paidAmount: 9000,
       balance: 0,
     });
-    const repairs = [activeRepair, cancelledRepair];
+    const repairs = [deliveredRepair, inProgressRepair, readyRepair, cancelledRepair];
 
-    expect(activeKhataRepairs(repairs)).toEqual([activeRepair]);
+    expect(activeKhataRepairs(repairs)).toEqual([deliveredRepair]);
     expect(summarizeKhataRepairs(repairs)).toEqual({
       billed: 1200,
       paid: 200,

@@ -18,7 +18,10 @@ export interface KhataPartySummary extends KhataAmounts {
 const money = (value: number): number => Math.round(value * 100) / 100;
 
 export function activeKhataRepairs(repairs: Repair[]): Repair[] {
-  return repairs.filter((repair) => repair.status !== 'cancelled');
+  // A repair is posted to Khata only after handover. The delivery flow either
+  // records the payment or explicitly confirms the outstanding amount as due.
+  // Intake, in-progress, ready, cancelled and cannot-repair jobs stay out.
+  return repairs.filter((repair) => repair.status === 'delivered');
 }
 
 export function getRepairKhataAmounts(repair: Repair): KhataAmounts {
