@@ -193,6 +193,10 @@ it('shows the manual dealer picker to shop staff but not dealer portal accounts'
   mockAuthUser.role = 'reception';
   const staffScreen = await renderIntake();
   expect(screen.getByText('Link Dealer')).toBeTruthy();
+  await press('Link Dealer');
+  expect(screen.getByText('Select Dealer')).toBeTruthy();
+  expect(screen.getByText('Search dealers')).toBeTruthy();
+  expect(screen.queryByText('Dealer (Optional)')).toBeNull();
   staffScreen.unmount();
 
   mockAuthUser.role = 'dealer_staff';

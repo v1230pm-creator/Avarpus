@@ -170,6 +170,7 @@ export default function NewRepairScreen() {
   // Optional B2B dealer link — permanent association made at intake.
   const [dealerId, setDealerId] = useState<string | null>(null);
   const [showDealerPick, setShowDealerPick] = useState(false);
+  const [dealerSearch, setDealerSearch] = useState('');
   // True when the current dealerId came from automatic phone detection (not a
   // manual pick); cleared/re-run whenever the mobile number changes.
   const [autoDetected, setAutoDetected] = useState(false);
@@ -210,6 +211,11 @@ export default function NewRepairScreen() {
   useEffect(() => { setDealerCleared(false); }, [cleanMobile]);
   const detectedDealer = autoDetected ? detectMatches.find((d) => d.id === dealerId) : undefined;
   const selectedDealer = dealersData?.dealers?.find((d) => d.id === dealerId) || detectedDealer || detectMatches.find((d) => d.id === dealerId);
+  const filteredDealers = (dealersData?.dealers || []).filter((d) => {
+    const query = dealerSearch.trim().toLowerCase();
+    if (!query) return true;
+    return [d.name, d.dealerCode, d.shopName, d.mobile].some((value) => value?.toLowerCase().includes(query));
+  });
   const [repairCharge, setRepairCharge] = useState('');
   const [advancePaid, setAdvancePaid] = useState('');
   const [advanceMethod, setAdvanceMethod] = useState('Cash');
@@ -681,7 +687,10 @@ export default function NewRepairScreen() {
                   {!isDealerPortalUser && (
                     <TouchableOpacity
                       activeOpacity={0.7}
-                      onPress={() => setShowDealerPick(v => !v)}
+                      onPress={() => {
+                        setDealerSearch('');
+                        setShowDealerPick(true);
+                      }}
                       style={[styles.dealerLinkButton, { backgroundColor: colors.card, borderColor: dealerId ? colors.primary : colors.border }]}
                     >
                       <Feather name="briefcase" size={15} color={dealerId ? colors.primary : colors.mutedForeground} />
@@ -730,49 +739,6 @@ export default function NewRepairScreen() {
                         <Text style={{ fontSize: 11, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{d.dealerCode}{d.shopName ? ` · ${d.shopName}` : ''}</Text>
                       </TouchableOpacity>
                     ))}
-                  </View>
-                )}
-                {showDealerPick && !isDealerPortalUser && (
-                  <View style={{ gap: 8, marginBottom: 12 }}>
-                    {(dealersData?.dealers || []).map((d) => {
-                      const active = dealerId === d.id;
-                      return (
-                        <TouchableOpacity
-                          key={d.id}
-                          onPress={() => {
-                            // Manual pick/removal always overrides auto-detection:
-                            // removal must serialize as an explicit dealerId: null.
-                            setDealerId(active ? null : d.id);
-                            setAutoDetected(false);
-                            setDealerCleared(active);
-                            if (!active) fillFromDealer(d);
-                            setShowDealerPick(false);
-                          }}
-                          activeOpacity={0.8}
-                          style={{
-                            flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12,
-                            borderWidth: 1, backgroundColor: active ? colors.primary + '15' : colors.card,
-                            borderColor: active ? colors.primary : colors.border,
-                          }}
-                        >
-                          <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: colors.primary + '15' }}>
-                            <Text style={{ fontSize: 11, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{d.dealerCode}</Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{d.name}</Text>
-                            {!!d.shopName && <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{d.shopName}</Text>}
-                          </View>
-                          {active && <Feather name="check" size={16} color={colors.primary} />}
-                        </TouchableOpacity>
-                      );
-                    })}
-                    <TouchableOpacity
-                      onPress={() => router.push('/(tabs)/repairs/dealer-new')}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 }}
-                    >
-                      <Feather name="plus-circle" size={16} color={colors.primary} />
-                      <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Add New Dealer</Text>
-                    </TouchableOpacity>
                   </View>
                 )}
                 <Input label="Alternate Mobile" value={alternateMobile} onChangeText={setAlternateMobile} placeholder="Optional" keyboardType="phone-pad" leftIcon="phone" />
@@ -1237,6 +1203,101 @@ export default function NewRepairScreen() {
         </FadeInView>
       </KeyboardAwareScrollViewCompat>
 
+      {/* Dealer selection is a separate full-screen page so no Receive Form
+          controls remain visible while searching or choosing a dealer. */}
+      <Modal
+        visible={showDealerPick && !isDealerPortalUser}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setShowDealerPick(false)}
+      >
+        <View style={[styles.dealerPickerScreen, { backgroundColor: colors.background }]}>
+          <View style={[styles.dealerPickerHeader, { paddingTop: topPad + 8, borderBottomColor: colors.border }]}>
+            <TouchableOpacity
+              onPress={() => setShowDealerPick(false)}
+              style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}
+              accessibilityLabel="Close dealer selection"
+            >
+              <Feather name="arrow-left" size={20} color={colors.foreground} />
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Select Dealer</Text>
+              <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>Search and link a dealer to this repair</Text>
+            </View>
+          </View>
+
+          <View style={{ padding: 16, paddingBottom: 8 }}>
+            <Input
+              label="Search dealers"
+              value={dealerSearch}
+              onChangeText={setDealerSearch}
+              placeholder="Search by name, code, shop or mobile"
+              leftIcon="search"
+              autoFocus
+            />
+          </View>
+
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 24, gap: 8 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {filteredDealers.length > 0 ? filteredDealers.map((d) => {
+              const active = dealerId === d.id;
+              return (
+                <TouchableOpacity
+                  key={d.id}
+                  onPress={() => {
+                    setDealerId(active ? null : d.id);
+                    setAutoDetected(false);
+                    setDealerCleared(active);
+                    if (!active) fillFromDealer(d);
+                    setShowDealerPick(false);
+                  }}
+                  activeOpacity={0.8}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 12,
+                    borderWidth: 1, backgroundColor: active ? colors.primary + '15' : colors.card,
+                    borderColor: active ? colors.primary : colors.border,
+                  }}
+                >
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.primary + '15' }}>
+                    <Text style={{ fontSize: 11, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{d.dealerCode}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{d.name}</Text>
+                    {!!d.shopName && <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{d.shopName}</Text>}
+                    <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{d.mobile}</Text>
+                  </View>
+                  {active && <Feather name="check" size={17} color={colors.primary} />}
+                </TouchableOpacity>
+              );
+            }) : (
+              <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                <Feather name="users" size={28} color={colors.mutedForeground} />
+                <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginTop: 10 }}>
+                  {dealerSearch.trim() ? 'No matching dealers' : 'No dealers yet'}
+                </Text>
+                <Text style={{ color: colors.mutedForeground, fontSize: 12, textAlign: 'center', marginTop: 4 }}>
+                  {dealerSearch.trim() ? 'Try another name, code, shop or mobile.' : 'Add a dealer to link it to this repair.'}
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              onPress={() => {
+                setShowDealerPick(false);
+                router.push('/(tabs)/repairs/dealer-new');
+              }}
+              style={[styles.addDealerButton, { borderColor: colors.primary + '55', backgroundColor: colors.primary + '0D' }]}
+            >
+              <Feather name="plus-circle" size={17} color={colors.primary} />
+              <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Add New Dealer</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
+
       {/* Photo Kind Modal */}
       <Modal visible={!!showPhotoKindModal} animationType="fade" transparent onRequestClose={() => setShowPhotoKindModal(null)}>
         <View style={[styles.overlayCenter, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
@@ -1284,6 +1345,9 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 14 },
   dealerLinkButton: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '52%', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, borderWidth: 1 },
   dealerLinkLabel: { fontSize: 12, flexShrink: 1 },
+  dealerPickerScreen: { flex: 1 },
+  dealerPickerHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1 },
+  addDealerButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 13, marginTop: 8, borderRadius: 11, borderWidth: 1 },
   checklistGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   sectionToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10, borderWidth: 1 },
   sectionToggleLabel: { fontSize: 13, flex: 1 },
