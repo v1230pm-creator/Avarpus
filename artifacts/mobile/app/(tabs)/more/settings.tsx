@@ -23,15 +23,6 @@ const SETTINGS_ITEMS = [
     route: '/(tabs)/more/account'
   },
   {
-    id: 'privacy',
-    icon: 'lock',
-    title: 'Privacy',
-    subtitle: 'Blocked accounts, disappearing messages',
-    // Privacy is explicitly registered as a sibling route in the tabs stack.
-    // This avoids resolving the tap against a currently open chat/[id] route.
-    route: '/(tabs)/privacy'
-  },
-  {
     id: 'lists',
     icon: 'users',
     title: 'Lists',
