@@ -337,7 +337,6 @@ export default function ShopScreen() {
               {(canAccess('payments') || canAccess('repairs')) && <ToolRow icon="book-open" label="Khata" detail="Balances and payments" onPress={() => router.push('/(tabs)/khata')} colors={colors} />}
               {canAccess('customers') && <ToolRow icon="users" label="Customers" detail="Contacts and repair history" onPress={() => router.push('/(tabs)/customers')} colors={colors} />}
               {canAccess('inventory') && <ToolRow icon="package" label="Inventory" detail="Parts and stock" onPress={() => router.push('/(tabs)/inventory')} colors={colors} />}
-              <ToolRow icon="grid" label="Workspace settings" detail="Staff, reports and permissions" onPress={() => router.push({ pathname: '/(tabs)/more', params: { scope: 'business' } })} colors={colors} />
             </View>
 
             {workspace.memberships.length > 1 && (
