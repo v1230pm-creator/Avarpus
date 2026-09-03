@@ -160,6 +160,7 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
       />
       <Tabs.Screen name="updates" options={{ href: null, title: 'Updates' }} />
       <Tabs.Screen name="settings" options={{ href: null, title: 'Settings' }} />
+      <Tabs.Screen name="privacy" options={{ href: null, title: 'Privacy' }} />
       <Tabs.Screen
         name="inventory"
         options={{
