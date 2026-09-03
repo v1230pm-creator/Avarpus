@@ -8,6 +8,7 @@ const PAGE_SIZE = 200;
 export function useKhataRepairs(
   partyType?: KhataPartyType,
   partyId?: string,
+  partyIds?: readonly string[],
 ): {
   repairs: Repair[];
   isLoading: boolean;
@@ -18,6 +19,10 @@ export function useKhataRepairs(
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestId = useRef(0);
+  const dealerIdsKey =
+    partyType === 'dealer'
+      ? [...new Set([partyId, ...(partyIds ?? [])].filter((value): value is string => !!value))].join(',')
+      : '';
 
   const reload = useCallback(async () => {
     const currentRequest = ++requestId.current;
@@ -25,6 +30,7 @@ export function useKhataRepairs(
     setError(null);
 
     try {
+      const dealerIds = dealerIdsKey ? dealerIdsKey.split(',') : [];
       const collected: Repair[] = [];
       let page = 1;
       let total = 0;
@@ -33,7 +39,7 @@ export function useKhataRepairs(
         const response = await repairsList({
           page,
           limit: PAGE_SIZE,
-          ...(partyType === 'dealer' && partyId ? { dealerId: partyId } : {}),
+          ...(partyType === 'dealer' && dealerIds.length === 1 ? { dealerId: dealerIds[0] } : {}),
         });
         const pageRepairs = response.repairs as Repair[];
         collected.push(...pageRepairs);
@@ -47,7 +53,7 @@ export function useKhataRepairs(
         partyType === 'customer' && partyId
           ? collected.filter((repair) => repair.customerId === partyId)
           : partyType === 'dealer' && partyId
-            ? collected.filter((repair) => repair.dealerId === partyId)
+            ? collected.filter((repair) => dealerIds.includes(repair.dealerId ?? ''))
             : collected;
       setRepairs(activeKhataRepairs(scopedRepairs));
     } catch (reason) {
@@ -56,7 +62,7 @@ export function useKhataRepairs(
     } finally {
       if (currentRequest === requestId.current) setIsLoading(false);
     }
-  }, [partyId, partyType]);
+  }, [dealerIdsKey, partyId, partyType]);
 
   useEffect(() => {
     reload();
