@@ -583,10 +583,15 @@ router.get(
   asyncHandler(async (req, res) => {
     const me = (req as AuthedRequest).user;
     const shopId = resolveShopId(me);
+    const syncedAt = new Date();
+    await db
+      .update(chatRoomMembersTable)
+      .set({ lastSyncedAt: syncedAt })
+      .where(eq(chatRoomMembersTable.userId, me.id));
     // Membership is required for EVERY role: only rooms the caller is an
     // explicit member of are returned. No shop-wide staff bypass.
     const rows = await db
-      .select({ room: chatRoomsTable })
+      .select({ room: chatRoomsTable, joinedAt: chatRoomMembersTable.joinedAt })
       .from(chatRoomsTable)
       .innerJoin(
         chatRoomMembersTable,
@@ -603,9 +608,15 @@ router.get(
       )
       .orderBy(desc(chatRoomsTable.createdAt));
 
-    res.json({
-      rooms: await Promise.all(rows.map((r) => formatRoomForUser(r.room, me.id))),
+    const rooms = await Promise.all(
+      rows.map((row) => formatRoomSummaryForUser(row.room, me.id, row.joinedAt)),
+    );
+    rooms.sort((a, b) => {
+      const aDate = a.lastMessage?.createdAt ?? a.createdAt;
+      const bDate = b.lastMessage?.createdAt ?? b.createdAt;
+      return bDate.localeCompare(aDate);
     });
+    res.json({ rooms });
   }),
 );
 
@@ -1356,6 +1367,15 @@ router.get(
       res.status(404).json({ message: "Room not found" });
       return;
     }
+    await db
+      .update(chatRoomMembersTable)
+      .set({ lastSyncedAt: new Date() })
+      .where(
+        and(
+          eq(chatRoomMembersTable.roomId, roomId),
+          eq(chatRoomMembersTable.userId, me.id),
+        ),
+      );
     res.json({ room: await formatRoomForUser(room, me.id) });
   }),
 );
@@ -2342,6 +2362,102 @@ function formatMessage(msg: typeof chatMessagesTable.$inferSelect) {
     clientRequestId: msg.clientRequestId ?? undefined,
     deletedAt: msg.deletedAt?.toISOString() ?? undefined,
     createdAt: msg.createdAt.toISOString(),
+  };
+}
+
+async function formatRoomSummaryForUser(
+  room: typeof chatRoomsTable.$inferSelect,
+  viewerUserId: string,
+  viewerJoinedAt: Date,
+) {
+  const [
+    base,
+    [lastMessage],
+    [viewerReadState],
+    [peerMember],
+    [peerReadState],
+  ] = await Promise.all([
+    formatRoomForUser(room, viewerUserId),
+    db
+      .select()
+      .from(chatMessagesTable)
+      .where(
+        and(
+          eq(chatMessagesTable.roomId, room.id),
+          isNull(chatMessagesTable.deletedAt),
+        ),
+      )
+      .orderBy(desc(chatMessagesTable.createdAt))
+      .limit(1),
+    db
+      .select({ lastReadAt: chatReadStateTable.lastReadAt })
+      .from(chatReadStateTable)
+      .where(
+        and(
+          eq(chatReadStateTable.roomId, room.id),
+          eq(chatReadStateTable.userId, viewerUserId),
+        ),
+      )
+      .limit(1),
+    db
+      .select({
+        userId: chatRoomMembersTable.userId,
+        lastSyncedAt: chatRoomMembersTable.lastSyncedAt,
+      })
+      .from(chatRoomMembersTable)
+      .where(
+        and(
+          eq(chatRoomMembersTable.roomId, room.id),
+          ne(chatRoomMembersTable.userId, viewerUserId),
+        ),
+      )
+      .orderBy(desc(chatRoomMembersTable.lastSyncedAt))
+      .limit(1),
+    db
+      .select({
+        userId: chatReadStateTable.userId,
+        lastReadAt: chatReadStateTable.lastReadAt,
+      })
+      .from(chatReadStateTable)
+      .where(
+        and(
+          eq(chatReadStateTable.roomId, room.id),
+          ne(chatReadStateTable.userId, viewerUserId),
+        ),
+      )
+      .orderBy(desc(chatReadStateTable.lastReadAt))
+      .limit(1),
+  ]);
+
+  const unreadSince = viewerReadState?.lastReadAt ?? viewerJoinedAt;
+  const [unread] = await db
+    .select({ value: count() })
+    .from(chatMessagesTable)
+    .where(
+      and(
+        eq(chatMessagesTable.roomId, room.id),
+        ne(chatMessagesTable.senderId, viewerUserId),
+        isNull(chatMessagesTable.deletedAt),
+        gte(chatMessagesTable.createdAt, unreadSince),
+      ),
+    );
+
+  let lastMessageStatus: "sent" | "delivered" | "read" | undefined;
+  if (lastMessage?.senderId === viewerUserId) {
+    if (peerReadState?.lastReadAt && peerReadState.lastReadAt >= lastMessage.createdAt) {
+      lastMessageStatus = "read";
+    } else if (peerMember?.lastSyncedAt && peerMember.lastSyncedAt >= lastMessage.createdAt) {
+      lastMessageStatus = "delivered";
+    } else {
+      lastMessageStatus = "sent";
+    }
+  }
+
+  return {
+    ...base,
+    unreadCount: Number(unread?.value ?? 0),
+    lastMessage: lastMessage ? formatMessage(lastMessage) : undefined,
+    lastMessageStatus,
   };
 }
 

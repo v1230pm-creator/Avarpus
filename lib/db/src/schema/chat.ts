@@ -195,6 +195,9 @@ export const chatRoomMembersTable = pgTable(
       .references(() => usersTable.id, { onDelete: "cascade" }),
     role: text("role").notNull().default("member"), // member | moderator
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+    // Updated whenever this member syncs their room list or opens the room.
+    // Senders use it as a durable "delivered to recipient app" receipt.
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
   },
   (t) => [
     uniqueIndex("chat_room_members_room_user_unique").on(t.roomId, t.userId),
