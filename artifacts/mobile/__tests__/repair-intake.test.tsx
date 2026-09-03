@@ -232,7 +232,7 @@ const fillRequiredFields = async () => {
 
 /** Step 1 → review summary → confirm checkbox → submit. */
 const reviewConfirmAndSubmit = async () => {
-  await press('Complete');
+  await press('RECEIVE DEVICE');
   await press(CONFIRM_LABEL);
   await press('Complete Intake');
 };
@@ -253,7 +253,7 @@ afterEach(() => {
 describe('required-field validation blocks submit', () => {
   it('empty review shows field errors and fires no API call', async () => {
     const { unmount } = await renderIntake();
-    await press('Complete');
+    await press('RECEIVE DEVICE');
 
     // brand / model / problem all flag "Required" (name too)
     expect(screen.getAllByText('Required').length).toBeGreaterThanOrEqual(3);
@@ -271,7 +271,7 @@ describe('required-field validation blocks submit', () => {
     const { unmount } = await renderIntake();
     await fillRequiredFields();
     type('10-digit number', '98765'); // too short
-    await press('Complete');
+    await press('RECEIVE DEVICE');
 
     expect(screen.getByText('10-digit mobile required')).toBeTruthy();
     expect(screen.queryByText('Complete Intake')).toBeNull();
@@ -285,7 +285,7 @@ describe('required-field validation blocks submit', () => {
     // Expected Delivery is the (only) visible date input unless backdating is on.
     const dates = screen.getAllByPlaceholderText('YYYY-MM-DD');
     fireEvent.changeText(dates[dates.length - 1], '2000-01-01');
-    await press('Complete');
+    await press('RECEIVE DEVICE');
 
     expect(screen.getByText('Cannot be before the receive date')).toBeTruthy();
     expect(screen.queryByText('Complete Intake')).toBeNull();
