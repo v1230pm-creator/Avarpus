@@ -1264,7 +1264,7 @@ export default function ChatScreen() {
     const options: any[] = [
       {
         text: 'Settings',
-        onPress: () => router.push('/more/settings'),
+        onPress: () => router.push('/(tabs)/more/settings'),
       },
     ];
     if (room?.scope === 'global_direct') {

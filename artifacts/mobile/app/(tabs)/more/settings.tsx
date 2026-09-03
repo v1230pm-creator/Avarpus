@@ -23,6 +23,13 @@ const SETTINGS_ITEMS = [
     route: '/(tabs)/more/account'
   },
   {
+    id: 'privacy',
+    icon: 'lock',
+    title: 'Privacy',
+    subtitle: 'Blocked accounts, disappearing messages',
+    route: '/(tabs)/more/privacy'
+  },
+  {
     id: 'lists',
     icon: 'users',
     title: 'Lists',
