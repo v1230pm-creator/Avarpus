@@ -27,7 +27,7 @@ const SETTINGS_ITEMS = [
     icon: 'lock',
     title: 'Privacy',
     subtitle: 'Blocked accounts, disappearing messages',
-    route: '/(tabs)/more/security'
+    route: '/(tabs)/more/privacy'
   },
   {
     id: 'lists',

@@ -1261,14 +1261,16 @@ export default function ChatScreen() {
   ]);
 
   const openChatMenu = useCallback(() => {
-    if (room?.scope !== 'global_direct') {
-      Alert.alert('Chat options', 'Avarpus chat is for communication only.');
-      return;
-    }
     const options: any[] = [
-      { text: 'Report', onPress: openReportReasons },
+      {
+        text: 'Settings',
+        onPress: () => router.push('/(tabs)/more/settings'),
+      },
     ];
-    if (!isBlocked || blockedByMe) {
+    if (room?.scope === 'global_direct') {
+      options.push({ text: 'Report', onPress: openReportReasons });
+    }
+    if (room?.scope === 'global_direct' && (!isBlocked || blockedByMe)) {
       options.push({
         text: blockedByMe ? 'Unblock' : 'Block',
         style: blockedByMe ? 'default' : 'destructive',
@@ -1277,7 +1279,7 @@ export default function ChatScreen() {
     }
     options.push({ text: 'Cancel', style: 'cancel' });
     Alert.alert('Chat options', undefined, options);
-  }, [blockedByMe, isBlocked, openReportReasons, room?.scope, toggleBlock]);
+  }, [blockedByMe, isBlocked, openReportReasons, room?.scope, router, toggleBlock]);
 
   // ── Messages ────────────────────────────────────────────────────────────
   const {
