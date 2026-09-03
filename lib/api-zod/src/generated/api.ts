@@ -3826,7 +3826,9 @@ export const ChatRoomsListResponse = zod.object({
   "deletedAt": zod.string().optional(),
   "createdAt": zod.string()
 }).optional(),
-  "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.')
+  "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
+  "peerOnline": zod.boolean().optional().describe('True while the other member has synced the application recently.'),
+  "peerLastSeenAt": zod.coerce.date().optional().describe('Last time the other member synced the application.')
 }))
 })
 
@@ -3878,7 +3880,9 @@ export const ChatRoomsCreateResponse = zod.object({
   "deletedAt": zod.string().optional(),
   "createdAt": zod.string()
 }).optional(),
-  "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.')
+  "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
+  "peerOnline": zod.boolean().optional().describe('True while the other member has synced the application recently.'),
+  "peerLastSeenAt": zod.coerce.date().optional().describe('Last time the other member synced the application.')
 }),
   "created": zod.boolean()
 })
@@ -3925,7 +3929,9 @@ export const ChatRoomsGetResponse = zod.object({
   "deletedAt": zod.string().optional(),
   "createdAt": zod.string()
 }).optional(),
-  "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.')
+  "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
+  "peerOnline": zod.boolean().optional().describe('True while the other member has synced the application recently.'),
+  "peerLastSeenAt": zod.coerce.date().optional().describe('Last time the other member synced the application.')
 })
 })
 

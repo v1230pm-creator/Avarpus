@@ -1603,6 +1603,15 @@ router.get(
       res.status(404).json({ message: "Room not found" });
       return;
     }
+    await db
+      .update(chatRoomMembersTable)
+      .set({ lastSyncedAt: new Date() })
+      .where(
+        and(
+          eq(chatRoomMembersTable.roomId, roomId),
+          eq(chatRoomMembersTable.userId, me.id),
+        ),
+      );
 
     const limit = Math.min(
       typeof req.query.limit === "string" ? parseInt(req.query.limit, 10) || MAX_MESSAGES : MAX_MESSAGES,
@@ -2316,13 +2325,13 @@ async function formatRoomForUser(
   viewerUserId: string,
 ) {
   const base = formatRoom(room);
-  if (room.kind !== "direct") return base;
 
   const [peer] = await db
     .select({
       id: usersTable.id,
       name: usersTable.name,
       profilePhoto: usersTable.profilePhoto,
+      lastSyncedAt: chatRoomMembersTable.lastSyncedAt,
     })
     .from(chatRoomMembersTable)
     .innerJoin(usersTable, eq(usersTable.id, chatRoomMembersTable.userId))
@@ -2344,6 +2353,10 @@ async function formatRoomForUser(
     name: peer?.name ?? base.name,
     peerUserId: peer?.id,
     profilePhoto: peer?.profilePhoto ?? undefined,
+    peerOnline:
+      !!peer?.lastSyncedAt &&
+      peer.lastSyncedAt.getTime() >= Date.now() - 20_000,
+    peerLastSeenAt: peer?.lastSyncedAt?.toISOString(),
     ...blockState,
   };
 }

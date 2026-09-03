@@ -38,4 +38,8 @@ export interface ChatRoom {
   lastMessage?: ChatMessage;
   /** Receipt state for the latest message when it was sent by the current caller. */
   lastMessageStatus?: ChatRoomLastMessageStatus;
+  /** True while the other member has synced the application recently. */
+  peerOnline?: boolean;
+  /** Last time the other member synced the application. */
+  peerLastSeenAt?: Date;
 }

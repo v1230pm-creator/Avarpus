@@ -200,6 +200,24 @@ function formatMessageDate(dateStr: string): string {
   return date.toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+function formatLastSeen(dateStr?: string): string {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return '';
+  const now = new Date();
+  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const daysAgo = Math.round((today - day) / (24 * 60 * 60 * 1000));
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (daysAgo === 0) return `last seen today at ${time}`;
+  if (daysAgo === 1) return `last seen yesterday at ${time}`;
+  return `last seen ${date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  })}`;
+}
+
 function messageDayKey(dateStr: string): string {
   const date = new Date(dateStr);
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
@@ -1131,10 +1149,15 @@ export default function ChatScreen() {
 
   // ── Room details ────────────────────────────────────────────────────────
   const { data: roomData } = useChatRoomsGet(resolvedRoomId ?? '', {
-    query: { enabled: !!resolvedRoomId, queryKey: getChatRoomsGetQueryKey(resolvedRoomId ?? '') },
+    query: {
+      enabled: !!resolvedRoomId,
+      queryKey: getChatRoomsGetQueryKey(resolvedRoomId ?? ''),
+      refetchInterval: 10_000,
+    },
   });
   const room = roomData?.room;
   const roomName = room?.name ?? name;
+  const presenceText = room?.peerOnline ? 'online' : formatLastSeen(room?.peerLastSeenAt);
   const isBlocked = room?.isBlocked === true;
   const blockedByMe = room?.blockedByMe === true;
   const callEnabled =
@@ -1773,10 +1796,12 @@ export default function ChatScreen() {
 
     try {
       const durationMs = capturedDurationRef.current || recorderState.durationMillis || 1;
+      // expo-audio on Android can clear recorder.uri as stop() finalises the
+      // native recorder. Capture the prepared file URI before stopping.
+      const uriBeforeStop = recorder.uri ?? (recorderState as any).url ?? null;
       await recorder.stop();
 
-      // recorder.uri may be populated after stop()
-      const uri = recorder.uri ?? (recorderState as any).url ?? null;
+      const uri = recorder.uri ?? (recorderState as any).url ?? uriBeforeStop;
       if (!uri) throw new Error('Recording URI unavailable after stop.');
 
       const timestamp = Date.now();
@@ -1919,12 +1944,16 @@ export default function ChatScreen() {
           >
             {roomName}
           </Text>
-          <View style={styles.presenceRow}>
-            <View style={[styles.presenceDot, { backgroundColor: colors.success }]} />
-            <Text style={[styles.headerSubtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>
-              {room?.kind === 'dealer' || targetType === 'dealer' ? 'Dealer' : 'Customer'} · Active
-            </Text>
-          </View>
+          {!!presenceText && (
+            <View style={styles.presenceRow}>
+              {room?.peerOnline && (
+                <View style={[styles.presenceDot, { backgroundColor: colors.success }]} />
+              )}
+              <Text style={[styles.headerSubtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>
+                {presenceText}
+              </Text>
+            </View>
+          )}
         </View>
         <TouchableOpacity
           style={[styles.disabledHeaderAction, { opacity: callEnabled ? 1 : 0.4 }]}

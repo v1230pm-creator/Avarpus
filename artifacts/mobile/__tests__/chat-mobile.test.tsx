@@ -1817,7 +1817,11 @@ describe('Chat screen — voice notes', () => {
 
   it('record → stop → upload → send with kind=audio, durationMs, stable clientRequestId, objectPath', async () => {
     mockRequestRecordingPermissionsAsync.mockResolvedValueOnce({ granted: true, status: 'granted' });
-    mockRecorderStop.mockResolvedValue(undefined);
+    // Android may clear recorder.uri while stop() finalises the native file.
+    // The screen must retain the URI that was available before stopping.
+    mockRecorderStop.mockImplementationOnce(async () => {
+      mockRecorderUri.current = null;
+    });
     // Simulate 5 seconds of recording
     mockUseAudioRecorderState.mockReturnValue({
       canRecord: true,
