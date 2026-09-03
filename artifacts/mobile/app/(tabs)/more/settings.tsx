@@ -27,7 +27,10 @@ const SETTINGS_ITEMS = [
     icon: 'lock',
     title: 'Privacy',
     subtitle: 'Blocked accounts, disappearing messages',
-    route: '/(tabs)/more/privacy'
+    // Use the canonical URL path without the route-group segment. This keeps
+    // the privacy screen in the More stack instead of resolving against a
+    // currently open chat stack on native navigation.
+    route: '/more/privacy'
   },
   {
     id: 'lists',
