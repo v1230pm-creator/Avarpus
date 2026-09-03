@@ -107,6 +107,7 @@ function FullKhataOverviewScreen() {
         const fromLedger = byCustomer.get(customer.id);
         return {
           partyId: customer.id,
+           partyIds: [customer.id],
           partyName: customer.name,
           partyType: 'customer' as const,
           balance: customer.dueAmount,
@@ -142,8 +143,19 @@ function FullKhataOverviewScreen() {
     return customers.reduce((sum, customer) => sum + Math.max(customer.dueAmount, 0), dealerBalances);
   }, [customers, ledger]);
 
-  const openParty = (partyType: KhataPartyType, partyId: string, partyName: string) => {
-    router.push(`/(tabs)/khata/party/${partyType}/${partyId}?name=${encodeURIComponent(partyName)}`);
+  const openParty = (
+    partyType: KhataPartyType,
+    partyId: string,
+    partyName: string,
+    partyIds: string[],
+  ) => {
+    const mergedIds =
+      partyType === 'dealer' && partyIds.length > 1
+        ? `&ids=${encodeURIComponent(partyIds.join(','))}`
+        : '';
+    router.push(
+      `/(tabs)/khata/party/${partyType}/${partyId}?name=${encodeURIComponent(partyName)}${mergedIds}`,
+    );
   };
 
   const formatDateLabel = (isoDate: string) => {
@@ -268,7 +280,9 @@ function FullKhataOverviewScreen() {
               <TouchableOpacity
                 key={party.partyId}
                 activeOpacity={0.7}
-                onPress={() => openParty(party.partyType, party.partyId, party.partyName)}
+                onPress={() =>
+                  openParty(party.partyType, party.partyId, party.partyName, party.partyIds)
+                }
                 style={[styles.partyRow, { borderBottomColor: colors.border }]}
               >
                 <Avatar name={party.partyName} size={42} />

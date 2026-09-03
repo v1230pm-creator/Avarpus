@@ -1422,6 +1422,18 @@ export const ChatRoomKind = {
   direct: 'direct',
 } as const;
 
+/**
+ * Receipt state for the latest message when it was sent by the current caller.
+ */
+export type ChatRoomLastMessageStatus = typeof ChatRoomLastMessageStatus[keyof typeof ChatRoomLastMessageStatus];
+
+
+export const ChatRoomLastMessageStatus = {
+  sent: 'sent',
+  delivered: 'delivered',
+  read: 'read',
+} as const;
+
 export type ChatMessageKind = typeof ChatMessageKind[keyof typeof ChatMessageKind];
 
 
@@ -1476,6 +1488,12 @@ export interface ChatRoom {
   createdAt: string;
   unreadCount?: number;
   lastMessage?: ChatMessage;
+  /** Receipt state for the latest message when it was sent by the current caller. */
+  lastMessageStatus?: ChatRoomLastMessageStatus;
+  /** True while the other member has synced the application recently. */
+  peerOnline?: boolean;
+  /** Last time the other member synced the application. */
+  peerLastSeenAt?: string;
 }
 
 export interface DriveBackupQuota {
@@ -2261,3 +2279,4 @@ export type ChatMessagesList200 = {
 export type ChatMessagesSend200 = {
   message: ChatMessage;
 };
+

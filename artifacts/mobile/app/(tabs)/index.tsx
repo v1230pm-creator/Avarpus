@@ -53,16 +53,20 @@ function formatRoomTime(dateStr?: string): string {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const messageDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const diffDays = Math.round((today - messageDay) / (1000 * 60 * 60 * 24));
   if (diffDays === 0) {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } else if (diffDays === 1) {
-    return 'Yesterday';
-  } else if (diffDays < 7) {
-    return d.toLocaleDateString([], { weekday: 'short' });
   }
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  if (diffDays === 1) {
+    return 'Yesterday';
+  }
+  return d.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  });
 }
 
 function formatMessagePreview(room: ChatRoom): { text: string; icon?: 'image' | 'mic' | 'paperclip' } {
@@ -74,10 +78,27 @@ function formatMessagePreview(room: ChatRoom): { text: string; icon?: 'image' | 
   return { text: message.body };
 }
 
-function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => void; colors: any }) {
+function RoomItem({
+  room,
+  currentUserId,
+  onPress,
+  colors,
+}: {
+  room: ChatRoom;
+  currentUserId?: string;
+  onPress: () => void;
+  colors: any;
+}) {
   const lastMsg = room.lastMessage;
   const unread = room.unreadCount ?? 0;
   const preview = formatMessagePreview(room);
+  const isOutgoing = !!lastMsg && lastMsg.senderId === currentUserId;
+  const receiptColor =
+    room.lastMessageStatus === 'read' ? colors.success : colors.mutedForeground;
+  const receiptText =
+    room.lastMessageStatus === 'delivered' || room.lastMessageStatus === 'read'
+      ? '✓✓'
+      : '✓';
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -117,6 +138,21 @@ function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => vo
           </Text>
         </View>
         <View style={styles.roomFooter}>
+          {isOutgoing && (
+            <Text
+              style={[styles.receiptTicks, { color: receiptColor }]}
+              accessibilityLabel={
+                room.lastMessageStatus === 'read'
+                  ? 'Message read'
+                  : room.lastMessageStatus === 'delivered'
+                    ? 'Message delivered'
+                    : 'Message sent'
+              }
+              testID={`room-receipt-${room.id}`}
+            >
+              {receiptText}
+            </Text>
+          )}
           {preview.icon && (
             <Feather
               name={preview.icon}
@@ -132,10 +168,10 @@ function RoomItem({ room, onPress, colors }: { room: ChatRoom; onPress: () => vo
             ]}
             numberOfLines={1}
           >
-            {preview.text}
+            {isOutgoing ? `You: ${preview.text}` : preview.text}
           </Text>
           {unread > 0 && (
-            <View style={[styles.unreadBadge, { backgroundColor: colors.primary }]}>
+            <View style={[styles.unreadBadge, { backgroundColor: colors.success }]}>
               <Text style={[styles.unreadText, { fontFamily: 'Inter_600SemiBold', fontSize: 12, color: '#fff' }]}>
                 {unread > 99 ? '99+' : String(unread)}
               </Text>
@@ -636,6 +672,7 @@ function CustomerInboxScreen() {
         renderItem={({ item }) => (
           <RoomItem
             room={item}
+            currentUserId={user?.id}
             colors={colors}
             onPress={() => {
               // Existing rooms always open by room id. Contact discovery is
@@ -1296,6 +1333,13 @@ const styles = StyleSheet.create({
   },
   roomPreviewIcon: {
     marginRight: 5,
+  },
+  receiptTicks: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    letterSpacing: -3,
+    marginRight: 7,
+    paddingRight: 3,
   },
   unreadBadge: {
     paddingHorizontal: 6,

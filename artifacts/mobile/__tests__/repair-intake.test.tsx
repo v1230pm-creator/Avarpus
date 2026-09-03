@@ -192,12 +192,32 @@ afterEach(() => {
 it('shows the manual dealer picker to shop staff but not dealer portal accounts', async () => {
   mockAuthUser.role = 'reception';
   const staffScreen = await renderIntake();
-  expect(screen.getByText('Dealer (Optional)')).toBeTruthy();
+  expect(screen.getByText('Link Dealer')).toBeTruthy();
+  await press('Link Dealer');
+  expect(screen.getByText('Select Dealer')).toBeTruthy();
+  expect(screen.getByText('Search dealers')).toBeTruthy();
+  expect(screen.queryByText('Dealer (Optional)')).toBeNull();
   staffScreen.unmount();
 
   mockAuthUser.role = 'dealer_staff';
   await renderIntake();
-  expect(screen.queryByText('Dealer (Optional)')).toBeNull();
+  expect(screen.queryByText('Link Dealer')).toBeNull();
+});
+
+it('adds the alternative mobile field from the Mobile input', async () => {
+  const { unmount } = await renderIntake();
+
+  expect(screen.queryByPlaceholderText('10-digit alternative number')).toBeNull();
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Add alternate mobile'));
+  });
+  expect(screen.getByPlaceholderText('10-digit alternative number')).toBeTruthy();
+
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Remove alternate mobile'));
+  });
+  expect(screen.queryByPlaceholderText('10-digit alternative number')).toBeNull();
+  unmount();
 });
 
 /** Fills every required intake field on step 1 (brand is a chip selector). */
@@ -284,7 +304,9 @@ describe('failed save shows the alert and keeps entered values', () => {
     mockRepairsCreate.mockRejectedValue(new Error('boom'));
     const { unmount } = await renderIntake();
     await fillRequiredFields();
-    await press('Accessories Received'); // open the collapsed accessories section
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Accessories'));
+    }); // open the collapsed accessories section
     type('e.g. Broken cover, mixed cables...', 'Charger, Cover');
     fireEvent.changeText(screen.getAllByPlaceholderText('0')[0], '2500'); // estimate (advance input also uses placeholder 0)
     await reviewConfirmAndSubmit();

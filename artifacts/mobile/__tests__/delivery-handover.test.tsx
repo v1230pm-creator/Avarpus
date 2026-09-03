@@ -1,32 +1,17 @@
-/**
- * Guards the delivery handover flow — the terminal step that marks a repair
- * delivered and locks its money fields — against regressions that could
- * finish a delivery without a recorded signature/OTP or drop the warranty
- * and payment-method settings:
- *  - a failed signature upload alerts and does NOT mark the repair delivered
- *  - a successful signature path sends the stored signature path with
- *    status 'delivered'
- *  - a successful OTP verify sends status 'delivered' with the chosen
- *    warranty days and payment method
- *  - a failed OTP verify alerts and keeps the repair undelivered
- *
- * Mock boundary is the API client (network) plus native-only modules —
- * the real AuthContext, real DataContext, and the real detail screen render.
- * Pattern follows __tests__/repair-edit.test.tsx.
- */
 import React from 'react';
-import { Alert, Text } from 'react-native';
+import { Text } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// ── Mocks (network + native boundaries only) ─────────────────────────────
 const mockRepairsUpdate = jest.fn();
-const mockDeliveryOtpSend = jest.fn();
-const mockDeliveryOtpVerify = jest.fn();
-const mockRequestUploadUrl = jest.fn();
-const mockExpoFetch = jest.fn();
-
-const mockLists: Record<string, unknown[]> = { repairs: [], customers: [], items: [], purchases: [], entries: [] };
+const mockRepairPaymentsCreate = jest.fn();
+const mockLists: Record<string, unknown[]> = {
+  repairs: [],
+  customers: [],
+  items: [],
+  purchases: [],
+  entries: [],
+};
 
 jest.mock('@workspace/api-client-react', () => {
   class ApiError extends Error {
@@ -57,7 +42,7 @@ jest.mock('@workspace/api-client-react', () => {
     purchasesList: emptyList('purchases'),
     financeList: emptyList('entries'),
     repairsCreate: jest.fn(),
-    repairsUpdate: (...a: unknown[]) => mockRepairsUpdate(...a),
+    repairsUpdate: (...args: unknown[]) => mockRepairsUpdate(...args),
     customersCreate: jest.fn(),
     customersUpdate: jest.fn(),
     inventoryCreate: jest.fn(),
@@ -69,7 +54,6 @@ jest.mock('@workspace/api-client-react', () => {
     approvalsCreate: jest.fn(),
     sampleDataLoad: jest.fn(),
     sampleDataClear: jest.fn(),
-    // Detail-screen react-query hooks — all idle (no photos/parts/etc.).
     useRepairPhotosList: idleHook(),
     useRepairEventsList: idleHook(),
     useReturnsList: idleHook(),
@@ -85,67 +69,48 @@ jest.mock('@workspace/api-client-react', () => {
     getRepairPaymentsListQueryKey: key('payments'),
     getStaffListQueryKey: key('staff'),
     getEstimateApprovalsListQueryKey: key('estimateApprovals'),
-    requestUploadUrl: (...a: unknown[]) => mockRequestUploadUrl(...a),
+    requestUploadUrl: jest.fn(),
     repairPhotosAdd: jest.fn(),
     repairPartsAdd: jest.fn(),
-    repairPaymentsCreate: jest.fn(),
+    repairPaymentsCreate: (...args: unknown[]) => mockRepairPaymentsCreate(...args),
+    repairPaymentVoid: jest.fn(),
     repairAssignTechnician: jest.fn(),
     repairTesting: jest.fn(),
     estimateApprovalsCreate: jest.fn(),
     estimateApprovalsDecide: jest.fn(),
     estimateApprovalsSendOtp: jest.fn(),
-    deliveryOtpSend: (...a: unknown[]) => mockDeliveryOtpSend(...a),
-    deliveryOtpVerify: (...a: unknown[]) => mockDeliveryOtpVerify(...a),
     repairNotifyReady: jest.fn(),
   };
 });
 
-const mockBack = jest.fn();
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ back: mockBack, replace: jest.fn(), push: jest.fn() }),
+  useRouter: () => ({ back: jest.fn(), replace: jest.fn(), push: jest.fn() }),
   useLocalSearchParams: () => ({ id: 'r1' }),
 }));
-
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-
 jest.mock('expo-haptics', () => ({
   notificationAsync: jest.fn(),
   impactAsync: jest.fn(),
   NotificationFeedbackType: { Error: 'error', Success: 'success' },
   ImpactFeedbackStyle: { Medium: 'medium', Light: 'light' },
 }));
-
-// Native-only modules the detail screen imports but these tests never exercise.
 jest.mock('expo-image', () => {
   const { View } = require('react-native');
   return { Image: (props: object) => <View {...props} /> };
 });
 jest.mock('expo-file-system/legacy', () => ({
   getInfoAsync: jest.fn(async () => ({ exists: true, size: 128 })),
-  writeAsStringAsync: jest.fn(async () => {}),
-  cacheDirectory: '/tmp/',
-  EncodingType: { Base64: 'base64' },
 }));
 jest.mock('expo-file-system', () => ({ File: class {} }));
-jest.mock('expo/fetch', () => ({ fetch: (...a: unknown[]) => mockExpoFetch(...a) }));
+jest.mock('expo/fetch', () => ({ fetch: jest.fn() }));
 jest.mock('expo-print', () => ({ printAsync: jest.fn(), printToFileAsync: jest.fn() }));
 jest.mock('expo-sharing', () => ({ isAvailableAsync: jest.fn(async () => false), shareAsync: jest.fn() }));
-// Capture the signature pad props so tests can drive onOK (a drawn signature).
-const mockSigProps: { current: { onOK?: (sig: string) => void } } = { current: {} };
-jest.mock('react-native-signature-canvas', () => {
-  const { View } = require('react-native');
-  return (props: { onOK?: (sig: string) => void }) => {
-    mockSigProps.current = props;
-    return <View testID="signature-pad" />;
-  };
-});
 jest.mock('react-native-qrcode-svg', () => {
   const { View } = require('react-native');
   return (props: object) => <View {...props} />;
 });
-
 jest.mock('@/utils/seedData', () => ({ seedIfNeeded: jest.fn(async () => {}) }));
 jest.mock('@/utils/storage', () => ({
   KEYS: { AUTH_TOKEN: 'auth_token', CURRENT_USER: 'current_user' },
@@ -161,31 +126,49 @@ import { DataProvider, useData } from '@/context/DataContext';
 import RepairDetailScreen from '@/app/(tabs)/repairs/[id]';
 
 const baseRepair = {
-  id: 'r1', repairId: 'VMC-1001', customerId: 'c1', customerName: 'Asha Kumar', mobile: '9876543210',
-  deviceType: 'Smartphone', brand: 'Samsung', model: 'Galaxy S23',
-  problem: 'Screen cracked, no display', diagnosis: 'Panel damaged', workPerformed: 'Replaced panel',
-  // Fully paid (advance == charge): delivery is payment-gated, so the
-  // "Mark as Delivered" button only appears once nothing is left to pay.
-  status: 'ready', priority: 'normal', repairCharge: 2500, partsCharge: 0, advance: 2500,
-  receiveDate: '2026-08-08', expectedDate: '2026-08-15', warrantyDays: 0, checklist: {}, createdAt: '',
+  id: 'r1',
+  repairId: 'VMC-1001',
+  customerId: 'c1',
+  customerName: 'Asha Kumar',
+  mobile: '9876543210',
+  deviceType: 'Smartphone',
+  brand: 'Samsung',
+  model: 'Galaxy S23',
+  problem: 'Screen cracked, no display',
+  diagnosis: 'Panel damaged',
+  workPerformed: 'Replaced panel',
+  testingChecklist: { power_on: true },
+  status: 'ready',
+  priority: 'normal',
+  repairCharge: 2500,
+  partsCharge: 0,
+  advance: 2500,
+  paidAmount: 2500,
+  totalAmount: 2500,
+  balance: 0,
+  receiveDate: '2026-08-08',
+  expectedDate: '2026-08-15',
+  warrantyDays: 0,
+  checklist: {},
+  createdAt: '',
 };
 
-/** Shows the current repairs list so tests can assert delivery state. */
 function RepairsProbe() {
   const { repairs } = useData();
   return (
     <>
-      {repairs.map((r) => (
-        <Text key={r.id}>{`repair:${r.id}:${r.status}:${(r as any).warrantyDays ?? ''}:${(r as any).paymentMethod ?? ''}`}</Text>
+      {repairs.map((repair) => (
+        <Text key={repair.id}>{`repair:${repair.id}:${repair.status}:${repair.warrantyDays ?? ''}:${repair.paymentMethod ?? ''}`}</Text>
       ))}
     </>
   );
 }
 
-async function renderDetail() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const utils = render(
-    <QueryClientProvider client={qc}>
+async function renderDetail(repair = baseRepair) {
+  mockLists.repairs = [{ ...repair }];
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const result = render(
+    <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <DataProvider>
           <RepairsProbe />
@@ -194,10 +177,9 @@ async function renderDetail() {
       </AuthProvider>
     </QueryClientProvider>,
   );
-  // Let the auth restore (storage + authMe) and initial data load settle.
   await act(async () => {});
   await act(async () => {});
-  return utils;
+  return result;
 }
 
 const press = async (label: string) =>
@@ -206,188 +188,101 @@ const press = async (label: string) =>
     fireEvent.press(matches[matches.length - 1]);
   });
 
-/** The screen swaps modals via 350ms setTimeout; flush those transitions. */
-const flushModalSwap = async () =>
-  act(async () => {
-    jest.advanceTimersByTime(400);
-  });
-
-/** Update Status → Delivered → handover modal (after the modal-swap delay). */
-const openHandover = async () => {
-  await press('Mark as Delivered');
-  // Pressing the button raises a native confirm Alert; drive its confirm action.
-  const confirmCall = alertSpy.mock.calls.find((c) => c[0] === 'Confirm Delivery');
-  expect(confirmCall).toBeTruthy();
-  await act(async () => {
-    confirmCall![2][1].onPress();
-  });
-  alertSpy.mockClear();
-  await flushModalSwap();
-  expect(screen.getByText('Delivery Handover')).toBeTruthy();
-};
-
-/** Handover modal → Proceed to Signature → signature pad visible. */
-const proceedToSignature = async () => {
-  await press('Proceed to Signature (No OTP)');
-  await flushModalSwap();
-  expect(screen.getByText('Delivery Signature')).toBeTruthy();
-  expect(mockSigProps.current.onOK).toBeTruthy();
-};
-
-/** Drives the signature pad's onOK as if the customer drew and confirmed. */
-const submitSignature = async () =>
-  act(async () => {
-    await mockSigProps.current.onOK!('data:image/png;base64,AAAA');
-  });
-
-let alertSpy: jest.SpyInstance;
-
-beforeEach(() => {
-  jest.clearAllMocks();
-  for (const key of Object.keys(mockLists)) mockLists[key] = [];
-  mockLists.repairs = [{ ...baseRepair }];
-  mockSigProps.current = {};
-  alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-});
-
-afterEach(() => {
-  alertSpy.mockRestore();
-});
-
-/** Server accepts the update and returns the new record on reload. */
 const acceptUpdate = () =>
   mockRepairsUpdate.mockImplementation(async (id: string, patch: Record<string, unknown>) => {
-    const updated = { ...baseRepair, ...patch, id };
+    const current = mockLists.repairs[0] as Record<string, unknown>;
+    const updated = { ...current, ...patch, id };
     mockLists.repairs = [updated];
     return { repair: updated };
   });
 
-// ── Signature path ────────────────────────────────────────────────────────
-describe('signature handover path', () => {
-  it('a failed signature upload alerts and does NOT mark the repair delivered', async () => {
-    mockRequestUploadUrl.mockRejectedValue(new Error('storage down'));
-    const { unmount } = await renderDetail();
-    await openHandover();
-    await proceedToSignature();
-    await submitSignature();
+beforeEach(() => {
+  jest.clearAllMocks();
+  for (const key of Object.keys(mockLists)) mockLists[key] = [];
+  mockRepairPaymentsCreate.mockResolvedValue({ payment: { id: 'p1', amount: 2000 } });
+});
 
-    await waitFor(() =>
-      expect(alertSpy).toHaveBeenCalledWith('Update failed', expect.stringContaining('signature')),
-    );
-    // The delivery never reached the API and the repair stayed undelivered.
-    expect(mockRepairsUpdate).not.toHaveBeenCalled();
-    expect(screen.getByText('repair:r1:ready:0:')).toBeTruthy();
+describe('repair stage primary action', () => {
+  it.each([
+    ['received', 'Continue as Repairing'],
+    ['repairing', 'Continue as Testing'],
+    ['testing', 'Continue as Ready'],
+    ['ready', 'Continue to Deliver'],
+  ])('shows the destination label for %s', async (status, label) => {
+    const { unmount } = await renderDetail({ ...baseRepair, status });
+    expect(screen.getByText(label)).toBeTruthy();
+    expect(screen.queryByText('Continue & Save')).toBeNull();
     unmount();
   });
 
-  it('a rejected upload PUT also alerts and keeps the repair undelivered', async () => {
-    mockRequestUploadUrl.mockResolvedValue({ uploadURL: 'https://sig.upload', objectPath: '/objects/uploads/s1/sig.png' });
-    mockExpoFetch.mockResolvedValue({ ok: false, status: 500 });
+  it('does not expose payment, signature, or delivery OTP actions on the repair page', async () => {
     const { unmount } = await renderDetail();
-    await openHandover();
-    await proceedToSignature();
-    await submitSignature();
-
-    await waitFor(() =>
-      expect(alertSpy).toHaveBeenCalledWith('Update failed', expect.stringContaining('signature')),
-    );
-    expect(mockRepairsUpdate).not.toHaveBeenCalled();
-    expect(screen.getByText('repair:r1:ready:0:')).toBeTruthy();
-    unmount();
-  });
-
-  it('a successful signature stores the signature path and delivers with warranty + payment method', async () => {
-    mockRequestUploadUrl.mockResolvedValue({ uploadURL: 'https://sig.upload', objectPath: '/objects/uploads/s1/sig.png' });
-    mockExpoFetch.mockResolvedValue({ ok: true });
-    acceptUpdate();
-    const { unmount } = await renderDetail();
-    await openHandover();
-    await press('UPI'); // payment method
-    await press('30'); // warranty days
-    await proceedToSignature();
-    await submitSignature();
-
-    await waitFor(() => expect(screen.getByText('repair:r1:delivered:30:UPI')).toBeTruthy());
-    expect(mockRepairsUpdate).toHaveBeenCalledWith(
-      'r1',
-      expect.objectContaining({
-        status: 'delivered',
-        deliverySignaturePath: '/objects/uploads/s1/sig.png',
-        warrantyDays: 30,
-        paymentMethod: 'UPI',
-      }),
-    );
-    expect(alertSpy).not.toHaveBeenCalled();
+    expect(screen.queryByText('Receive Payment')).toBeNull();
+    expect(screen.queryByText('Delivery Signature')).toBeNull();
+    expect(screen.queryByText('Verify Delivery OTP')).toBeNull();
+    expect(screen.queryByText('Proceed to Signature (No OTP)')).toBeNull();
     unmount();
   });
 });
 
-// ── OTP path ──────────────────────────────────────────────────────────────
-describe('OTP handover path', () => {
-  const openOtpModal = async () => {
-    await press('Send OTP');
-    await flushModalSwap();
-    expect(screen.getByText('Verify Delivery OTP')).toBeTruthy();
-    expect(mockDeliveryOtpSend).toHaveBeenCalledWith('r1');
-  };
-
-  it('a successful OTP verify sends status delivered with warranty days and payment method', async () => {
-    mockDeliveryOtpSend.mockResolvedValue({});
-    mockDeliveryOtpVerify.mockResolvedValue({ verified: true });
+describe('delivery payment decision', () => {
+  it('delivers an already-paid repair without OTP or signature', async () => {
     acceptUpdate();
     const { unmount } = await renderDetail();
-    await openHandover();
-    await press('UPI'); // payment method
-    await press('90'); // warranty days
-    await openOtpModal();
+    await press('Continue to Deliver');
+    expect(screen.getAllByText('Complete Delivery')).toHaveLength(2);
+    await press('Complete Delivery');
 
-    fireEvent.changeText(screen.getByPlaceholderText('OTP Code'), '123456');
-    await press('Verify & Deliver');
-
-    await waitFor(() => expect(screen.getByText('repair:r1:delivered:90:UPI')).toBeTruthy());
-    expect(mockDeliveryOtpVerify).toHaveBeenCalledWith('r1', { code: '123456' });
+    await waitFor(() => expect(screen.getByText('repair:r1:delivered:0:')).toBeTruthy());
+    expect(mockRepairPaymentsCreate).not.toHaveBeenCalled();
     expect(mockRepairsUpdate).toHaveBeenCalledWith(
       'r1',
       expect.objectContaining({
         status: 'delivered',
-        warrantyDays: 90,
+        deliveryDate: expect.any(String),
+      }),
+    );
+    expect(mockRepairsUpdate.mock.calls[0][1].deliverySignaturePath).toBeUndefined();
+    expect(mockRepairsUpdate.mock.calls[0][1].otpVerified).toBeUndefined();
+    unmount();
+  });
+
+  it('delivers with an explicitly accepted due without recording a payment', async () => {
+    acceptUpdate();
+    const dueRepair = { ...baseRepair, advance: 500, paidAmount: 500, balance: 2000 };
+    const { unmount } = await renderDetail(dueRepair);
+    await press('Continue to Deliver');
+    expect(screen.getAllByText('Due').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Mark as Paid')).toBeTruthy();
+    await press('Due');
+
+    await waitFor(() => expect(screen.getByText('repair:r1:delivered:0:')).toBeTruthy());
+    expect(mockRepairPaymentsCreate).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('records the remaining balance before delivering when marked paid', async () => {
+    acceptUpdate();
+    const dueRepair = { ...baseRepair, advance: 500, paidAmount: 500, balance: 2000 };
+    const { unmount } = await renderDetail(dueRepair);
+    await press('Continue to Deliver');
+    await press('UPI');
+    await press('Mark as Paid');
+
+    await waitFor(() => expect(screen.getByText('repair:r1:delivered:0:UPI')).toBeTruthy());
+    expect(mockRepairPaymentsCreate).toHaveBeenCalledWith('r1', {
+      amount: 2000,
+      method: 'UPI',
+      kind: 'final',
+      note: 'Payment received at delivery',
+    });
+    expect(mockRepairsUpdate).toHaveBeenCalledWith(
+      'r1',
+      expect.objectContaining({
+        status: 'delivered',
         paymentMethod: 'UPI',
       }),
     );
-    expect(alertSpy).not.toHaveBeenCalled();
-    unmount();
-  });
-
-  it('a failed OTP verify alerts and keeps the repair undelivered in the list', async () => {
-    mockDeliveryOtpSend.mockResolvedValue({});
-    mockDeliveryOtpVerify.mockRejectedValue(new Error('Invalid or expired OTP'));
-    const { unmount } = await renderDetail();
-    await openHandover();
-    await openOtpModal();
-
-    fireEvent.changeText(screen.getByPlaceholderText('OTP Code'), '000000');
-    await press('Verify & Deliver');
-
-    await waitFor(() =>
-      expect(alertSpy).toHaveBeenCalledWith('Error', expect.stringContaining('OTP')),
-    );
-    // Delivery was never sent — the repair stays undelivered for retry.
-    expect(mockRepairsUpdate).not.toHaveBeenCalled();
-    expect(screen.getByText('repair:r1:ready:0:')).toBeTruthy();
-    unmount();
-  });
-
-  it('an empty OTP code does nothing — no verify call, repair untouched', async () => {
-    mockDeliveryOtpSend.mockResolvedValue({});
-    const { unmount } = await renderDetail();
-    await openHandover();
-    await openOtpModal();
-
-    await press('Verify & Deliver'); // no code entered
-
-    expect(mockDeliveryOtpVerify).not.toHaveBeenCalled();
-    expect(mockRepairsUpdate).not.toHaveBeenCalled();
-    expect(screen.getByText('repair:r1:ready:0:')).toBeTruthy();
     unmount();
   });
 });

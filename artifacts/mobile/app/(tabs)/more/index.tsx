@@ -1,6 +1,6 @@
 import React from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -28,7 +28,7 @@ const MENU_ITEMS: MenuItem[] = [
   { id: 'my-profile', label: 'Personal Profile', icon: 'user', route: '/(tabs)/more/profile', color: '#0866FF', description: 'Name and mobile number', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'], section: 'personal' },
   { id: 'notifications', label: 'Personal Notifications', icon: 'bell', route: '/(tabs)/more/notifications', color: '#F2B84B', description: 'Chats, repairs and approvals', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'], section: 'personal' },
   { id: 'account', label: 'Account & Security', icon: 'shield', route: '/(tabs)/more/account', color: '#718096', description: 'Sessions, app lock and account access', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'], section: 'personal' },
-  { id: 'settings', label: 'Personal Settings', icon: 'settings', route: '/(tabs)/more/settings', color: '#718096', description: 'Privacy, chats, notifications and appearance', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'], section: 'personal' },
+  { id: 'settings', label: 'Personal Settings', icon: 'settings', route: '/(tabs)/more/settings', color: '#718096', description: 'Chats, notifications and appearance', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'], section: 'personal' },
   { id: 'activity', label: 'Activity Log', icon: 'activity', route: '/(tabs)/more/activity', color: '#20C878', description: 'View system events', roles: ['super_admin', 'dealer'], section: 'business' },
   { id: 'finance', label: 'Finance', icon: 'bar-chart-2', route: '/(tabs)/more/finance', color: '#20C878', description: 'Income, expense, cash book', roles: ['super_admin', 'dealer'], feature: 'finance', section: 'business' },
   { id: 'approvals', label: 'Approvals', icon: 'check-circle', route: '/(tabs)/more/approvals', color: '#FF4D4F', description: 'Backdated entry requests', roles: ['super_admin', 'dealer'], feature: 'approvals', section: 'business' },
@@ -45,11 +45,13 @@ export default function MoreScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { scope } = useLocalSearchParams<{ scope?: string }>();
   const { user, logout, canAccess } = useAuth();
   const role = user?.role ?? '';
   const isPortal = role === 'dealer_owner' || role === 'dealer_staff';
   const isCustomer = role === 'customer';
   const isOwner = role === 'dealer' || role === 'super_admin';
+  const businessOnly = scope === 'business';
   const currentVersion = getAppVersion();
   const currentBuild = getAppBuildNumber();
   
@@ -76,8 +78,10 @@ export default function MoreScreen() {
   // per-role feature toggles (More → Staff Permissions) when `feature` is set.
   const visibleItems = MENU_ITEMS.filter(
     (item) =>
+      (!businessOnly || item.section === 'business') &&
       item.roles.includes(role) ||
-      (!isPortal && !isCustomer && !!item.feature && canAccess(item.feature)),
+      ((!businessOnly || item.section === 'business') &&
+        !isPortal && !isCustomer && !!item.feature && canAccess(item.feature)),
   );
 
   const handleLogout = async () => {
@@ -96,7 +100,9 @@ export default function MoreScreen() {
           >
             <Feather name="arrow-left" size={24} color={colors.foreground} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Settings</Text>
+          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+            {businessOnly ? 'Shop Settings' : 'Settings'}
+          </Text>
         </View>
       </View>
 
@@ -115,7 +121,7 @@ export default function MoreScreen() {
           </View>
         </View>
 
-        {(['personal', 'business'] as const).map((section) => {
+        {(businessOnly ? (['business'] as const) : (['personal', 'business'] as const)).map((section) => {
           const items = visibleItems.filter((item) => item.section === section);
           if (!items.length) return null;
           return <View key={section} style={styles.section}>
@@ -203,44 +209,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  scroll: { padding: 12, gap: 8 },
+  scroll: { paddingHorizontal: 16, paddingTop: 14, gap: 16 },
   userCard: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    gap: 8, 
-    padding: 12,
-    borderRadius: 12,
+    gap: 12,
+    padding: 16,
+    borderRadius: 16,
     borderWidth: 1,
   },
-  userInfo: { flex: 1, gap: 4 },
-  userName: { fontSize: 18, letterSpacing: -0.3 },
-  userEmail: { fontSize: 13 },
-  roleBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, marginTop: 4 },
-  roleText: { fontSize: 11 },
+  userInfo: { flex: 1, minWidth: 0, gap: 3 },
+  userName: { fontSize: 18, lineHeight: 23, letterSpacing: -0.3 },
+  userEmail: { fontSize: 13, lineHeight: 18 },
+  roleBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, marginTop: 5 },
+  roleText: { fontSize: 11, lineHeight: 14 },
   menuGroup: { 
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     overflow: 'hidden' 
   },
-  section: { gap: 6 },
-  sectionLabel: { fontSize: 11, letterSpacing: 0.8, paddingHorizontal: 4, marginTop: 6 },
-  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
+  section: { gap: 8 },
+  sectionLabel: { fontSize: 11, lineHeight: 16, letterSpacing: 0.8, paddingHorizontal: 4 },
+  menuItem: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 11 },
   menuItemBorder: { borderBottomWidth: 1 },
   menuIconWrap: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   badgeWrap: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, borderWidth: 2, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   badgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
-  menuContent: { flex: 1, gap: 2 },
-  menuLabel: { fontSize: 15 },
-  menuDesc: { fontSize: 12 },
+  menuContent: { flex: 1, minWidth: 0, gap: 2 },
+  menuLabel: { fontSize: 15, lineHeight: 20 },
+  menuDesc: { fontSize: 12, lineHeight: 17 },
   logoutBtn: { 
+    minHeight: 52,
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'center', 
     gap: 8, 
-    padding: 12, 
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 16,
   },
-  logoutText: { fontSize: 15 },
-  version: { textAlign: 'center', fontSize: 12, paddingVertical: 8, marginTop: 8 },
+  logoutText: { fontSize: 15, lineHeight: 20 },
+  version: { textAlign: 'center', fontSize: 12, lineHeight: 16, paddingVertical: 8 },
 });

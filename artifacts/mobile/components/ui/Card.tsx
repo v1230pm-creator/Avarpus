@@ -47,7 +47,7 @@ export function Card({ children, style, variant = 'default', padding = 16 }: Car
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: 15,
+    borderRadius: 16,
     borderWidth: 1,
     overflow: 'hidden',
     shadowOffset: { width: 0, height: 4 },

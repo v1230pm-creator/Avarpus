@@ -1,4 +1,4 @@
-import { buildKhataLedger, computeLedgerTotals } from '../../utils/khata-ledger';
+import { buildKhataLedger, computeLedgerTotals, groupLedgerByParty } from '../../utils/khata-ledger';
 import type { Repair } from '../../types';
 import type { PaymentsList200PaymentsItem } from '@workspace/api-client-react';
 
@@ -183,5 +183,44 @@ describe('khata-ledger', () => {
     
     // Total due: 3000 - 400 = 2600
     expect(totals.due).toBe(2600);
+  });
+
+  it('combines duplicate dealer records with the same normalized name', () => {
+    const repairs = [
+      mockRepair({
+        id: 'r1',
+        dealerId: 'dealer-1',
+        dealerName: 'Chhotu  Sarnath',
+        totalAmount: 300,
+        createdAt: '2026-08-17T10:00:00.000Z',
+      }),
+      mockRepair({
+        id: 'r2',
+        repairId: 'TKT-2',
+        dealerId: 'dealer-2',
+        dealerName: ' chhotu sarnath ',
+        totalAmount: 300,
+        createdAt: '2026-08-22T10:00:00.000Z',
+      }),
+    ];
+
+    const parties = groupLedgerByParty(buildKhataLedger(repairs, []));
+
+    expect(parties).toHaveLength(1);
+    expect(parties[0]).toMatchObject({
+      partyIds: ['dealer-2', 'dealer-1'],
+      partyName: 'chhotu sarnath',
+      balance: 600,
+      lastActivity: '2026-08-22T10:00:00.000Z',
+    });
+  });
+
+  it('keeps different customers separate even when their names match', () => {
+    const repairs = [
+      mockRepair({ id: 'r1', customerId: 'customer-1', customerName: 'Same Name', totalAmount: 100 }),
+      mockRepair({ id: 'r2', customerId: 'customer-2', customerName: 'Same Name', totalAmount: 200 }),
+    ];
+
+    expect(groupLedgerByParty(buildKhataLedger(repairs, []))).toHaveLength(2);
   });
 });

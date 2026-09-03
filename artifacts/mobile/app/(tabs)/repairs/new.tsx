@@ -16,7 +16,6 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import SignatureScreen, { SignatureViewRef } from 'react-native-signature-canvas';
 import QRCode from 'react-native-qrcode-svg';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -138,6 +137,7 @@ export default function NewRepairScreen() {
   const [customerName, setCustomerName] = useState('');
   const [mobile, setMobile] = useState('');
   const [alternateMobile, setAlternateMobile] = useState('');
+  const [showAlternateMobile, setShowAlternateMobile] = useState(false);
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
 
@@ -171,6 +171,7 @@ export default function NewRepairScreen() {
   // Optional B2B dealer link — permanent association made at intake.
   const [dealerId, setDealerId] = useState<string | null>(null);
   const [showDealerPick, setShowDealerPick] = useState(false);
+  const [dealerSearch, setDealerSearch] = useState('');
   // True when the current dealerId came from automatic phone detection (not a
   // manual pick); cleared/re-run whenever the mobile number changes.
   const [autoDetected, setAutoDetected] = useState(false);
@@ -211,6 +212,11 @@ export default function NewRepairScreen() {
   useEffect(() => { setDealerCleared(false); }, [cleanMobile]);
   const detectedDealer = autoDetected ? detectMatches.find((d) => d.id === dealerId) : undefined;
   const selectedDealer = dealersData?.dealers?.find((d) => d.id === dealerId) || detectedDealer || detectMatches.find((d) => d.id === dealerId);
+  const filteredDealers = (dealersData?.dealers || []).filter((d) => {
+    const query = dealerSearch.trim().toLowerCase();
+    if (!query) return true;
+    return [d.name, d.dealerCode, d.shopName, d.mobile].some((value) => value?.toLowerCase().includes(query));
+  });
   const [repairCharge, setRepairCharge] = useState('');
   const [advancePaid, setAdvancePaid] = useState('');
   const [advanceMethod, setAdvanceMethod] = useState('Cash');
@@ -223,14 +229,11 @@ export default function NewRepairScreen() {
   const [forceApprovalMode, setForceApprovalMode] = useState(false);
 
   const [photos, setPhotos] = useState<{ uri: string, kind: string }[]>([]);
-  const [receivingSignatureUri, setReceivingSignatureUri] = useState<string | null>(null);
   const [customerConfirmed, setCustomerConfirmed] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const [showSignature, setShowSignature] = useState(false);
-  const sigPadRef = useRef<SignatureViewRef>(null);
   const [showPhotoKindModal, setShowPhotoKindModal] = useState<string | null>(null);
 
   const [createdRepair, setCreatedRepair] = useState<Repair | null>(null);
@@ -441,14 +444,6 @@ export default function NewRepairScreen() {
         }
       }
 
-      let sigPath;
-      if (receivingSignatureUri) {
-        sigPath = await uploadToGcs(receivingSignatureUri, 'image/png');
-        if (sigPath) {
-          await updateRepair({ ...repair, receivingSignaturePath: sigPath });
-        }
-      }
-
       for (const p of photos) {
         const path = await uploadToGcs(p.uri, 'image/jpeg');
         if (path) {
@@ -489,19 +484,6 @@ export default function NewRepairScreen() {
     }
   };
 
-  const handleSignatureOK = async (signature: string) => {
-    try {
-      const path = FileSystem.cacheDirectory + `sig_${Date.now()}.png`;
-      await FileSystem.writeAsStringAsync(path, signature.replace('data:image/png;base64,', ''), {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      setReceivingSignatureUri(path);
-      setShowSignature(false);
-    } catch (err) {
-      Alert.alert('Error', 'Failed to save signature.');
-    }
-  };
-
   const generatePDF = async () => {
     if (!createdRepair) return;
     try {
@@ -512,17 +494,6 @@ export default function NewRepairScreen() {
             resolve(`data:image/png;base64,${dataURL}`);
           });
         });
-      }
-
-      // Signature image (if captured) as base64 for embedding
-      let sigBase64 = '';
-      if (receivingSignatureUri) {
-        try {
-          const b64 = await FileSystem.readAsStringAsync(receivingSignatureUri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          sigBase64 = `data:image/png;base64,${b64}`;
-        } catch {}
       }
 
       const esc = (v: any) =>
@@ -637,18 +608,6 @@ export default function NewRepairScreen() {
               The final charge may vary after diagnosis; any change will be confirmed with the customer before proceeding.
             </div>
 
-            <div class="sigblock">
-              <table><tr>
-                <td style="width:50%;">
-                  ${sigBase64 ? `<img class="sigimg" src="${sigBase64}" />` : '<br/><br/>_______________________'}
-                  <div>Customer Signature</div>
-                </td>
-                <td style="width:50%; text-align:right;">
-                  <br/><br/>_______________________
-                  <div>For ${esc(shopName)}</div>
-                </td>
-              </tr></table>
-            </div>
           </body>
         </html>
       `;
@@ -724,9 +683,44 @@ export default function NewRepairScreen() {
             <>
               {/* Customer */}
               <View style={styles.section}>
-                <SectionHeader title="Customer Details" />
+                <View style={styles.customerHeaderRow}>
+                  <SectionHeader title="Customer Details" />
+                  {!isDealerPortalUser && (
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setDealerSearch('');
+                        setShowDealerPick(true);
+                      }}
+                      style={[styles.dealerLinkButton, { backgroundColor: colors.card, borderColor: dealerId ? colors.primary : colors.border }]}
+                    >
+                      <Feather name="briefcase" size={15} color={dealerId ? colors.primary : colors.mutedForeground} />
+                      <Text
+                        numberOfLines={1}
+                        style={[styles.dealerLinkLabel, { color: dealerId ? colors.primary : colors.foreground, fontFamily: 'Inter_600SemiBold' }]}
+                      >
+                        {selectedDealer ? selectedDealer.dealerCode : 'Link Dealer'}
+                      </Text>
+                      <Feather name={showDealerPick ? 'chevron-up' : 'chevron-down'} size={15} color={colors.mutedForeground} />
+                    </TouchableOpacity>
+                  )}
+                </View>
                 <Input label="Name *" value={customerName} onChangeText={setCustomerName} placeholder="Full name" leftIcon="user" error={errors.customerName} />
-                <Input label="Mobile *" value={mobile} onChangeText={setMobile} placeholder="10-digit number" keyboardType="phone-pad" leftIcon="phone" error={errors.mobile} />
+                <Input
+                  label="Mobile *"
+                  value={mobile}
+                  onChangeText={setMobile}
+                  placeholder="10-digit number"
+                  keyboardType="phone-pad"
+                  leftIcon="phone"
+                  rightIcon={showAlternateMobile ? 'x' : 'plus'}
+                  onRightIconPress={() => {
+                    if (showAlternateMobile) setAlternateMobile('');
+                    setShowAlternateMobile((visible) => !visible);
+                  }}
+                  rightIconAccessibilityLabel={showAlternateMobile ? 'Remove alternate mobile' : 'Add alternate mobile'}
+                  error={errors.mobile}
+                />
                 {detectedDealer && (
                   <View style={{ borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.card, borderRadius: 12, padding: 12, marginBottom: 12 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -762,157 +756,122 @@ export default function NewRepairScreen() {
                     ))}
                   </View>
                 )}
-                <Input label="Alternate Mobile" value={alternateMobile} onChangeText={setAlternateMobile} placeholder="Optional" keyboardType="phone-pad" leftIcon="phone" />
+                {showAlternateMobile && (
+                  <Input
+                    label="Alternative Mobile"
+                    value={alternateMobile}
+                    onChangeText={setAlternateMobile}
+                    placeholder="10-digit alternative number"
+                    keyboardType="phone-pad"
+                    leftIcon="phone"
+                  />
+                )}
                 <Input label="Email" value={email} onChangeText={setEmail} placeholder="Optional" keyboardType="email-address" leftIcon="mail" autoCapitalize="none" />
                 <Input label="Address" value={address} onChangeText={setAddress} placeholder="Optional" leftIcon="map-pin" />
               </View>
 
-              {/* Dealer (optional B2B link) — shop staff can select any
-                  dealer in their shop. Dealer portal accounts remain excluded
-                  so they cannot browse the shop's dealer directory. */}
-              {!isDealerPortalUser && <View style={styles.section}>
-                <SectionHeader title="Dealer (Optional)" />
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => setShowDealerPick(v => !v)}
-                  style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: dealerId ? colors.primary : colors.border }]}
-                >
-                  <Feather name="briefcase" size={16} color={dealerId ? colors.primary : colors.mutedForeground} />
-                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
-                    {selectedDealer ? `${selectedDealer.dealerCode} · ${selectedDealer.name}` : 'Link to a Dealer'}
-                  </Text>
-                  <Feather name={showDealerPick ? 'chevron-up' : 'chevron-down'} size={16} color={colors.mutedForeground} />
-                </TouchableOpacity>
-                {showDealerPick && (
-                  <View style={{ gap: 8 }}>
-                    {(dealersData?.dealers || []).map((d) => {
-                      const active = dealerId === d.id;
-                      return (
-                        <TouchableOpacity
-                          key={d.id}
-                          onPress={() => {
-                            // Manual pick/removal always overrides auto-detection:
-                            // removal must serialize as an explicit dealerId: null
-                            // so the server does not silently re-link by phone.
-                            setDealerId(active ? null : d.id);
-                            setAutoDetected(false);
-                            setDealerCleared(active);
-                            if (!active) fillFromDealer(d);
-                            setShowDealerPick(false);
-                          }}
-                          activeOpacity={0.8}
-                          style={{
-                            flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12,
-                            borderWidth: 1, backgroundColor: active ? colors.primary + '15' : colors.card,
-                            borderColor: active ? colors.primary : colors.border,
-                          }}
-                        >
-                          <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: colors.primary + '15' }}>
-                            <Text style={{ fontSize: 11, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{d.dealerCode}</Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{d.name}</Text>
-                            {!!d.shopName && <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{d.shopName}</Text>}
-                          </View>
-                          {active && <Feather name="check" size={16} color={colors.primary} />}
-                        </TouchableOpacity>
-                      );
-                    })}
-                    <TouchableOpacity
-                      onPress={() => router.push('/(tabs)/repairs/dealer-new')}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 }}
-                    >
-                      <Feather name="plus-circle" size={16} color={colors.primary} />
-                      <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Add New Dealer</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>}
-
               {/* Device */}
               <View style={styles.section}>
                 <SectionHeader title="Device Details" />
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => setShowDeviceType(v => !v)}
-                  style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: showDeviceType ? colors.primary : colors.border }]}
-                >
-                  <View style={[styles.checkbox, { backgroundColor: deviceType ? colors.primary : 'transparent', borderColor: deviceType ? colors.primary : colors.muted }]}>
-                    {!!deviceType && <Feather name="check" size={14} color="#FFF" />}
+                <View style={styles.threeColumnRow}>
+                  <View style={styles.compactField}>
+                    <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Device Type *</Text>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => setShowDeviceType(v => !v)}
+                      style={[styles.compactToggle, { backgroundColor: colors.card, borderColor: showDeviceType ? colors.primary : colors.border }]}
+                    >
+                      <View style={[styles.checkbox, { backgroundColor: deviceType ? colors.primary : 'transparent', borderColor: deviceType ? colors.primary : colors.muted }]}>
+                        {!!deviceType && <Feather name="check" size={14} color="#FFF" />}
+                      </View>
+                      <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
+                        <Text numberOfLines={1} style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{deviceType}</Text>
+                      </View>
+                      <Feather name={showDeviceType ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
+                    </TouchableOpacity>
+                    {showDeviceType && (
+                      <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                        <ScrollView style={styles.vList} nestedScrollEnabled showsVerticalScrollIndicator>
+                          {DEVICE_TYPES.map((dt) => {
+                            const selected = deviceType === dt;
+                            return (
+                              <TouchableOpacity
+                                key={dt}
+                                activeOpacity={0.7}
+                                onPress={() => { setDeviceType(dt); setShowDeviceType(false); }}
+                                style={[styles.vItem, { borderBottomColor: colors.border, backgroundColor: selected ? colors.primary + '10' : 'transparent' }]}
+                              >
+                                <View style={[styles.radioOuter, { borderColor: selected ? colors.primary : colors.muted }]}>
+                                  {selected && <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />}
+                                </View>
+                                <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>{dt}</Text>
+                                {selected && <Feather name="check" size={16} color={colors.primary} />}
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </ScrollView>
+                      </View>
+                    )}
                   </View>
-                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Device Type *</Text>
-                  <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
-                    <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{deviceType}</Text>
-                  </View>
-                  <Feather name={showDeviceType ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
-                </TouchableOpacity>
-                {showDeviceType && (
-                  <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                    <ScrollView style={styles.vList} nestedScrollEnabled showsVerticalScrollIndicator>
-                      {DEVICE_TYPES.map((dt) => {
-                        const selected = deviceType === dt;
-                        return (
-                          <TouchableOpacity
-                            key={dt}
-                            activeOpacity={0.7}
-                            onPress={() => { setDeviceType(dt); setShowDeviceType(false); }}
-                            style={[styles.vItem, { borderBottomColor: colors.border, backgroundColor: selected ? colors.primary + '10' : 'transparent' }]}
-                          >
-                            <View style={[styles.radioOuter, { borderColor: selected ? colors.primary : colors.muted }]}>
-                              {selected && <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />}
-                            </View>
-                            <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>{dt}</Text>
-                            {selected && <Feather name="check" size={16} color={colors.primary} />}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
-                )}
 
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => setShowBrand(v => !v)}
-                  style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: errors.brand ? colors.destructive : showBrand ? colors.primary : colors.border }]}
-                >
-                  <View style={[styles.checkbox, { backgroundColor: brand ? colors.primary : 'transparent', borderColor: brand ? colors.primary : colors.muted }]}>
-                    {!!brand && <Feather name="check" size={14} color="#FFF" />}
+                  <View style={styles.compactField}>
+                    <Text
+                      onPress={() => setShowBrand(v => !v)}
+                      accessibilityRole="button"
+                      style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}
+                    >
+                      Brand *
+                    </Text>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => setShowBrand(v => !v)}
+                      style={[styles.compactToggle, { backgroundColor: colors.card, borderColor: errors.brand ? colors.destructive : showBrand ? colors.primary : colors.border }]}
+                    >
+                      <View style={[styles.checkbox, { backgroundColor: brand ? colors.primary : 'transparent', borderColor: brand ? colors.primary : colors.muted }]}>
+                        {!!brand && <Feather name="check" size={14} color="#FFF" />}
+                      </View>
+                      {brand ? (
+                        <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
+                          <Text numberOfLines={1} style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{brand}</Text>
+                        </View>
+                      ) : (
+                        <Text numberOfLines={1} style={[styles.compactToggleLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Select brand</Text>
+                      )}
+                      <Feather name={showBrand ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
+                    </TouchableOpacity>
+                    {!!errors.brand && (
+                      <Text style={[styles.fieldError, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>{errors.brand}</Text>
+                    )}
+                    {showBrand && (
+                      <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                        <ScrollView style={styles.vList} nestedScrollEnabled showsVerticalScrollIndicator>
+                          {BRANDS.map((b) => {
+                            const selected = brand === b;
+                            return (
+                              <TouchableOpacity
+                                key={b}
+                                activeOpacity={0.7}
+                                onPress={() => { setBrand(b); setShowBrand(false); }}
+                                style={[styles.vItem, { borderBottomColor: colors.border, backgroundColor: selected ? colors.primary + '10' : 'transparent' }]}
+                              >
+                                <View style={[styles.radioOuter, { borderColor: selected ? colors.primary : colors.muted }]}>
+                                  {selected && <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />}
+                                </View>
+                                <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>{b}</Text>
+                                {selected && <Feather name="check" size={16} color={colors.primary} />}
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </ScrollView>
+                      </View>
+                    )}
                   </View>
-                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Brand *</Text>
-                  {!!brand && (
-                    <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
-                      <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{brand}</Text>
-                    </View>
-                  )}
-                  <Feather name={showBrand ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
-                </TouchableOpacity>
-                {!!errors.brand && (
-                  <Text style={[styles.fieldError, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>{errors.brand}</Text>
-                )}
-                {showBrand && (
-                  <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                    <ScrollView style={styles.vList} nestedScrollEnabled showsVerticalScrollIndicator>
-                      {BRANDS.map((b) => {
-                        const selected = brand === b;
-                        return (
-                          <TouchableOpacity
-                            key={b}
-                            activeOpacity={0.7}
-                            onPress={() => { setBrand(b); setShowBrand(false); }}
-                            style={[styles.vItem, { borderBottomColor: colors.border, backgroundColor: selected ? colors.primary + '10' : 'transparent' }]}
-                          >
-                            <View style={[styles.radioOuter, { borderColor: selected ? colors.primary : colors.muted }]}>
-                              {selected && <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />}
-                            </View>
-                            <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>{b}</Text>
-                            {selected && <Feather name="check" size={16} color={colors.primary} />}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
+
+                  <View style={styles.compactField}>
+                    <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Model *</Text>
+                    <Input value={model} onChangeText={setModel} placeholder="Enter your model" leftIcon="smartphone" error={errors.model} />
                   </View>
-                )}
-                <Input label="Model *" value={model} onChangeText={setModel} placeholder="Enter your model" leftIcon="smartphone" error={errors.model} />
+                </View>
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
@@ -922,27 +881,24 @@ export default function NewRepairScreen() {
                     <Input label="IMEI 2" value={imei2} onChangeText={setImei2} placeholder="Optional" keyboardType="number-pad" />
                   </View>
                 </View>
-                <Input label="Serial Number" value={serialNumber} onChangeText={setSerialNumber} placeholder="Optional" />
-
                 <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <View style={{ flex: 1 }}><Input label="Color" value={colorAttr} onChangeText={setColorAttr} placeholder="Optional" /></View>
-                  <View style={{ flex: 1 }}><Input label="Storage" value={storage} onChangeText={setStorage} placeholder="e.g. 128GB" /></View>
-                  <View style={{ flex: 1 }}><Input label="RAM" value={ram} onChangeText={setRam} placeholder="e.g. 8GB" /></View>
-                </View>
-
-                <View style={{ position: 'relative' }}>
-                  <Input
-                    label="Device Password / Pattern"
-                    value={devicePassword}
-                    onChangeText={setDevicePassword}
-                    placeholder="Optional"
-                    secureTextEntry={!showDevicePassword}
-                  />
-                  {!!devicePassword && (
-                    <TouchableOpacity style={{ position: 'absolute', right: 12, top: 40 }} onPress={() => setShowDevicePassword(!showDevicePassword)}>
-                      <Feather name={showDevicePassword ? 'eye-off' : 'eye'} size={20} color={colors.mutedForeground} />
-                    </TouchableOpacity>
-                  )}
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Input label="Serial Number" value={serialNumber} onChangeText={setSerialNumber} placeholder="Optional" />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+                    <Input
+                      label="Device Password / Pattern"
+                      value={devicePassword}
+                      onChangeText={setDevicePassword}
+                      placeholder="Optional"
+                      secureTextEntry={!showDevicePassword}
+                    />
+                    {!!devicePassword && (
+                      <TouchableOpacity style={{ position: 'absolute', right: 12, top: 40 }} onPress={() => setShowDevicePassword(!showDevicePassword)}>
+                        <Feather name={showDevicePassword ? 'eye-off' : 'eye'} size={20} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
@@ -962,16 +918,19 @@ export default function NewRepairScreen() {
               </View>
 
               {/* Accessories */}
-              <View style={styles.section}>
+              <View style={styles.threeColumnRow}>
+                <View style={styles.compactField}>
+                <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Accessories</Text>
+                <View style={styles.section}>
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={() => setShowAccessories(v => !v)}
+                  accessibilityLabel="Accessories"
                   style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: showAccessories ? colors.primary : colors.border }]}
                 >
                   <View style={[styles.checkbox, { backgroundColor: showAccessories ? colors.primary : 'transparent', borderColor: showAccessories ? colors.primary : colors.muted }]}>
                     {showAccessories && <Feather name="check" size={14} color="#FFF" />}
                   </View>
-                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Accessories Received</Text>
                   {accessoriesList.length > 0 && (
                     <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
                       <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{accessoriesList.length}</Text>
@@ -1004,19 +963,22 @@ export default function NewRepairScreen() {
                     <Input label="Other Accessories Notes" value={otherAccessories} onChangeText={setOtherAccessories} placeholder="e.g. Broken cover, mixed cables..." />
                   </>
                 )}
-              </View>
+                </View>
+                </View>
 
               {/* Physical Condition */}
+              <View style={styles.compactField}>
+              <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Physical</Text>
               <View style={styles.section}>
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={() => setShowPhysical(v => !v)}
+                  accessibilityLabel="Physical"
                   style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: showPhysical ? colors.primary : colors.border }]}
                 >
                   <View style={[styles.checkbox, { backgroundColor: showPhysical ? colors.primary : 'transparent', borderColor: showPhysical ? colors.primary : colors.muted }]}>
                     {showPhysical && <Feather name="check" size={14} color="#FFF" />}
                   </View>
-                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Physical Condition</Text>
                   {Object.values(physicalCondition).filter(Boolean).length > 0 && (
                     <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
                       <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{Object.values(physicalCondition).filter(Boolean).length}</Text>
@@ -1047,18 +1009,21 @@ export default function NewRepairScreen() {
                   </View>
                 )}
               </View>
+              </View>
 
               {/* Checklist */}
+              <View style={styles.compactField}>
+              <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Pre Repair</Text>
               <View style={styles.section}>
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={() => setShowChecklist(v => !v)}
+                  accessibilityLabel="Pre Repair"
                   style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: showChecklist ? colors.primary : colors.border }]}
                 >
                   <View style={[styles.checkbox, { backgroundColor: showChecklist ? colors.primary : 'transparent', borderColor: showChecklist ? colors.primary : colors.muted }]}>
                     {showChecklist && <Feather name="check" size={14} color="#FFF" />}
                   </View>
-                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Pre-Repair Checklist (Functions)</Text>
                   {Object.values(checklist).filter(Boolean).length > 0 && (
                     <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
                       <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{Object.values(checklist).filter(Boolean).length}</Text>
@@ -1088,6 +1053,8 @@ export default function NewRepairScreen() {
                     </ScrollView>
                   </View>
                 )}
+              </View>
+              </View>
               </View>
 
               {/* Photos */}
@@ -1185,12 +1152,32 @@ export default function NewRepairScreen() {
 
               {/* Financials */}
               <View style={styles.section}>
-                <SectionHeader title="Estimate" />
-                <Input label="Estimated Repair Cost (₹)" value={repairCharge} onChangeText={setRepairCharge} placeholder="0" keyboardType="decimal-pad" leftText="₹" />
+                <View style={styles.estimateRow}>
+                  <View style={styles.estimateColumn}>
+                    <Text style={[styles.estimateLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Estimate</Text>
+                    <Input
+                      value={repairCharge}
+                      onChangeText={setRepairCharge}
+                      placeholder="0"
+                      keyboardType="decimal-pad"
+                      leftText="₹"
+                      accessibilityLabel="Estimate"
+                    />
+                  </View>
+                  <View style={styles.estimateColumn}>
+                    <Text style={[styles.estimateLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Advance Paid (₹)</Text>
+                    <Input
+                      value={advancePaid}
+                      onChangeText={setAdvancePaid}
+                      placeholder="0"
+                      keyboardType="decimal-pad"
+                      leftText="₹"
+                    />
+                  </View>
+                </View>
                 <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4, marginBottom: 10, fontFamily: 'Inter_400Regular' }}>
                   This is only an estimate — the final bill is prepared when the repair is completed.
                 </Text>
-                <Input label="Advance Paid (₹) — optional" value={advancePaid} onChangeText={setAdvancePaid} placeholder="0" keyboardType="decimal-pad" leftText="₹" />
                 {(parseFloat(advancePaid) || 0) > 0 && (
                   <>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
@@ -1265,24 +1252,6 @@ export default function NewRepairScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Signature */}
-              <View style={styles.section}>
-                <SectionHeader title="Customer Authorization" />
-                {receivingSignatureUri ? (
-                  <View style={[styles.sigPreviewWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                    <Image source={{ uri: receivingSignatureUri }} style={styles.sigPreview} resizeMode="contain" />
-                    <TouchableOpacity style={[styles.sigClear, { backgroundColor: colors.destructive }]} onPress={() => setReceivingSignatureUri(null)}>
-                      <Feather name="x" size={16} color="#FFF" />
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity onPress={() => setShowSignature(true)} style={[styles.sigBtn, { borderColor: colors.primary, backgroundColor: colors.primary + '11' }]}>
-                    <Feather name="edit-3" size={20} color={colors.primary} />
-                    <Text style={[styles.sigBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Capture Signature</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
               <View style={{ alignItems: 'center', marginTop: 10 }}>
                 <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
                   Received by: {user?.name || 'System'}
@@ -1304,41 +1273,98 @@ export default function NewRepairScreen() {
         </FadeInView>
       </KeyboardAwareScrollViewCompat>
 
-      {/* Signature Modal */}
-      <Modal visible={showSignature} animationType="slide" transparent onRequestClose={() => setShowSignature(false)}>
-        <View style={[styles.modalOverlay, { backgroundColor: colors.background }]}>
-          <View style={[styles.sigScreen, { paddingTop: topPad + 8, paddingBottom: Math.max(insets.bottom, 20) }]}>
-            <View style={styles.sigHeaderRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Customer Signature</Text>
-                <Text style={[styles.sigSubtitle, { color: colors.mutedForeground }]}>Ask the customer to sign in the box below</Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowSignature(false)} style={[styles.sigCloseBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Feather name="x" size={20} color={colors.foreground} />
-              </TouchableOpacity>
-            </View>
-            <View style={[styles.sigCard, { borderColor: colors.border }]}>
-              <SignatureScreen
-                ref={sigPadRef}
-                onOK={handleSignatureOK}
-                onEmpty={() => Alert.alert('Empty', 'Please provide a signature')}
-                descriptionText=""
-                webStyle={`.m-signature-pad {box-shadow: none; border: none; height: 100%; margin: 0;}
-                            .m-signature-pad--body {border: none; height: 100%;}
-                            .m-signature-pad--footer {display: none;}
-                            body,html {height: 100%; margin: 0;}`
-                        }
-              />
-              <View pointerEvents="none" style={styles.sigBaseline}>
-                <Feather name="edit-3" size={14} color="#9CA3AF" />
-                <Text style={styles.sigBaselineText}>Sign here</Text>
-              </View>
-            </View>
-            <View style={styles.sigFooterRow}>
-              <View style={{ flex: 1 }}><Button title="Clear" variant="outline" onPress={() => sigPadRef.current?.clearSignature()} /></View>
-              <View style={{ flex: 2 }}><Button title="Done" onPress={() => sigPadRef.current?.readSignature()} /></View>
+      {/* Dealer selection is a separate full-screen page so no Receive Form
+          controls remain visible while searching or choosing a dealer. */}
+      <Modal
+        visible={showDealerPick && !isDealerPortalUser}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setShowDealerPick(false)}
+      >
+        <View style={[styles.dealerPickerScreen, { backgroundColor: colors.background }]}>
+          <View style={[styles.dealerPickerHeader, { paddingTop: topPad + 8, borderBottomColor: colors.border }]}>
+            <TouchableOpacity
+              onPress={() => setShowDealerPick(false)}
+              style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}
+              accessibilityLabel="Close dealer selection"
+            >
+              <Feather name="arrow-left" size={20} color={colors.foreground} />
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Select Dealer</Text>
+              <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>Search and link a dealer to this repair</Text>
             </View>
           </View>
+
+          <View style={{ padding: 16, paddingBottom: 8 }}>
+            <Input
+              label="Search dealers"
+              value={dealerSearch}
+              onChangeText={setDealerSearch}
+              placeholder="Search by name, code, shop or mobile"
+              leftIcon="search"
+              autoFocus
+            />
+          </View>
+
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 24, gap: 8 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {filteredDealers.length > 0 ? filteredDealers.map((d) => {
+              const active = dealerId === d.id;
+              return (
+                <TouchableOpacity
+                  key={d.id}
+                  onPress={() => {
+                    setDealerId(active ? null : d.id);
+                    setAutoDetected(false);
+                    setDealerCleared(active);
+                    if (!active) fillFromDealer(d);
+                    setShowDealerPick(false);
+                  }}
+                  activeOpacity={0.8}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 12,
+                    borderWidth: 1, backgroundColor: active ? colors.primary + '15' : colors.card,
+                    borderColor: active ? colors.primary : colors.border,
+                  }}
+                >
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.primary + '15' }}>
+                    <Text style={{ fontSize: 11, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{d.dealerCode}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{d.name}</Text>
+                    {!!d.shopName && <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{d.shopName}</Text>}
+                    <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{d.mobile}</Text>
+                  </View>
+                  {active && <Feather name="check" size={17} color={colors.primary} />}
+                </TouchableOpacity>
+              );
+            }) : (
+              <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                <Feather name="users" size={28} color={colors.mutedForeground} />
+                <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginTop: 10 }}>
+                  {dealerSearch.trim() ? 'No matching dealers' : 'No dealers yet'}
+                </Text>
+                <Text style={{ color: colors.mutedForeground, fontSize: 12, textAlign: 'center', marginTop: 4 }}>
+                  {dealerSearch.trim() ? 'Try another name, code, shop or mobile.' : 'Add a dealer to link it to this repair.'}
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              onPress={() => {
+                setShowDealerPick(false);
+                router.push('/(tabs)/repairs/dealer-new');
+              }}
+              style={[styles.addDealerButton, { borderColor: colors.primary + '55', backgroundColor: colors.primary + '0D' }]}
+            >
+              <Feather name="plus-circle" size={17} color={colors.primary} />
+              <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Add New Dealer</Text>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
       </Modal>
 
@@ -1384,8 +1410,22 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16 },
   scroll: { paddingHorizontal: 12, paddingTop: 8 },
   section: { gap: 10 },
+  estimateRow: { flexDirection: 'row', gap: 10 },
+  estimateColumn: { flex: 1, minWidth: 0, gap: 7 },
+  estimateLabel: { fontSize: 12, lineHeight: 16, letterSpacing: 0.1 },
+  threeColumnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  compactField: { flex: 1, minWidth: 0, gap: 7 },
+  compactFieldLabel: { fontSize: 11, lineHeight: 16 },
+  compactToggle: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 0, borderRadius: 9, borderWidth: 1 },
+  compactToggleLabel: { flex: 1, minWidth: 0, fontSize: 11, lineHeight: 16 },
+  customerHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   sectionHeader: { borderLeftWidth: 2, paddingLeft: 8, marginTop: 4, marginBottom: 2 },
   sectionTitle: { fontSize: 14 },
+  dealerLinkButton: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '52%', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, borderWidth: 1 },
+  dealerLinkLabel: { fontSize: 12, flexShrink: 1 },
+  dealerPickerScreen: { flex: 1 },
+  dealerPickerHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1 },
+  addDealerButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 13, marginTop: 8, borderRadius: 11, borderWidth: 1 },
   checklistGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   sectionToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10, borderWidth: 1 },
   sectionToggleLabel: { fontSize: 13, flex: 1 },

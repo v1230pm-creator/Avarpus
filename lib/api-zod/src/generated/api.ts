@@ -214,6 +214,7 @@ export const authMeUpdateBodyProfileLinksItemMax = 2048;
 export const authMeUpdateBodyProfileLinksMax = 8;
 
 
+
 export const AuthMeUpdateBody = zod.object({
   "name": zod.string().optional(),
   "mobile": zod.string().optional(),
@@ -283,6 +284,7 @@ export const shopSetupRequestCreateBodyAddressMin = 3;
 export const shopSetupRequestCreateBodyAddressMax = 500;
 
 export const shopSetupRequestCreateBodyGstNumberMax = 15;
+
 
 
 export const ShopSetupRequestCreateBody = zod.object({
@@ -1152,6 +1154,7 @@ export const customersKhataTransactionsCreateBodyNoteMax = 2000;
 
 export const customersKhataTransactionsCreateBodyBookDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 export const customersKhataTransactionsCreateBodyClientRequestIdMax = 200;
+
 
 
 export const CustomersKhataTransactionsCreateBody = zod.object({
@@ -3768,6 +3771,7 @@ export const ChatCapabilitiesResponse = zod.object({
 export const chatContactsMatchBodyPhonesMax = 50;
 
 
+
 export const ChatContactsMatchBody = zod.object({
   "phone": zod.string().optional().describe('One exact Indian phone number.'),
   "phones": zod.array(zod.string()).max(chatContactsMatchBodyPhonesMax).optional().describe('Exact Indian phone numbers read with device contact permission.')
@@ -3821,7 +3825,10 @@ export const ChatRoomsListResponse = zod.object({
   "clientRequestId": zod.string().optional(),
   "deletedAt": zod.string().optional(),
   "createdAt": zod.string()
-}).optional()
+}).optional(),
+  "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
+  "peerOnline": zod.boolean().optional().describe('True while the other member has synced the application recently.'),
+  "peerLastSeenAt": zod.coerce.date().optional().describe('Last time the other member synced the application.')
 }))
 })
 
@@ -3872,7 +3879,10 @@ export const ChatRoomsCreateResponse = zod.object({
   "clientRequestId": zod.string().optional(),
   "deletedAt": zod.string().optional(),
   "createdAt": zod.string()
-}).optional()
+}).optional(),
+  "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
+  "peerOnline": zod.boolean().optional().describe('True while the other member has synced the application recently.'),
+  "peerLastSeenAt": zod.coerce.date().optional().describe('Last time the other member synced the application.')
 }),
   "created": zod.boolean()
 })
@@ -3918,7 +3928,10 @@ export const ChatRoomsGetResponse = zod.object({
   "clientRequestId": zod.string().optional(),
   "deletedAt": zod.string().optional(),
   "createdAt": zod.string()
-}).optional()
+}).optional(),
+  "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
+  "peerOnline": zod.boolean().optional().describe('True while the other member has synced the application recently.'),
+  "peerLastSeenAt": zod.coerce.date().optional().describe('Last time the other member synced the application.')
 })
 })
 
@@ -3959,6 +3972,7 @@ export const ChatReportsCreateParams = zod.object({
 export const chatReportsCreateBodyClientRequestIdMax = 200;
 
 export const chatReportsCreateBodyDetailsMax = 1000;
+
 
 
 export const ChatReportsCreateBody = zod.object({
@@ -4018,6 +4032,7 @@ export const ChatMessagesSendParams = zod.object({
 })
 
 export const chatMessagesSendBodyDurationMsMax = 600000;
+
 
 
 export const ChatMessagesSendBody = zod.object({
@@ -4255,4 +4270,5 @@ export const StatusesViewersListResponse = zod.object({
   "viewedAt": zod.coerce.date()
 }))
 })
+
 

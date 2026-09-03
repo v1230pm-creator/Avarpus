@@ -20,3 +20,12 @@ All four tabs are views over the same repairs table (same VMC-xxx ticket); After
 - STAGE_INCOMPLETE (409, with `missing[]`) blocks forward moves until required saved work exists: rank1 intake fields, rank2 diagnosis+workPerformed, rank3 non-empty all-Pass checklist.
 - POST /repairs ignores client status — always starts at 'received' (no create-as-delivered).
 - Tests that deliver a repair must walk received→repairing(+diag/work)→testing(+all-pass checklist)→ready→delivered.
+
+## Mobile stage and delivery UX
+- The repair detail primary action lives at the end of the scroll content and names its destination: Continue as Repairing/Testing/Ready, then Continue to Deliver.
+- Intake and delivery do not capture signatures. Delivery does not use OTP verification.
+- Continue to Deliver opens the financial decision: an outstanding balance must be explicitly left as Due or recorded as Mark as Paid; an already-paid repair completes directly.
+
+**Why:** staff need one predictable forward action per stage, with payment posting deferred until delivery and no signature/OTP handover friction.
+
+**How to apply:** do not restore fixed payment buttons, intake/delivery signature capture, or delivery OTP in mobile repair screens; preserve estimate-approval OTP as a separate workflow.

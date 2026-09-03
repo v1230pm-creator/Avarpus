@@ -7,6 +7,7 @@
  */
 import type { ChatMessage } from './chatMessage';
 import type { ChatRoomKind } from './chatRoomKind';
+import type { ChatRoomLastMessageStatus } from './chatRoomLastMessageStatus';
 import type { ChatRoomScope } from './chatRoomScope';
 
 export interface ChatRoom {
@@ -35,4 +36,10 @@ export interface ChatRoom {
   createdAt: string;
   unreadCount?: number;
   lastMessage?: ChatMessage;
+  /** Receipt state for the latest message when it was sent by the current caller. */
+  lastMessageStatus?: ChatRoomLastMessageStatus;
+  /** True while the other member has synced the application recently. */
+  peerOnline?: boolean;
+  /** Last time the other member synced the application. */
+  peerLastSeenAt?: Date;
 }

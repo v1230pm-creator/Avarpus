@@ -221,21 +221,46 @@ export function computeLedgerTotals(ledger: LedgerEntry[]): KhataTotals {
 
 export interface LedgerPartySummary {
   partyId: string;
+  partyIds: string[];
   partyName: string;
   partyType: KhataPartyType;
   balance: number;
   lastActivity: string;
 }
 
+function normalisePartyName(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-IN');
+}
+
 export function groupLedgerByParty(ledger: LedgerEntry[]): LedgerPartySummary[] {
-  const seen = new Set<string>();
-  const parties: LedgerPartySummary[] = [];
+  const seenPartyIds = new Set<string>();
+  const parties = new Map<string, LedgerPartySummary>();
 
   for (const entry of ledger) {
-    if (!seen.has(entry.partyId)) {
-      seen.add(entry.partyId);
-      parties.push({
+    const sourceKey = `${entry.partyType}:${entry.partyId}`;
+    if (seenPartyIds.has(sourceKey)) continue;
+    seenPartyIds.add(sourceKey);
+
+    // Dealer records may have been created more than once for the same person.
+    // Consolidate those records by their displayed name, while customers remain
+    // keyed by account ID so unrelated people with the same name never merge.
+    const summaryKey =
+      entry.partyType === 'dealer'
+        ? `dealer:${normalisePartyName(entry.partyName)}`
+        : sourceKey;
+    const existing = parties.get(summaryKey);
+
+    if (existing) {
+      existing.partyIds.push(entry.partyId);
+      existing.balance = money(existing.balance + entry.partyBalance);
+      if (entry.date > existing.lastActivity) {
+        existing.lastActivity = entry.date;
+        existing.partyName = entry.partyName;
+      }
+    } else {
+      parties.set(summaryKey, {
         partyId: entry.partyId,
+        partyIds: [entry.partyId],
         partyName: entry.partyName,
         partyType: entry.partyType,
         balance: entry.partyBalance,
@@ -244,5 +269,5 @@ export function groupLedgerByParty(ledger: LedgerEntry[]): LedgerPartySummary[] 
     }
   }
 
-  return parties;
+  return [...parties.values()];
 }

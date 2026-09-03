@@ -27,19 +27,27 @@ export default function KhataDetailScreen() {
   const router = useRouter();
   const colors = useColors();
   const { loadAll } = useData();
-  const { type, id, name } = useLocalSearchParams<{
+  const { type, id, name, ids } = useLocalSearchParams<{
     type: KhataPartyType;
     id: string;
     name?: string;
+    ids?: string;
   }>();
   const validType = type === 'customer' || type === 'dealer' ? type : 'customer';
   const partyName = name || 'Unknown';
+  const mergedPartyIds = useMemo(
+    () =>
+      validType === 'dealer'
+        ? [...new Set([id, ...(ids?.split(',') ?? [])].filter(Boolean))]
+        : undefined,
+    [id, ids, validType],
+  );
 
   // Planned new endpoint hook
   const { data: newKhataData, isLoading: isNewLoading, refetch: refetchNew } = useCustomerKhataGet(id);
 
   // Fallback existing ledger
-  const { ledger: fallbackLedger, totals: fallbackTotals, isLoading: isFallbackLoading, error: fallbackError, reload: refetchFallback } = useKhataLedger(validType, id);
+  const { ledger: fallbackLedger, totals: fallbackTotals, isLoading: isFallbackLoading, error: fallbackError, reload: refetchFallback } = useKhataLedger(validType, id, mergedPartyIds);
 
   const [refreshing, setRefreshing] = useState(false);
   const [sheetType, setSheetType] = useState<'given' | 'received' | null>(null);

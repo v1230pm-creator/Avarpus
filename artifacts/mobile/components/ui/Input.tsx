@@ -10,6 +10,7 @@ interface InputProps extends TextInputProps {
   leftText?: string;
   rightIcon?: keyof typeof Feather.glyphMap;
   onRightIconPress?: () => void;
+  rightIconAccessibilityLabel?: string;
   containerStyle?: ViewStyle;
   isPassword?: boolean;
   dark?: boolean;
@@ -28,7 +29,7 @@ const DARK = {
 };
 
 export function Input({
-  label, error, leftIcon, leftText, rightIcon, onRightIconPress,
+  label, error, leftIcon, leftText, rightIcon, onRightIconPress, rightIconAccessibilityLabel,
   containerStyle, isPassword = false, dark = false, ...props
 }: InputProps) {
   const themeColors = useColors();
@@ -78,7 +79,11 @@ export function Input({
           </TouchableOpacity>
         )}
         {rightIcon && !isPassword && (
-          <TouchableOpacity onPress={onRightIconPress} style={styles.rightIcon}>
+          <TouchableOpacity
+            onPress={onRightIconPress}
+            style={styles.rightIcon}
+            accessibilityLabel={rightIconAccessibilityLabel}
+          >
             <Feather name={rightIcon} size={18} color={colors.mutedForeground} />
           </TouchableOpacity>
         )}
@@ -91,11 +96,11 @@ export function Input({
 }
 
 const styles = StyleSheet.create({
-  container: { gap: 6 },
-  label: { fontSize: 13 },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  leftIcon: { paddingLeft: 14, paddingRight: 10 },
-  rightIcon: { paddingHorizontal: 14 },
-  input: { flex: 1, height: 50, fontSize: 15 },
-  error: { fontSize: 12 },
+  container: { gap: 7, width: '100%' },
+  label: { fontSize: 12, lineHeight: 16, letterSpacing: 0.1 },
+  row: { minHeight: 52, flexDirection: 'row', alignItems: 'center' },
+  leftIcon: { width: 42, textAlign: 'center' },
+  rightIcon: { width: 44, height: 52, alignItems: 'center', justifyContent: 'center' },
+  input: { flex: 1, height: 50, minWidth: 0, fontSize: 15, lineHeight: 20, paddingVertical: 0 },
+  error: { fontSize: 12, lineHeight: 16, marginTop: -1 },
 });

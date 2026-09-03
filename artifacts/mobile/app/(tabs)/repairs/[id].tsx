@@ -17,7 +17,6 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
-import SignatureScreen, { SignatureViewRef } from 'react-native-signature-canvas';
 import QRCode from 'react-native-qrcode-svg';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -44,7 +43,7 @@ import {
   useRepairPaymentsList, getRepairPaymentsListQueryKey, repairPaymentsCreate, repairPaymentVoid,
   useStaffList, getStaffListQueryKey, repairAssignTechnician,
   useRepairTesting, repairTesting, useEstimateApprovalsList, getEstimateApprovalsListQueryKey, estimateApprovalsCreate,
-  estimateApprovalsDecide, deliveryOtpSend, deliveryOtpVerify, repairNotifyReady, estimateApprovalsSendOtp,
+  estimateApprovalsDecide, repairNotifyReady, estimateApprovalsSendOtp,
   repairsUpdate
 } from '@workspace/api-client-react';
 import { fetch as expoFetch } from 'expo/fetch';
@@ -110,7 +109,6 @@ export default function RepairDetailScreen() {
 
   const [updating, setUpdating] = useState(false);
   const [token, setToken] = useState<string | null>(null);
-  const [showDeliverySig, setShowDeliverySig] = useState(false);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
 
   const [showDeliveryHandover, setShowDeliveryHandover] = useState(false);
@@ -137,8 +135,6 @@ export default function RepairDetailScreen() {
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [paymentKind, setPaymentKind] = useState('partial');
   const [paymentKindTouched, setPaymentKindTouched] = useState(false);
-  // One-shot confirmation that the user chose to deliver with an outstanding due.
-  const dueAcceptedRef = useRef(false);
   const [voidTarget, setVoidTarget] = useState<{ id: string; amount: number; method: string } | null>(null);
   const [voidReason, setVoidReason] = useState('');
   const [voidSubmitting, setVoidSubmitting] = useState(false);
@@ -166,10 +162,6 @@ export default function RepairDetailScreen() {
   const [showOtp, setShowOtp] = useState(false);
   const [otpCode, setOtpCode] = useState('');
 
-  // Delivery OTP
-  const [showDeliveryOtp, setShowDeliveryOtp] = useState(false);
-  const [deliveryOtpCode, setDeliveryOtpCode] = useState('');
-
   // Warranty
   const [deliveryWarranty, setDeliveryWarranty] = useState('0');
   const [customWarrantyDays, setCustomWarrantyDays] = useState('');
@@ -186,8 +178,6 @@ export default function RepairDetailScreen() {
   const [svcTab, setSvcTab] = useState<'complaint' | 'diagnosis' | 'repairing' | 'testing' | null>(null);
 
   const qrRef = useRef<any>(null);
-  const deliverySigPadRef = useRef<SignatureViewRef>(null);
-
   useEffect(() => {
     storage.get<string>(KEYS.AUTH_TOKEN).then(setToken);
   }, []);
@@ -270,7 +260,14 @@ export default function RepairDetailScreen() {
     repair.status === 'received' ? { id: 'repairing', label: 'Repairing', desc: 'Start repairing and add diagnosis' }
     : ['diagnosing', 'waiting_parts', 'repairing'].includes(repair.status as string) ? { id: 'testing', label: 'Testing', desc: 'Move job to testing' }
     : ['testing', 'customer_approval'].includes(repair.status as string) ? { id: 'ready', label: 'Ready', desc: 'Ready for customer pickup' }
+    : repair.status === 'ready' ? { id: 'delivered', label: 'Delivered', desc: 'Complete delivery and choose Due or Mark as Paid' }
     : null;
+  const continueButtonLabel =
+    nextStep?.id === 'repairing' ? 'Continue as Repairing'
+    : nextStep?.id === 'testing' ? 'Continue as Testing'
+    : nextStep?.id === 'ready' ? 'Continue as Ready'
+    : nextStep?.id === 'delivered' ? 'Continue to Deliver'
+    : 'Continue';
 
   // Task-completion gate (mirrors the server): the next stage stays locked
   // until the current stage's required work is SAVED on the server.
@@ -479,41 +476,24 @@ export default function RepairDetailScreen() {
     }
   };
 
-  // Delivery with an outstanding balance is allowed, but only after the user
-  // explicitly accepts the due (credit) — central guard so every path into the
-  // handover/signature flow enforces the same confirmation.
-  const deliveryPaymentBlocked = () => {
-    if (payRemainingCents > 0 && !dueAcceptedRef.current) {
-      setShowDeliveryHandover(false);
-      setShowDeliverySig(false);
-      Alert.alert(
-        'Payment Pending',
-        `${formatCurrency(payRemaining)} abhi baaki hai. Poora collect karein ya due par deliver karein (due customer ke ledger mein rahega).`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Due par Deliver',
-            onPress: () => {
-              dueAcceptedRef.current = true;
-              setTimeout(() => setShowDeliveryHandover(true), 350);
-            },
-          },
-        ],
-      );
-      return true;
+  const completeDelivery = async (markPaid: boolean) => {
+    if (updating) return;
+    if (markPaid && payRemainingCents > 0 && !canSeeFinance) {
+      Alert.alert('Not Allowed', 'You do not have permission to record payments.');
+      return;
     }
-    return false;
-  };
-
-  const markDelivered = async (signatureUri: string) => {
-    if (deliveryPaymentBlocked()) return;
     setUpdating(true);
+    let paymentRecorded = false;
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const sigPath = await uploadToGcs(signatureUri, 'image/png');
-
-      if (!sigPath) {
-        throw new Error('Failed to upload delivery signature.');
+      if (markPaid && payRemainingCents > 0) {
+        await repairPaymentsCreate(repair.id, {
+          amount: payRemainingCents / 100,
+          method: handoverPaymentMethod,
+          kind: 'final',
+          note: 'Payment received at delivery',
+        });
+        paymentRecorded = true;
       }
 
       const deliveryDate = new Date().toISOString().split('T')[0];
@@ -531,12 +511,20 @@ export default function RepairDetailScreen() {
         deliveryDate,
         warrantyExpiry,
         warrantyDays: wd,
-        deliverySignaturePath: sigPath,
-        paymentMethod: handoverPaymentMethod,
+        paymentMethod: markPaid ? handoverPaymentMethod : repair.paymentMethod,
       });
+      setShowDeliveryHandover(false);
+      await paymentsRefetch();
+      await loadAll();
+      queryClient.invalidateQueries();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
-      if (err?.message?.includes('APPROVAL_REQUIRED') || err?.code === 'APPROVAL_REQUIRED') {
+      if (paymentRecorded) {
+        await paymentsRefetch();
+        await loadAll();
+        queryClient.invalidateQueries();
+        Alert.alert('Payment Saved', 'Payment save ho gaya, lekin delivery complete nahi hui. Continue to Deliver dobara tap karein.');
+      } else if (err?.message?.includes('APPROVAL_REQUIRED') || err?.code === 'APPROVAL_REQUIRED') {
          Alert.alert('Restricted', 'Dealer/Owner approval required to finalize this update.');
       } else if (err?.code === 'STAGE_INCOMPLETE' || err?.message?.includes('STAGE_INCOMPLETE')) {
          showIncompleteAlert(Array.isArray(err?.missing) ? err.missing : undefined);
@@ -545,29 +533,13 @@ export default function RepairDetailScreen() {
       }
     } finally {
       setUpdating(false);
-      setShowDeliverySig(false);
-      dueAcceptedRef.current = false;
-    }
-  };
-
-  const handleDeliverySigOK = async (signature: string) => {
-    try {
-      const path = FileSystem.cacheDirectory + `del_sig_${Date.now()}.png`;
-      await FileSystem.writeAsStringAsync(path, signature.replace('data:image/png;base64,', ''), {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      await markDelivered(path);
-    } catch (err) {
-      Alert.alert('Error', 'Failed to process signature.');
     }
   };
 
   const handleStatusUpdate = async (newStatus: string) => {
     if (newStatus === 'delivered') {
-      // Same modal-swap rule: let the status picker dismiss first.
       setShowStatusPicker(false);
-      if (deliveryPaymentBlocked()) return;
-      setTimeout(() => setShowDeliveryHandover(true), 350);
+      setShowDeliveryHandover(true);
       return;
     }
     if (updating) return;
@@ -597,15 +569,6 @@ export default function RepairDetailScreen() {
     } finally {
       setUpdating(false);
     }
-  };
-
-  const handleHandoverProceed = () => {
-    if (deliveryPaymentBlocked()) return;
-    // RN can't swap two <Modal>s in the same tick — the signature modal
-    // silently fails to appear if opened before the handover modal has
-    // finished dismissing. Close first, then open after the transition.
-    setShowDeliveryHandover(false);
-    setTimeout(() => setShowDeliverySig(true), 350);
   };
 
   const handleAddPart = async () => {
@@ -706,10 +669,22 @@ export default function RepairDetailScreen() {
     setShowServiceEdit(true);
   };
 
-  // "Continue & Save" — saves any unsaved Pass/Fail results first, then
-  // opens the status picker so the label stays honest.
+  // Save any unsaved Pass/Fail results, then continue directly to the stage
+  // named on the primary button.
   const handleContinueAndSave = async () => {
-    if (updating) return;
+    if (updating || !nextStep) return;
+    const currentMissing = stageIndex === 2
+      ? (() => {
+          const vals = Object.values(editTesting);
+          if (vals.length === 0) return ['Testing result (Pass/Fail)'];
+          if (vals.some(v => v === false)) return ['All tested items must Pass (Fail hone par Return to Repair use karein)'];
+          return [];
+        })()
+      : stageMissing;
+    if (currentMissing.length > 0) {
+      showIncompleteAlert(currentMissing);
+      return;
+    }
     if (testingEditable && testingTabDirty) {
       setUpdating(true);
       try {
@@ -735,7 +710,7 @@ export default function RepairDetailScreen() {
         return;
       }
     }
-    setShowStatusPicker(true);
+    await handleStatusUpdate(nextStep.id);
   };
 
   // Save Pass/Fail results directly from the Testing tab.
@@ -961,7 +936,7 @@ export default function RepairDetailScreen() {
         </View>
       </View>
 
-      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 24, paddingHorizontal: 16 }]} bottomOffset={24}>
+      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight + 24, paddingHorizontal: 16 }]} bottomOffset={24}>
 
         <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 16, marginBottom: 20 }}>
           
@@ -1088,14 +1063,9 @@ export default function RepairDetailScreen() {
             <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_400Regular' }}>{repair.notes || repair.diagnosis || 'No notes provided.'}</Text>
           </View>
           
-          {/* Action Buttons */}
-          <View style={{ padding: 16, flexDirection: 'row', gap: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
-            {canSeeFinance && (
-              <TouchableOpacity onPress={openPaymentModal} style={{ flex: 1, backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 12, alignItems: 'center' }}>
-                <Text style={{ color: colors.primaryForeground, fontSize: 14, fontFamily: 'Inter_600SemiBold' }}>Receive Payment</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={() => setShowMore(true)} style={{ flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingVertical: 12, alignItems: 'center' }}>
+          {/* Secondary actions */}
+          <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
+            <TouchableOpacity onPress={() => setShowMore(true)} style={{ backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingVertical: 12, alignItems: 'center' }}>
               <Text style={{ color: colors.foreground, fontSize: 14, fontFamily: 'Inter_500Medium' }}>More Actions</Text>
             </TouchableOpacity>
           </View>
@@ -1362,10 +1332,8 @@ export default function RepairDetailScreen() {
             <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
           </TouchableOpacity>
         </Card>
-      </KeyboardAwareScrollViewCompat>
-
-      {/* STICKY PRIMARY ACTIONS */}
-      <View style={[styles.actionBar, { backgroundColor: colors.background, borderTopColor: colors.border, marginBottom: tabBarHeight, paddingBottom: 12 }]}>
+      {/* PRIMARY ACTION — intentionally at the end of the scroll content */}
+      <View style={[styles.actionBar, { backgroundColor: colors.background, borderTopColor: colors.border, paddingHorizontal: 0, paddingBottom: 12 }]}>
         {repair.status === 'delivered' ? (
           isDealer ? (
             <View>
@@ -1428,84 +1396,18 @@ export default function RepairDetailScreen() {
               </View>
             )}
           </View>
-        ) : repair.status === 'ready' ? (
-          // READY: Mark as Delivered stays hidden until payment is fully collected.
-          payRemainingCents > 0 ? (
-            <View>
-              {canSeeFinance ? (
-                <Button title="Receive Payment" onPress={openPaymentModal} />
-              ) : (
-                <View style={[styles.paidChip, { backgroundColor: colors.warning + '15', borderColor: colors.warning + '44', paddingVertical: 12, paddingHorizontal: 16 }]}>
-                  <Feather name="clock" size={15} color={colors.warning} />
-                  <Text style={{ fontSize: 14, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>Payment Pending</Text>
-                </View>
-              )}
-              <Text style={{ fontSize: 12, color: colors.mutedForeground, textAlign: 'center', marginTop: 6, fontFamily: 'Inter_400Regular' }}>
-                {formatCurrency(payRemaining)} baaki hai — poora collect karein ya due par deliver karein
-              </Text>
-              {canUpdateStatus && (
-                <View style={{ marginTop: 8 }}>
-                  <Button
-                    title={`Deliver with Due (${formatCurrency(payRemaining)})`}
-                    variant="outline"
-                    onPress={() => {
-                      Alert.alert(
-                        'Deliver with Due',
-                        `${formatCurrency(payRemaining)} due rahega aur customer ke ledger mein dikhega. Device deliver karein?`,
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Haan, Deliver Karein', onPress: () => { dueAcceptedRef.current = true; setShowDeliveryHandover(true); } },
-                        ],
-                      );
-                    }}
-                  />
-                </View>
-              )}
-            </View>
-          ) : (
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={[styles.paidChip, { backgroundColor: colors.success + '18', borderColor: colors.success + '44', flex: 2, paddingVertical: 12 }]}>
-                <Feather name="check" size={15} color={colors.success} />
-                <Text style={{ fontSize: 14, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>Paid ✓</Text>
-              </View>
-              {canUpdateStatus && (
-                <View style={{ flex: 3 }}>
-                  <Button
-                    title="Mark as Delivered"
-                    onPress={() => {
-                      Alert.alert('Confirm Delivery', 'Has the customer received the device?', [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Confirm Delivery', onPress: () => setShowDeliveryHandover(true) },
-                      ]);
-                    }}
-                  />
-                </View>
-              )}
-            </View>
-          )
         ) : (
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            {/* Receive Payment on the LEFT, Continue & Save on the RIGHT */}
-            {canSeeFinance && (
-              (payRemaining <= 0 && payTotal > 0) ? (
-                <View style={[styles.paidChip, { backgroundColor: colors.success + '18', borderColor: colors.success + '44', flex: 2 }]}>
-                  <Feather name="check" size={15} color={colors.success} />
-                  <Text style={{ fontSize: 14, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>Paid ✓</Text>
-                </View>
-              ) : (
-                <View style={{ flex: 2 }}>
-                  <Button title="Receive Payment" variant={canUpdateStatus ? 'outline' : undefined} onPress={openPaymentModal} />
-                </View>
-              )
-            )}
-            {canUpdateStatus && (
-              <View style={{ flex: 3 }}>
-                <Button title="Continue & Save" onPress={handleContinueAndSave} loading={updating} />
-              </View>
-            )}
-          </View>
+          canUpdateStatus && nextStep ? (
+            <Button
+              title={continueButtonLabel}
+              onPress={handleContinueAndSave}
+              loading={updating}
+              fullWidth
+            />
+          ) : null
         )}
       </View>
+      </KeyboardAwareScrollViewCompat>
 
       {/* Update Status — next step only */}
       <Modal visible={showStatusPicker} animationType="slide" transparent onRequestClose={() => setShowStatusPicker(false)}>
@@ -1533,7 +1435,7 @@ export default function RepairDetailScreen() {
                 </Text>
               </TouchableOpacity>
             ) : (
-              <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 12 }}>No further status. Use Mark as Delivered.</Text>
+              <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 12 }}>No further status available.</Text>
             )}
             {isActiveRepair && (user?.role === 'dealer' || user?.role === 'super_admin') && (
               <TouchableOpacity
@@ -1700,11 +1602,6 @@ export default function RepairDetailScreen() {
                   <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Due</Text>
                   <Text style={{ fontSize: 18, color: payRemaining > 0 ? colors.warning : colors.success, fontFamily: 'Inter_700Bold' }}>{formatCurrency(payRemaining)}</Text>
                 </View>
-                {payRemaining > 0 && (
-                  <View style={{ marginTop: 10 }}>
-                    <Button title="Receive Payment" onPress={openPaymentModal} />
-                  </View>
-                )}
               </Card>
             )}
 
@@ -1935,48 +1832,49 @@ export default function RepairDetailScreen() {
         </View>
       </Modal>
 
-      {/* Delivery Handover Modal */}
+      {/* Delivery payment decision */}
       <Modal visible={showDeliveryHandover} animationType="fade" transparent onRequestClose={() => setShowDeliveryHandover(false)}>
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.foreground, marginBottom: 4 }]}>Delivery Handover</Text>
-
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.primary + '11', padding: 12, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: colors.primary + '22' }}>
-              <Feather name="check-circle" size={16} color={colors.primary} />
-              <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_600SemiBold', flex: 1 }}>Verify device fully working before handover</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.modalTitle, { color: colors.foreground, marginBottom: 2 }]}>Complete Delivery</Text>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Choose how to close the remaining balance.</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowDeliveryHandover(false)} style={styles.backBtn}>
+                <Feather name="x" size={20} color={colors.foreground} />
+              </TouchableOpacity>
             </View>
-
-            <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 16 }}>Review final amounts and collect payment before signature.</Text>
 
             {canSeeFinance && (
               <View style={{ backgroundColor: colors.card, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 16 }}>
-                <InfoRow label="Labour / Repair Charge" value={formatCurrency(repair.repairCharge)} />
-                <InfoRow label="Parts Charge" value={formatCurrency(repair.partsCharge)} />
+                <InfoRow label="Bill Amount" value={formatCurrency(payTotal)} />
+                <InfoRow label="Paid" value={formatCurrency(payPaid)} color={colors.success} />
                 <View style={styles.divider} />
-                <InfoRow label="Total" value={formatCurrency(repair.repairCharge + repair.partsCharge)} />
-                <InfoRow label="Advance Paid" value={formatCurrency(repair.advance)} color={colors.success} />
-                <View style={styles.divider} />
-                <InfoRow label="Balance Payable" value={formatCurrency(balance)} color={balance > 0 ? colors.warning : colors.success} bold />
+                <InfoRow label="Balance" value={formatCurrency(payRemaining)} color={payRemaining > 0 ? colors.warning : colors.success} bold />
               </View>
             )}
 
-            <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_500Medium', marginBottom: 8 }}>Payment Method</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-              {['Cash', 'UPI', 'Bank Transfer', 'Card', 'Other'].map(m => (
-                <TouchableOpacity
-                  key={m}
-                  onPress={() => setHandoverPaymentMethod(m)}
-                  style={{
-                    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
-                    borderWidth: 1, borderColor: handoverPaymentMethod === m ? colors.primary : colors.border,
-                    backgroundColor: handoverPaymentMethod === m ? colors.primary + '22' : colors.card
-                  }}
-                >
-                  <Text style={{ fontSize: 13, color: handoverPaymentMethod === m ? colors.primary : colors.foreground }}>{m}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
+            {payRemainingCents > 0 && canSeeFinance && (
+              <>
+                <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_500Medium', marginBottom: 8 }}>Payment Method</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+                  {['Cash', 'UPI', 'Bank Transfer', 'Card', 'Other'].map(m => (
+                    <TouchableOpacity
+                      key={m}
+                      onPress={() => setHandoverPaymentMethod(m)}
+                      style={{
+                        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
+                        borderWidth: 1, borderColor: handoverPaymentMethod === m ? colors.primary : colors.border,
+                        backgroundColor: handoverPaymentMethod === m ? colors.primary + '22' : colors.card
+                      }}
+                    >
+                      <Text style={{ fontSize: 13, color: handoverPaymentMethod === m ? colors.primary : colors.foreground }}>{m}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
 
             <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_500Medium', marginBottom: 8 }}>Warranty (Days)</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
@@ -2010,17 +1908,16 @@ export default function RepairDetailScreen() {
               </View>
             )}
 
-            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
-              <Button title="Cancel" variant="outline" onPress={() => setShowDeliveryHandover(false)} style={{ flex: 1 }} />
-              <Button title="Send OTP" variant="outline" onPress={async () => {
-                try {
-                  await deliveryOtpSend(repair.id);
-                  setShowDeliveryHandover(false);
-                  setTimeout(() => setShowDeliveryOtp(true), 350);
-                } catch(e: any) { Alert.alert('Error', e.message); }
-              }} style={{ flex: 1 }} />
-            </View>
-            <Button title="Proceed to Signature (No OTP)" onPress={handleHandoverProceed} style={{ width: '100%' }} />
+            {payRemainingCents > 0 ? (
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <Button title="Due" variant="outline" onPress={() => completeDelivery(false)} loading={updating} style={{ flex: 1 }} />
+                {canSeeFinance && (
+                  <Button title="Mark as Paid" onPress={() => completeDelivery(true)} loading={updating} style={{ flex: 1 }} />
+                )}
+              </View>
+            ) : (
+              <Button title="Complete Delivery" onPress={() => completeDelivery(false)} loading={updating} fullWidth />
+            )}
 
           </View>
         </KeyboardAvoidingCompat>
@@ -2491,96 +2388,6 @@ export default function RepairDetailScreen() {
                 style={{ flex: 1 }}
               />
               <Button title={dealerDeliveredEdit ? 'Save Changes' : 'Update Status'} onPress={handleSaveService} loading={updating} style={{ flex: 1 }} />
-            </View>
-          </View>
-        </KeyboardAvoidingCompat>
-      </Modal>
-
-      {/* Delivery Signature Modal */}
-      <Modal visible={showDeliverySig} animationType="slide" transparent onRequestClose={() => setShowDeliverySig(false)}>
-        <View style={[styles.modalOverlay, { backgroundColor: colors.background, padding: 0, justifyContent: 'flex-start' }]}>
-          <View style={[styles.sigScreen, { paddingTop: topPad + 8 }]}>
-            <View style={styles.sigHeaderRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Delivery Signature</Text>
-                <Text style={[styles.sigSubtitle, { color: colors.mutedForeground }]}>Customer signs below to confirm receipt of the device</Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowDeliverySig(false)} style={[styles.sigCloseBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Feather name="x" size={20} color={colors.foreground} />
-              </TouchableOpacity>
-            </View>
-            <View style={[styles.sigCard, { borderColor: colors.border }]}>
-              <SignatureScreen
-                ref={deliverySigPadRef}
-                onOK={handleDeliverySigOK}
-                onEmpty={() => Alert.alert('Empty', 'Please provide a signature')}
-                descriptionText=""
-                webStyle={`.m-signature-pad {box-shadow: none; border: none; height: 100%; margin: 0;}
-                            .m-signature-pad--body {border: none; height: 100%;}
-                            .m-signature-pad--footer {display: none;}
-                            body,html {height: 100%; margin: 0;}`
-                        }
-              />
-              <View pointerEvents="none" style={styles.sigBaseline}>
-                <Feather name="edit-3" size={14} color="#9CA3AF" />
-                <Text style={styles.sigBaselineText}>Sign here</Text>
-              </View>
-            </View>
-            <View style={styles.sigFooterRow}>
-              <View style={{ flex: 1 }}><Button title="Clear" variant="outline" onPress={() => deliverySigPadRef.current?.clearSignature()} /></View>
-              <View style={{ flex: 2 }}><Button title="Done" onPress={() => deliverySigPadRef.current?.readSignature()} /></View>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-
-      {/* Delivery OTP Modal */}
-      <Modal visible={showDeliveryOtp} animationType="slide" transparent onRequestClose={() => setShowDeliveryOtp(false)}>
-        <KeyboardAvoidingCompat style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Verify Delivery OTP</Text>
-            <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 16 }}>Sent to customer email.</Text>
-
-            <TextInput value={deliveryOtpCode} onChangeText={setDeliveryOtpCode} keyboardType="numeric" style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} placeholder="OTP Code" />
-
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-              <Button title="Cancel" variant="outline" onPress={() => setShowDeliveryOtp(false)} style={{ flex: 1 }} />
-              <Button title="Verify & Deliver" onPress={async () => {
-                if (!deliveryOtpCode) return;
-                setUpdating(true);
-                try {
-                  await deliveryOtpVerify(repair.id, { code: deliveryOtpCode });
-
-                  // Setup warranty
-                  const deliveryDate = new Date().toISOString().split('T')[0];
-                  let warrantyExpiry = undefined;
-                  const wd = deliveryWarranty === 'Custom' ? parseInt(customWarrantyDays || '0') : parseInt(deliveryWarranty);
-                  if (wd > 0) {
-                    const exp = new Date();
-                    exp.setDate(exp.getDate() + wd);
-                    warrantyExpiry = exp.toISOString().split('T')[0];
-                  }
-
-                  await updateRepair({
-                    ...repair,
-                    status: 'delivered',
-                    deliveryDate,
-                    warrantyExpiry,
-                    warrantyDays: wd,
-                    paymentMethod: handoverPaymentMethod,
-                    otpVerified: true
-                  });
-
-                  setShowDeliveryOtp(false);
-                  await loadAll();
-                  queryClient.invalidateQueries();
-                } catch (e: any) {
-                  Alert.alert('Error', e.message);
-                } finally {
-                  setUpdating(false);
-                }
-              }} loading={updating} style={{ flex: 1 }} />
             </View>
           </View>
         </KeyboardAvoidingCompat>
