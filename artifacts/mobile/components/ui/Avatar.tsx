@@ -37,6 +37,7 @@ export function Avatar({ name, url, size = 40, style, variant = 'solid' }: Avata
   }, [url]);
 
   useEffect(() => {
+    setToken(null);
     if (!url?.startsWith('/objects/')) return;
     storage.get<string>(KEYS.AUTH_TOKEN).then(setToken).catch(() => setToken(null));
   }, [url]);
@@ -58,12 +59,14 @@ export function Avatar({ name, url, size = 40, style, variant = 'solid' }: Avata
         ]}
       >
         <Image
+          key={`${url}:${token ?? 'pending'}`}
           source={{
             uri: imageUrl ?? url,
             ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
           }}
           style={{ width: size, height: size }}
           contentFit="cover"
+          cachePolicy="none"
         />
       </View>
     );
