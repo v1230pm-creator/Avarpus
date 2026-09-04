@@ -13,6 +13,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
@@ -395,7 +396,9 @@ export function SplashIntro({
   useEffect(() => {
     if (!backgroundReady || !markReady || revealStarted.current) return;
     revealStarted.current = true;
-    SplashScreen.setOptions({ duration: 0, fade: false });
+    if (Constants.executionEnvironment !== ExecutionEnvironment.StoreClient) {
+      SplashScreen.setOptions({ duration: 0, fade: false });
+    }
     SplashScreen.hideAsync()
       .catch(() => undefined)
       .finally(() => {
