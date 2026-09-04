@@ -302,19 +302,22 @@ describe("POST /api/auth/otp/request", () => {
     expect(res.body.message).toMatch(/valid Indian mobile/i);
   });
 
-  it("still returns 200 when Hanu send fails (provider failure never leaks)", async () => {
+  it("returns a delivery error and invalidates the local code when Hanu send fails", async () => {
     mockHanuSend.mockResolvedValueOnce({ ok: false, reason: "Hanu down" });
     const res = await request(app)
       .post("/api/auth/otp/request")
       .send({ mobile: PROVIDER_FAILURE_MOBILE });
-    expect(res.status).toBe(200);
-    expect(res.body.message).toMatch(/if this mobile/i);
-    await vi.waitFor(() =>
-      expect(mockHanuSend).toHaveBeenCalledWith(
-        PROVIDER_FAILURE_MOBILE,
-        expect.stringMatching(/^\d{6}$/),
-      ),
+    expect(res.status).toBe(502);
+    expect(res.body.message).toMatch(/could not send/i);
+    expect(mockHanuSend).toHaveBeenCalledWith(
+      PROVIDER_FAILURE_MOBILE,
+      expect.stringMatching(/^\d{6}$/),
     );
+    const rows = await db
+      .select({ id: otpCodesTable.id })
+      .from(otpCodesTable)
+      .where(eq(otpCodesTable.identifier, PROVIDER_FAILURE_MOBILE));
+    expect(rows).toHaveLength(0);
   });
 });
 
@@ -348,12 +351,18 @@ describe("POST /api/auth/otp/resend", () => {
     );
   });
 
-  it("still returns 200 when Hanu resend fails", async () => {
+  it("returns a delivery error and invalidates the local code when Hanu resend fails", async () => {
     mockHanuSend.mockResolvedValueOnce({ ok: false, reason: "provider unavailable" });
     const res = await request(app)
       .post("/api/auth/otp/resend")
       .send({ mobile: MOBILE });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(502);
+    expect(res.body.message).toMatch(/could not resend/i);
+    const rows = await db
+      .select({ id: otpCodesTable.id })
+      .from(otpCodesTable)
+      .where(eq(otpCodesTable.identifier, MOBILE));
+    expect(rows).toHaveLength(0);
   });
 
   it("rejects an invalid mobile format with 400", async () => {
