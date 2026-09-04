@@ -36,10 +36,9 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { requireRole } from "../middlewares/requireRole";
 import { asyncHandler } from "../lib/asyncHandler";
 import {
-  getHanuOtpStatus,
-  hanuSendOtp,
   normaliseIndianMobile,
 } from "../lib/hanuOtp";
+import { getMsg91OtpStatus, msg91SendOtp } from "../lib/msg91Otp";
 import { ObjectStorageService } from "../lib/objectStorage";
 import {
   claimPendingUpload,
@@ -81,7 +80,7 @@ router.post("/auth/otp/request", asyncHandler(async (req, res) => {
     res.status(400).json({ message: "A valid Indian mobile number is required" });
     return;
   }
-  if (!getHanuOtpStatus().configured) {
+  if (!getMsg91OtpStatus().configured) {
     res.status(503).json({
       message: "SMS verification is temporarily unavailable. Please try again later.",
     });
@@ -98,10 +97,10 @@ router.post("/auth/otp/request", asyncHandler(async (req, res) => {
     return;
   }
   const code = await createOtp(mobile, "login");
-  const result = await hanuSendOtp(mobile, code);
+  const result = await msg91SendOtp(mobile, code);
   if (!result.ok) {
     await invalidateOtp(mobile, "login");
-    req.log.warn({ providerReason: result.reason }, "Hanu OTP send failed");
+    req.log.warn({ providerReason: result.reason }, "MSG91 OTP send failed");
     res.status(502).json({
       message: "Could not send the SMS verification code. Please try again shortly.",
     });
@@ -112,7 +111,7 @@ router.post("/auth/otp/request", asyncHandler(async (req, res) => {
       providerMessage: result.providerMessage,
       providerReference: result.providerReference,
     },
-    "Hanu OTP request accepted",
+    "MSG91 OTP request accepted",
   );
   res.json({
     message: "If this mobile number is valid, a verification code has been sent.",
@@ -131,7 +130,7 @@ router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
     res.status(400).json({ message: "A valid Indian mobile number is required" });
     return;
   }
-  if (!getHanuOtpStatus().configured) {
+  if (!getMsg91OtpStatus().configured) {
     res.status(503).json({
       message: "SMS verification is temporarily unavailable. Please try again later.",
     });
@@ -148,10 +147,10 @@ router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
     return;
   }
   const code = await createOtp(mobile, "login");
-  const result = await hanuSendOtp(mobile, code);
+  const result = await msg91SendOtp(mobile, code);
   if (!result.ok) {
     await invalidateOtp(mobile, "login");
-    req.log.warn({ providerReason: result.reason }, "Hanu OTP resend failed");
+    req.log.warn({ providerReason: result.reason }, "MSG91 OTP resend failed");
     res.status(502).json({
       message: "Could not resend the SMS verification code. Please try again shortly.",
     });
@@ -162,7 +161,7 @@ router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
       providerMessage: result.providerMessage,
       providerReference: result.providerReference,
     },
-    "Hanu OTP resend accepted",
+    "MSG91 OTP resend accepted",
   );
   res.json({
     message: "If this mobile number is valid, a new code has been sent.",
@@ -204,7 +203,7 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
     return;
   }
   if (attempt.status === "provider_error") {
-    req.log.error("Unexpected error verifying Hanu OTP");
+    req.log.error("Unexpected error verifying SMS OTP");
   }
   if (attempt.status !== "approved") {
     // Use a generic message to avoid leaking whether provider rejected the code
@@ -311,7 +310,7 @@ router.get(
   requireAuth,
   requireRole("super_admin"),
   (_req, res) => {
-    res.json(getHanuOtpStatus());
+    res.json(getMsg91OtpStatus());
   },
 );
 
