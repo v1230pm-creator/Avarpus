@@ -2,11 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getHanuOtpStatus, hanuSendOtp } from "./hanuOtp";
 
 const ORIGINAL_API_KEY = process.env["HANU_OTP_API_KEY"];
-const ORIGINAL_TEMPLATE = process.env["HANU_OTP_TEMPLATE_ID"];
 
 beforeEach(() => {
   process.env["HANU_OTP_API_KEY"] = "test-hanu-key";
-  delete process.env["HANU_OTP_TEMPLATE_ID"];
 });
 
 afterEach(() => {
@@ -14,12 +12,10 @@ afterEach(() => {
   vi.useRealTimers();
   if (ORIGINAL_API_KEY === undefined) delete process.env["HANU_OTP_API_KEY"];
   else process.env["HANU_OTP_API_KEY"] = ORIGINAL_API_KEY;
-  if (ORIGINAL_TEMPLATE === undefined) delete process.env["HANU_OTP_TEMPLATE_ID"];
-  else process.env["HANU_OTP_TEMPLATE_ID"] = ORIGINAL_TEMPLATE;
 });
 
 describe("hanuSendOtp", () => {
-  it("sends the local Indian number, OTP, API key, and template to Hanu", async () => {
+  it("sends the country-coded Indian number, OTP, and API key to Hanu", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ status: "success", message: "OTP sent" }), {
         status: 200,
@@ -36,10 +32,10 @@ describe("hanuSendOtp", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const calledUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
     expect(calledUrl.origin + calledUrl.pathname).toBe("https://api.hanuotp.in/sms-otp.php");
-    expect(calledUrl.searchParams.get("number")).toBe("9876543210");
+    expect(calledUrl.searchParams.get("number")).toBe("919876543210");
     expect(calledUrl.searchParams.get("OTP")).toBe("123456");
     expect(calledUrl.searchParams.get("apikey")).toBe("test-hanu-key");
-    expect(calledUrl.searchParams.get("templatesid")).toBe("default");
+    expect(calledUrl.searchParams.has("templatesid")).toBe(false);
   });
 
   it.each([
@@ -79,18 +75,23 @@ describe("hanuSendOtp", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("uses an explicitly configured template instead of the provider default", async () => {
-    process.env["HANU_OTP_TEMPLATE_ID"] = "template-123";
+  it("accepts Hanu's documented return/message/request_id response", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ status: "success" })),
+      new Response(
+        JSON.stringify({
+          return: true,
+          request_id: "request-123",
+          message: ["SMS OTP sent successfully."],
+        }),
+      ),
     );
     await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({
       ok: true,
-      providerMessage: "success",
-      providerReference: null,
+      providerMessage: "SMS OTP sent successfully.",
+      providerReference: "request-123",
     });
     const calledUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
-    expect(calledUrl.searchParams.get("templatesid")).toBe("template-123");
+    expect(calledUrl.searchParams.get("number")).toBe("919876543210");
   });
 
   it("does not allow an environment override to redirect credentials", async () => {
@@ -139,7 +140,6 @@ describe("getHanuOtpStatus", () => {
       provider: "Hanu OTP",
       configured: true,
       endpoint: "https://api.hanuotp.in/sms-otp.php",
-      templateId: "default",
       apiKeyConfigured: true,
     });
     expect(JSON.stringify(status)).not.toContain("test-hanu-key");

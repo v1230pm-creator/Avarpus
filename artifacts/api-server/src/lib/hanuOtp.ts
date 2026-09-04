@@ -5,7 +5,6 @@
 // logged.
 
 const HANU_OTP_ENDPOINT = "https://api.hanuotp.in/sms-otp.php";
-const HANU_DEFAULT_TEMPLATE_ID = "default";
 const FETCH_TIMEOUT_MS = 10_000;
 
 export function normaliseIndianMobile(raw: string): string | null {
@@ -21,11 +20,6 @@ function apiKey(): string | null {
   return key || null;
 }
 
-function templateId(): string | null {
-  const value = process.env["HANU_OTP_TEMPLATE_ID"]?.trim();
-  return value || HANU_DEFAULT_TEMPLATE_ID;
-}
-
 export type HanuOtpResult =
   | { ok: true; providerMessage: string; providerReference: string | null }
   | { ok: false; reason: string };
@@ -34,17 +28,14 @@ export type HanuOtpStatus = {
   provider: "Hanu OTP";
   configured: boolean;
   endpoint: string;
-  templateId: string | null;
   apiKeyConfigured: boolean;
 };
 
 export function getHanuOtpStatus(): HanuOtpStatus {
-  const configuredTemplateId = templateId();
   return {
     provider: "Hanu OTP",
     configured: Boolean(apiKey()),
     endpoint: HANU_OTP_ENDPOINT,
-    templateId: configuredTemplateId,
     apiKeyConfigured: Boolean(apiKey()),
   };
 }
@@ -55,6 +46,12 @@ function safeResponseMessage(body: unknown): string {
   }
   if (body && typeof body === "object") {
     const data = body as Record<string, unknown>;
+    if (Array.isArray(data["message"])) {
+      const firstMessage = data["message"].find(
+        (value) => typeof value === "string" && value.trim(),
+      );
+      if (typeof firstMessage === "string") return firstMessage.slice(0, 160);
+    }
     for (const key of ["message", "error", "status"]) {
       if (typeof data[key] === "string" && data[key].trim()) {
         return data[key].slice(0, 160);
@@ -70,6 +67,7 @@ function responseIsSuccessful(body: unknown): boolean {
   return (
     data["status"] === "success" ||
     data["status"] === "ok" ||
+    data["return"] === true ||
     data["success"] === true ||
     data["message"] === "success"
   );
@@ -99,7 +97,7 @@ function safeSuccessDetails(body: unknown): {
 
 /**
  * Send the supplied six-digit OTP to a local 10-digit Indian mobile.
- * Hanu expects the mobile number without the +91 country prefix.
+ * Hanu's SMS API requires international format with the 91 country code.
  */
 export async function hanuSendOtp(
   local10: string,
@@ -107,15 +105,10 @@ export async function hanuSendOtp(
 ): Promise<HanuOtpResult> {
   const key = apiKey();
   if (!key) return { ok: false, reason: "HANU_OTP_API_KEY is not configured" };
-  const configuredTemplateId = templateId();
-
   const url = new URL(HANU_OTP_ENDPOINT);
-  url.searchParams.set("number", local10);
+  url.searchParams.set("number", `91${local10}`);
   url.searchParams.set("OTP", code);
   url.searchParams.set("apikey", key);
-  // Hanu requires this parameter even for its no-DLT OTP route. The
-  // provider-documented "default" value selects Hanu's built-in OTP template.
-  url.searchParams.set("templatesid", configuredTemplateId ?? HANU_DEFAULT_TEMPLATE_ID);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);

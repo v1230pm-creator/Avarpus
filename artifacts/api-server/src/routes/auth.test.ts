@@ -45,7 +45,6 @@ vi.mock("../lib/hanuOtp", () => ({
     provider: "Hanu OTP",
     configured: mockHanuConfigured,
     endpoint: "https://api.hanuotp.in/sms-otp.php",
-    templateId: mockHanuConfigured ? "default" : null,
     apiKeyConfigured: true,
   }),
   normaliseIndianMobile: (raw: string) => mockNormalise(raw),
