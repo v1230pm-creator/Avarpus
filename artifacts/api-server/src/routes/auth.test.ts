@@ -40,18 +40,15 @@ const mockNormalise = vi.fn((raw: string): string | null => {
 });
 
 vi.mock("../lib/hanuOtp", () => ({
-  normaliseIndianMobile: (raw: string) => mockNormalise(raw),
-}));
-
-vi.mock("../lib/msg91Otp", () => ({
-  msg91SendOtp: (mobile: string, code: string) => mockHanuSend(mobile, code),
-  getMsg91OtpStatus: () => ({
-    provider: "MSG91",
+  hanuSendOtp: (mobile: string, code: string) => mockHanuSend(mobile, code),
+  getHanuOtpStatus: () => ({
+    provider: "Hanu OTP",
     configured: mockHanuConfigured,
-    endpoint: "https://control.msg91.com/api/v5/otp",
-    authKeyConfigured: true,
-    templateConfigured: mockHanuConfigured,
+    endpoint: "https://api.hanuotp.in/sms-otp.php",
+    templateId: mockHanuConfigured ? "default" : null,
+    apiKeyConfigured: true,
   }),
+  normaliseIndianMobile: (raw: string) => mockNormalise(raw),
 }));
 
 const { default: app } = await import("../app");
