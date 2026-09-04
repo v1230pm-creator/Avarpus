@@ -27,7 +27,7 @@ function templateId(): string | null {
 }
 
 export type HanuOtpResult =
-  | { ok: true }
+  | { ok: true; providerMessage: string; providerReference: string | null }
   | { ok: false; reason: string };
 
 export type HanuOtpStatus = {
@@ -73,6 +73,28 @@ function responseIsSuccessful(body: unknown): boolean {
     data["success"] === true ||
     data["message"] === "success"
   );
+}
+
+function safeSuccessDetails(body: unknown): {
+  providerMessage: string;
+  providerReference: string | null;
+} {
+  if (!body || typeof body !== "object") {
+    return { providerMessage: "success", providerReference: null };
+  }
+  const data = body as Record<string, unknown>;
+  const providerMessage = safeResponseMessage(body);
+  const referenceKeys = ["request_id", "requestId", "message_id", "messageId", "id"];
+  const reference = referenceKeys
+    .map((key) => data[key])
+    .find((value) => typeof value === "string" || typeof value === "number");
+  return {
+    providerMessage,
+    providerReference:
+      typeof reference === "string" || typeof reference === "number"
+        ? String(reference).slice(0, 100)
+        : null,
+  };
 }
 
 /**
@@ -121,7 +143,7 @@ export async function hanuSendOtp(
     if (!response.ok) {
       return { ok: false, reason: `Hanu OTP returned HTTP ${response.status}` };
     }
-    if (responseIsSuccessful(body)) return { ok: true };
+    if (responseIsSuccessful(body)) return { ok: true, ...safeSuccessDetails(body) };
     return { ok: false, reason: `Hanu OTP error: ${safeResponseMessage(body)}` };
   } catch (err) {
     const message = err instanceof Error ? err.message : "invalid provider response";

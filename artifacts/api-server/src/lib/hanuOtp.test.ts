@@ -27,7 +27,11 @@ describe("hanuSendOtp", () => {
       }),
     );
 
-    await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({ ok: true });
+    await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({
+      ok: true,
+      providerMessage: "OTP sent",
+      providerReference: null,
+    });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const calledUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
@@ -80,7 +84,11 @@ describe("hanuSendOtp", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ status: "success" })),
     );
-    await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({ ok: true });
+    await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({
+      ok: true,
+      providerMessage: "success",
+      providerReference: null,
+    });
     const calledUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
     expect(calledUrl.searchParams.get("templatesid")).toBe("template-123");
   });
@@ -90,7 +98,11 @@ describe("hanuSendOtp", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ status: "success" })),
     );
-    await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({ ok: true });
+    await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({
+      ok: true,
+      providerMessage: "success",
+      providerReference: null,
+    });
     const calledUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
     expect(calledUrl.origin + calledUrl.pathname).toBe("https://api.hanuotp.in/sms-otp.php");
     expect(calledUrl.username).toBe("");

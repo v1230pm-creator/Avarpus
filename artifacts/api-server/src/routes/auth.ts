@@ -107,6 +107,13 @@ router.post("/auth/otp/request", asyncHandler(async (req, res) => {
     });
     return;
   }
+  req.log.info(
+    {
+      providerMessage: result.providerMessage,
+      providerReference: result.providerReference,
+    },
+    "Hanu OTP request accepted",
+  );
   res.json({
     message: "If this mobile number is valid, a verification code has been sent.",
   });
@@ -150,6 +157,13 @@ router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
     });
     return;
   }
+  req.log.info(
+    {
+      providerMessage: result.providerMessage,
+      providerReference: result.providerReference,
+    },
+    "Hanu OTP resend accepted",
+  );
   res.json({
     message: "If this mobile number is valid, a new code has been sent.",
   });
