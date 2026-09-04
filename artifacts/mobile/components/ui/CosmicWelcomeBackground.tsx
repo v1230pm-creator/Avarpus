@@ -159,16 +159,16 @@ export function CosmicWelcomeBackground() {
 
   return (
     <View pointerEvents="none" style={styles.root}>
-      <Animated.View style={[StyleSheet.absoluteFillObject, skyStyle]}>
+      <Animated.View style={[StyleSheet.absoluteFill, skyStyle]}>
         <Image
           source={require('@/assets/images/avarpus-nordic-night-background.png')}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           contentFit="cover"
         />
       </Animated.View>
       <LinearGradient
         colors={['rgba(1,7,20,0.48)', 'rgba(1,7,20,0.48)']}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
       {stars.map((star) => <TwinklingStar key={star.id} star={star} />)}
       <ShootingStar delay={1800} startX={-90} startY={height * 0.08} travelX={width + 160} travelY={height * 0.22} />
@@ -180,7 +180,7 @@ export function CosmicWelcomeBackground() {
 
 const styles = StyleSheet.create({
   root: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     overflow: 'hidden',
   },
   star: {

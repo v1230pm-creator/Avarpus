@@ -217,7 +217,7 @@ export function StatusViewer({
 
 const styles = StyleSheet.create({
   viewer: { flex: 1, backgroundColor: '#05080D' },
-  media: { ...StyleSheet.absoluteFillObject },
+  media: { ...StyleSheet.absoluteFill },
   topOverlay: {
     position: 'absolute',
     top: 0,

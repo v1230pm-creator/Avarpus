@@ -106,6 +106,23 @@ jest.mock('expo-file-system/legacy', () => ({
   deleteAsync: jest.fn().mockResolvedValue(undefined),
 }));
 
+jest.mock('expo-media-library/legacy', () => ({
+  getPermissionsAsync: jest.fn(async () => ({ granted: false, accessPrivileges: 'none' })),
+  requestPermissionsAsync: jest.fn(async () => ({ granted: false, accessPrivileges: 'none' })),
+  getAssetsAsync: jest.fn(async () => ({
+    assets: [],
+    endCursor: null,
+    hasNextPage: false,
+  })),
+  getAssetInfoAsync: jest.fn(),
+}));
+
+jest.mock('expo-contacts', () => ({
+  requestPermissionsAsync: jest.fn(async () => ({ granted: false })),
+  getContactsAsync: jest.fn(async () => ({ data: [] })),
+  Fields: { PhoneNumbers: 'phoneNumbers' },
+}));
+
 jest.mock('expo-sharing', () => ({
   shareAsync: jest.fn().mockResolvedValue(undefined),
   isAvailableAsync: jest.fn().mockResolvedValue(false),

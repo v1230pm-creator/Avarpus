@@ -127,6 +127,3 @@ overrides:
   rollup>@rollup/rollup-win32-ia32-msvc: '-'
   rollup>@rollup/rollup-win32-x64-gnu: '-'
   rollup>@rollup/rollup-win32-x64-msvc: '-'
-
-patchedDependencies:
-  image-size@1.2.1: patches/image-size@1.2.1.patch

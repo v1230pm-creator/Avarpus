@@ -103,7 +103,7 @@ async function fillOtpAndVerify() {
     fireEvent.changeText(inputs[0], '123456');
   });
   await act(async () => {
-    fireEvent.press(screen.getByText('Verify & Create Account'));
+    fireEvent.press(screen.getByText('Verify & Create Dealer Account'));
   });
 }
 

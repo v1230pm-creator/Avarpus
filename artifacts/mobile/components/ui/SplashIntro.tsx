@@ -142,10 +142,10 @@ function MilkyWayLoadingBackground({ onReady }: { onReady: () => void }) {
   }));
 
   return (
-    <Animated.View style={[StyleSheet.absoluteFillObject, animatedStyle]}>
+    <Animated.View style={[StyleSheet.absoluteFill, animatedStyle]}>
       <Image
         source={require('@/assets/images/avarpus-nordic-night-background.png')}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         contentFit="cover"
         onLoad={onReady}
         onError={onReady}
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   skyShade: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(1, 7, 20, 0.48)',
   },
   brandGroup: {

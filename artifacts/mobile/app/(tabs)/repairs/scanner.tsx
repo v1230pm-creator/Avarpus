@@ -82,7 +82,7 @@ export default function ScannerScreen() {
   return (
     <View style={styles.container}>
       <CameraView
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         facing="back"
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned as any}
       />
@@ -112,5 +112,5 @@ export default function ScannerScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#040914' },
-  overlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'space-between' },
+  overlay: { ...StyleSheet.absoluteFill, justifyContent: 'space-between' },
 });

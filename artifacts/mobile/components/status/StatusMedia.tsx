@@ -93,7 +93,7 @@ export function StatusMedia({
 
 const styles = StyleSheet.create({
   textStatus: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#165D8C',
     alignItems: 'center',
     justifyContent: 'center',
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   unavailable: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#101820',
