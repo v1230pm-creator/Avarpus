@@ -12,3 +12,9 @@ Mobile OTP is the sole primary account sign-in method across mobile and web. Sav
 Outbound OTP endpoints must await provider acceptance before reporting success. If SMS or email delivery fails, invalidate the newly-created local code so an undelivered OTP cannot remain verifiable; log the provider reason server-side but return only a safe delivery error. Registration email must use a sender on a verified Resend domain, never the testing-domain fallback for arbitrary recipients.
 
 Android emulators cannot receive external carrier SMS because they have no real SIM. For simulator testing, send the OTP to a real physical number and enter the received code in the emulator; do not add a production OTP bypass. Hanu OTP is the user-confirmed production SMS provider; do not substitute another provider without explicit approval.
+
+Hanu's live SMS endpoint requires both an international-format Indian number (`91` plus ten digits) and `templatesid`, even though its public SMS reference currently omits the template parameter.
+
+**Why:** Sending only the local number produced false acceptance without handset delivery; removing `templatesid` to match the public docs produced an explicit missing-parameter rejection.
+
+**How to apply:** Preserve both fields in all Hanu request/refactor work, and trust the live provider error contract over the incomplete public parameter table.

@@ -5,6 +5,7 @@
 // logged.
 
 const HANU_OTP_ENDPOINT = "https://api.hanuotp.in/sms-otp.php";
+const HANU_DEFAULT_TEMPLATE_ID = "default";
 const FETCH_TIMEOUT_MS = 10_000;
 
 export function normaliseIndianMobile(raw: string): string | null {
@@ -20,6 +21,10 @@ function apiKey(): string | null {
   return key || null;
 }
 
+function templateId(): string {
+  return process.env["HANU_OTP_TEMPLATE_ID"]?.trim() || HANU_DEFAULT_TEMPLATE_ID;
+}
+
 export type HanuOtpResult =
   | { ok: true; providerMessage: string; providerReference: string | null }
   | { ok: false; reason: string };
@@ -28,6 +33,7 @@ export type HanuOtpStatus = {
   provider: "Hanu OTP";
   configured: boolean;
   endpoint: string;
+  templateId: string;
   apiKeyConfigured: boolean;
 };
 
@@ -36,6 +42,7 @@ export function getHanuOtpStatus(): HanuOtpStatus {
     provider: "Hanu OTP",
     configured: Boolean(apiKey()),
     endpoint: HANU_OTP_ENDPOINT,
+    templateId: templateId(),
     apiKeyConfigured: Boolean(apiKey()),
   };
 }
@@ -109,6 +116,9 @@ export async function hanuSendOtp(
   url.searchParams.set("number", `91${local10}`);
   url.searchParams.set("OTP", code);
   url.searchParams.set("apikey", key);
+  // The live endpoint currently requires this even though the public SMS
+  // reference omits it.
+  url.searchParams.set("templatesid", templateId());
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);

@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getHanuOtpStatus, hanuSendOtp } from "./hanuOtp";
 
 const ORIGINAL_API_KEY = process.env["HANU_OTP_API_KEY"];
+const ORIGINAL_TEMPLATE_ID = process.env["HANU_OTP_TEMPLATE_ID"];
 
 beforeEach(() => {
   process.env["HANU_OTP_API_KEY"] = "test-hanu-key";
+  delete process.env["HANU_OTP_TEMPLATE_ID"];
 });
 
 afterEach(() => {
@@ -12,10 +14,12 @@ afterEach(() => {
   vi.useRealTimers();
   if (ORIGINAL_API_KEY === undefined) delete process.env["HANU_OTP_API_KEY"];
   else process.env["HANU_OTP_API_KEY"] = ORIGINAL_API_KEY;
+  if (ORIGINAL_TEMPLATE_ID === undefined) delete process.env["HANU_OTP_TEMPLATE_ID"];
+  else process.env["HANU_OTP_TEMPLATE_ID"] = ORIGINAL_TEMPLATE_ID;
 });
 
 describe("hanuSendOtp", () => {
-  it("sends the country-coded Indian number, OTP, and API key to Hanu", async () => {
+  it("sends the country-coded Indian number, OTP, API key, and template to Hanu", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ status: "success", message: "OTP sent" }), {
         status: 200,
@@ -35,7 +39,7 @@ describe("hanuSendOtp", () => {
     expect(calledUrl.searchParams.get("number")).toBe("919876543210");
     expect(calledUrl.searchParams.get("OTP")).toBe("123456");
     expect(calledUrl.searchParams.get("apikey")).toBe("test-hanu-key");
-    expect(calledUrl.searchParams.has("templatesid")).toBe(false);
+    expect(calledUrl.searchParams.get("templatesid")).toBe("default");
   });
 
   it.each([
