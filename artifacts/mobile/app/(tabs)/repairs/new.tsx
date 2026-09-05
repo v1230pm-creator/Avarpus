@@ -942,19 +942,21 @@ export default function NewRepairScreen() {
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Device ID</Text>
+                    <Text style={[styles.identifierFieldLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>Device ID</Text>
                     <TouchableOpacity
                       activeOpacity={0.7}
                       onPress={() => setShowIdentifierModal(true)}
                       accessibilityLabel="Device identifier selector"
-                      style={[styles.sectionToggle, {
+                      style={[styles.identifierFieldControl, {
                         backgroundColor: colors.destructive + '0A',
                         borderColor: colors.destructive + '66',
-                        minHeight: 52,
+                        borderRadius: colors.radius - 2,
                       }]}
                     >
-                      <Feather name="hash" size={17} color={colors.destructive} />
-                      <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                      <Text style={[styles.identifierFieldText, {
+                        color: (serialNumber || imei || imei2) ? colors.foreground : colors.mutedForeground,
+                        fontFamily: 'Inter_400Regular',
+                      }]}>
                         {[serialNumber && 'Serial', imei && 'IMEI 1', imei2 && 'IMEI 2'].filter(Boolean).join(', ') || 'Select ID'}
                       </Text>
                       <Feather name="chevron-down" size={18} color={colors.destructive} />
@@ -1551,6 +1553,9 @@ const styles = StyleSheet.create({
   twoColumn: { flex: 1, minWidth: 0 },
   compactField: { flex: 1, minWidth: 0, gap: 7 },
   compactFieldLabel: { fontSize: 11, lineHeight: 16 },
+  identifierFieldLabel: { fontSize: 12, lineHeight: 16, letterSpacing: 0.1 },
+  identifierFieldControl: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderWidth: 1.5 },
+  identifierFieldText: { flex: 1, minWidth: 0, fontSize: 15, lineHeight: 20 },
   compactToggle: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 0, borderRadius: 9, borderWidth: 1 },
   compactToggleLabel: { flex: 1, minWidth: 0, fontSize: 11, lineHeight: 16 },
   customerHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
