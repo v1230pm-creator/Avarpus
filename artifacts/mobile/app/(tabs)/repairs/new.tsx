@@ -725,7 +725,15 @@ export default function NewRepairScreen() {
                 </View>
                  <View style={styles.twoColumnRow}>
                    <View style={styles.twoColumn}>
-                     <Input label="Name *" value={customerName} onChangeText={setCustomerName} placeholder="Full name" leftIcon="user" error={errors.customerName} />
+                      <Input
+                        label="Name *"
+                        value={customerName}
+                        onChangeText={setCustomerName}
+                        placeholder="Full name"
+                        leftIcon="user"
+                        error={errors.customerName}
+                        inputContainerStyle={errors.customerName ? undefined : { borderColor: colors.purple, backgroundColor: colors.purpleSoft }}
+                      />
                    </View>
                    <View style={styles.twoColumn}>
                      <Input
@@ -742,6 +750,7 @@ export default function NewRepairScreen() {
                        }}
                        rightIconAccessibilityLabel={showAlternateMobile ? 'Remove alternate mobile' : 'Add alternate mobile'}
                        error={errors.mobile}
+                        inputContainerStyle={errors.mobile ? undefined : { borderColor: colors.green, backgroundColor: colors.greenSoft }}
                      />
                    </View>
                  </View>
@@ -792,10 +801,26 @@ export default function NewRepairScreen() {
                  )}
                  <View style={styles.twoColumnRow}>
                    <View style={styles.twoColumn}>
-                     <Input label="Email" value={email} onChangeText={setEmail} placeholder="Optional" keyboardType="email-address" leftIcon="mail" autoCapitalize="none" />
+                      <Input
+                        label="Email"
+                        value={email}
+                        onChangeText={setEmail}
+                        placeholder="Optional"
+                        keyboardType="email-address"
+                        leftIcon="mail"
+                        autoCapitalize="none"
+                        inputContainerStyle={{ borderColor: colors.cyan, backgroundColor: colors.cyanSoft }}
+                      />
                    </View>
                    <View style={styles.twoColumn}>
-                     <Input label="Address" value={address} onChangeText={setAddress} placeholder="Optional" leftIcon="map-pin" />
+                      <Input
+                        label="Address"
+                        value={address}
+                        onChangeText={setAddress}
+                        placeholder="Optional"
+                        leftIcon="map-pin"
+                        inputContainerStyle={{ borderColor: colors.orange, backgroundColor: colors.orangeSoft }}
+                      />
                    </View>
                  </View>
               </View>
@@ -942,6 +967,7 @@ export default function NewRepairScreen() {
                       onChangeText={setDevicePassword}
                       placeholder="Optional"
                       secureTextEntry={!showDevicePassword}
+                      inputContainerStyle={{ borderColor: colors.indigo, backgroundColor: colors.indigoSoft }}
                     />
                     {!!devicePassword && (
                       <TouchableOpacity style={{ position: 'absolute', right: 12, top: 40 }} onPress={() => setShowDevicePassword(!showDevicePassword)}>
@@ -952,14 +978,14 @@ export default function NewRepairScreen() {
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
-                  <TouchableOpacity activeOpacity={0.7} onPress={() => setSimPresent(!simPresent)} style={[styles.checklistItem, { backgroundColor: colors.card, borderColor: simPresent ? colors.primary : colors.border }]}>
-                    <View style={[styles.checkbox, { backgroundColor: simPresent ? colors.primary : 'transparent', borderColor: simPresent ? colors.primary : colors.muted }]}>
+                  <TouchableOpacity activeOpacity={0.7} onPress={() => setSimPresent(!simPresent)} style={[styles.checklistItem, { backgroundColor: colors.tealSoft, borderColor: colors.teal }]}>
+                    <View style={[styles.checkbox, { backgroundColor: simPresent ? colors.teal : 'transparent', borderColor: colors.teal }]}>
                       {simPresent && <Feather name="check" size={14} color="#FFF" />}
                     </View>
                     <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>SIM Present</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity activeOpacity={0.7} onPress={() => setMemoryCardPresent(!memoryCardPresent)} style={[styles.checklistItem, { backgroundColor: colors.card, borderColor: memoryCardPresent ? colors.primary : colors.border }]}>
-                    <View style={[styles.checkbox, { backgroundColor: memoryCardPresent ? colors.primary : 'transparent', borderColor: memoryCardPresent ? colors.primary : colors.muted }]}>
+                  <TouchableOpacity activeOpacity={0.7} onPress={() => setMemoryCardPresent(!memoryCardPresent)} style={[styles.checklistItem, { backgroundColor: colors.goldSoft, borderColor: colors.gold }]}>
+                    <View style={[styles.checkbox, { backgroundColor: memoryCardPresent ? colors.gold : 'transparent', borderColor: colors.gold }]}>
                       {memoryCardPresent && <Feather name="check" size={14} color="#FFF" />}
                     </View>
                     <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>SD Card Present</Text>
