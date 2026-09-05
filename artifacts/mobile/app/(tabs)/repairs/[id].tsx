@@ -1802,7 +1802,7 @@ export default function RepairDetailScreen() {
 
             <TouchableOpacity onPress={generatePDF} style={[styles.pdfBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '33', marginTop: 4 }]}>
               <Feather name="file-text" size={18} color={colors.primary} />
-              <Text style={[styles.pdfBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Download Job Card PDF</Text>
+              <Text style={[styles.pdfBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Invoice</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
