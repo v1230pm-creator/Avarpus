@@ -15,6 +15,6 @@ Android emulators cannot receive external carrier SMS because they have no real 
 
 Hanu's live SMS endpoint requires both a local 10-digit Indian number and `templatesid`, despite conflicting public SMS documentation.
 
-**Why:** Removing `templatesid` produced an explicit missing-parameter rejection, while adding the documented `91` prefix produced an explicit “only 10-digit Indian numbers” rejection.
+**Why:** Removing `templatesid` produced an explicit missing-parameter rejection, while adding the documented `91` prefix produced an explicit “only 10-digit Indian numbers” rejection. The user confirmed real-device SMS delivery with the `default` template.
 
 **How to apply:** Send the normalized ten digits unchanged and preserve `templatesid`; trust the live provider error contract over the inconsistent public parameter table.
