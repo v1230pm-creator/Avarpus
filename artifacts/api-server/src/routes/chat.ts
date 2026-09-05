@@ -377,6 +377,50 @@ async function getDirectPeerUserId(
   return peer?.userId ?? null;
 }
 
+async function getRoomRecipientUserIds(roomId: string, senderUserId: string): Promise<string[]> {
+  const recipients = await db
+    .select({ userId: chatRoomMembersTable.userId })
+    .from(chatRoomMembersTable)
+    .where(
+      and(
+        eq(chatRoomMembersTable.roomId, roomId),
+        ne(chatRoomMembersTable.userId, senderUserId),
+      ),
+    );
+  return [...new Set(recipients.map((recipient) => recipient.userId))];
+}
+
+async function notifyRoomMessageRecipients(input: {
+  roomId: string;
+  shopId: string | null;
+  messageId: string;
+  senderId: string;
+  senderName: string;
+  preview: string;
+}): Promise<void> {
+  try {
+    const recipientUserIds = await getRoomRecipientUserIds(input.roomId, input.senderId);
+    for (const recipientUserId of recipientUserIds) {
+      void notifyUser({
+        userId: recipientUserId,
+        shopId: input.shopId,
+        type: "chat_message",
+        title: `New message from ${input.senderName}`,
+        body: input.preview.slice(0, 160),
+        data: {
+          roomId: input.roomId,
+          messageId: input.messageId,
+          senderId: input.senderId,
+          senderName: input.senderName,
+        },
+        dedupeKey: `chat-message:${input.messageId}:${recipientUserId}`,
+      });
+    }
+  } catch (error) {
+    console.error("notifyRoomMessageRecipients failed:", error);
+  }
+}
+
 // ── Customer invite issuance ──────────────────────────────────────────────────
 
 const INVITE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -1935,31 +1979,23 @@ router.post(
     }
 
     if (inserted.length > 0) {
-      if (directPeerUserId) {
-        const message = inserted[0];
-        const preview =
-          message.kind === "image"
-            ? "Photo"
-            : message.kind === "audio"
-              ? "Voice message"
-              : message.kind === "file"
-                ? `Attachment: ${message.body}`
-                : message.body;
-        void notifyUser({
-          userId: directPeerUserId,
-          shopId: room.shopId,
-          type: "chat_message",
-          title: `New message from ${me.name}`,
-          body: preview.slice(0, 160),
-          data: {
-            roomId,
-            messageId: message.id,
-            senderId: me.id,
-            senderName: me.name,
-          },
-          dedupeKey: `chat-message:${message.id}:${directPeerUserId}`,
-        });
-      }
+      const message = inserted[0];
+      const preview =
+        message.kind === "image"
+          ? "Photo"
+          : message.kind === "audio"
+            ? "Voice message"
+            : message.kind === "file"
+              ? `Attachment: ${message.body}`
+              : message.body;
+      void notifyRoomMessageRecipients({
+        roomId,
+        shopId: room.shopId,
+        messageId: message.id,
+        senderId: me.id,
+        senderName: me.name,
+        preview,
+      });
       res.json({ message: formatMessage(inserted[0]) });
       return;
     }

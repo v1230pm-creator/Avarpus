@@ -1348,6 +1348,8 @@ export default function ChatScreen() {
             pendingSendRef.current = null;
           }
           msgsRefetch();
+          void queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
+          void queryClient.invalidateQueries({ queryKey: getChatRoomsGetQueryKey(resolvedRoomId) });
         },
         onError: (err: any) => {
           setOptimisticMsgs((prev) => prev.filter((m) => m.id !== optimistic.id));
@@ -1356,7 +1358,7 @@ export default function ChatScreen() {
         },
       },
     );
-  }, [resolvedRoomId, isBlocked, user, sendMutation, msgsRefetch]);
+  }, [resolvedRoomId, isBlocked, user, sendMutation, msgsRefetch, queryClient]);
 
   const handleSend = useCallback(() => {
     sendTextValue(text);
@@ -1472,6 +1474,8 @@ export default function ChatScreen() {
       setUploadProgress(null);
       setIsSendingUpload(false);
       msgsRefetch();
+      void queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getChatRoomsGetQueryKey(resolvedRoomId) });
     } catch (err: any) {
       setUploadProgress(null);
       setIsSendingUpload(false);
@@ -1479,7 +1483,7 @@ export default function ChatScreen() {
         err?.data?.message ?? err?.message ?? 'Failed to send. Tap Retry.',
       );
     }
-  }, [pendingUpload, resolvedRoomId, uploadUrlMutation, sendMutation, msgsRefetch]);
+  }, [pendingUpload, resolvedRoomId, uploadUrlMutation, sendMutation, msgsRefetch, queryClient]);
 
   const attachEnabled =
     providerAvailable &&
