@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, TextInputProps, TouchableOpacity, View, ViewStyle } from 'react-native';
+import { StyleProp, StyleSheet, Text, TextInput, TextInputProps, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 
@@ -12,6 +12,7 @@ interface InputProps extends TextInputProps {
   onRightIconPress?: () => void;
   rightIconAccessibilityLabel?: string;
   containerStyle?: ViewStyle;
+  inputContainerStyle?: StyleProp<ViewStyle>;
   isPassword?: boolean;
   dark?: boolean;
 }
@@ -30,7 +31,7 @@ const DARK = {
 
 export function Input({
   label, error, leftIcon, leftText, rightIcon, onRightIconPress, rightIconAccessibilityLabel,
-  containerStyle, isPassword = false, dark = false, ...props
+  containerStyle, inputContainerStyle, isPassword = false, dark = false, ...props
 }: InputProps) {
   const themeColors = useColors();
   const colors = dark
@@ -53,7 +54,7 @@ export function Input({
         borderColor,
         borderWidth: 1.5,
         borderRadius: colors.radius - 2,
-      }]}>
+      }, inputContainerStyle]}>
         {leftIcon && (
           <Feather name={leftIcon} size={18} color={focused ? colors.primary : colors.mutedForeground} style={styles.leftIcon} />
         )}

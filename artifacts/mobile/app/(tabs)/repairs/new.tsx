@@ -905,15 +905,35 @@ export default function NewRepairScreen() {
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
-                    <Input label="IMEI 1" value={imei} onChangeText={setImei} placeholder="Optional" keyboardType="number-pad" />
+                    <Input
+                      label="IMEI 1"
+                      value={imei}
+                      onChangeText={setImei}
+                      placeholder="Optional"
+                      keyboardType="number-pad"
+                      inputContainerStyle={{ borderColor: colors.destructive + '66', backgroundColor: colors.destructive + '0A' }}
+                    />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Input label="IMEI 2" value={imei2} onChangeText={setImei2} placeholder="Optional" keyboardType="number-pad" />
+                    <Input
+                      label="IMEI 2"
+                      value={imei2}
+                      onChangeText={setImei2}
+                      placeholder="Optional"
+                      keyboardType="number-pad"
+                      inputContainerStyle={{ borderColor: colors.destructive + '66', backgroundColor: colors.destructive + '0A' }}
+                    />
                   </View>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Input label="Serial Number" value={serialNumber} onChangeText={setSerialNumber} placeholder="Optional" />
+                    <Input
+                      label="Serial Number"
+                      value={serialNumber}
+                      onChangeText={setSerialNumber}
+                      placeholder="Optional"
+                      inputContainerStyle={{ borderColor: colors.destructive + '66', backgroundColor: colors.destructive + '0A' }}
+                    />
                   </View>
                   <View style={{ flex: 1, minWidth: 0, position: 'relative' }}>
                     <Input
