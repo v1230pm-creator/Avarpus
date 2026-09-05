@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 describe("hanuSendOtp", () => {
-  it("sends the country-coded Indian number, OTP, API key, and template to Hanu", async () => {
+  it("sends the local Indian number, OTP, API key, and template to Hanu", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ status: "success", message: "OTP sent" }), {
         status: 200,
@@ -36,7 +36,7 @@ describe("hanuSendOtp", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const calledUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
     expect(calledUrl.origin + calledUrl.pathname).toBe("https://api.hanuotp.in/sms-otp.php");
-    expect(calledUrl.searchParams.get("number")).toBe("919876543210");
+    expect(calledUrl.searchParams.get("number")).toBe("9876543210");
     expect(calledUrl.searchParams.get("OTP")).toBe("123456");
     expect(calledUrl.searchParams.get("apikey")).toBe("test-hanu-key");
     expect(calledUrl.searchParams.get("templatesid")).toBe("default");
@@ -95,7 +95,7 @@ describe("hanuSendOtp", () => {
       providerReference: "request-123",
     });
     const calledUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
-    expect(calledUrl.searchParams.get("number")).toBe("919876543210");
+    expect(calledUrl.searchParams.get("number")).toBe("9876543210");
   });
 
   it("does not allow an environment override to redirect credentials", async () => {

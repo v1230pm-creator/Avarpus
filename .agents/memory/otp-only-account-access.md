@@ -13,8 +13,8 @@ Outbound OTP endpoints must await provider acceptance before reporting success. 
 
 Android emulators cannot receive external carrier SMS because they have no real SIM. For simulator testing, send the OTP to a real physical number and enter the received code in the emulator; do not add a production OTP bypass. Hanu OTP is the user-confirmed production SMS provider; do not substitute another provider without explicit approval.
 
-Hanu's live SMS endpoint requires both an international-format Indian number (`91` plus ten digits) and `templatesid`, even though its public SMS reference currently omits the template parameter.
+Hanu's live SMS endpoint requires both a local 10-digit Indian number and `templatesid`, despite conflicting public SMS documentation.
 
-**Why:** Sending only the local number produced false acceptance without handset delivery; removing `templatesid` to match the public docs produced an explicit missing-parameter rejection.
+**Why:** Removing `templatesid` produced an explicit missing-parameter rejection, while adding the documented `91` prefix produced an explicit “only 10-digit Indian numbers” rejection.
 
-**How to apply:** Preserve both fields in all Hanu request/refactor work, and trust the live provider error contract over the incomplete public parameter table.
+**How to apply:** Send the normalized ten digits unchanged and preserve `templatesid`; trust the live provider error contract over the inconsistent public parameter table.

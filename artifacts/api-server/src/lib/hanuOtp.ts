@@ -104,7 +104,7 @@ function safeSuccessDetails(body: unknown): {
 
 /**
  * Send the supplied six-digit OTP to a local 10-digit Indian mobile.
- * Hanu's SMS API requires international format with the 91 country code.
+ * Hanu's live SMS API requires a local 10-digit Indian number.
  */
 export async function hanuSendOtp(
   local10: string,
@@ -113,7 +113,7 @@ export async function hanuSendOtp(
   const key = apiKey();
   if (!key) return { ok: false, reason: "HANU_OTP_API_KEY is not configured" };
   const url = new URL(HANU_OTP_ENDPOINT);
-  url.searchParams.set("number", `91${local10}`);
+  url.searchParams.set("number", local10);
   url.searchParams.set("OTP", code);
   url.searchParams.set("apikey", key);
   // The live endpoint currently requires this even though the public SMS
