@@ -758,7 +758,7 @@ export default function NewRepairScreen() {
                        label="Mobile Number *"
                        value={mobile}
                        onChangeText={setMobile}
-                       placeholder="10-digit number"
+                      placeholder="Number"
                        keyboardType="phone-pad"
                        leftIcon="phone"
                        rightIcon={showAlternateMobile ? 'x' : 'plus'}
@@ -925,7 +925,7 @@ export default function NewRepairScreen() {
 
                   <View style={styles.compactField}>
                     <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Model *</Text>
-                    <Input value={model} onChangeText={setModel} placeholder="Enter your model" leftIcon="smartphone" error={errors.model} />
+                    <Input value={model} onChangeText={setModel} placeholder="Model" leftIcon="smartphone" error={errors.model} />
                   </View>
                 </View>
 

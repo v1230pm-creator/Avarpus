@@ -223,10 +223,10 @@ it('adds the alternative mobile field from the Mobile input', async () => {
 /** Fills every required intake field on step 1 (brand is a chip selector). */
 const fillRequiredFields = async () => {
   type('Full name', 'Asha Kumar');
-  type('10-digit number', '9876543210');
+  type('Number', '9876543210');
   await press('Brand *');
   await press('Samsung');
-  type('Enter your model', 'Galaxy S23');
+  type('Model', 'Galaxy S23');
   type('Describe the issue...', 'Screen cracked, no display');
 };
 
@@ -270,7 +270,7 @@ describe('required-field validation blocks submit', () => {
   it('rejects a short mobile number without calling the API', async () => {
     const { unmount } = await renderIntake();
     await fillRequiredFields();
-    type('10-digit number', '98765'); // too short
+    type('Number', '98765'); // too short
     await press('RECEIVE DEVICE');
 
     expect(screen.getByText('10-digit mobile required')).toBeTruthy();
