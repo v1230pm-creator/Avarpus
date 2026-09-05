@@ -1489,7 +1489,7 @@ export default function NewRepairScreen() {
               style={[styles.identifierOkButton, { backgroundColor: colors.primary }]}
             >
               <Feather name="check" size={18} color="#FFF" />
-              <Text style={[styles.identifierOkText, { fontFamily: 'Inter_700Bold' }]}>OK</Text>
+              <Text style={[styles.identifierOkText, { fontFamily: 'Inter_700Bold' }]}>Done</Text>
             </TouchableOpacity>
           </View>
         </View>
