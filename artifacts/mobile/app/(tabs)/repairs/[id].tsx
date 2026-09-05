@@ -1467,11 +1467,6 @@ export default function RepairDetailScreen() {
           </View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}>
 
-            <TouchableOpacity onPress={generatePDF} style={[styles.pdfBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '33' }]}>
-              <Feather name="file-text" size={18} color={colors.primary} />
-              <Text style={[styles.pdfBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Download Job Card PDF</Text>
-            </TouchableOpacity>
-
             {/* Job Info */}
             <Card style={{ paddingHorizontal: 16 }}>
               <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 4 }]}>JOB INFO</Text>
@@ -1804,6 +1799,11 @@ export default function RepairDetailScreen() {
             {isActiveRepair && approvals.length === 0 && repair.status !== 'customer_approval' && (
               <Button title="Request Customer Approval" variant="outline" onPress={() => { setShowMore(false); setTimeout(() => setShowApproval(true), 350); }} />
             )}
+
+            <TouchableOpacity onPress={generatePDF} style={[styles.pdfBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '33', marginTop: 4 }]}>
+              <Feather name="file-text" size={18} color={colors.primary} />
+              <Text style={[styles.pdfBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Download Job Card PDF</Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
       </Modal>
