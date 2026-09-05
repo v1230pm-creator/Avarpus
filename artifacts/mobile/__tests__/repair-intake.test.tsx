@@ -305,9 +305,9 @@ describe('failed save shows the alert and keeps entered values', () => {
     const { unmount } = await renderIntake();
     await fillRequiredFields();
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('Accessories'));
-    }); // open the collapsed accessories section
-    type('e.g. Broken cover, mixed cables...', 'Charger, Cover');
+      fireEvent.press(screen.getByLabelText('Physical'));
+    });
+    fireEvent.press(screen.getByText('Charger'));
     fireEvent.changeText(screen.getAllByPlaceholderText('0')[0], '2500'); // estimate (advance input also uses placeholder 0)
     await reviewConfirmAndSubmit();
 

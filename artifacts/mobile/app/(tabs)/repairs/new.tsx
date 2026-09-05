@@ -75,10 +75,6 @@ const PHYSICAL_CONDITION_ITEMS = [
   { id: 'camera_glass_damage', label: 'Camera Glass Damage' },
   { id: 'water_liquid_damage', label: 'Water/Liquid Damage' },
   { id: 'existing_scratches', label: 'Existing Scratches' },
-  { id: 'other', label: 'Other' },
-];
-
-const ACCESSORY_ITEMS = [
   { id: 'Charger', label: 'Charger' },
   { id: 'Cable', label: 'Cable' },
   { id: 'Adapter', label: 'Adapter' },
@@ -87,8 +83,8 @@ const ACCESSORY_ITEMS = [
   { id: 'SIM', label: 'SIM' },
   { id: 'Memory Card', label: 'Memory Card' },
   { id: 'Cover', label: 'Cover' },
-  { id: 'Earphones', label: 'Earphones' },
-  { id: 'Other', label: 'Other' },
+  { id: 'Earphone', label: 'Earphone' },
+  { id: 'other', label: 'Other' },
 ];
 
 const WARRANTY_OPTIONS = [
@@ -164,14 +160,11 @@ export default function NewRepairScreen() {
   const [simPresent, setSimPresent] = useState(false);
   const [memoryCardPresent, setMemoryCardPresent] = useState(false);
 
-  const [accessoriesList, setAccessoriesList] = useState<string[]>([]);
-  const [showAccessories, setShowAccessories] = useState(false);
   const [showPhysical, setShowPhysical] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
   const [showWarranty, setShowWarranty] = useState(false);
   const [showDeviceType, setShowDeviceType] = useState(false);
   const [showBrand, setShowBrand] = useState(false);
-  const [otherAccessories, setOtherAccessories] = useState('');
   const [physicalCondition, setPhysicalCondition] = useState<Record<string, boolean>>({});
   const [deviceCondition, setDeviceCondition] = useState('');
   const [problem, setProblem] = useState('');
@@ -336,8 +329,6 @@ export default function NewRepairScreen() {
         devicePassword: devicePassword.trim() || undefined,
         simPresent, memoryCardPresent,
         problem: problem.trim(),
-        accessories: otherAccessories.trim() || undefined,
-        accessoriesList,
         physicalCondition,
         deviceCondition: deviceCondition.trim() || undefined,
         status: 'received', priority: priority as Repair['priority'],
@@ -389,8 +380,6 @@ export default function NewRepairScreen() {
         simPresent: newRepair.simPresent,
         memoryCardPresent: newRepair.memoryCardPresent,
         alternateMobile: newRepair.alternateMobile,
-        accessories: newRepair.accessories,
-        accessoriesList: newRepair.accessoriesList,
         physicalCondition: newRepair.physicalCondition,
         deviceCondition: newRepair.deviceCondition,
         problem: newRepair.problem,
@@ -546,7 +535,7 @@ export default function NewRepairScreen() {
       const accList = (r.accessoriesList && r.accessoriesList.length > 0)
         ? r.accessoriesList.join(', ')
         : (r.accessories || '');
-      const accessoriesStr = [accList, otherAccessories.trim()].filter(Boolean).join(', ');
+      const accessoriesStr = accList;
 
       const physical = Object.keys(r.physicalCondition || {}).filter(k => r.physicalCondition?.[k])
         .map(k => PHYSICAL_CONDITION_ITEMS.find(p => p.id === k)?.label || k);
@@ -659,10 +648,6 @@ export default function NewRepairScreen() {
     } catch (e) {
       Alert.alert('Error', 'Could not generate PDF.');
     }
-  };
-
-  const toggleAccessory = (acc: string) => {
-    setAccessoriesList(prev => prev.includes(acc) ? prev.filter(a => a !== acc) : [...prev, acc]);
   };
 
   if (createdRepair) {
@@ -973,55 +958,7 @@ export default function NewRepairScreen() {
                 </View>
               </View>
 
-              {/* Accessories */}
               <View style={styles.threeColumnRow}>
-                <View style={styles.compactField}>
-                <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Accessories</Text>
-                <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => setShowAccessories(v => !v)}
-                  accessibilityLabel="Accessories"
-                  style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: showAccessories ? colors.primary : colors.border }]}
-                >
-                  <View style={[styles.checkbox, { backgroundColor: showAccessories ? colors.primary : 'transparent', borderColor: showAccessories ? colors.primary : colors.muted }]}>
-                    {showAccessories && <Feather name="check" size={14} color="#FFF" />}
-                  </View>
-                  {accessoriesList.length > 0 && (
-                    <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
-                      <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{accessoriesList.length}</Text>
-                    </View>
-                  )}
-                  <Feather name={showAccessories ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
-                </TouchableOpacity>
-                {showAccessories && (
-                  <>
-                    <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                      <ScrollView style={styles.vList} nestedScrollEnabled showsVerticalScrollIndicator>
-                        {ACCESSORY_ITEMS.map((item) => {
-                          const checked = accessoriesList.includes(item.id);
-                          return (
-                            <TouchableOpacity
-                              key={item.id}
-                              activeOpacity={0.7}
-                              onPress={() => toggleAccessory(item.id)}
-                              style={[styles.vItem, { borderBottomColor: colors.border, backgroundColor: checked ? colors.primary + '10' : 'transparent' }]}
-                            >
-                              <View style={[styles.checkbox, { backgroundColor: checked ? colors.primary : 'transparent', borderColor: checked ? colors.primary : colors.muted }]}>
-                                {checked && <Feather name="check" size={14} color="#FFF" />}
-                              </View>
-                              <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{item.label}</Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </ScrollView>
-                    </View>
-                    <Input label="Other Accessories Notes" value={otherAccessories} onChangeText={setOtherAccessories} placeholder="e.g. Broken cover, mixed cables..." />
-                  </>
-                )}
-                </View>
-                </View>
-
               {/* Physical Condition */}
               <View style={styles.compactField}>
               <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Physical</Text>
