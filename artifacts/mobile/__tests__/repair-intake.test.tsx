@@ -220,37 +220,35 @@ it('adds the alternative mobile field from the Mobile input', async () => {
   unmount();
 });
 
-it('switches between Serial Number, IMEI 1, and IMEI 2 without losing values', async () => {
+it('enters multiple identifiers inside the popup and preserves them after OK', async () => {
   const { unmount } = await renderIntake();
 
-  expect(screen.getByPlaceholderText('Serial Number')).toBeTruthy();
-  type('Serial Number', 'SERIAL-123');
-
+  expect(screen.queryByPlaceholderText('Serial Number')).toBeNull();
   await act(async () => {
     fireEvent.press(screen.getByLabelText('Device identifier selector'));
   });
-  expect(screen.getByText('IMEI 1')).toBeTruthy();
-  expect(screen.getByText('IMEI 2')).toBeTruthy();
+  type('Serial Number', 'SERIAL-123');
   await act(async () => {
-    fireEvent.press(screen.getByText('IMEI 1'));
+    fireEvent.press(screen.getByLabelText('Select IMEI 1'));
   });
   type('IMEI 1', '111111111111111');
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Select IMEI 2'));
+  });
+  type('IMEI 2', '222222222222222');
+
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Save device identifiers'));
+  });
+  expect(screen.queryByPlaceholderText('Serial Number')).toBeNull();
+  expect(screen.getByText('Serial, IMEI 1, IMEI 2')).toBeTruthy();
 
   await act(async () => {
     fireEvent.press(screen.getByLabelText('Device identifier selector'));
-  });
-  await act(async () => {
-    fireEvent.press(screen.getByText('Serial Number'));
   });
   expect(screen.getByDisplayValue('SERIAL-123')).toBeTruthy();
-
-  await act(async () => {
-    fireEvent.press(screen.getByLabelText('Device identifier selector'));
-  });
-  await act(async () => {
-    fireEvent.press(screen.getByText('IMEI 1'));
-  });
   expect(screen.getByDisplayValue('111111111111111')).toBeTruthy();
+  expect(screen.getByDisplayValue('222222222222222')).toBeTruthy();
   unmount();
 });
 

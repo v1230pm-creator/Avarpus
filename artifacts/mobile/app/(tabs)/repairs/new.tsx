@@ -150,8 +150,12 @@ export default function NewRepairScreen() {
   const [imei, setImei] = useState('');
   const [imei2, setImei2] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
-  const [selectedIdentifier, setSelectedIdentifier] = useState<'serialNumber' | 'imei' | 'imei2'>('serialNumber');
-  const [showIdentifierOptions, setShowIdentifierOptions] = useState(false);
+  const [showIdentifierModal, setShowIdentifierModal] = useState(false);
+  const [selectedIdentifiers, setSelectedIdentifiers] = useState({
+    serialNumber: true,
+    imei: false,
+    imei2: false,
+  });
   const [colorAttr, setColorAttr] = useState('');
   const [storage, setStorage] = useState('');
   const [ram, setRam] = useState('');
@@ -941,56 +945,20 @@ export default function NewRepairScreen() {
                     <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Device Identifier</Text>
                     <TouchableOpacity
                       activeOpacity={0.7}
-                      onPress={() => setShowIdentifierOptions(v => !v)}
+                      onPress={() => setShowIdentifierModal(true)}
                       accessibilityLabel="Device identifier selector"
                       style={[styles.sectionToggle, {
                         backgroundColor: colors.destructive + '0A',
                         borderColor: colors.destructive + '66',
-                        marginBottom: 8,
+                        minHeight: 52,
                       }]}
                     >
                       <Feather name="hash" size={17} color={colors.destructive} />
                       <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
-                        {DEVICE_IDENTIFIER_OPTIONS.find(option => option.id === selectedIdentifier)?.label}
+                        {[serialNumber && 'Serial', imei && 'IMEI 1', imei2 && 'IMEI 2'].filter(Boolean).join(', ') || 'Select identifiers'}
                       </Text>
-                      <Feather name={showIdentifierOptions ? 'chevron-up' : 'chevron-down'} size={18} color={colors.destructive} />
+                      <Feather name="chevron-down" size={18} color={colors.destructive} />
                     </TouchableOpacity>
-                    {showIdentifierOptions && (
-                      <View style={[styles.vListWrap, { borderColor: colors.destructive + '66', backgroundColor: colors.card, marginBottom: 8 }]}>
-                        {DEVICE_IDENTIFIER_OPTIONS.map((option) => {
-                          const selected = selectedIdentifier === option.id;
-                          return (
-                            <TouchableOpacity
-                              key={option.id}
-                              activeOpacity={0.7}
-                              onPress={() => {
-                                setSelectedIdentifier(option.id);
-                                setShowIdentifierOptions(false);
-                              }}
-                              style={[styles.vItem, {
-                                borderBottomColor: colors.border,
-                                backgroundColor: selected ? colors.destructive + '0A' : 'transparent',
-                              }]}
-                            >
-                              <View style={[styles.radioOuter, { borderColor: selected ? colors.destructive : colors.muted }]}>
-                                {selected && <View style={[styles.radioInner, { backgroundColor: colors.destructive }]} />}
-                              </View>
-                              <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>
-                                {option.label}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    )}
-                    <Input
-                      label={`Enter ${DEVICE_IDENTIFIER_OPTIONS.find(option => option.id === selectedIdentifier)?.label}`}
-                      value={selectedIdentifier === 'serialNumber' ? serialNumber : selectedIdentifier === 'imei' ? imei : imei2}
-                      onChangeText={selectedIdentifier === 'serialNumber' ? setSerialNumber : selectedIdentifier === 'imei' ? setImei : setImei2}
-                      placeholder={selectedIdentifier === 'serialNumber' ? 'Serial Number' : selectedIdentifier === 'imei' ? 'IMEI 1' : 'IMEI 2'}
-                      keyboardType={selectedIdentifier === 'serialNumber' ? 'default' : 'number-pad'}
-                      inputContainerStyle={{ borderColor: colors.destructive + '66', backgroundColor: colors.destructive + '0A' }}
-                    />
                   </View>
                   <View style={{ flex: 1, minWidth: 0, position: 'relative' }}>
                     <Input
@@ -1448,6 +1416,85 @@ export default function NewRepairScreen() {
         </View>
       </Modal>
 
+      <Modal
+        visible={showIdentifierModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowIdentifierModal(false)}
+      >
+        <View style={[styles.overlayCenter, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
+          <View style={[styles.identifierModal, { backgroundColor: colors.card, borderColor: colors.destructive + '66' }]}>
+            <View style={styles.identifierModalHeader}>
+              <View>
+                <Text style={[styles.identifierModalTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+                  Device Identifier
+                </Text>
+                <Text style={[styles.identifierModalHint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  Select one or more, then enter the details
+                </Text>
+              </View>
+              <TouchableOpacity
+                accessibilityLabel="Close identifier popup"
+                onPress={() => setShowIdentifierModal(false)}
+                style={[styles.identifierClose, { borderColor: colors.border }]}
+              >
+                <Feather name="x" size={18} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.identifierModalScroll} keyboardShouldPersistTaps="handled">
+              {DEVICE_IDENTIFIER_OPTIONS.map((option) => {
+                const selected = selectedIdentifiers[option.id];
+                const value = option.id === 'serialNumber' ? serialNumber : option.id === 'imei' ? imei : imei2;
+                const onChangeText = option.id === 'serialNumber' ? setSerialNumber : option.id === 'imei' ? setImei : setImei2;
+                return (
+                  <View key={option.id} style={styles.identifierOptionBlock}>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      accessibilityLabel={`Select ${option.label}`}
+                      onPress={() => setSelectedIdentifiers(previous => ({ ...previous, [option.id]: !selected }))}
+                      style={[styles.identifierOption, {
+                        borderColor: selected ? colors.destructive + '99' : colors.border,
+                        backgroundColor: selected ? colors.destructive + '0A' : colors.card,
+                      }]}
+                    >
+                      <View style={[styles.checkbox, {
+                        backgroundColor: selected ? colors.destructive : 'transparent',
+                        borderColor: selected ? colors.destructive : colors.muted,
+                      }]}>
+                        {selected && <Feather name="check" size={14} color="#FFF" />}
+                      </View>
+                      <Text style={[styles.identifierOptionLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                    {selected && (
+                      <Input
+                        value={value}
+                        onChangeText={onChangeText}
+                        placeholder={option.label}
+                        keyboardType={option.id === 'serialNumber' ? 'default' : 'number-pad'}
+                        inputContainerStyle={{ borderColor: colors.destructive + '66', backgroundColor: colors.destructive + '0A' }}
+                      />
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              accessibilityLabel="Save device identifiers"
+              onPress={() => setShowIdentifierModal(false)}
+              style={[styles.identifierOkButton, { backgroundColor: colors.primary }]}
+            >
+              <Feather name="check" size={18} color="#FFF" />
+              <Text style={[styles.identifierOkText, { fontFamily: 'Inter_700Bold' }]}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Photo Kind Modal */}
       <Modal visible={!!showPhotoKindModal} animationType="fade" transparent onRequestClose={() => setShowPhotoKindModal(null)}>
         <View style={[styles.overlayCenter, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
@@ -1579,6 +1626,17 @@ const styles = StyleSheet.create({
   kindGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   kindBtn: { width: '48%', padding: 12, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
   kindBtnText: { fontSize: 12 },
+  identifierModal: { width: '100%', maxWidth: 520, maxHeight: '82%', padding: 16, borderRadius: 18, borderWidth: 1 },
+  identifierModalHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 },
+  identifierModalTitle: { fontSize: 17, lineHeight: 22 },
+  identifierModalHint: { fontSize: 12, lineHeight: 17, marginTop: 2 },
+  identifierClose: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  identifierModalScroll: { flexGrow: 0 },
+  identifierOptionBlock: { gap: 7, marginBottom: 10 },
+  identifierOption: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderRadius: 11, borderWidth: 1 },
+  identifierOptionLabel: { flex: 1, fontSize: 13 },
+  identifierOkButton: { minHeight: 48, marginTop: 6, borderRadius: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  identifierOkText: { color: '#FFF', fontSize: 14 },
   successView: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
   successIconWrap: { width: 70, height: 70, borderRadius: 35, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   successTitle: { fontSize: 20, marginBottom: 6 },
