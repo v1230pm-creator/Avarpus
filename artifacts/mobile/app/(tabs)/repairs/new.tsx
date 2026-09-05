@@ -941,7 +941,7 @@ export default function NewRepairScreen() {
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <View style={{ flex: 1, minWidth: 0 }}>
+                  <View style={styles.identifierFieldColumn}>
                     <Text style={[styles.identifierFieldLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>Device ID</Text>
                     <TouchableOpacity
                       activeOpacity={0.7}
@@ -1553,8 +1553,9 @@ const styles = StyleSheet.create({
   twoColumn: { flex: 1, minWidth: 0 },
   compactField: { flex: 1, minWidth: 0, gap: 7 },
   compactFieldLabel: { fontSize: 11, lineHeight: 16 },
+  identifierFieldColumn: { flex: 1, minWidth: 0, gap: 7 },
   identifierFieldLabel: { fontSize: 12, lineHeight: 16, letterSpacing: 0.1 },
-  identifierFieldControl: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderWidth: 1.5 },
+  identifierFieldControl: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 0, borderWidth: 1.5 },
   identifierFieldText: { flex: 1, minWidth: 0, fontSize: 15, lineHeight: 20 },
   compactToggle: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 0, borderRadius: 9, borderWidth: 1 },
   compactToggleLabel: { flex: 1, minWidth: 0, fontSize: 11, lineHeight: 16 },
