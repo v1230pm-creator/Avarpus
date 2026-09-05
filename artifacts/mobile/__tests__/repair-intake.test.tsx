@@ -220,6 +220,40 @@ it('adds the alternative mobile field from the Mobile input', async () => {
   unmount();
 });
 
+it('switches between Serial Number, IMEI 1, and IMEI 2 without losing values', async () => {
+  const { unmount } = await renderIntake();
+
+  expect(screen.getByPlaceholderText('Serial Number')).toBeTruthy();
+  type('Serial Number', 'SERIAL-123');
+
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Device identifier selector'));
+  });
+  expect(screen.getByText('IMEI 1')).toBeTruthy();
+  expect(screen.getByText('IMEI 2')).toBeTruthy();
+  await act(async () => {
+    fireEvent.press(screen.getByText('IMEI 1'));
+  });
+  type('IMEI 1', '111111111111111');
+
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Device identifier selector'));
+  });
+  await act(async () => {
+    fireEvent.press(screen.getByText('Serial Number'));
+  });
+  expect(screen.getByDisplayValue('SERIAL-123')).toBeTruthy();
+
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Device identifier selector'));
+  });
+  await act(async () => {
+    fireEvent.press(screen.getByText('IMEI 1'));
+  });
+  expect(screen.getByDisplayValue('111111111111111')).toBeTruthy();
+  unmount();
+});
+
 /** Fills every required intake field on step 1 (brand is a chip selector). */
 const fillRequiredFields = async () => {
   type('Full name', 'Asha Kumar');

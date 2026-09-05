@@ -87,6 +87,12 @@ const PHYSICAL_CONDITION_ITEMS = [
   { id: 'other', label: 'Other' },
 ];
 
+const DEVICE_IDENTIFIER_OPTIONS = [
+  { id: 'serialNumber', label: 'Serial Number' },
+  { id: 'imei', label: 'IMEI 1' },
+  { id: 'imei2', label: 'IMEI 2' },
+] as const;
+
 const PHOTO_KINDS = [
   { id: 'front', label: 'Front' },
   { id: 'back', label: 'Back' },
@@ -144,6 +150,8 @@ export default function NewRepairScreen() {
   const [imei, setImei] = useState('');
   const [imei2, setImei2] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
+  const [selectedIdentifier, setSelectedIdentifier] = useState<'serialNumber' | 'imei' | 'imei2'>('serialNumber');
+  const [showIdentifierOptions, setShowIdentifierOptions] = useState(false);
   const [colorAttr, setColorAttr] = useState('');
   const [storage, setStorage] = useState('');
   const [ram, setRam] = useState('');
@@ -929,34 +937,58 @@ export default function NewRepairScreen() {
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <View style={{ flex: 1 }}>
-                    <Input
-                      label="IMEI 1"
-                      value={imei}
-                      onChangeText={setImei}
-                      placeholder="Optional"
-                      keyboardType="number-pad"
-                      inputContainerStyle={{ borderColor: colors.destructive + '66', backgroundColor: colors.destructive + '0A' }}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Input
-                      label="IMEI 2"
-                      value={imei2}
-                      onChangeText={setImei2}
-                      placeholder="Optional"
-                      keyboardType="number-pad"
-                      inputContainerStyle={{ borderColor: colors.destructive + '66', backgroundColor: colors.destructive + '0A' }}
-                    />
-                  </View>
-                </View>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Device Identifier</Text>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => setShowIdentifierOptions(v => !v)}
+                      accessibilityLabel="Device identifier selector"
+                      style={[styles.sectionToggle, {
+                        backgroundColor: colors.destructive + '0A',
+                        borderColor: colors.destructive + '66',
+                        marginBottom: 8,
+                      }]}
+                    >
+                      <Feather name="hash" size={17} color={colors.destructive} />
+                      <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                        {DEVICE_IDENTIFIER_OPTIONS.find(option => option.id === selectedIdentifier)?.label}
+                      </Text>
+                      <Feather name={showIdentifierOptions ? 'chevron-up' : 'chevron-down'} size={18} color={colors.destructive} />
+                    </TouchableOpacity>
+                    {showIdentifierOptions && (
+                      <View style={[styles.vListWrap, { borderColor: colors.destructive + '66', backgroundColor: colors.card, marginBottom: 8 }]}>
+                        {DEVICE_IDENTIFIER_OPTIONS.map((option) => {
+                          const selected = selectedIdentifier === option.id;
+                          return (
+                            <TouchableOpacity
+                              key={option.id}
+                              activeOpacity={0.7}
+                              onPress={() => {
+                                setSelectedIdentifier(option.id);
+                                setShowIdentifierOptions(false);
+                              }}
+                              style={[styles.vItem, {
+                                borderBottomColor: colors.border,
+                                backgroundColor: selected ? colors.destructive + '0A' : 'transparent',
+                              }]}
+                            >
+                              <View style={[styles.radioOuter, { borderColor: selected ? colors.destructive : colors.muted }]}>
+                                {selected && <View style={[styles.radioInner, { backgroundColor: colors.destructive }]} />}
+                              </View>
+                              <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>
+                                {option.label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
                     <Input
-                      label="Serial Number"
-                      value={serialNumber}
-                      onChangeText={setSerialNumber}
-                      placeholder="Optional"
+                      label={`Enter ${DEVICE_IDENTIFIER_OPTIONS.find(option => option.id === selectedIdentifier)?.label}`}
+                      value={selectedIdentifier === 'serialNumber' ? serialNumber : selectedIdentifier === 'imei' ? imei : imei2}
+                      onChangeText={selectedIdentifier === 'serialNumber' ? setSerialNumber : selectedIdentifier === 'imei' ? setImei : setImei2}
+                      placeholder={selectedIdentifier === 'serialNumber' ? 'Serial Number' : selectedIdentifier === 'imei' ? 'IMEI 1' : 'IMEI 2'}
+                      keyboardType={selectedIdentifier === 'serialNumber' ? 'default' : 'number-pad'}
                       inputContainerStyle={{ borderColor: colors.destructive + '66', backgroundColor: colors.destructive + '0A' }}
                     />
                   </View>
