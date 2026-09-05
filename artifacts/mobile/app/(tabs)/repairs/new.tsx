@@ -942,7 +942,7 @@ export default function NewRepairScreen() {
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Device Identifier</Text>
+                    <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Device ID</Text>
                     <TouchableOpacity
                       activeOpacity={0.7}
                       onPress={() => setShowIdentifierModal(true)}
@@ -955,7 +955,7 @@ export default function NewRepairScreen() {
                     >
                       <Feather name="hash" size={17} color={colors.destructive} />
                       <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
-                        {[serialNumber && 'Serial', imei && 'IMEI 1', imei2 && 'IMEI 2'].filter(Boolean).join(', ') || 'Select identifiers'}
+                        {[serialNumber && 'Serial', imei && 'IMEI 1', imei2 && 'IMEI 2'].filter(Boolean).join(', ') || 'Select ID'}
                       </Text>
                       <Feather name="chevron-down" size={18} color={colors.destructive} />
                     </TouchableOpacity>
@@ -1427,7 +1427,7 @@ export default function NewRepairScreen() {
             <View style={styles.identifierModalHeader}>
               <View>
                 <Text style={[styles.identifierModalTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-                  Device Identifier
+                  Device ID
                 </Text>
                 <Text style={[styles.identifierModalHint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
                   Select one or more, then enter the details
