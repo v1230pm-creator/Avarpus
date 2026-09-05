@@ -87,14 +87,6 @@ const PHYSICAL_CONDITION_ITEMS = [
   { id: 'other', label: 'Other' },
 ];
 
-const WARRANTY_OPTIONS = [
-  { label: 'No Warranty', value: '0' },
-  { label: '7 Days', value: '7' },
-  { label: '30 Days', value: '30' },
-  { label: '90 Days', value: '90' },
-  { label: '180 Days', value: '180' },
-];
-
 const PHOTO_KINDS = [
   { id: 'front', label: 'Front' },
   { id: 'back', label: 'Back' },
@@ -162,7 +154,6 @@ export default function NewRepairScreen() {
 
   const [showPhysical, setShowPhysical] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
-  const [showWarranty, setShowWarranty] = useState(false);
   const [showDeviceType, setShowDeviceType] = useState(false);
   const [showBrand, setShowBrand] = useState(false);
   const [physicalCondition, setPhysicalCondition] = useState<Record<string, boolean>>({});
@@ -225,7 +216,6 @@ export default function NewRepairScreen() {
   const [advanceEnabled, setAdvanceEnabled] = useState(false);
   const [advanceMethod, setAdvanceMethod] = useState('Cash');
   const [notes, setNotes] = useState('');
-  const [warrantyDays, setWarrantyDays] = useState('0');
   const [receiveDate, setReceiveDate] = useState(getTodayStr());
   const [expectedDate, setExpectedDate] = useState(getNextWeekStr());
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
@@ -335,7 +325,7 @@ export default function NewRepairScreen() {
         repairCharge: parseFloat(repairCharge) || 0, partsCharge: 0,
         estimatedCost: parseFloat(repairCharge) || 0,
         expectedDate: expectedDate.trim(), notes: notes.trim() || undefined,
-        checklist, warrantyDays: parseInt(warrantyDays, 10) || 0,
+        checklist, warrantyDays: 0,
         // null = user explicitly removed a detected dealer (server must not
         // silently re-link); undefined = let the server auto-detect by phone.
         dealerId: dealerId ?? (dealerCleared ? null : undefined),
@@ -620,7 +610,6 @@ export default function NewRepairScreen() {
               ${row('Receive Date', r.receiveDate)}
               ${row('Expected Delivery', r.expectedDate)}
               ${row('Estimated Charge', `Rs. ${r.repairCharge}`)}
-              ${row('Warranty', r.warrantyDays && r.warrantyDays > 0 ? `${r.warrantyDays} Days` : 'No Warranty')}
               ${row('Notes', r.notes)}
             </table>
 
@@ -1140,45 +1129,6 @@ export default function NewRepairScreen() {
                      </View>
                    )}
                  </View>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => setShowWarranty(v => !v)}
-                  style={[styles.sectionToggle, { backgroundColor: colors.card, borderColor: showWarranty ? colors.primary : colors.border }]}
-                >
-                  <View style={[styles.checkbox, { backgroundColor: showWarranty ? colors.primary : 'transparent', borderColor: showWarranty ? colors.primary : colors.muted }]}>
-                    {showWarranty && <Feather name="check" size={14} color="#FFF" />}
-                  </View>
-                  <Text style={[styles.sectionToggleLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Warranty Offered</Text>
-                  <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
-                    <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
-                      {WARRANTY_OPTIONS.find(o => o.value === warrantyDays)?.label || 'No Warranty'}
-                    </Text>
-                  </View>
-                  <Feather name={showWarranty ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
-                </TouchableOpacity>
-                {showWarranty && (
-                  <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                    <ScrollView style={styles.vList} nestedScrollEnabled showsVerticalScrollIndicator>
-                      {WARRANTY_OPTIONS.map((opt) => {
-                        const selected = warrantyDays === opt.value;
-                        return (
-                          <TouchableOpacity
-                            key={opt.value}
-                            activeOpacity={0.7}
-                            onPress={() => { setWarrantyDays(opt.value); setShowWarranty(false); }}
-                            style={[styles.vItem, { borderBottomColor: colors.border, backgroundColor: selected ? colors.primary + '10' : 'transparent' }]}
-                          >
-                            <View style={[styles.radioOuter, { borderColor: selected ? colors.primary : colors.muted }]}>
-                              {selected && <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />}
-                            </View>
-                            <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>{opt.label}</Text>
-                            {selected && <Feather name="check" size={16} color={colors.primary} />}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
-                )}
               </View>
 
               {/* Financials */}
