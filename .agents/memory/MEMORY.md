@@ -56,3 +56,4 @@
 - [Native chat attachment safety](native-chat-attachment-safety.md) — keep sheet drags off nested galleries, paginate device media, and confirm precise location before sending.
 - [Drive backup privacy](drive-backup-privacy.md) — cloud backup defaults off; never claim end-to-end encryption until a user-held recovery secret protects archive contents.
 - [Artifact service environment](artifact-service-env.md) — runtime-required variables belong in service-level env, but a missing port is not proven until startup logs confirm it.
+- [Expo SDK 57 migration](expo-sdk57-migration.md) — Expo Go uses SDK 57; keep legacy media asset APIs explicit and mock Worklets/native modules at test boundaries.
