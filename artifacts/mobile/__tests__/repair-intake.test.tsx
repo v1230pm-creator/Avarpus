@@ -220,19 +220,51 @@ it('adds the alternative mobile field from the Mobile input', async () => {
   unmount();
 });
 
+it('enters multiple identifiers inside the popup and preserves them after OK', async () => {
+  const { unmount } = await renderIntake();
+
+  expect(screen.queryByPlaceholderText('Serial Number')).toBeNull();
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Device identifier selector'));
+  });
+  type('Serial Number', 'SERIAL-123');
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Select IMEI 1'));
+  });
+  type('IMEI 1', '111111111111111');
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Select IMEI 2'));
+  });
+  type('IMEI 2', '222222222222222');
+
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Save device identifiers'));
+  });
+  expect(screen.queryByPlaceholderText('Serial Number')).toBeNull();
+  expect(screen.getByText('Serial, IMEI 1, IMEI 2')).toBeTruthy();
+
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Device identifier selector'));
+  });
+  expect(screen.getByDisplayValue('SERIAL-123')).toBeTruthy();
+  expect(screen.getByDisplayValue('111111111111111')).toBeTruthy();
+  expect(screen.getByDisplayValue('222222222222222')).toBeTruthy();
+  unmount();
+});
+
 /** Fills every required intake field on step 1 (brand is a chip selector). */
 const fillRequiredFields = async () => {
   type('Full name', 'Asha Kumar');
-  type('10-digit number', '9876543210');
+  type('Number', '9876543210');
   await press('Brand *');
   await press('Samsung');
-  type('Enter your model', 'Galaxy S23');
+  type('Model', 'Galaxy S23');
   type('Describe the issue...', 'Screen cracked, no display');
 };
 
 /** Step 1 → review summary → confirm checkbox → submit. */
 const reviewConfirmAndSubmit = async () => {
-  await press('Complete');
+  await press('RECEIVE DEVICE');
   await press(CONFIRM_LABEL);
   await press('Complete Intake');
 };
@@ -253,7 +285,7 @@ afterEach(() => {
 describe('required-field validation blocks submit', () => {
   it('empty review shows field errors and fires no API call', async () => {
     const { unmount } = await renderIntake();
-    await press('Complete');
+    await press('RECEIVE DEVICE');
 
     // brand / model / problem all flag "Required" (name too)
     expect(screen.getAllByText('Required').length).toBeGreaterThanOrEqual(3);
@@ -270,8 +302,8 @@ describe('required-field validation blocks submit', () => {
   it('rejects a short mobile number without calling the API', async () => {
     const { unmount } = await renderIntake();
     await fillRequiredFields();
-    type('10-digit number', '98765'); // too short
-    await press('Complete');
+    type('Number', '98765'); // too short
+    await press('RECEIVE DEVICE');
 
     expect(screen.getByText('10-digit mobile required')).toBeTruthy();
     expect(screen.queryByText('Complete Intake')).toBeNull();
@@ -285,7 +317,7 @@ describe('required-field validation blocks submit', () => {
     // Expected Delivery is the (only) visible date input unless backdating is on.
     const dates = screen.getAllByPlaceholderText('YYYY-MM-DD');
     fireEvent.changeText(dates[dates.length - 1], '2000-01-01');
-    await press('Complete');
+    await press('RECEIVE DEVICE');
 
     expect(screen.getByText('Cannot be before the receive date')).toBeTruthy();
     expect(screen.queryByText('Complete Intake')).toBeNull();
@@ -305,9 +337,9 @@ describe('failed save shows the alert and keeps entered values', () => {
     const { unmount } = await renderIntake();
     await fillRequiredFields();
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('Accessories'));
-    }); // open the collapsed accessories section
-    type('e.g. Broken cover, mixed cables...', 'Charger, Cover');
+      fireEvent.press(screen.getByLabelText('Physical'));
+    });
+    fireEvent.press(screen.getByText('Charger'));
     fireEvent.changeText(screen.getAllByPlaceholderText('0')[0], '2500'); // estimate (advance input also uses placeholder 0)
     await reviewConfirmAndSubmit();
 

@@ -42,7 +42,7 @@ export function PrivacyShield() {
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 9999,
     elevation: 9999,
     alignItems: 'center',

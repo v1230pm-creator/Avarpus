@@ -22,6 +22,7 @@ export default function ProfileScreen() {
 
   const [name, setName] = useState(user?.name ?? '');
   const [mobile, setMobile] = useState(user?.mobile ?? '');
+  const [profilePhoto, setProfilePhoto] = useState(user?.profilePhoto ?? null);
   const [about, setAbout] = useState(user?.profileAbout ?? '');
   const [username, setUsername] = useState(user?.profileUsername ?? '');
   const [links, setLinks] = useState((user?.profileLinks ?? []).join('\n'));
@@ -32,6 +33,7 @@ export default function ProfileScreen() {
   useEffect(() => {
     setName(user?.name ?? '');
     setMobile(user?.mobile ?? '');
+    setProfilePhoto(user?.profilePhoto ?? null);
     setAbout(user?.profileAbout ?? '');
     setUsername(user?.profileUsername ?? '');
     setLinks((user?.profileLinks ?? []).join('\n'));
@@ -114,7 +116,11 @@ export default function ProfileScreen() {
         }
       }
 
-      await authMeUpdate({ profilePhoto: objectPath });
+      const updated = await authMeUpdate({ profilePhoto: objectPath });
+      // Use the final server-owned path immediately. refreshUser is still
+      // called below to update the shared identity, but the profile screen
+      // must not stay on the old avatar if that refresh is briefly delayed.
+      setProfilePhoto(updated.user.profilePhoto ?? null);
       await refreshUser();
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -184,7 +190,7 @@ export default function ProfileScreen() {
                 <ActivityIndicator color={colors.primary} size="large" />
               </View>
             ) : (
-              <Avatar name={user?.name ?? 'User'} url={user?.profilePhoto} size={150} />
+              <Avatar name={user?.name ?? 'User'} url={profilePhoto} size={150} />
             )}
 
             <TouchableOpacity

@@ -33,6 +33,7 @@ import {
   useChatContactsMatch,
   useChatRoomsCreate,
   useChatRoomsList,
+  useNotificationsList,
   getChatRoomsListQueryKey,
   getRepairsListQueryKey,
   useRepairsList,
@@ -224,7 +225,6 @@ function CustomerInboxScreen() {
       refetchOnMount: 'always',
     },
   });
-
   const rooms = useMemo(() => {
     // Repairs, payment activity and dealer conversations belong in their own
     // app areas. Direct rooms are intentionally included alongside customers.
@@ -954,6 +954,15 @@ function RepairHomeItem({
 
 function RepairHomeScreen() {
   const colors = useColors();
+  const { data: notificationData } = useNotificationsList({
+    query: {
+      enabled: true,
+      refetchInterval: 5_000,
+      refetchIntervalInBackground: false,
+      refetchOnMount: 'always',
+    },
+  } as any);
+  const unreadNotificationCount = notificationData?.unreadCount ?? 0;
   const scheme = useColorScheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -1052,10 +1061,17 @@ function RepairHomeScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/more/notifications')}
-            style={styles.headerIconButton}
+            style={[styles.headerIconButton, styles.notificationButton]}
             accessibilityLabel="Open notifications"
           >
             <Feather name="bell" size={22} color={colors.foreground} />
+            {unreadNotificationCount > 0 && (
+              <View style={[styles.headerNotificationBadge, { backgroundColor: colors.destructive }]}>
+                <Text style={styles.headerNotificationBadgeText}>
+                  {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -1436,6 +1452,24 @@ const styles = StyleSheet.create({
     height: 38,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  notificationButton: { position: 'relative' },
+  headerNotificationBadge: {
+    position: 'absolute',
+    top: 1,
+    right: 0,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerNotificationBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    lineHeight: 11,
+    fontFamily: 'Inter_700Bold',
   },
   headerActions: {
     flexDirection: 'row',

@@ -13,6 +13,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
@@ -142,10 +143,10 @@ function MilkyWayLoadingBackground({ onReady }: { onReady: () => void }) {
   }));
 
   return (
-    <Animated.View style={[StyleSheet.absoluteFillObject, animatedStyle]}>
+    <Animated.View style={[StyleSheet.absoluteFill, animatedStyle]}>
       <Image
         source={require('@/assets/images/avarpus-nordic-night-background.png')}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         contentFit="cover"
         onLoad={onReady}
         onError={onReady}
@@ -395,7 +396,9 @@ export function SplashIntro({
   useEffect(() => {
     if (!backgroundReady || !markReady || revealStarted.current) return;
     revealStarted.current = true;
-    SplashScreen.setOptions({ duration: 0, fade: false });
+    if (Constants.executionEnvironment !== ExecutionEnvironment.StoreClient) {
+      SplashScreen.setOptions({ duration: 0, fade: false });
+    }
     SplashScreen.hideAsync()
       .catch(() => undefined)
       .finally(() => {
@@ -455,7 +458,7 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   skyShade: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(1, 7, 20, 0.48)',
   },
   brandGroup: {

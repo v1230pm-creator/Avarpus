@@ -4,6 +4,7 @@ import { db, shopsTable, usersTable } from "@workspace/db";
 import {
   consumeOtp,
   createOtp,
+  invalidateOtp,
   createSession,
   deleteSession,
   generateToken,
@@ -96,20 +97,26 @@ router.post("/auth/otp/request", asyncHandler(async (req, res) => {
     });
     return;
   }
-  // Keep the response generic while sending to every valid number. This lets
-  // new users verify that they control a mobile number without revealing
-  // account state or making account creation part of login.
-  const genericMessage = "If this mobile number is valid, a verification code has been sent.";
-  res.json({ message: genericMessage });
-  void (async () => {
-    try {
-      const code = await createOtp(mobile, "login");
-      const result = await hanuSendOtp(mobile, code);
-      if (!result.ok) req.log.warn("Hanu OTP send failed");
-    } catch {
-      req.log.error("Unexpected error calling Hanu OTP");
-    }
-  })();
+  const code = await createOtp(mobile, "login");
+  const result = await hanuSendOtp(mobile, code);
+  if (!result.ok) {
+    await invalidateOtp(mobile, "login");
+    req.log.warn({ providerReason: result.reason }, "Hanu OTP send failed");
+    res.status(502).json({
+      message: "Could not send the SMS verification code. Please try again shortly.",
+    });
+    return;
+  }
+  req.log.info(
+    {
+      providerMessage: result.providerMessage,
+      providerReference: result.providerReference,
+    },
+    "Hanu OTP request accepted",
+  );
+  res.json({
+    message: "If this mobile number is valid, a verification code has been sent.",
+  });
 }));
 
 // ── Mobile OTP resend ─────────────────────────────────────────────────────
@@ -140,17 +147,26 @@ router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
     });
     return;
   }
-  const genericMessage = "If this mobile number is valid, a new code has been sent.";
-  res.json({ message: genericMessage });
-  void (async () => {
-    try {
-      const code = await createOtp(mobile, "login");
-      const result = await hanuSendOtp(mobile, code);
-      if (!result.ok) req.log.warn("Hanu OTP resend failed");
-    } catch {
-      req.log.error("Unexpected error calling Hanu OTP resend");
-    }
-  })();
+  const code = await createOtp(mobile, "login");
+  const result = await hanuSendOtp(mobile, code);
+  if (!result.ok) {
+    await invalidateOtp(mobile, "login");
+    req.log.warn({ providerReason: result.reason }, "Hanu OTP resend failed");
+    res.status(502).json({
+      message: "Could not resend the SMS verification code. Please try again shortly.",
+    });
+    return;
+  }
+  req.log.info(
+    {
+      providerMessage: result.providerMessage,
+      providerReference: result.providerReference,
+    },
+    "Hanu OTP resend accepted",
+  );
+  res.json({
+    message: "If this mobile number is valid, a new code has been sent.",
+  });
 }));
 
 router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
@@ -188,7 +204,7 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
     return;
   }
   if (attempt.status === "provider_error") {
-    req.log.error("Unexpected error verifying Hanu OTP");
+    req.log.error("Unexpected error verifying SMS OTP");
   }
   if (attempt.status !== "approved") {
     // Use a generic message to avoid leaking whether provider rejected the code
@@ -372,6 +388,7 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
       req.log.warn("Registration verification email was accepted without a Resend message ID");
     }
   } catch (err) {
+    await invalidateOtp(normEmail, "register");
     // Surface the exact Resend error in server logs
     console.error(
       "Registration OTP email delivery failed:",

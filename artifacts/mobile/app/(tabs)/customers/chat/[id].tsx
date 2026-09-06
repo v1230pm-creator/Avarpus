@@ -45,7 +45,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import * as MediaLibrary from 'expo-media-library';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import * as Sharing from 'expo-sharing';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
@@ -252,7 +252,7 @@ const WALLPAPER_MOTIFS: Array<{
 
 function ChatWallpaper({ colors }: { colors: any }) {
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <View style={[styles.wallpaperBase, { backgroundColor: colors.backgroundSecondary }]} />
       {WALLPAPER_MOTIFS.map((motif, index) => (
         <Feather
@@ -1348,6 +1348,8 @@ export default function ChatScreen() {
             pendingSendRef.current = null;
           }
           msgsRefetch();
+          void queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
+          void queryClient.invalidateQueries({ queryKey: getChatRoomsGetQueryKey(resolvedRoomId) });
         },
         onError: (err: any) => {
           setOptimisticMsgs((prev) => prev.filter((m) => m.id !== optimistic.id));
@@ -1356,7 +1358,7 @@ export default function ChatScreen() {
         },
       },
     );
-  }, [resolvedRoomId, isBlocked, user, sendMutation, msgsRefetch]);
+  }, [resolvedRoomId, isBlocked, user, sendMutation, msgsRefetch, queryClient]);
 
   const handleSend = useCallback(() => {
     sendTextValue(text);
@@ -1472,6 +1474,8 @@ export default function ChatScreen() {
       setUploadProgress(null);
       setIsSendingUpload(false);
       msgsRefetch();
+      void queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getChatRoomsGetQueryKey(resolvedRoomId) });
     } catch (err: any) {
       setUploadProgress(null);
       setIsSendingUpload(false);
@@ -1479,7 +1483,7 @@ export default function ChatScreen() {
         err?.data?.message ?? err?.message ?? 'Failed to send. Tap Retry.',
       );
     }
-  }, [pendingUpload, resolvedRoomId, uploadUrlMutation, sendMutation, msgsRefetch]);
+  }, [pendingUpload, resolvedRoomId, uploadUrlMutation, sendMutation, msgsRefetch, queryClient]);
 
   const attachEnabled =
     providerAvailable &&
@@ -2602,7 +2606,7 @@ const styles = StyleSheet.create({
   chatSafetyTitle: { fontSize: 11 },
   chatSafetyText: { fontSize: 10, marginTop: 1 },
   chatBody: { flex: 1, overflow: 'hidden' },
-  wallpaperBase: { ...StyleSheet.absoluteFillObject, opacity: 0.72 },
+  wallpaperBase: { ...StyleSheet.absoluteFill, opacity: 0.72 },
   wallpaperMotif: { position: 'absolute' },
   centeredState: {
     flex: 1,
@@ -2810,12 +2814,12 @@ const styles = StyleSheet.create({
   },
   errorText: { flex: 1, fontSize: 12 },
   attachmentSheetOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'flex-end',
     zIndex: 20,
   },
   attachmentSheetBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(2, 8, 23, 0.34)',
   },
   attachmentSheet: {

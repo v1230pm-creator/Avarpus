@@ -7,16 +7,6 @@
     "icon": "./assets/images/avarpus-icon.png",
     "scheme": "vmcelectronicerp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/avarpus-native-loading.png",
-      "resizeMode": "cover",
-      "backgroundColor": "#020817",
-      "dark": {
-        "image": "./assets/images/avarpus-native-loading.png",
-        "backgroundColor": "#020812"
-      }
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.vmcelectronicerp.app"
@@ -37,10 +27,6 @@
       "barStyle": "light-content",
       "backgroundColor": "#040914",
       "translucent": false
-    },
-    "androidNavigationBar": {
-      "barStyle": "light-content",
-      "backgroundColor": "#040914"
     },
     "web": {
       "favicon": "./assets/images/avarpus-favicon.png"
@@ -98,7 +84,8 @@
           "cameraPermission": "Allow Avarpus to scan repair QR codes and use video calls."
         }
       ],
-      "expo-video"
+      "expo-video",
+      "expo-asset"
     ],
     "owner": "avarpus-team",
     "extra": {
