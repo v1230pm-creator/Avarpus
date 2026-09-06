@@ -403,6 +403,17 @@ export async function createOtp(
   return code;
 }
 
+export async function invalidateOtp(identifier: string, purpose: string): Promise<void> {
+  await db
+    .delete(otpCodesTable)
+    .where(
+      and(
+        eq(otpCodesTable.identifier, identifier),
+        eq(otpCodesTable.purpose, purpose),
+      ),
+    );
+}
+
 export type OtpResult =
   | { ok: true; payload: unknown }
   | { ok: false; error: string };
