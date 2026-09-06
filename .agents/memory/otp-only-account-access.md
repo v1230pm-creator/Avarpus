@@ -8,3 +8,13 @@ Mobile OTP is the sole primary account sign-in method across mobile and web. Sav
 **Why:** The account model must retain existing users and historic business data while eliminating SIM-originated SMS verification and device-key authentication complexity.
 
 **How to apply:** Send request and resend OTPs to every valid normalized Indian mobile number. Successful verification reuses an existing active account or atomically creates a standalone `customer` account with no shop/business/customer linkage; inactive existing accounts remain denied and must never be replaced or reactivated. Standalone customers receive only chat/profile access. Registration and customer-invite activation may provision or link business accounts, but must return no token and route people to mobile OTP before access. Keep the established OTP provider, expiry, rate limiting, and one-time verification controls. Do not reintroduce SIM verification, SMS bridge callbacks, device-key registration, native keystore login, or SMS-send permissions. Keep historical database tables and applied migrations intact unless a separately approved, non-destructive data-retention plan replaces them.
+
+Outbound OTP endpoints must await provider acceptance before reporting success. If SMS or email delivery fails, invalidate the newly-created local code so an undelivered OTP cannot remain verifiable; log the provider reason server-side but return only a safe delivery error. Registration email must use a sender on a verified Resend domain, never the testing-domain fallback for arbitrary recipients.
+
+Android emulators cannot receive external carrier SMS because they have no real SIM. For simulator testing, send the OTP to a real physical number and enter the received code in the emulator; do not add a production OTP bypass. Hanu OTP is the user-confirmed production SMS provider; do not substitute another provider without explicit approval.
+
+Hanu's live SMS endpoint requires both a local 10-digit Indian number and `templatesid`, despite conflicting public SMS documentation.
+
+**Why:** Removing `templatesid` produced an explicit missing-parameter rejection, while adding the documented `91` prefix produced an explicit “only 10-digit Indian numbers” rejection. The user confirmed real-device SMS delivery with the `default` template.
+
+**How to apply:** Send the normalized ten digits unchanged and preserve `templatesid`; trust the live provider error contract over the inconsistent public parameter table.
