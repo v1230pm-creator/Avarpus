@@ -33,6 +33,14 @@ jest.mock('expo-router', () => {
   };
 });
 
+jest.mock('react-native-keyboard-controller', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    KeyboardAvoidingView: ({ children, ...props }: any) => React.createElement(View, props, children),
+  };
+});
+
 jest.mock('@/context/AuthContext', () => ({
   useAuth: jest.fn(),
 }));

@@ -12,7 +12,6 @@ import {
   Animated,
   FlatList,
   Keyboard,
-  KeyboardAvoidingView,
   Linking,
   PanResponder,
   Platform,
@@ -26,6 +25,7 @@ import {
   useColorScheme,
   useWindowDimensions,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
@@ -1020,6 +1020,21 @@ export default function ChatScreen() {
 
   // ── Text composer ───────────────────────────────────────────────────────
   const [text, setText] = useState('');
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const blinkAnim = useRef(new Animated.Value(1)).current;
+
   const [sendError, setSendError] = useState<string | null>(null);
   const [optimisticMsgs, setOptimisticMsgs] = useState<ChatMessage[]>([]);
   const clientRequestIdRef = useRef(makeClientRequestId('room'));
@@ -1937,11 +1952,25 @@ export default function ChatScreen() {
 
   const isRecording = recordingPhase === 'recording';
 
+  useEffect(() => {
+    if (isRecording) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(blinkAnim, { toValue: 0.2, duration: 600, useNativeDriver: true }),
+          Animated.timing(blinkAnim, { toValue: 1, duration: 600, useNativeDriver: true })
+        ])
+      ).start();
+    } else {
+      blinkAnim.stopAnimation();
+      blinkAnim.setValue(1);
+    }
+  }, [isRecording, blinkAnim]);
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior="padding"
       keyboardVerticalOffset={0}
     >
       {/* Header */}
@@ -2220,40 +2249,52 @@ export default function ChatScreen() {
       {isRecording && (
         <View
           style={[
-            styles.recordingBar,
-            { backgroundColor: colors.card, borderTopColor: colors.border },
+            styles.composer,
+            {
+              paddingBottom: isKeyboardVisible ? 6 : Math.max(insets.bottom, 6),
+            },
           ]}
         >
-          <View style={styles.recordingDot} />
-          <Text
-            style={[styles.recordingTimer, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}
-            accessibilityLabel="Recording elapsed time"
+          <View
+            style={[
+              styles.inputContainer,
+              { backgroundColor: colors.card, borderColor: colors.border, justifyContent: 'space-between', paddingLeft: 12 },
+            ]}
           >
-            {formatDuration(recorderState.durationMillis)}
-          </Text>
-          <Text style={[styles.recordingLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            Recording…
-          </Text>
-          <View style={styles.recordingActions}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Animated.View style={{ opacity: blinkAnim }}>
+                <View style={styles.recordingDot} />
+              </Animated.View>
+              <Text
+                style={[styles.recordingTimer, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}
+                accessibilityLabel="Recording elapsed time"
+              >
+                {formatDuration(recorderState.durationMillis)}
+              </Text>
+            </View>
             <TouchableOpacity
               onPress={handleCancelRecording}
-              style={[styles.recordingBtn, { backgroundColor: colors.border }]}
+              style={{ paddingHorizontal: 12, height: '100%', justifyContent: 'center' }}
               accessibilityLabel="Cancel recording"
             >
-              <Text style={{ color: colors.foreground, fontFamily: 'Inter_500Medium', fontSize: 13 }}>
+              <Text style={{ color: colors.destructive, fontFamily: 'Inter_500Medium', fontSize: 15 }}>
                 Cancel
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleStopAndSendRecording}
-              style={[styles.recordingBtn, { backgroundColor: colors.primary }]}
-              accessibilityLabel="Stop and send recording"
-            >
-              <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>
-                Stop · Send
-              </Text>
-            </TouchableOpacity>
           </View>
+
+          <TouchableOpacity
+            onPress={handleStopAndSendRecording}
+            style={[styles.actionCircle, { backgroundColor: colors.primary }]}
+            accessibilityLabel="Stop and send recording"
+          >
+            <Feather
+              name="send"
+              size={19}
+              color={colors.primaryForeground}
+              style={{ transform: [{ translateX: -1 }, { translateY: 1 }] }}
+            />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -2334,9 +2375,7 @@ export default function ChatScreen() {
           style={[
             styles.composer,
             {
-              paddingBottom: Math.max(insets.bottom, 16),
-              backgroundColor: colors.backgroundSecondary,
-              borderTopColor: colors.border,
+              paddingBottom: isKeyboardVisible ? 6 : Math.max(insets.bottom, 6),
             },
           ]}
         >
@@ -2346,13 +2385,6 @@ export default function ChatScreen() {
               { backgroundColor: colors.card, borderColor: colors.border },
             ]}
           >
-            <TouchableOpacity
-              style={styles.inlineComposerAction}
-              accessibilityLabel="Open emoji and stickers"
-              onPress={() => Alert.alert('Emoji and stickers', 'Sticker support will appear here when enabled.')}
-            >
-              <Feather name="smile" size={21} color={colors.mutedForeground} />
-            </TouchableOpacity>
             <TextInput
               style={[styles.input, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
               placeholder={providerAvailable ? 'Message…' : 'Messaging is not available yet'}
@@ -2361,8 +2393,7 @@ export default function ChatScreen() {
               onChangeText={setText}
               editable={providerAvailable && !!resolvedRoomId && !isBlocked}
               multiline
-              returnKeyType="send"
-              onSubmitEditing={handleSend}
+              returnKeyType="default"
               blurOnSubmit={false}
             />
             <TouchableOpacity
@@ -2375,6 +2406,7 @@ export default function ChatScreen() {
                 name="paperclip"
                 size={20}
                 color={attachEnabled ? colors.mutedForeground : colors.textDisabled ?? colors.mutedForeground}
+                style={{ transform: [{ rotate: '-45deg' }] }}
               />
             </TouchableOpacity>
             <TouchableOpacity
@@ -2395,7 +2427,7 @@ export default function ChatScreen() {
             onPress={text.trim() ? handleSend : handleMicPress}
             disabled={text.trim() ? !resolvedRoomId || !providerAvailable || isBlocked : !micEnabled}
             style={[
-              styles.sendBtn,
+              styles.actionCircle,
               {
                 backgroundColor:
                   text.trim() && resolvedRoomId && providerAvailable && !isBlocked
@@ -2415,8 +2447,9 @@ export default function ChatScreen() {
           >
             <Feather
               name={text.trim() ? 'send' : 'mic'}
-              size={19}
+              size={text.trim() ? 19 : 22}
               color={text.trim() || micEnabled ? colors.primaryForeground : colors.mutedForeground}
+              style={text.trim() ? { transform: [{ translateX: -1 }, { translateY: 1 }] } : undefined}
             />
           </TouchableOpacity>
         </View>
@@ -2788,7 +2821,7 @@ const styles = StyleSheet.create({
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingTop: 8,
     gap: 8,
   },
@@ -2796,27 +2829,28 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 14,
+    borderRadius: 24,
     paddingHorizontal: 4,
-    minHeight: 44,
-    borderWidth: 1,
+    minHeight: 48,
+    borderWidth: 0,
   },
   inlineComposerAction: {
-    width: 32,
-    height: 40,
+    width: 36,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },
   input: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 16,
     maxHeight: 120,
-    paddingVertical: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
   },
-  sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+  actionCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
