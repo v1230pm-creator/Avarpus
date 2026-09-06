@@ -657,7 +657,8 @@ function AttachmentSheet({
             backgroundColor: colors.card,
             borderColor: colors.border,
             height: sheetHeight,
-            paddingBottom: Math.max(bottomInset, 14),
+            bottom: Math.max(bottomInset, 8),
+            paddingBottom: 14,
             transform: [{ translateY: sheetTranslateY }],
           },
         ]}
@@ -1679,10 +1680,25 @@ export default function ChatScreen() {
       if (!attachEnabled) return;
       closeAttachmentSheet();
       try {
-        const info = await MediaLibrary.getAssetInfoAsync(asset);
+        // SDK 57's native bridge reliably accepts the stable asset id here.
+        // Passing the full JS object can be rejected on Android devices.
+        let selectedUri = asset.uri;
+        try {
+          const info = await MediaLibrary.getAssetInfoAsync(asset.id);
+          selectedUri = info.localUri ?? info.uri ?? asset.uri;
+        } catch {
+          // MediaLibrary may reject metadata lookup for provider-backed or
+          // limited-access items even though their returned content URI is usable.
+          if (!selectedUri) throw new Error('Could not prepare that photo.');
+        }
         const name = asset.filename || `${asset.mediaType === 'video' ? 'video' : 'photo'}-${Date.now()}`;
         const fallbackType = asset.mediaType === 'video' ? 'video/mp4' : 'image/jpeg';
-        await queueUpload(info.localUri ?? asset.uri, name, resolveContentType(undefined, name) ?? fallbackType);
+        await queueUpload(
+          selectedUri,
+          name,
+          resolveContentType(undefined, name) ?? fallbackType,
+          0,
+        );
       } catch (error: any) {
         setUploadError(error?.message ?? 'Could not prepare that photo.');
       }

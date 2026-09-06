@@ -1189,6 +1189,38 @@ describe('Chat screen — attachments', () => {
     expect(screen.getByLabelText('Send attachment')).toBeTruthy();
   });
 
+  it('uses a recent asset id for metadata and falls back to its content URI', async () => {
+    mockGetAssetsAsync.mockResolvedValueOnce({
+      assets: [{
+        id: 'asset-recent',
+        filename: 'recent.jpg',
+        uri: 'content://media/recent.jpg',
+        mediaType: 'photo',
+        width: 100,
+        height: 100,
+        creationTime: 1,
+        modificationTime: 1,
+        duration: 0,
+      }],
+      endCursor: 'asset-recent',
+      hasNextPage: false,
+    });
+    mockGetAssetInfoAsync.mockRejectedValueOnce(
+      new Error("Call to function 'ExpoMediaLibrary.getAssetInfoAsync' has been rejected."),
+    );
+    render(<ChatRoomScreen />);
+
+    fireEvent.press(screen.getByLabelText('Add attachment'));
+    fireEvent.press(await screen.findByLabelText('Select recent.jpg'));
+
+    await waitFor(() => expect(mockGetAssetInfoAsync).toHaveBeenCalledWith('asset-recent'));
+    expect(await screen.findByText('recent.jpg')).toBeTruthy();
+    expect(screen.getByLabelText('Send attachment')).toBeTruthy();
+    expect(
+      screen.queryByText(/ExpoMediaLibrary\.getAssetInfoAsync/),
+    ).toBeNull();
+  });
+
   it('shares the real current coordinates through the existing text-message flow', async () => {
     const sendMutate = jest.fn();
     mockUseChatMessagesSend.mockReturnValue({ mutate: sendMutate, isPending: false });
