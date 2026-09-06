@@ -85,7 +85,8 @@
         }
       ],
       "expo-video",
-      "expo-asset"
+      "expo-asset",
+      "expo-sharing"
     ],
     "owner": "avarpus-team",
     "extra": {
