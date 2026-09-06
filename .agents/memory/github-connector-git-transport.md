@@ -7,4 +7,4 @@ An Active Replit GitHub integration does not imply that `git push` in the shell 
 
 **Why:** The connector could read and mutate the repository through GitHub REST, while both HTTPS Git and SSH Git remained unauthenticated. Large initial imports through the REST Git Data API also encountered proxy and rate-limit failures.
 
-**How to apply:** Verify shell transport independently with `git ls-remote`. If normal Git credentials are unavailable and the user approves the security change, add a repository-scoped deploy key, switch that remote to SSH, and verify the remote branch SHA equals local HEAD after pushing.
+**How to apply:** Verify shell transport independently with `git ls-remote`. If normal Git credentials are unavailable and the user approves the security change, generate the deploy key in the shell environment that will run Git (a key generated inside CodeExecution is not visible there), add its public key through the connector, use SSH, and verify the remote branch SHA equals local HEAD after pushing.
