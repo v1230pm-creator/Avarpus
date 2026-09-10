@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <title>Avarpus - Secure. Private. Connected.</title>
+    <meta name="description" content="Avarpus is a private communication and repair-shop operations platform for Indian repair businesses." />
+    <meta name="robots" content="index, follow" />
+    <meta property="og:title" content="Avarpus - Secure. Private. Connected." />
+    <meta property="og:description" content="Avarpus is a private communication and repair-shop operations platform for Indian repair businesses." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://avarpass.com/" />
+    <meta property="og:image" content="https://avarpass.com/og-image.png" />
+    <meta property="og:site_name" content="Avarpus" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Avarpus - Secure. Private. Connected." />
+    <meta name="twitter:description" content="Avarpus is a private communication and repair-shop operations platform for Indian repair businesses." />
+    <meta name="twitter:image" content="https://avarpass.com/og-image.png" />
+    <link rel="canonical" href="https://avarpass.com/" />
+    <link rel="icon" type="image/png" href="%BASE_URL%favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        try {
+          var theme = localStorage.getItem('avarpus-ui-theme');
+          var savedLang = localStorage.getItem('avarpus-lang');
+          var lang = savedLang === 'hi' ? 'hi' : 'en';
+          var followsSystem = !theme || theme === 'system';
+          var isDark = theme === 'dark' || (
+            followsSystem &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches
+          );
+          document.documentElement.lang = lang;
+          document.title = lang === 'hi'
+            ? 'Avarpus - सुरक्षित। निजी। कनेक्टेड।'
+            : 'Avarpus - Secure. Private. Connected.';
+          document.documentElement.classList.add(isDark ? 'dark' : 'light');
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="bg-background text-foreground antialiased selection:bg-primary/30 selection:text-primary">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Redirect, useSegments } from 'expo-router';
+import { Redirect, useRouter, useSegments } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
-import { isDealerPortalRole, isCustomerRole } from '@/types';
+import { isDealerPortalRole, isCustomerRole, isLinkedCustomerPortalUser } from '@/types';
 import { useColors } from '@/hooks/useColors';
 import { isLockEnabled, isUnlocked, subscribeLockState } from '@/utils/appLock';
 import { InactivityGuard } from '@/components/InactivityGuard';
@@ -25,6 +25,7 @@ const MAIN_TABS: Array<{
   { name: 'status', label: 'Status', icon: 'circle' as const },
   { name: 'shop', label: 'Shop', icon: 'briefcase' as const },
   { name: 'calls', label: 'Calls', icon: 'phone' as const },
+  { name: 'repairs', label: 'My Repairs', icon: 'tool' as const },
 ];
 
 function PremiumTabBar({
@@ -178,9 +179,72 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
   );
 }
 
+function DealerInactiveScreen() {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { logout, refreshFeatures } = useAuth();
+  const [retrying, setRetrying] = useState(false);
+
+  const retry = async () => {
+    setRetrying(true);
+    try {
+      await refreshFeatures();
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  return (
+    <View
+      style={[
+        styles.inactivePage,
+        {
+          backgroundColor: colors.background,
+          paddingTop: Platform.OS === 'web' ? insets.top + 67 : insets.top,
+          paddingBottom: Platform.OS === 'web' ? 34 : insets.bottom,
+        },
+      ]}
+    >
+      <View style={[styles.inactiveIcon, { backgroundColor: colors.accent }]}>
+        <Feather name="lock" size={28} color={colors.primary} />
+      </View>
+      <Text style={[styles.inactiveTitle, { color: colors.foreground }]}>Dealer portal is inactive</Text>
+      <Text style={[styles.inactiveBody, { color: colors.mutedForeground }]}>
+        Your shop has disabled access to this dealer portal. No repair information is available while access is inactive.
+      </Text>
+      <Text style={[styles.inactiveHint, { color: colors.mutedForeground }]}>
+        If the shop reactivates your access, tap Retry to continue without signing in again.
+      </Text>
+      <TouchableOpacity
+        testID="dealer-inactive-retry"
+        accessibilityRole="button"
+        onPress={retry}
+        disabled={retrying}
+        style={[styles.inactivePrimary, { backgroundColor: colors.primary, opacity: retrying ? 0.7 : 1 }]}
+      >
+        {retrying ? <ActivityIndicator color={colors.primaryForeground} /> : (
+          <Text style={[styles.inactivePrimaryText, { color: colors.primaryForeground }]}>Retry access</Text>
+        )}
+      </TouchableOpacity>
+      <TouchableOpacity
+        testID="dealer-inactive-account"
+        accessibilityRole="button"
+        onPress={() => router.push('/(tabs)/more/profile')}
+        style={[styles.inactiveSecondary, { borderColor: colors.border }]}
+      >
+        <Text style={[styles.inactiveSecondaryText, { color: colors.foreground }]}>Manage account</Text>
+      </TouchableOpacity>
+      <TouchableOpacity testID="dealer-inactive-sign-out" accessibilityRole="button" onPress={() => void logout()}>
+        <Text style={[styles.inactiveSignOut, { color: colors.mutedForeground }]}>Sign out</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 export default function TabLayout() {
   const colors = useColors();
-  const { isAuthenticated, isLoading, user, canAccess } = useAuth();
+  const { isAuthenticated, isLoading, user, canAccess, dealerPortalInactive } = useAuth();
   const portal = isDealerPortalRole(user?.role);
   const customer = isCustomerRole(user?.role);
   const segments = useSegments();
@@ -226,13 +290,20 @@ export default function TabLayout() {
     return <Redirect href="/(auth)" />;
   }
 
+  const isPersonalAccountRoute =
+    segments[1] === 'more' && ['profile', 'account', 'security'].includes(segments[2] ?? '');
+  if (portal && dealerPortalInactive && !isPersonalAccountRoute) {
+    return <DealerInactiveScreen />;
+  }
+
   // A hidden tab is not an authorization boundary. This runs above all nested
   // tab routes so denied deep links never mount sensitive screen hooks.
   if (user && !canAccessTabsRoute(segments, { role: user.role, canAccess })) {
     return <Redirect href="/(tabs)" />;
   }
-  const primaryRoute = getPrimaryTabsHomeRoute({ portal, canAccess });
-  if (portal && segments[1] === undefined && primaryRoute !== '/(tabs)') {
+  const repairPortal = portal || isLinkedCustomerPortalUser(user);
+  const primaryRoute = getPrimaryTabsHomeRoute({ portal: repairPortal, canAccess });
+  if (repairPortal && segments[1] === undefined && primaryRoute !== '/(tabs)') {
     return <Redirect href={primaryRoute} />;
   }
 
@@ -273,4 +344,65 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tabLabel: { fontSize: 10, letterSpacing: 0.1 },
+  inactivePage: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+  inactiveIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  inactiveTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 24,
+    textAlign: 'center',
+  },
+  inactiveBody: {
+    marginTop: 12,
+    maxWidth: 440,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  inactiveHint: {
+    marginTop: 10,
+    marginBottom: 24,
+    maxWidth: 440,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  inactivePrimary: {
+    minWidth: 220,
+    minHeight: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 22,
+  },
+  inactivePrimaryText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+  inactiveSecondary: {
+    minWidth: 220,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingHorizontal: 22,
+  },
+  inactiveSecondaryText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+  inactiveSignOut: {
+    marginTop: 22,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+  },
 });

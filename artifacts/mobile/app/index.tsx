@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
-import { useColors } from '@/hooks/useColors';
 import { isLockEnabled, isUnlocked } from '@/utils/appLock';
-import { SplashIntro } from '@/components/ui/SplashIntro';
+import { SPLASH_BACKGROUND, SplashIntro } from '@/components/ui/SplashIntro';
+import { onBlue } from '@/constants/brand';
 
-const SPLASH_STALL_HANDOFF_MS = 3600;
+// Only a safety net: the splash normally hands off as soon as auth and lock
+// state resolve, so this cap just prevents a stalled check from trapping the
+// user on the splash.
+const SPLASH_STALL_HANDOFF_MS = 2200;
 
 export default function Index() {
   const {
@@ -16,7 +19,6 @@ export default function Index() {
     useOtpInstead,
     user,
   } = useAuth();
-  const colors = useColors();
   const [lockCheck, setLockCheck] = useState<'pending' | 'locked' | 'open'>('pending');
   const [showVerified, setShowVerified] = useState(true);
   const [introFinished, setIntroFinished] = useState(false);
@@ -66,14 +68,14 @@ export default function Index() {
 
   if (isLoading && trustedDeviceStatus === 'checking') {
     return (
-      <View style={[styles.statusRoot, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} size="large" />
-        <Text style={[styles.statusTitle, { color: colors.foreground }]}>Checking trusted device</Text>
-        <Text style={[styles.statusBody, { color: colors.textMuted }]}>
+      <View style={[styles.statusRoot, { backgroundColor: onBlue.background }]}>
+        <ActivityIndicator color={onBlue.text} size="large" />
+        <Text style={[styles.statusTitle, { color: onBlue.text }]}>Checking trusted device</Text>
+        <Text style={[styles.statusBody, { color: onBlue.textMuted }]}>
           Securely checking whether this Android device was recently verified.
         </Text>
         <TouchableOpacity onPress={useOtpInstead} style={styles.otpButton}>
-          <Text style={[styles.otpButtonText, { color: colors.primary }]}>Use OTP instead</Text>
+          <Text style={[styles.otpButtonText, { color: onBlue.text }]}>Use OTP instead</Text>
         </TouchableOpacity>
       </View>
     );
@@ -81,22 +83,25 @@ export default function Index() {
 
   if (!isLoading && isAuthenticated && trustedDeviceStatus === 'verified' && showVerified) {
     return (
-      <View style={[styles.statusRoot, { backgroundColor: colors.background }]}>
-        <View style={[styles.verifiedIcon, { backgroundColor: colors.success + '18' }]}>
-          <Text style={[styles.checkmark, { color: colors.success }]}>✓</Text>
+      <View style={[styles.statusRoot, { backgroundColor: onBlue.background }]}>
+        <View style={[styles.verifiedIcon, { backgroundColor: onBlue.surface }]}>
+          <Text style={[styles.checkmark, { color: onBlue.text }]}>✓</Text>
         </View>
-        <Text style={[styles.statusTitle, { color: colors.foreground }]}>Trusted device verified</Text>
-        <Text style={[styles.statusBody, { color: colors.textMuted }]}>
+        <Text style={[styles.statusTitle, { color: onBlue.text }]}>Trusted device verified</Text>
+        <Text style={[styles.statusBody, { color: onBlue.textMuted }]}>
           Signing you in without another OTP.
         </Text>
       </View>
     );
   }
 
+  // Continuity fallback: this only shows if startup work outlives the splash.
+  // It reuses the splash surface so the app never flashes a bare white screen
+  // between opening and the first real screen.
   if (isLoading || lockCheck === 'pending') {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator color={colors.primary} size="large" />
+      <View style={[styles.continuityRoot, { backgroundColor: SPLASH_BACKGROUND }]}>
+        <ActivityIndicator color={onBlue.text} size="large" />
       </View>
     );
   }
@@ -117,6 +122,11 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
+  continuityRoot: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   statusRoot: {
     flex: 1,
     alignItems: 'center',

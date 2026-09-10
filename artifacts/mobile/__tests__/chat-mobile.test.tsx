@@ -8,7 +8,7 @@
  * - Invite activation guard
  */
 import React from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Alert, Linking, Platform, Text, View } from 'react-native';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -98,7 +98,10 @@ jest.mock('@/components/ui/Avatar', () => {
 const mockUseChatCapabilities = jest.fn();
 const mockUseChatContactsMatch = jest.fn();
 const mockUseChatRoomsList = jest.fn();
+const mockUseChatRoomsArchivedList = jest.fn();
 const mockUseChatRoomsCreate = jest.fn();
+const mockUseChatRoomsPreferencesUpdate = jest.fn();
+const mockUseChatRoomsDelete = jest.fn();
 const mockUseChatRoomsGet = jest.fn();
 const mockUseChatMessagesList = jest.fn();
 const mockUseChatMessagesSend = jest.fn();
@@ -114,7 +117,10 @@ jest.mock('@workspace/api-client-react', () => ({
   useChatCapabilities: (...args: any[]) => mockUseChatCapabilities(...args),
   useChatContactsMatch: (...args: any[]) => mockUseChatContactsMatch(...args),
   useChatRoomsList: (...args: any[]) => mockUseChatRoomsList(...args),
+  useChatRoomsArchivedList: (...args: any[]) => mockUseChatRoomsArchivedList(...args),
   useChatRoomsCreate: (...args: any[]) => mockUseChatRoomsCreate(...args),
+  useChatRoomsPreferencesUpdate: (...args: any[]) => mockUseChatRoomsPreferencesUpdate(...args),
+  useChatRoomsDelete: (...args: any[]) => mockUseChatRoomsDelete(...args),
   useChatRoomsGet: (...args: any[]) => mockUseChatRoomsGet(...args),
   useChatMessagesList: (...args: any[]) => mockUseChatMessagesList(...args),
   useChatMessagesSend: (...args: any[]) => mockUseChatMessagesSend(...args),
@@ -126,6 +132,7 @@ jest.mock('@workspace/api-client-react', () => ({
   useRepairsList: (...args: any[]) => mockUseRepairsList(...args),
   // Query key helpers
   getChatRoomsListQueryKey: () => ['/api/chat/rooms'],
+  getChatRoomsArchivedListQueryKey: () => ['/api/chat/rooms/archived'],
   getChatRoomsGetQueryKey: (roomId: string) => [`/api/chat/rooms/${roomId}`],
   getChatMessagesListQueryKey: (roomId: string) => [`/api/chat/rooms/${roomId}/messages`],
   getRepairsListQueryKey: (params: any) => ['/api/repairs', params],
@@ -142,11 +149,14 @@ jest.mock('@tanstack/react-query', () => ({
 }));
 
 const mockRequestContactsPermissionsAsync = jest.fn();
+const mockGetContactsPermissionsAsync = jest.fn();
 const mockGetContactsAsync = jest.fn();
 jest.mock('expo-contacts', () => ({
+  getPermissionsAsync: (...args: any[]) => mockGetContactsPermissionsAsync(...args),
   requestPermissionsAsync: (...args: any[]) => mockRequestContactsPermissionsAsync(...args),
   getContactsAsync: (...args: any[]) => mockGetContactsAsync(...args),
-  Fields: { PhoneNumbers: 'phoneNumbers' },
+  Fields: { PhoneNumbers: 'phoneNumbers', Image: 'image' },
+  SortTypes: { FirstName: 'firstName' },
 }));
 
 const mockLaunchImageLibraryAsync = jest.fn();
@@ -183,11 +193,13 @@ jest.mock('expo-document-picker', () => ({
 // Mock expo-file-system/legacy
 const mockCreateUploadTask = jest.fn();
 const mockGetInfoAsync = jest.fn();
+const mockCopyAsync = jest.fn();
 const mockDownloadAsync = jest.fn();
 jest.mock('expo-file-system/legacy', () => ({
   cacheDirectory: 'file:///cache/',
   FileSystemUploadType: { BINARY_CONTENT: 0 },
   getInfoAsync: (...args: any[]) => mockGetInfoAsync(...args),
+  copyAsync: (...args: any[]) => mockCopyAsync(...args),
   createUploadTask: (...args: any[]) => mockCreateUploadTask(...args),
   downloadAsync: (...args: any[]) => mockDownloadAsync(...args),
   deleteAsync: jest.fn().mockResolvedValue(undefined),
@@ -302,11 +314,14 @@ beforeEach(() => {
   mockUseChatCapabilities.mockReturnValue({ data: undefined, isLoading: false, isError: false });
   mockUseChatContactsMatch.mockReturnValue({ mutateAsync: jest.fn() });
   mockUseChatRoomsList.mockReturnValue({ data: undefined, isLoading: false, isError: false, refetch: jest.fn() });
+  mockUseChatRoomsArchivedList.mockReturnValue({ data: undefined, isLoading: false, isError: false, refetch: jest.fn() });
   mockUseChatRoomsCreate.mockReturnValue({
     mutate: jest.fn(),
     mutateAsync: jest.fn(),
     isPending: false,
   });
+  mockUseChatRoomsPreferencesUpdate.mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+  mockUseChatRoomsDelete.mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
   mockUseChatRoomsGet.mockReturnValue({ data: undefined });
   mockUseChatMessagesList.mockReturnValue({ data: undefined, isLoading: false, isError: false, refetch: jest.fn() });
   mockUseChatMessagesSend.mockReturnValue({ mutate: jest.fn(), isPending: false });
@@ -322,7 +337,8 @@ beforeEach(() => {
     isFetching: false,
     refetch: jest.fn(),
   });
-  mockRequestContactsPermissionsAsync.mockResolvedValue({ granted: true });
+  mockGetContactsPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: true });
+  mockRequestContactsPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
   mockGetContactsAsync.mockResolvedValue({ data: [] });
   mockLaunchImageLibraryAsync.mockResolvedValue({ canceled: true, assets: [] });
   mockGetMediaPermissionsAsync.mockResolvedValue({ granted: true, accessPrivileges: 'all' });
@@ -335,6 +351,7 @@ beforeEach(() => {
   });
   mockGetDocumentAsync.mockResolvedValue({ canceled: true, assets: null });
   mockGetInfoAsync.mockResolvedValue({ exists: true, size: 1024 });
+  mockCopyAsync.mockResolvedValue(undefined);
   mockCreateUploadTask.mockReturnValue({ uploadAsync: jest.fn().mockResolvedValue({ status: 200 }) });
   mockDownloadAsync.mockResolvedValue({ uri: 'file:///cache/test.jpg', status: 200 });
   mockIsAvailableAsync.mockResolvedValue(true);
@@ -503,6 +520,83 @@ describe('Inbox — no fake data', () => {
     expect(push).toHaveBeenCalledWith('/(tabs)/customers/chat/room-priya?name=Priya');
   });
 
+  it('opens device contacts directly, lists registered users first, and reuses permission', async () => {
+    mockUseChatCapabilities.mockReturnValue({
+      data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseChatRoomsList.mockReturnValue({ data: { rooms: [] }, isLoading: false, isError: false, refetch: jest.fn() });
+    mockGetContactsAsync.mockResolvedValue({
+      data: [
+        { id: 'device-priya', name: 'Priya Phone', phoneNumbers: [{ number: '+91 98765 43210' }] },
+        { id: 'device-ajay', name: 'Ajay Mama', phoneNumbers: [{ number: '+91 91514 78747' }] },
+      ],
+    });
+    const mutateAsync = jest.fn().mockResolvedValue({
+      contacts: [{ userId: 'user-priya', name: 'Priya', mobile: '9876543210', role: 'customer', matchToken: 'proof-token' }],
+    });
+    mockUseChatContactsMatch.mockReturnValue({ mutateAsync });
+
+    render(<HomeScreen />);
+    fireEvent.press(screen.getByTestId('new-chat-control'));
+
+    expect(await screen.findByText('Contacts on Avarpus')).toBeTruthy();
+    expect(screen.getByText('Invite to Avarpus')).toBeTruthy();
+    expect(screen.getByText('Priya Phone')).toBeTruthy();
+    expect(screen.getByText('Ajay Mama')).toBeTruthy();
+    expect(screen.getByLabelText('Message Priya')).toBeTruthy();
+    expect(screen.getByLabelText('Call Priya')).toBeTruthy();
+    expect(screen.getByLabelText('Invite Ajay Mama')).toBeTruthy();
+    expect(mockRequestContactsPermissionsAsync).toHaveBeenCalledTimes(1);
+
+    fireEvent.press(screen.getByLabelText('Close contact picker'));
+    fireEvent.press(screen.getByTestId('new-chat-control'));
+    expect(await screen.findByText('Contacts on Avarpus')).toBeTruthy();
+    expect(mockRequestContactsPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(mockGetContactsAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends an Android SMS invite carrying the permanent Avarpus install link', async () => {
+    const platform = jest.replaceProperty(Platform, 'OS', 'android');
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+    mockUseChatCapabilities.mockReturnValue({
+      data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseChatRoomsList.mockReturnValue({ data: { rooms: [] }, isLoading: false, isError: false, refetch: jest.fn() });
+    mockGetContactsAsync.mockResolvedValue({
+      data: [{ id: 'device-ajay', name: 'Ajay Mama', phoneNumbers: [{ number: '+91 91514 78747' }] }],
+    });
+    mockUseChatContactsMatch.mockReturnValue({ mutateAsync: jest.fn().mockResolvedValue({ contacts: [] }) });
+
+    try {
+      render(<HomeScreen />);
+      fireEvent.press(screen.getByTestId('new-chat-control'));
+      const inviteAction = await screen.findByLabelText('Invite Ajay Mama');
+      await act(async () => {
+        fireEvent.press(inviteAction);
+        await Promise.resolve();
+      });
+
+      await waitFor(() => expect(openURL).toHaveBeenCalledTimes(1));
+      const smsUrl: string = openURL.mock.calls[0][0];
+      expect(smsUrl.startsWith('sms:+919151478747?body=')).toBe(true);
+
+      const body = decodeURIComponent(smsUrl.split('?body=')[1]);
+      expect(body).toContain('Avarpus');
+      expect(body).toContain('https://avarpus.com/download');
+      expect(body).not.toMatch(/replit\.dev|replit\.app|exp:\/\/|localhost/i);
+      expect(alertSpy).not.toHaveBeenCalled();
+    } finally {
+      alertSpy.mockRestore();
+      openURL.mockRestore();
+      platform.restore();
+    }
+  });
+
   it('polls the member-only room list so incoming direct chats appear', () => {
     mockUseChatCapabilities.mockReturnValue({
       data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },
@@ -526,6 +620,49 @@ describe('Inbox — no fake data', () => {
         refetchIntervalInBackground: false,
         refetchOnMount: 'always',
       }),
+    });
+  });
+
+  it('shows archived chats in a dedicated view and restores multiple selections', async () => {
+    const mutateAsync = jest.fn().mockResolvedValue({ preferences: { isArchived: false } });
+    mockUseChatRoomsPreferencesUpdate.mockReturnValue({ mutateAsync, isPending: false });
+    mockUseChatCapabilities.mockReturnValue({
+      data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseChatRoomsList.mockReturnValue({
+      data: { rooms: [] },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+    mockUseChatRoomsArchivedList.mockReturnValue({
+      data: {
+        rooms: [
+          { id: 'r-archived-a', name: 'Archived Alice', kind: 'customer', shopId: 's1', isArchived: true, createdAt: '2026-01-01T10:00:00Z' },
+          { id: 'r-archived-b', name: 'Archived Priya', kind: 'direct', isArchived: true, createdAt: '2026-01-01T09:00:00Z' },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+
+    render(<HomeScreen />);
+    fireEvent.press(screen.getByText('Archived'));
+
+    expect(screen.getByTestId('room-item-r-archived-a')).toBeTruthy();
+    expect(screen.getByTestId('room-item-r-archived-b')).toBeTruthy();
+    fireEvent(screen.getByTestId('room-item-r-archived-a'), 'longPress');
+    fireEvent.press(screen.getByTestId('room-item-r-archived-b'));
+    fireEvent.press(screen.getByLabelText('Restore selected chats'));
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith({ roomId: 'r-archived-a', data: { isArchived: false } });
+      expect(mutateAsync).toHaveBeenCalledWith({ roomId: 'r-archived-b', data: { isArchived: false } });
+      expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['/api/chat/rooms'] });
+      expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['/api/chat/rooms/archived'] });
     });
   });
 
@@ -593,6 +730,118 @@ describe('Inbox — no fake data', () => {
       2,
       '/(tabs)/customers/chat/r-carol?name=Carol',
     );
+  });
+
+  it('supports long-press one-or-many chat selection with a selected count', () => {
+    const push = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ push, back: jest.fn(), replace: jest.fn() });
+    mockUseChatCapabilities.mockReturnValue({
+      data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseChatRoomsList.mockReturnValue({
+      data: {
+        rooms: [
+          { id: 'r-alice', name: 'Alice', kind: 'customer', shopId: 's1', isArchived: false, createdAt: '2026-01-01T10:00:00Z' },
+          { id: 'r-carol', name: 'Carol', kind: 'direct', shopId: 's1', isArchived: false, createdAt: '2026-01-01T09:00:00Z' },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+
+    render(<HomeScreen />);
+    fireEvent(screen.getByTestId('room-item-r-alice'), 'longPress');
+    expect(screen.getByTestId('selected-room-count').props.children).toBe(1);
+    expect(screen.getByLabelText('Pin selected chats')).toBeTruthy();
+    expect(screen.getByLabelText('Delete selected chats')).toBeTruthy();
+    expect(screen.getByLabelText('Mute selected chats')).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('room-item-r-carol'));
+    expect(screen.getByTestId('selected-room-count').props.children).toBe(2);
+    expect(push).not.toHaveBeenCalled();
+
+    fireEvent.press(screen.getByLabelText('Exit selection mode'));
+    expect(screen.queryByTestId('selected-room-count')).toBeNull();
+  });
+
+  it.each([
+    ['Pin selected chats', { isPinned: true }],
+    ['Mute selected chats', { isMuted: true }],
+    ['Archive selected chats', { isArchived: true }],
+  ])('persists multi-select action %s for every selected room', async (label, data) => {
+    const mutateAsync = jest.fn().mockResolvedValue({ preferences: { ...data } });
+    mockUseChatRoomsPreferencesUpdate.mockReturnValue({ mutateAsync, isPending: false });
+    mockUseChatCapabilities.mockReturnValue({
+      data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseChatRoomsList.mockReturnValue({
+      data: {
+        rooms: [
+          { id: 'r-alice', name: 'Alice', kind: 'customer', shopId: 's1', isArchived: false, isPinned: false, isMuted: false, createdAt: '2026-01-01T10:00:00Z' },
+          { id: 'r-carol', name: 'Carol', kind: 'direct', shopId: 's1', isArchived: false, isPinned: false, isMuted: false, createdAt: '2026-01-01T09:00:00Z' },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+
+    render(<HomeScreen />);
+    fireEvent(screen.getByTestId('room-item-r-alice'), 'longPress');
+    fireEvent.press(screen.getByTestId('room-item-r-carol'));
+    fireEvent.press(screen.getByLabelText(label));
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith({ roomId: 'r-alice', data });
+      expect(mutateAsync).toHaveBeenCalledWith({ roomId: 'r-carol', data });
+      expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['/api/chat/rooms'] });
+    });
+  });
+
+  it('deletes selected chats only after explaining caller-only semantics', async () => {
+    const mutateAsync = jest.fn().mockResolvedValue(undefined);
+    mockUseChatRoomsDelete.mockReturnValue({ mutateAsync, isPending: false });
+    mockUseChatCapabilities.mockReturnValue({
+      data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseChatRoomsList.mockReturnValue({
+      data: {
+        rooms: [
+          { id: 'r-alice', name: 'Alice', kind: 'customer', shopId: 's1', isArchived: false, isPinned: false, isMuted: false, createdAt: '2026-01-01T10:00:00Z' },
+          { id: 'r-carol', name: 'Carol', kind: 'direct', shopId: 's1', isArchived: false, isPinned: false, isMuted: false, createdAt: '2026-01-01T09:00:00Z' },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+
+    render(<HomeScreen />);
+    fireEvent(screen.getByTestId('room-item-r-alice'), 'longPress');
+    fireEvent.press(screen.getByTestId('room-item-r-carol'));
+    fireEvent.press(screen.getByLabelText('Delete selected chats'));
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Delete selected chats?',
+      expect.stringContaining('only for you'),
+      expect.any(Array),
+    );
+    const buttons = alertSpy.mock.calls[0][2] as Array<{ text: string; onPress?: () => void }>;
+    buttons.find((button) => button.text === 'Delete for me')?.onPress?.();
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith({ roomId: 'r-alice' });
+      expect(mutateAsync).toHaveBeenCalledWith({ roomId: 'r-carol' });
+    });
+    alertSpy.mockRestore();
   });
 
   it('shows empty state when provider is up but no rooms exist', () => {
@@ -876,7 +1125,7 @@ describe('Chat screen — global direct safety controls', () => {
     expect(screen.getByPlaceholderText('Message…').props.editable).toBe(false);
   });
 
-  it('offers report and unblock actions from the direct-room menu', () => {
+  it('suppresses duplicate report presses while pending and retries failures with the same identity', () => {
     const unblockMutate = jest.fn();
     const reportMutate = jest.fn();
     mockUseChatRoomsUnblock.mockReturnValue({ mutate: unblockMutate, isPending: false });
@@ -908,7 +1157,14 @@ describe('Chat screen — global direct safety controls', () => {
     menuButtons.find((button: any) => button.text === 'Report')?.onPress?.();
     const firstReasonButtons =
       alertSpy.mock.calls.find((call) => call[0] === 'Report conversation')?.[2] ?? [];
-    firstReasonButtons.find((button: any) => button.text === 'Spam')?.onPress?.();
+    const firstSpamButton = firstReasonButtons.find((button: any) => button.text === 'Spam');
+    const staleHarassmentButton = firstReasonButtons.find(
+      (button: any) => button.text === 'Harassment',
+    );
+    firstSpamButton?.onPress?.();
+    firstSpamButton?.onPress?.();
+    staleHarassmentButton?.onPress?.();
+    expect(reportMutate).toHaveBeenCalledTimes(1);
     const firstReportId = reportMutate.mock.calls[0][0].data.clientRequestId;
     reportMutate.mock.calls[0][1].onError(new Error('ambiguous network failure'));
 
@@ -918,7 +1174,10 @@ describe('Chat screen — global direct safety controls', () => {
     latestMenu.find((button: any) => button.text === 'Report')?.onPress?.();
     const latestReasons =
       [...alertSpy.mock.calls].reverse().find((call) => call[0] === 'Report conversation')?.[2] ?? [];
-    latestReasons.find((button: any) => button.text === 'Spam')?.onPress?.();
+    const retrySpamButton = latestReasons.find((button: any) => button.text === 'Spam');
+    retrySpamButton?.onPress?.();
+    retrySpamButton?.onPress?.();
+    expect(reportMutate).toHaveBeenCalledTimes(2);
     expect(reportMutate.mock.calls[1][0].data.clientRequestId).toBe(firstReportId);
 
     menuButtons.find((button: any) => button.text === 'Unblock')?.onPress?.();
@@ -930,6 +1189,422 @@ describe('Chat screen — global direct safety controls', () => {
       { roomId: 'room-1' },
       expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
     );
+  });
+
+  it('releases the report guard and retry identity after success', () => {
+    const reportMutate = jest.fn();
+    mockUseChatReportsCreate.mockReturnValue({ mutate: reportMutate, isPending: false });
+    mockUseChatRoomsGet.mockReturnValue({
+      data: {
+        room: {
+          id: 'room-1',
+          name: 'Alice',
+          kind: 'direct',
+          scope: 'global_direct',
+          shopId: null,
+          isBlocked: false,
+          blockedByMe: false,
+          isArchived: false,
+          createdAt: '2026-01-01T10:00:00Z',
+        },
+      },
+    });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+
+    render(<ChatRoomScreen />);
+    fireEvent.press(screen.getByLabelText('Open chat menu'));
+    const menuButtons = alertSpy.mock.calls[0][2] ?? [];
+    menuButtons.find((button: any) => button.text === 'Report')?.onPress?.();
+    const reasonButtons =
+      alertSpy.mock.calls.find((call) => call[0] === 'Report conversation')?.[2] ?? [];
+    const spamButton = reasonButtons.find((button: any) => button.text === 'Spam');
+    const staleHarassmentButton = reasonButtons.find(
+      (button: any) => button.text === 'Harassment',
+    );
+    spamButton?.onPress?.();
+    const firstReportId = reportMutate.mock.calls[0][0].data.clientRequestId;
+    staleHarassmentButton?.onPress?.();
+    expect(reportMutate).toHaveBeenCalledTimes(1);
+    reportMutate.mock.calls[0][1].onSuccess();
+
+    staleHarassmentButton?.onPress?.();
+
+    expect(reportMutate).toHaveBeenCalledTimes(2);
+    expect(reportMutate.mock.calls[1][0].data.reason).toBe('harassment');
+    expect(reportMutate.mock.calls[1][0].data.clientRequestId).not.toBe(firstReportId);
+  });
+
+  it('does not let a late success from the previous room release the new room report guard', () => {
+    let params = { id: 'room-1', name: 'Alice' };
+    (useLocalSearchParams as jest.Mock).mockImplementation(() => params);
+    mockUseChatRoomsGet.mockImplementation((roomId: string) => ({
+      data: {
+        room: {
+          id: roomId,
+          name: params.name,
+          kind: 'direct',
+          scope: 'global_direct',
+          shopId: null,
+          isBlocked: false,
+          blockedByMe: false,
+          isArchived: false,
+          createdAt: '2026-01-01T10:00:00Z',
+        },
+      },
+    }));
+    const reportMutate = jest.fn();
+    mockUseChatReportsCreate.mockReturnValue({ mutate: reportMutate, isPending: false });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+    const view = render(<ChatRoomScreen />);
+
+    fireEvent.press(screen.getByLabelText('Open chat menu'));
+    (
+      [...alertSpy.mock.calls].reverse().find((call) => call[0] === 'Chat options')?.[2] ?? []
+    ).find((button: any) => button.text === 'Report')?.onPress?.();
+    (
+      [...alertSpy.mock.calls].reverse().find((call) => call[0] === 'Report conversation')?.[2] ?? []
+    ).find((button: any) => button.text === 'Spam')?.onPress?.();
+
+    params = { id: 'room-2', name: 'Bob' };
+    act(() => view.rerender(<ChatRoomScreen />));
+    act(() => reportMutate.mock.calls[0][1].onSuccess());
+    expect(alertSpy).not.toHaveBeenCalledWith('Report submitted', expect.any(String));
+
+    fireEvent.press(screen.getByLabelText('Open chat menu'));
+    (
+      [...alertSpy.mock.calls].reverse().find((call) => call[0] === 'Chat options')?.[2] ?? []
+    ).find((button: any) => button.text === 'Report')?.onPress?.();
+    const roomTwoReasons =
+      [...alertSpy.mock.calls].reverse().find((call) => call[0] === 'Report conversation')?.[2] ?? [];
+    roomTwoReasons.find((button: any) => button.text === 'Harassment')?.onPress?.();
+
+    expect(reportMutate.mock.calls[0][0].roomId).toBe('room-1');
+    expect(reportMutate.mock.calls[1][0].roomId).toBe('room-2');
+    act(() => reportMutate.mock.calls[0][1].onSuccess());
+    roomTwoReasons.find((button: any) => button.text === 'Scam')?.onPress?.();
+
+    expect(reportMutate).toHaveBeenCalledTimes(2);
+    expect(alertSpy).not.toHaveBeenCalledWith('Report submitted', expect.any(String));
+  });
+
+  it('keeps retry identities room-specific when earlier failures resolve out of order', () => {
+    let params = { id: 'room-1', name: 'Alice' };
+    (useLocalSearchParams as jest.Mock).mockImplementation(() => params);
+    mockUseChatRoomsGet.mockImplementation((roomId: string) => ({
+      data: {
+        room: {
+          id: roomId,
+          name: params.name,
+          kind: 'direct',
+          scope: 'global_direct',
+          shopId: null,
+          isBlocked: false,
+          blockedByMe: false,
+          isArchived: false,
+          createdAt: '2026-01-01T10:00:00Z',
+        },
+      },
+    }));
+    const reportMutate = jest.fn();
+    mockUseChatReportsCreate.mockReturnValue({ mutate: reportMutate, isPending: false });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+    const view = render(<ChatRoomScreen />);
+
+    const reportAs = (reason: string) => {
+      fireEvent.press(screen.getByLabelText('Open chat menu'));
+      (
+        [...alertSpy.mock.calls].reverse().find((call) => call[0] === 'Chat options')?.[2] ?? []
+      ).find((button: any) => button.text === 'Report')?.onPress?.();
+      (
+        [...alertSpy.mock.calls].reverse().find((call) => call[0] === 'Report conversation')?.[2] ?? []
+      ).find((button: any) => button.text === reason)?.onPress?.();
+    };
+
+    reportAs('Spam');
+    const roomOneRequestId = reportMutate.mock.calls[0][0].data.clientRequestId;
+    params = { id: 'room-2', name: 'Bob' };
+    act(() => view.rerender(<ChatRoomScreen />));
+    reportAs('Spam');
+    const roomTwoRequestId = reportMutate.mock.calls[1][0].data.clientRequestId;
+    expect(roomTwoRequestId).not.toBe(roomOneRequestId);
+
+    act(() => reportMutate.mock.calls[0][1].onError(new Error('late room one failure')));
+    expect(alertSpy).not.toHaveBeenCalledWith('Could not submit report', 'late room one failure');
+    act(() => reportMutate.mock.calls[1][1].onError(new Error('room two failure')));
+    reportAs('Spam');
+
+    expect(reportMutate.mock.calls[2][0].roomId).toBe('room-2');
+    expect(reportMutate.mock.calls[2][0].data.clientRequestId).toBe(roomTwoRequestId);
+  });
+
+  it.each([
+    ['block', false, mockUseChatRoomsBlock, 'Block'],
+    ['unblock', true, mockUseChatRoomsUnblock, 'Unblock'],
+  ])(
+    'ignores repeated %s confirmation presses while pending and releases the guard on success',
+    (_operation, blockedByMe, mutationHook, actionLabel) => {
+      const mutate = jest.fn();
+      mutationHook.mockReturnValue({ mutate, isPending: false });
+      mockUseChatRoomsGet.mockReturnValue({
+        data: {
+          room: {
+            id: 'room-1',
+            name: 'Alice',
+            kind: 'direct',
+            scope: 'global_direct',
+            shopId: null,
+            isBlocked: blockedByMe,
+            blockedByMe,
+            isArchived: false,
+            createdAt: '2026-01-01T10:00:00Z',
+          },
+        },
+      });
+      const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+
+      render(<ChatRoomScreen />);
+      fireEvent.press(screen.getByLabelText('Open chat menu'));
+      const menuButtons = alertSpy.mock.calls[0][2] ?? [];
+      menuButtons.find((button: any) => button.text === actionLabel)?.onPress?.();
+      const confirmationButtons =
+        [...alertSpy.mock.calls].reverse().find(
+          (call) => call[0] === `${actionLabel} Alice?`,
+        )?.[2] ?? [];
+      const confirmationAction = confirmationButtons.find(
+        (button: any) => button.text === actionLabel,
+      );
+
+      confirmationAction?.onPress?.();
+      confirmationAction?.onPress?.();
+      expect(mutate).toHaveBeenCalledTimes(1);
+
+      mutate.mock.calls[0][1].onSuccess();
+      confirmationAction?.onPress?.();
+      expect(mutate).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each([
+    ['block', false, mockUseChatRoomsBlock, 'Block'],
+    ['unblock', true, mockUseChatRoomsUnblock, 'Unblock'],
+  ])(
+    'allows retrying %s after the first request fails',
+    (_operation, blockedByMe, mutationHook, actionLabel) => {
+      const mutate = jest.fn();
+      mutationHook.mockReturnValue({ mutate, isPending: false });
+      mockUseChatRoomsGet.mockReturnValue({
+        data: {
+          room: {
+            id: 'room-1',
+            name: 'Alice',
+            kind: 'direct',
+            scope: 'global_direct',
+            shopId: null,
+            isBlocked: blockedByMe,
+            blockedByMe,
+            isArchived: false,
+            createdAt: '2026-01-01T10:00:00Z',
+          },
+        },
+      });
+      const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+
+      render(<ChatRoomScreen />);
+      fireEvent.press(screen.getByLabelText('Open chat menu'));
+      const menuButtons = alertSpy.mock.calls[0][2] ?? [];
+      menuButtons.find((button: any) => button.text === actionLabel)?.onPress?.();
+      const confirmationButtons =
+        [...alertSpy.mock.calls].reverse().find(
+          (call) => call[0] === `${actionLabel} Alice?`,
+        )?.[2] ?? [];
+      const confirmationAction = confirmationButtons.find(
+        (button: any) => button.text === actionLabel,
+      );
+
+      confirmationAction?.onPress?.();
+      confirmationAction?.onPress?.();
+      expect(mutate).toHaveBeenCalledTimes(1);
+
+      mutate.mock.calls[0][1].onError(new Error('slow connection'));
+      confirmationAction?.onPress?.();
+      expect(mutate).toHaveBeenCalledTimes(2);
+    },
+  );
+});
+
+describe('Chat screen — conversation archive preference', () => {
+  beforeEach(() => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'room-1', name: 'Alice' });
+    mockUseChatCapabilities.mockReturnValue({
+      data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseChatMessagesList.mockReturnValue({
+      data: { messages: [], hasMore: false },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+  });
+
+  it.each([
+    ['customer', false, 'Archive', true],
+    ['direct', true, 'Restore', false],
+  ])(
+    'offers %s chats the correct archive action and refreshes all room caches',
+    async (kind, isArchived, actionLabel, nextArchived) => {
+      const mutateAsync = jest.fn().mockResolvedValue({
+        preferences: { isArchived: nextArchived },
+      });
+      mockUseChatRoomsPreferencesUpdate.mockReturnValue({ mutateAsync, isPending: false });
+      mockUseChatRoomsGet.mockReturnValue({
+        data: {
+          room: {
+            id: 'room-1',
+            name: 'Alice',
+            kind,
+            shopId: 's1',
+            isArchived,
+            createdAt: '2026-01-01T10:00:00Z',
+          },
+        },
+      });
+      const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+
+      render(<ChatRoomScreen />);
+      fireEvent.press(screen.getByLabelText('Open chat menu'));
+      const menuButtons = alertSpy.mock.calls[0][2] ?? [];
+      menuButtons.find((button: any) => button.text === actionLabel)?.onPress?.();
+
+      await waitFor(() => {
+        expect(mutateAsync).toHaveBeenCalledWith({
+          roomId: 'room-1',
+          data: { isArchived: nextArchived },
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: ['/api/chat/rooms/room-1'],
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: ['/api/chat/rooms'],
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: ['/api/chat/rooms/archived'],
+        });
+      });
+
+      alertSpy.mockRestore();
+    },
+  );
+
+  it('ignores repeated archive presses while the first request is pending', async () => {
+    let resolveMutation!: (value: unknown) => void;
+    const mutateAsync = jest.fn(
+      () => new Promise((resolve) => {
+        resolveMutation = resolve;
+      }),
+    );
+    mockUseChatRoomsPreferencesUpdate.mockReturnValue({ mutateAsync, isPending: false });
+    mockUseChatRoomsGet.mockReturnValue({
+      data: {
+        room: {
+          id: 'room-1',
+          name: 'Alice',
+          kind: 'customer',
+          shopId: 's1',
+          isArchived: false,
+          createdAt: '2026-01-01T10:00:00Z',
+        },
+      },
+    });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+
+    render(<ChatRoomScreen />);
+    fireEvent.press(screen.getByLabelText('Open chat menu'));
+    const archiveAction = (alertSpy.mock.calls[0][2] ?? []).find(
+      (button: any) => button.text === 'Archive',
+    );
+
+    archiveAction?.onPress?.();
+    archiveAction?.onPress?.();
+
+    expect(mutateAsync).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveMutation({ preferences: { isArchived: true } });
+      await Promise.resolve();
+    });
+    alertSpy.mockRestore();
+  });
+
+  it('allows retrying archive after the first request fails', async () => {
+    let rejectMutation!: (reason?: unknown) => void;
+    const mutateAsync = jest
+      .fn()
+      .mockImplementationOnce(
+        () => new Promise((_, reject) => {
+          rejectMutation = reject;
+        }),
+      )
+      .mockResolvedValueOnce({ preferences: { isArchived: true } });
+    mockUseChatRoomsPreferencesUpdate.mockReturnValue({ mutateAsync, isPending: false });
+    mockUseChatRoomsGet.mockReturnValue({
+      data: {
+        room: {
+          id: 'room-1',
+          name: 'Alice',
+          kind: 'customer',
+          shopId: 's1',
+          isArchived: false,
+          createdAt: '2026-01-01T10:00:00Z',
+        },
+      },
+    });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+
+    render(<ChatRoomScreen />);
+    fireEvent.press(screen.getByLabelText('Open chat menu'));
+    const archiveAction = (alertSpy.mock.calls[0][2] ?? []).find(
+      (button: any) => button.text === 'Archive',
+    );
+
+    archiveAction?.onPress?.();
+    archiveAction?.onPress?.();
+    expect(mutateAsync).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      rejectMutation(new Error('slow connection'));
+      await Promise.resolve();
+    });
+
+    archiveAction?.onPress?.();
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(2));
+    alertSpy.mockRestore();
+  });
+
+  it('does not offer archive actions for non-customer room kinds', () => {
+    mockUseChatRoomsGet.mockReturnValue({
+      data: {
+        room: {
+          id: 'room-1',
+          name: 'Repair discussion',
+          kind: 'repair',
+          shopId: 's1',
+          isArchived: false,
+          createdAt: '2026-01-01T10:00:00Z',
+        },
+      },
+    });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+
+    render(<ChatRoomScreen />);
+    fireEvent.press(screen.getByLabelText('Open chat menu'));
+    const menuButtons = alertSpy.mock.calls[0][2] ?? [];
+
+    expect(menuButtons.map((button: any) => button.text)).not.toEqual(
+      expect.arrayContaining(['Archive', 'Restore']),
+    );
+    alertSpy.mockRestore();
   });
 });
 
@@ -1383,6 +2058,98 @@ describe('Chat screen — attachments', () => {
           }),
         }),
         expect.anything(),
+      );
+    });
+  });
+
+  it.each([0, undefined])('resolves a %s picker size before requesting an upload URL', async (reportedSize) => {
+    mockGetDocumentAsync.mockResolvedValueOnce({
+      canceled: false,
+      assets: [{
+        name: 'unknown-size.pdf',
+        uri: 'file:///cache/unknown-size.pdf',
+        mimeType: 'application/pdf',
+        size: reportedSize,
+      }],
+    });
+    mockGetInfoAsync.mockResolvedValueOnce({ exists: true, size: 8192 });
+
+    const uploadMutate = jest.fn((args: any, cbs: any) => {
+      cbs?.onSuccess?.({ uploadURL: 'https://s3.example.com/put', objectPath: 'uploads/s1/chat/room-1/unknown-size.pdf' });
+    });
+    mockUseChatUploadUrl.mockReturnValue({ mutate: uploadMutate, isPending: false });
+    mockUseChatMessagesSend.mockReturnValue({
+      mutate: jest.fn((_: any, cbs: any) => cbs?.onSuccess?.({ message: { id: 'size-msg' } })),
+      isPending: false,
+    });
+
+    render(<ChatRoomScreen />);
+    fireEvent.press(screen.getByLabelText('Add attachment'));
+    fireEvent.press(screen.getByLabelText('Document'));
+
+    // The pending card is not shown until the local file has been stat'ed,
+    // so a fast tap cannot submit the picker-provided zero value.
+    expect(screen.queryByLabelText('Send attachment')).toBeNull();
+    await waitFor(() => screen.getByLabelText('Send attachment'));
+    fireEvent.press(screen.getByLabelText('Send attachment'));
+
+    await waitFor(() => {
+      expect(uploadMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ size: 8192 }),
+        }),
+        expect.anything(),
+      );
+    });
+    expect(uploadMutate.mock.calls[0][0].data.size).toBeGreaterThan(0);
+  });
+
+  it('copies an Android content URI with unknown size to cache before it becomes sendable', async () => {
+    mockGetDocumentAsync.mockResolvedValueOnce({
+      canceled: false,
+      assets: [{
+        name: 'provider-document.pdf',
+        uri: 'content://com.android.providers.media.documents/document/42',
+        mimeType: 'application/pdf',
+        size: 0,
+      }],
+    });
+    mockGetInfoAsync.mockResolvedValueOnce({ exists: true, size: 16384 });
+
+    const uploadMutate = jest.fn((args: any, cbs: any) => {
+      cbs?.onSuccess?.({ uploadURL: 'https://s3.example.com/content-put', objectPath: 'uploads/s1/chat/room-1/provider-document.pdf' });
+    });
+    mockUseChatUploadUrl.mockReturnValue({ mutate: uploadMutate, isPending: false });
+    mockUseChatMessagesSend.mockReturnValue({
+      mutate: jest.fn((_: any, cbs: any) => cbs?.onSuccess?.({ message: { id: 'content-msg' } })),
+      isPending: false,
+    });
+
+    render(<ChatRoomScreen />);
+    fireEvent.press(screen.getByLabelText('Add attachment'));
+    fireEvent.press(screen.getByLabelText('Document'));
+
+    // The explicit Send control is not rendered until the cache copy is stat'ed.
+    expect(screen.queryByLabelText('Send attachment')).toBeNull();
+    await waitFor(() => screen.getByLabelText('Send attachment'));
+    const cachedUri = mockCopyAsync.mock.calls[0][0].to;
+    expect(mockCopyAsync).toHaveBeenCalledWith(expect.objectContaining({
+      from: 'content://com.android.providers.media.documents/document/42',
+      to: expect.stringMatching(/^file:\/\/\/cache\//),
+    }));
+    expect(mockGetInfoAsync).toHaveBeenCalledWith(cachedUri);
+
+    fireEvent.press(screen.getByLabelText('Send attachment'));
+    await waitFor(() => {
+      expect(uploadMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ size: 16384 }) }),
+        expect.anything(),
+      );
+      expect(mockCreateUploadTask).toHaveBeenCalledWith(
+        'https://s3.example.com/content-put',
+        cachedUri,
+        expect.anything(),
+        expect.any(Function),
       );
     });
   });

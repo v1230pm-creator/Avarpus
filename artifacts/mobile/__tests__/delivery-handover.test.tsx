@@ -215,6 +215,21 @@ describe('repair stage primary action', () => {
     unmount();
   });
 
+  it('keeps the repair detail open after received advances to repairing', async () => {
+    acceptUpdate();
+    const { unmount } = await renderDetail({ ...baseRepair, status: 'received' });
+
+    await press('Continue as Repairing');
+
+    await waitFor(() => expect(screen.getByText('Continue as Testing')).toBeTruthy());
+    expect(screen.queryByText('Repair not found')).toBeNull();
+    expect(mockRepairsUpdate).toHaveBeenCalledWith(
+      'r1',
+      expect.objectContaining({ status: 'repairing' }),
+    );
+    unmount();
+  });
+
   it('does not expose payment, signature, or delivery OTP actions on the repair page', async () => {
     const { unmount } = await renderDetail();
     expect(screen.queryByText('Receive Payment')).toBeNull();

@@ -61,7 +61,7 @@ export function KhataTransactionSheet({ visible, onClose, partyId, partyType, ty
     <FormSheet
       visible={visible}
       onClose={onClose}
-      title={type === 'given' ? 'You Gave (Charge)' : 'You Got (Payment)'}
+      title={type === 'given' ? 'Payment Given' : 'Payment Received'}
       submitLabel="Save Transaction"
       onSubmit={handleSubmit}
       loading={createTx.isPending}

@@ -91,7 +91,7 @@ const PULSE = [
 ];
 
 function ActionGlyph({ kind }: { kind: string }) {
-  const paths: Record<string, JSX.Element> = {
+  const paths: Record<string, React.JSX.Element> = {
     call: <path d="M4 3h3l1.5 4-2 1.5a11 11 0 0 0 5 5L13 11.5l4 1.5v3a1.5 1.5 0 0 1-1.7 1.5C8.6 16.7 3.3 11.4 2.5 4.7A1.5 1.5 0 0 1 4 3Z" />,
     cart: <path d="M3 4h2l2 9h8l2-6H7M9 17.5a.5.5 0 1 1 0 1 .5.5 0 0 1 0-1Zm6 0a.5.5 0 1 1 0 1 .5.5 0 0 1 0-1Z" />,
     msg: <path d="M3 5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H8l-4 3v-3H5a2 2 0 0 1-2-2V5Z" />,

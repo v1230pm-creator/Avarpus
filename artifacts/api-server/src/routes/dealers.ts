@@ -13,6 +13,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { isDealerPortalRole } from "../lib/dealerPortal";
 import { requireFeature } from "../lib/roleFeatures";
+import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
 import type { Request, Response } from "express";
 
 // ── B2B Dealer repair management ────────────────────────────────────────────
@@ -352,9 +353,20 @@ router.post(
         .where(eq(dealersTable.shopId, shopId));
       const dealerCode = `DLR-${String(count + 1 + attempt).padStart(3, "0")}`;
       try {
-        const [created] = await db
-          .insert(dealersTable)
-          .values({
+        const [created] = await db.transaction(async (tx) => {
+          await lockNormalizedMobiles(tx, mobile);
+          // Re-check after acquiring the identity lock: two writers that both
+          // passed the optimistic preflight must not create an ambiguous OTP
+          // identity.
+          const [lockedExisting] = await tx.select().from(dealersTable)
+            .where(and(eq(dealersTable.shopId, shopId), eq(dealersTable.mobile, mobile)))
+            .limit(1);
+          if (lockedExisting) {
+            const error = new Error("DEALER_EXISTS_LOCKED") as Error & { dealer?: DbDealer };
+            error.dealer = lockedExisting;
+            throw error;
+          }
+          return tx.insert(dealersTable).values({
             shopId,
             dealerCode,
             name,
@@ -363,11 +375,20 @@ router.post(
             location: str(b.location),
             createdById: me.id,
             createdByName: me.name,
-          })
-          .returning();
+          }).returning();
+        });
         res.json({ dealer: dealerOut(created) });
         return;
       } catch (err) {
+        if (err instanceof Error && err.message === "DEALER_EXISTS_LOCKED") {
+          const existing = (err as Error & { dealer?: DbDealer }).dealer!;
+          res.status(409).json({
+            message: `Dealer with this mobile already exists (${existing.dealerCode} — ${existing.name})`,
+            code: "DEALER_EXISTS",
+            dealer: dealerOut(existing),
+          });
+          return;
+        }
         if ((err as { code?: string })?.code === "23505" && attempt < 2) continue;
         throw err;
       }
@@ -412,11 +433,15 @@ router.patch(
       res.status(400).json({ message: "Nothing to update" });
       return;
     }
-    const [updated] = await db
-      .update(dealersTable)
-      .set(patch)
-      .where(and(eq(dealersTable.id, String(req.params.id ?? "")), eq(dealersTable.shopId, shopId)))
-      .returning();
+    const dealerId = String(req.params.id ?? "");
+    const [updated] = await db.transaction(async (tx) => {
+      const [existing] = await tx.select({ mobile: dealersTable.mobile }).from(dealersTable)
+        .where(and(eq(dealersTable.id, dealerId), eq(dealersTable.shopId, shopId))).for("update");
+      if (!existing) return [];
+      await lockNormalizedMobiles(tx, existing.mobile, patch.mobile);
+      return tx.update(dealersTable).set(patch)
+        .where(and(eq(dealersTable.id, dealerId), eq(dealersTable.shopId, shopId))).returning();
+    });
     if (!updated) {
       res.status(404).json({ message: "Dealer not found" });
       return;

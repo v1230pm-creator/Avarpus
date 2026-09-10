@@ -85,7 +85,102 @@ async function computeApkMeta(
   return { size, checksum: hash.digest("hex") };
 }
 
+async function streamPublishedApk(
+  req: Request,
+  res: Response,
+  row: typeof appUpdatesTable.$inferSelect,
+): Promise<void> {
+  if (!row.apkPath) {
+    res.status(404).json({ error: "APK file not found" });
+    return;
+  }
+
+  let file;
+  try {
+    file = await objectStorage.getObjectEntityFile(row.apkPath);
+  } catch (error) {
+    if (error instanceof ObjectNotFoundError) {
+      res.status(404).json({ error: "APK file not found" });
+      return;
+    }
+    throw error;
+  }
+
+  const [metadata] = await file.getMetadata();
+  const total = Number(metadata.size ?? 0);
+  let start = 0;
+  let end = total - 1;
+  let isPartial = false;
+  const range = req.headers.range;
+
+  if (typeof range === "string") {
+    const match = /^bytes=(\d+)-(\d*)$/.exec(range.trim());
+    if (!match) {
+      res.status(416).setHeader("Content-Range", `bytes */${total}`).end();
+      return;
+    }
+    start = Number.parseInt(match[1], 10);
+    if (match[2]) end = Math.min(Number.parseInt(match[2], 10), total - 1);
+    if (start >= total || start > end) {
+      res.status(416).setHeader("Content-Range", `bytes */${total}`).end();
+      return;
+    }
+    isPartial = true;
+  }
+
+  if (start === 0) {
+    db.update(appUpdatesTable)
+      .set({ downloadCount: sql`${appUpdatesTable.downloadCount} + 1` })
+      .where(eq(appUpdatesTable.id, row.id))
+      .catch(() => {});
+  }
+
+  res.status(isPartial ? 206 : 200);
+  res.setHeader("Content-Type", "application/vnd.android.package-archive");
+  res.setHeader("Accept-Ranges", "bytes");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="avarpus-${row.version}.apk"`,
+  );
+  if (isPartial) {
+    res.setHeader("Content-Range", `bytes ${start}-${end}/${total}`);
+  }
+
+  const stream = file.createReadStream({ start, end });
+  stream.on("error", () => {
+    if (!res.headersSent) res.status(500);
+    res.end();
+  });
+  stream.pipe(res);
+}
+
 // ── User-facing ─────────────────────────────────────────────────────────────
+
+// Public website download. Only the latest explicitly published APK is exposed;
+// draft and archived release objects remain inaccessible.
+router.get(
+  "/app-updates/public/latest/apk",
+  asyncHandler(async (req: Request, res: Response) => {
+    const [latest] = await db
+      .select()
+      .from(appUpdatesTable)
+      .where(
+        and(
+          eq(appUpdatesTable.status, "published"),
+          isNotNull(appUpdatesTable.apkPath),
+        ),
+      )
+      .orderBy(desc(appUpdatesTable.buildNumber))
+      .limit(1);
+
+    if (!latest) {
+      res.status(404).json({ error: "No public Android release is available" });
+      return;
+    }
+
+    await streamPublishedApk(req, res, latest);
+  }),
+);
 
 // Latest published release (by build number). Any authenticated shop user.
 router.get(
@@ -247,65 +342,7 @@ router.get(
       res.status(404).json({ error: "Update not found" });
       return;
     }
-    let file;
-    try {
-      file = await objectStorage.getObjectEntityFile(row.apkPath);
-    } catch (error) {
-      if (error instanceof ObjectNotFoundError) {
-        res.status(404).json({ error: "APK file not found" });
-        return;
-      }
-      throw error;
-    }
-    const [metadata] = await file.getMetadata();
-    const total = Number(metadata.size ?? 0);
-
-    let start = 0;
-    let end = total - 1;
-    let isPartial = false;
-    const range = req.headers.range;
-    if (typeof range === "string") {
-      const m = /^bytes=(\d+)-(\d*)$/.exec(range.trim());
-      if (!m) {
-        res.status(416).setHeader("Content-Range", `bytes */${total}`).end();
-        return;
-      }
-      start = Number.parseInt(m[1], 10);
-      if (m[2]) end = Math.min(Number.parseInt(m[2], 10), total - 1);
-      if (start >= total || start > end) {
-        res.status(416).setHeader("Content-Range", `bytes */${total}`).end();
-        return;
-      }
-      isPartial = true;
-    }
-
-    if (start === 0) {
-      // Fire-and-forget counter; never block or fail the download for it.
-      db.update(appUpdatesTable)
-        .set({ downloadCount: sql`${appUpdatesTable.downloadCount} + 1` })
-        .where(eq(appUpdatesTable.id, row.id))
-        .catch(() => {});
-    }
-
-    res.status(isPartial ? 206 : 200);
-    res.setHeader("Content-Type", "application/vnd.android.package-archive");
-    res.setHeader("Accept-Ranges", "bytes");
-    // Deliberately no Content-Length: the production proxy caps fixed-length
-    // responses (~32MB), which killed large APK downloads mid-transfer.
-    // Omitting it forces chunked transfer encoding, which streams unlimited.
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="vmc-erp-${row.version}.apk"`,
-    );
-    if (isPartial) {
-      res.setHeader("Content-Range", `bytes ${start}-${end}/${total}`);
-    }
-    const stream = file.createReadStream({ start, end });
-    stream.on("error", () => {
-      if (!res.headersSent) res.status(500);
-      res.end();
-    });
-    stream.pipe(res);
+    await streamPublishedApk(req, res, row);
   }),
 );
 

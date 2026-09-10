@@ -98,7 +98,7 @@ export default function KhataDetailScreen() {
   };
 
   const renderEntry = (entry: LedgerEntry) => {
-    const isDebit = entry.debit > 0; // Gave (charge)
+    const isDebit = entry.debit > 0; // Given (charge)
     const amount = isDebit ? entry.debit : entry.credit;
 
     return (
@@ -174,7 +174,7 @@ export default function KhataDetailScreen() {
               <Text style={[styles.summaryMiniValue, { color: colors.destructive }]}>{formatCurrency(totals.billed)}</Text>
             </View>
             <View style={styles.summaryMiniBox}>
-              <Text style={[styles.summaryMiniLabel, { color: colors.mutedForeground }]}>Total Got</Text>
+              <Text style={[styles.summaryMiniLabel, { color: colors.mutedForeground }]}>Total Received</Text>
               <Text style={[styles.summaryMiniValue, { color: colors.success }]}>{formatCurrency(totals.paid)}</Text>
             </View>
           </View>
@@ -197,14 +197,14 @@ export default function KhataDetailScreen() {
             onPress={() => setSheetType('given')}
             activeOpacity={0.8}
           >
-            <Text style={styles.actionBtnText}>You Gave ₹</Text>
+            <Text style={styles.actionBtnText}>Payment Given</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: colors.success }]}
             onPress={() => setSheetType('received')}
             activeOpacity={0.8}
           >
-            <Text style={styles.actionBtnText}>You Got ₹</Text>
+            <Text style={styles.actionBtnText}>Payment Received</Text>
           </TouchableOpacity>
         </View>
       )}

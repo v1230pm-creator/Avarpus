@@ -19,7 +19,7 @@ serve = "static"
 publicDir = "artifacts/avarpus-web/dist/public"
 
 [services.production.build]
-args = [ "pnpm", "--filter", "@workspace/avarpus-web", "run", "build" ]
+args = [ "pnpm", "--filter", "@workspace/avarpus-web", "run", "build:production" ]
 
 [services.production.build.env]
 VITE_API_URL = "https://api.avarpus.com"

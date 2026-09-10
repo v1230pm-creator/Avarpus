@@ -1,0 +1,90 @@
+{
+  "families": [
+    {
+      "id": "auth-self-service",
+      "label": "auth self-service",
+      "isolationExempt": "These routes operate only on the authenticated user and session; they never accept a customer or shop identifier."
+    },
+    {
+      "id": "drive-backup",
+      "label": "Drive backup",
+      "isolationExempt": "Drive backup is authenticated-user self-service and does not expose another customer's business records."
+    },
+    {
+      "id": "profile-storage",
+      "label": "profile image upload",
+      "isolationExempt": "The route derives its final object namespace from the authenticated user and accepts no customer or shop identifier."
+    },
+    {
+      "id": "repair-history",
+      "label": "repair history",
+      "isolationProbe": "repair-ownership"
+    },
+    {
+      "id": "customer-balance",
+      "label": "customer balance",
+      "isolationProbe": "customer-balance-ownership"
+    },
+    {
+      "id": "business-workspace",
+      "label": "business workspace",
+      "isolationExempt": "This is the authenticated user's workspace bootstrap flow, not access to the linked customer's repair-shop records."
+    },
+    {
+      "id": "notifications",
+      "label": "notifications",
+      "isolationProbe": "notification-recipient"
+    },
+    {
+      "id": "personal-status",
+      "label": "personal status",
+      "isolationProbe": "status-audience"
+    },
+    {
+      "id": "chat",
+      "label": "chat",
+      "isolationProbe": "chat-membership"
+    }
+  ],
+  "rules": [
+    { "family": "auth-self-service", "method": "GET", "pattern": "^/auth/me$" },
+    { "family": "auth-self-service", "method": "PATCH", "pattern": "^/auth/me$" },
+    { "family": "auth-self-service", "method": "POST", "pattern": "^/auth/logout$" },
+    { "family": "auth-self-service", "method": "GET", "pattern": "^/auth/sessions$" },
+    { "family": "auth-self-service", "method": "DELETE", "pattern": "^/auth/sessions/[0-9a-fA-F-]{36}$" },
+    { "family": "auth-self-service", "method": "POST", "pattern": "^/auth/sessions/revoke-others$" },
+    { "family": "auth-self-service", "method": "GET", "pattern": "^/auth/login-history$" },
+    { "family": "drive-backup", "method": "*", "pattern": "^/drive-backup(?:/.*)?$" },
+    { "family": "profile-storage", "method": "POST", "pattern": "^/storage/profiles/upload-url$" },
+    { "family": "repair-history", "method": "GET", "pattern": "^/repairs$" },
+    { "family": "repair-history", "method": "GET", "pattern": "^/repairs/[0-9a-fA-F-]{36}$" },
+    { "family": "customer-balance", "method": "GET", "pattern": "^/customers/me/khata$" },
+    { "family": "business-workspace", "method": "*", "pattern": "^/shop(?:/.*)?$" },
+    { "family": "notifications", "method": "GET", "pattern": "^/notifications$" },
+    { "family": "notifications", "method": "POST", "pattern": "^/notifications/read$" },
+    { "family": "personal-status", "method": "GET", "pattern": "^/statuses$" },
+    { "family": "personal-status", "method": "POST", "pattern": "^/statuses$" },
+    { "family": "personal-status", "method": "POST", "pattern": "^/statuses/upload-url$" },
+    { "family": "personal-status", "method": "GET", "pattern": "^/statuses/[0-9a-fA-F-]{36}$" },
+    { "family": "personal-status", "method": "POST", "pattern": "^/statuses/[0-9a-fA-F-]{36}/view$" },
+    { "family": "personal-status", "method": "GET", "pattern": "^/statuses/[0-9a-fA-F-]{36}/viewers$" },
+    { "family": "personal-status", "method": "DELETE", "pattern": "^/statuses/[0-9a-fA-F-]{36}$" },
+    { "family": "personal-status", "method": "GET", "pattern": "^/storage/objects/uploads/status/[0-9a-fA-F-]{36}/[0-9a-fA-F-]{36}$" },
+    { "family": "chat", "method": "GET", "pattern": "^/chat/capabilities$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/contacts/match$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/rooms$" },
+    { "family": "chat", "method": "GET", "pattern": "^/chat/rooms$" },
+    { "family": "chat", "method": "GET", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/block$" },
+    { "family": "chat", "method": "DELETE", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/block$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/reports$" },
+    { "family": "chat", "method": "GET", "pattern": "^/chat/rooms/archived$" },
+    { "family": "chat", "method": "PATCH", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/preferences$" },
+    { "family": "chat", "method": "GET", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/messages$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/messages$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/read$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/upload-url$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/call-token$" },
+    { "family": "chat", "method": "GET", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/messages/[0-9a-fA-F-]{36}/media$" }
+  ]
+}

@@ -18,9 +18,23 @@ describe('restricted account tab routes', () => {
     expect(canPortalAccessTabsRoute(chatRoute)).toBe(true);
   });
 
+  it('denies dealer portal create and staff repair routes', () => {
+    expect(canPortalAccessTabsRoute(['(tabs)', 'repairs', 'new'])).toBe(false);
+    expect(canPortalAccessTabsRoute(['(tabs)', 'repairs', 'scanner'])).toBe(false);
+    expect(canPortalAccessTabsRoute(['(tabs)', 'repairs', 'repair-1'])).toBe(true);
+  });
+
   it('keeps unrelated business routes closed to restricted accounts', () => {
     expect(canCustomerAccessTabsRoute(['(tabs)', 'inventory'])).toBe(false);
     expect(canPortalAccessTabsRoute(['(tabs)', 'inventory'])).toBe(false);
+  });
+
+  it('allows only linked customer repair list/detail routes', () => {
+    const linkedCustomer = (feature: string) => feature === 'repairs_portal';
+    expect(canAccessTabsRoute(['(tabs)', 'repairs'], { role: 'customer', canAccess: linkedCustomer })).toBe(true);
+    expect(canAccessTabsRoute(['(tabs)', 'repairs', 'repair-1'], { role: 'customer', canAccess: linkedCustomer })).toBe(true);
+    expect(canAccessTabsRoute(['(tabs)', 'repairs', 'new'], { role: 'customer', canAccess: linkedCustomer })).toBe(false);
+    expect(canAccessTabsRoute(['(tabs)', 'repairs'], { role: 'customer', canAccess: () => false })).toBe(false);
   });
 
   it('keeps personal account routes open without business permissions', () => {

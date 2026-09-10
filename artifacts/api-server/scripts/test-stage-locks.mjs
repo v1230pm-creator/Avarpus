@@ -238,6 +238,16 @@ async function run(A) {
       status: "ready",
     });
     check("create with status=ready is forced to received", cr2.status === 200 && cr2.json.repair?.status === "received", cr2);
+
+    const receivedList = await api("GET", "/repairs?status=received", A.token);
+    const receivedIds = (receivedList.json.repairs ?? []).map((repair) => repair.id);
+    check(
+      "received list shows the newest phone first",
+      receivedList.status === 200
+        && receivedIds.indexOf(cr2.json.repair?.id) !== -1
+        && receivedIds.indexOf(cr2.json.repair?.id) < receivedIds.indexOf(cr.json.repair?.id),
+      receivedIds,
+    );
   }
 
   // ── Rewind without a failed test must be rejected ────────────────────────

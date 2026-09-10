@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import {
   db,
   customersTable,
@@ -19,6 +19,7 @@ import {
   purchasesTable,
   financeEntriesTable,
   usersTable,
+  customerUsersTable,
   type DbUser,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -29,6 +30,7 @@ import { sendOtpEmail } from "../lib/mailer";
 import { recordPayment, voidPayment, PAYMENT_KINDS } from "../lib/repairPayments";
 import { isDealerPortalRole } from "../lib/dealerPortal";
 import { notifyShop } from "../lib/notify";
+import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
 import type { Request, Response } from "express";
 
 // Shop-scoped business data: repairs, customers, inventory, purchases and
@@ -49,6 +51,20 @@ function shopIdOr403(req: Request, res: Response): string | null {
     return null;
   }
   return me.shopId;
+}
+
+async function customerIdForUser(userId: string, shopId: string): Promise<string | null> {
+  const [link] = await db.select({ customerId: customerUsersTable.customerId })
+    .from(customerUsersTable)
+    .where(and(eq(customerUsersTable.userId, userId), eq(customerUsersTable.shopId, shopId)))
+    .limit(1);
+  return link?.customerId ?? null;
+}
+
+// Customer portal reads are deliberate and independent of staff feature flags.
+function requireRepairRead(req: Request, res: Response, next: import("express").NextFunction) {
+  if ((req as AuthedRequest).user.role === "customer") return next();
+  return requireAnyFeature("repairs", "portal_repairs")(req, res, next);
 }
 
 const iso = (d: Date) => d.toISOString();
@@ -159,20 +175,44 @@ router.post(
       res.status(400).json({ message: "Customer name and mobile are required" });
       return;
     }
-    const [created] = await db
-      .insert(customersTable)
-      .values({
-        shopId,
-        name,
-        mobile,
-        alternateMobile: str(b.alternateMobile),
-        email: str(b.email),
-        address: str(b.address),
-        // dueAmount and totalRepairs are derived from repairs server-side —
-        // client-provided values are ignored.
-      })
-      .returning();
+    const [created] = await db.transaction(async (tx) => {
+      await lockNormalizedMobiles(tx, mobile);
+      return tx.insert(customersTable).values({
+          shopId, name, mobile, alternateMobile: str(b.alternateMobile),
+          email: str(b.email), address: str(b.address),
+        }).returning();
+    });
     res.json({ customer: customerOut(created) });
+  }),
+);
+
+// Detail lookup shares the same ownership predicate as the list and its
+// timeline/payment/photo subresources. In particular a customer cannot turn a
+// guessed repair UUID into another customer's data.
+router.get(
+  "/repairs/:id",
+  requireAuth,
+  requireRepairRead,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const id = String(req.params.id ?? "");
+    if (!(await repairAccessible(req, shopId, id))) {
+      res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    const [repair] = await db.select().from(repairsTable)
+      .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)));
+    if (!repair) {
+      res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    const me = (req as AuthedRequest).user;
+    res.json({
+      repair: me.role === "customer" || isDealerPortalRole(me.role)
+        ? portalRepairOut(repair)
+        : repairOut(repair),
+    });
   }),
 );
 
@@ -191,11 +231,15 @@ router.patch(
     if (b.email !== undefined) patch.email = str(b.email);
     if (b.address !== undefined) patch.address = str(b.address);
     // dueAmount / totalRepairs are derived from repairs and cannot be patched.
-    const [updated] = await db
-      .update(customersTable)
-      .set(patch)
-      .where(and(eq(customersTable.id, String(req.params.id ?? "")), eq(customersTable.shopId, shopId)))
-      .returning();
+    const customerId = String(req.params.id ?? "");
+    const [updated] = await db.transaction(async (tx) => {
+      const [existing] = await tx.select({ mobile: customersTable.mobile }).from(customersTable)
+        .where(and(eq(customersTable.id, customerId), eq(customersTable.shopId, shopId))).for("update");
+      if (!existing) return [];
+      await lockNormalizedMobiles(tx, existing.mobile, patch.mobile);
+      return tx.update(customersTable).set(patch)
+        .where(and(eq(customersTable.id, customerId), eq(customersTable.shopId, shopId))).returning();
+    });
     if (!updated) {
       res.status(404).json({ message: "Customer not found" });
       return;
@@ -230,11 +274,24 @@ router.get(
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
     const me = (req as AuthedRequest).user;
-    if (!(await userHasFeature(me, "payments"))) {
+    // Customers can only use the self endpoint. Do not honor a supplied
+    // customer UUID for their portal, even if it happens to be valid.
+    let customerId = String(req.params.id ?? "");
+    if (me.role === "customer") {
+      if (customerId !== "me") {
+        res.status(403).json({ message: "Customer khata is available only through your self endpoint.", code: "FORBIDDEN" });
+        return;
+      }
+      const linkedCustomerId = await customerIdForUser(me.id, shopId);
+      if (!linkedCustomerId) {
+        res.status(403).json({ message: "Your account is not linked to a customer profile.", code: "FORBIDDEN" });
+        return;
+      }
+      customerId = linkedCustomerId;
+    } else if (!(await userHasFeature(me, "payments"))) {
       res.status(403).json({ message: "You do not have permission to view khata", code: "FORBIDDEN" });
       return;
     }
-    const customerId = String(req.params.id ?? "");
     const [customer] = await db.select().from(customersTable).where(and(
       eq(customersTable.id, customerId),
       eq(customersTable.shopId, shopId),
@@ -669,11 +726,32 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
   };
 }
 
+function portalRepairOut(r: typeof repairsTable.$inferSelect) {
+  const totals = computeTotals(r);
+  return {
+    id: r.id, repairId: r.repairId, status: r.status, priority: r.priority,
+    customerName: r.customerName, dealerName: r.dealerName ?? undefined,
+    deviceType: r.deviceType, brand: r.brand, model: r.model,
+    problem: r.problem, diagnosis: r.diagnosis ?? undefined,
+    workPerformed: r.workPerformed ?? undefined,
+    receiveDate: r.receiveDate, expectedDate: r.expectedDate,
+    deliveryDate: r.deliveryDate ?? undefined,
+    repairCompletedAt: r.repairCompletedAt ? iso(r.repairCompletedAt) : undefined,
+    warrantyDays: r.warrantyDays, warrantyExpiry: r.warrantyExpiry ?? undefined,
+    repairCharge: r.repairCharge, partsCharge: r.partsCharge,
+    serviceCharge: r.serviceCharge, otherCharge: r.otherCharge,
+    discount: r.discount, taxPercent: r.taxPercent,
+    totalAmount: totals.totalAmount, paidAmount: totals.paidAmount,
+    balance: totals.balance,
+    paymentStatus: paymentStatusOf(totals.totalAmount, totals.paidAmount),
+  };
+}
+
 router.get(
   "/repairs",
   requireAuth,
   // Dealer portal access is intentionally the only alternate read path.
-  requireAnyFeature("repairs", "portal_repairs"),
+  requireRepairRead,
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -688,7 +766,14 @@ router.get(
 
     // Dealer-portal accounts only EVER see their own dealer's repairs —
     // enforced server-side regardless of any client-supplied filters.
-    if (isDealerPortalRole(me.role)) {
+    if (me.role === "customer") {
+      const customerId = await customerIdForUser(me.id, shopId);
+      if (!customerId) {
+        res.status(403).json({ message: "Your account is not linked to a customer profile." });
+        return;
+      }
+      conds.push(eq(repairsTable.customerId, customerId));
+    } else if (isDealerPortalRole(me.role)) {
       if (!me.dealerId) {
         res.status(403).json({ message: "Your dealer account is not linked to a dealer profile." });
         return;
@@ -726,11 +811,13 @@ router.get(
     // validated against the enum and unknown values are dropped. A single
     // valid value behaves exactly as before (eq); multiple use inArray.
     const status = qstr("status");
+    let receivedOnly = false;
     if (status) {
       const wanted = status
         .split(",")
         .map((s) => s.trim())
         .filter((s) => REPAIR_STATUSES.includes(s as (typeof REPAIR_STATUSES)[number]));
+      receivedOnly = wanted.length === 1 && wanted[0] === "received";
       if (wanted.length === 1) {
         conds.push(eq(repairsTable.status, wanted[0]));
       } else if (wanted.length > 1) {
@@ -784,7 +871,7 @@ router.get(
         .select()
         .from(repairsTable)
         .where(where)
-        .orderBy(asc(repairsTable.createdAt));
+        .orderBy(receivedOnly ? desc(repairsTable.createdAt) : asc(repairsTable.createdAt));
       const mapped = allRows
         .map((r) => ({ r, t: computeTotals(r) }))
         .filter(({ t }) => {
@@ -794,7 +881,8 @@ router.get(
         });
       const total = mapped.length;
       const start = (page - 1) * limit;
-      const pageRows = mapped.slice(start, start + limit).map(({ r }) => repairOut(r));
+      const out = me.role === "customer" || isDealerPortalRole(me.role) ? portalRepairOut : repairOut;
+      const pageRows = mapped.slice(start, start + limit).map(({ r }) => out(r));
       res.json({ repairs: pageRows, total, page, limit });
       return;
     }
@@ -807,10 +895,11 @@ router.get(
       .select()
       .from(repairsTable)
       .where(where)
-      .orderBy(asc(repairsTable.createdAt))
+      .orderBy(receivedOnly ? desc(repairsTable.createdAt) : asc(repairsTable.createdAt))
       .limit(limit)
       .offset((page - 1) * limit);
-    res.json({ repairs: rows.map(repairOut), total, page, limit });
+    const out = me.role === "customer" || isDealerPortalRole(me.role) ? portalRepairOut : repairOut;
+    res.json({ repairs: rows.map(out), total, page, limit });
   }),
 );
 
@@ -1690,6 +1779,19 @@ async function repairInShop(shopId: string, id: string) {
 // belong to THEIR dealer — a shop-level match alone is not enough (IDOR).
 async function repairAccessible(req: Request, shopId: string, id: string) {
   const me = (req as AuthedRequest).user;
+  if (me.role === "customer") {
+    const customerId = await customerIdForUser(me.id, shopId);
+    if (!customerId) return null;
+    const [row] = await db
+      .select({ id: repairsTable.id })
+      .from(repairsTable)
+      .where(and(
+        eq(repairsTable.id, id),
+        eq(repairsTable.shopId, shopId),
+        eq(repairsTable.customerId, customerId),
+      ));
+    return row ?? null;
+  }
   if (isDealerPortalRole(me.role)) {
     if (!me.dealerId) return null;
     const [row] = await db
@@ -1704,7 +1806,7 @@ async function repairAccessible(req: Request, shopId: string, id: string) {
 router.get(
   "/repairs/:id/photos",
   requireAuth,
-  requireAnyFeature("repairs", "portal_repairs"),
+  requireRepairRead,
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -1786,7 +1888,7 @@ router.post(
 router.get(
   "/repairs/:id/events",
   requireAuth,
-  requireAnyFeature("repairs", "portal_repairs"),
+  requireRepairRead,
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -1841,7 +1943,7 @@ function paymentOut(p: typeof repairPaymentsTable.$inferSelect) {
 router.get(
   "/repairs/:id/payments",
   requireAuth,
-  requireAnyFeature("repairs", "portal_repairs"),
+  requireRepairRead,
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -1974,6 +2076,92 @@ router.post(
       actorId: me.id,
     });
     res.json({ payment: paymentOut(result.row) });
+  }),
+);
+
+// Void every live payment of a repair in one transaction (dealer/super_admin
+// only) so a job settled by mistake goes back to unpaid. Doing this server-side
+// under the repair's row lock is what makes it safe: a payment recorded
+// concurrently either lands before the lock (and is voided here) or waits for
+// it (and is rejected by the overpayment check afterwards). A client-side loop
+// over individual voids could not offer that.
+router.post(
+  "/repairs/:id/payments/void-all",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    if (!isPrivileged(req)) {
+      res.status(403).json({ message: "Dealer/Owner access required to void payments." });
+      return;
+    }
+    const me = (req as AuthedRequest).user;
+    const reason = str(req.body?.reason);
+    if (!reason) {
+      res.status(400).json({ message: "A reason is required to void a payment", code: "REASON_REQUIRED" });
+      return;
+    }
+    const id = String(req.params.id ?? "");
+
+    const result = await db.transaction(async (tx) => {
+      const [repair] = await tx
+        .select()
+        .from(repairsTable)
+        .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)))
+        .for("update");
+      if (!repair) return { error: { status: 404, message: "Repair not found" } };
+      const live = await tx
+        .select({ id: repairPaymentsTable.id })
+        .from(repairPaymentsTable)
+        .where(
+          and(
+            eq(repairPaymentsTable.repairId, id),
+            eq(repairPaymentsTable.shopId, shopId),
+            isNull(repairPaymentsTable.voidedAt),
+          ),
+        );
+      const rows: (typeof repairPaymentsTable.$inferSelect)[] = [];
+      for (const { id: paymentId } of live) {
+        const row = await voidPayment(tx, {
+          shopId,
+          repairId: id,
+          paymentId,
+          reason,
+          voidedById: me.id,
+          voidedByName: me.name,
+        });
+        // Both codes are unreachable while we hold the repair lock, but a
+        // silent skip would misreport the resulting paid amount.
+        if (row === "NOT_FOUND" || row === "ALREADY_VOIDED") {
+          return { error: { status: 409, message: "Payments changed while reversing. Please retry.", code: "PAYMENTS_CHANGED" } };
+        }
+        rows.push(row);
+        await logRepairEvent(tx, {
+          shopId,
+          repairId: id,
+          user: me,
+          action: "payment_voided",
+          details: { paymentId, amount: row.amount, method: row.method, kind: row.kind, reason },
+        });
+      }
+      if (repair.customerId) await syncCustomerStats(tx, shopId, repair.customerId);
+      const [after] = await tx
+        .select({ advance: repairsTable.advance })
+        .from(repairsTable)
+        .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)));
+      return { rows, paidAmount: after?.advance ?? 0 };
+    });
+    if ("error" in result && result.error) {
+      const err = result.error as { status: number; message: string; code?: string };
+      res.status(err.status).json({ message: err.message, ...(err.code ? { code: err.code } : {}) });
+      return;
+    }
+    const voided = (result as { rows: (typeof repairPaymentsTable.$inferSelect)[] }).rows;
+    res.json({
+      voidedCount: voided.length,
+      paidAmount: (result as { paidAmount: number }).paidAmount,
+      payments: voided.map(paymentOut),
+    });
   }),
 );
 

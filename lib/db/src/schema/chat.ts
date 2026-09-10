@@ -204,6 +204,30 @@ export const chatRoomMembersTable = pgTable(
   ],
 );
 
+// Caller-specific inbox state. Deleting a chat only hides it for this user; it
+// never removes the shared room, membership, or another member's history.
+export const chatRoomPreferencesTable = pgTable(
+  "chat_room_preferences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => chatRoomsTable.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    isPinned: boolean("is_pinned").notNull().default(false),
+    isMuted: boolean("is_muted").notNull().default(false),
+    isArchived: boolean("is_archived").notNull().default(false),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("chat_room_preferences_room_user_unique").on(t.roomId, t.userId),
+    index("chat_room_preferences_user_inbox_idx").on(t.userId, t.isArchived, t.deletedAt),
+  ],
+);
+
 // ── Global direct-chat blocks ────────────────────────────────────────────────
 // Blocks are directional: only the user who created a block may remove it.
 // Route logic treats either direction as a blocked pair.

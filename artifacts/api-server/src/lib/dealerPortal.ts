@@ -1,4 +1,8 @@
 import type { Request } from "express";
+import type { DbUser } from "@workspace/db";
+import { db, dealersTable } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
+import contract from "./dealerPortalContract.json";
 
 // ── B2B dealer portal accounts ──────────────────────────────────────────────
 // Roles for external dealer logins (NOT the shop-owner `dealer` role).
@@ -10,52 +14,30 @@ export function isDealerPortalRole(role: string): boolean {
   return (DEALER_PORTAL_ROLES as readonly string[]).includes(role);
 }
 
-const UUID = "[0-9a-fA-F-]{36}";
+// Dealer deactivation is the portal access switch for every account linked to
+// that dealer. Existing sessions are intentionally retained: they fail closed
+// while inactive and resume after reactivation if they have not expired.
+export async function dealerPortalDealerIsActive(user: DbUser): Promise<boolean> {
+  if (!isDealerPortalRole(user.role) || !user.shopId || !user.dealerId) return false;
+  const [dealer] = await db
+    .select({ id: dealersTable.id })
+    .from(dealersTable)
+    .where(and(
+      eq(dealersTable.id, user.dealerId),
+      eq(dealersTable.shopId, user.shopId),
+      eq(dealersTable.isActive, true),
+    ))
+    .limit(1);
+  return Boolean(dealer);
+}
 
 // Allowlist of endpoints a dealer-portal account may call. Anything not
-// listed is 403 — new endpoints are therefore blocked by default.
-const ALLOWED: Array<{ method: string; re: RegExp }> = [
-  // Own dealer profile + stats
-  { method: "GET", re: /^\/dealers\/me$/ },
-  // Own repairs (list is force-filtered by dealerId server-side)
-  { method: "GET", re: new RegExp(`^\\/repairs$`) },
-  { method: "GET", re: new RegExp(`^\\/repairs\\/${UUID}\\/events$`) },
-  { method: "GET", re: new RegExp(`^\\/repairs\\/${UUID}\\/photos$`) },
-  { method: "GET", re: new RegExp(`^\\/repairs\\/${UUID}\\/payments$`) },
-  { method: "GET", re: /^\/role-features$/ },
-  // Account self-service (profile, sessions, logout live under /auth)
-  { method: "GET", re: /^\/auth\/.*$/ },
-  { method: "POST", re: /^\/auth\/.*$/ },
-  { method: "PATCH", re: /^\/auth\/.*$/ },
-  { method: "DELETE", re: /^\/auth\/.*$/ },
-  { method: "GET", re: /^\/drive-backup(?:\/.*)?$/ },
-  { method: "POST", re: /^\/drive-backup(?:\/.*)?$/ },
-  { method: "PATCH", re: /^\/drive-backup(?:\/.*)?$/ },
-  { method: "DELETE", re: /^\/drive-backup(?:\/.*)?$/ },
-  // Exact-recipient notifications
-  { method: "GET", re: /^\/notifications$/ },
-  { method: "POST", re: /^\/notifications\/read$/ },
-  // Global direct chat. Room routes enforce exact membership internally, and
-  // POST /chat/rooms additionally limits portal accounts to kind=direct.
-  { method: "GET", re: /^\/chat\/capabilities$/ },
-  { method: "POST", re: /^\/chat\/contacts\/match$/ },
-  { method: "POST", re: /^\/chat\/rooms$/ },
-  { method: "GET", re: /^\/chat\/rooms$/ },
-  { method: "GET", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}$`) },
-  { method: "POST", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/block$`) },
-  { method: "DELETE", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/block$`) },
-  { method: "POST", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/reports$`) },
-  { method: "GET", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/messages$`) },
-  { method: "POST", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/messages$`) },
-  { method: "POST", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/read$`) },
-  { method: "POST", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/upload-url$`) },
-  { method: "POST", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/call-token$`) },
-  { method: "GET", re: new RegExp(`^\\/chat\\/rooms\\/${UUID}\\/messages\\/${UUID}\\/media$`) },
-  // Serving uploaded photos — the actual mounted route is /storage/objects/*.
-  // Dealer-level scoping (only objects attached to the portal dealer's own
-  // repairs) is enforced inside the storage route itself.
-  { method: "GET", re: /^\/storage\/objects\/.*$/ },
-];
+// listed is 403 — new endpoints are therefore blocked by default. Families and
+// their inactive-dealer probes live in the same contract consumed by validation.
+const ALLOWED = contract.rules.map(({ method, pattern }) => ({
+  method,
+  re: new RegExp(pattern),
+}));
 
 export function dealerPortalAllowed(req: Request): boolean {
   // req.path is relative to the /api mount (e.g. /repairs/…)

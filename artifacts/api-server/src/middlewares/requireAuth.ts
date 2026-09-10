@@ -1,7 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
 import type { DbUser } from "@workspace/db";
 import { getSessionUser } from "../lib/authUtils";
-import { isDealerPortalRole, dealerPortalAllowed } from "../lib/dealerPortal";
+import {
+  dealerPortalAllowed,
+  dealerPortalDealerIsActive,
+  isDealerPortalRole,
+} from "../lib/dealerPortal";
 import { customerPortalAllowed } from "../lib/customerPortal";
 import { userHasFeature } from "../lib/roleFeatures";
 import { db, shopMembershipsTable } from "@workspace/db";
@@ -70,6 +74,13 @@ export function requireAuth(
         // Account self-service under /auth stays available so the user can
         // still manage their profile and sign out.
         if (!req.path.startsWith("/auth")) {
+          if (!await dealerPortalDealerIsActive(user)) {
+            res.status(403).json({
+              message: "Dealer portal access is inactive. Please contact the shop.",
+              code: "DEALER_INACTIVE",
+            });
+            return;
+          }
           await userHasFeature(user, "portal_repairs").then((ok) => {
             if (!ok) {
               res.status(403).json({

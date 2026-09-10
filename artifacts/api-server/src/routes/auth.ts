@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, eq, or } from "drizzle-orm";
-import { db, shopsTable, usersTable } from "@workspace/db";
+import { db, shopsTable, usersTable, dealersTable, customersTable, customerUsersTable } from "@workspace/db";
 import {
   consumeOtp,
   createOtp,
@@ -47,6 +47,7 @@ import {
   refreshPendingUploadClaim,
   releasePendingUpload,
 } from "../lib/pendingUploads";
+import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -213,41 +214,130 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
     return;
   }
 
-  // OTP ownership is sufficient to bootstrap a standalone customer account.
-  // The mobile unique index is the cross-process mutex: concurrent approvals
-  // either return the already-created active user or exactly one inserts it.
-  // Existing records are never changed, notably inactive accounts stay denied.
+  // A verified mobile may be an existing B2B dealer or end customer. Resolve
+  // only an exact, normalized, *unique* record and never replace an existing
+  // business identity. This is deliberately done after OTP verification and in
+  // one transaction: a duplicate phone must not silently grant either shop.
   const account = await db.transaction(async (tx) => {
+    // Serialize resolution and customer-link claims for this normalized phone
+    // across API processes. hashtext is used only as a transaction-local lock
+    // key; the normalized phone is never persisted by this lock.
+    await lockNormalizedMobiles(tx, mobile);
     const [existing] = await tx
       .select()
       .from(usersTable)
       .where(eq(usersTable.mobile, mobile))
       .limit(1);
-    if (existing) return { user: existing, created: false };
-    const [created] = await tx
-      .insert(usersTable)
-      .values({
-        name: "Customer",
-        // This internal address is never used for authentication. A random
-        // suffix avoids an attacker pre-claiming a predictable legacy-email
-        // value and blocking phone-only account creation.
-        email: `otp-customer-${generateToken().slice(0, 24)}@standalone.local`,
-        mobile,
-        passwordHash: null,
-        role: "customer",
-        isActive: true,
-        displayNameCompletedAt: null,
-      })
-      .onConflictDoNothing({ target: usersTable.mobile })
-      .returning();
-    if (created) return { user: created, created: true };
-    const [raced] = await tx
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.mobile, mobile))
-      .limit(1);
-    return { user: raced, created: false };
+    // Inactive users are authoritative and can never be reactivated by OTP.
+    if (existing && !existing.isActive) return { user: existing, created: false, ambiguous: false };
+    // A business user, or an already-linked customer, is authoritative. Do not
+    // use a changed customer/dealer row to overwrite its identity.
+    if (existing && (existing.role !== "customer" || existing.shopId || existing.dealerId)) {
+      return { user: existing, created: false, ambiguous: false };
+    }
+    if (existing) {
+      const [link] = await tx.select({ id: customerUsersTable.id }).from(customerUsersTable)
+        .where(eq(customerUsersTable.userId, existing.id)).limit(1);
+      if (link) return { user: existing, created: false, ambiguous: false };
+    }
+
+    // Existing data predates normalized mobile columns. Normalize each stored
+    // value using the same strict Indian-mobile routine as the OTP boundary.
+    const [dealers, customers] = await Promise.all([
+      tx.select().from(dealersTable).where(eq(dealersTable.isActive, true)),
+      tx.select().from(customersTable),
+    ]);
+    const dealerMatches = dealers.filter((dealer) => normaliseIndianMobile(dealer.mobile) === mobile);
+    const customerMatches = customers.filter((customer) => normaliseIndianMobile(customer.mobile) === mobile);
+    if (dealerMatches.length + customerMatches.length > 1) {
+      return { user: null, created: false, ambiguous: true };
+    }
+    // Do this before creating a standalone account so an occupied customer
+    // link fails with no account or link mutation at all.
+    if (customerMatches.length === 1) {
+      const [otherLink] = await tx.select({ userId: customerUsersTable.userId }).from(customerUsersTable)
+        .where(eq(customerUsersTable.customerId, customerMatches[0].id)).limit(1);
+      if (otherLink && (!existing || otherLink.userId !== existing.id)) {
+        return { user: null, created: false, ambiguous: true };
+      }
+    }
+
+    let user = existing;
+    if (!user) {
+      const matchedName = dealerMatches[0]?.name ?? customerMatches[0]?.name ?? "Customer";
+      const [created] = await tx
+        .insert(usersTable)
+        .values({
+          name: matchedName,
+          email: `otp-customer-${generateToken().slice(0, 24)}@standalone.local`,
+          mobile, passwordHash: null, role: "customer", isActive: true,
+          displayNameCompletedAt: null,
+        })
+        .onConflictDoNothing({ target: usersTable.mobile })
+        .returning();
+      if (!created) {
+        const [raced] = await tx.select().from(usersTable).where(eq(usersTable.mobile, mobile)).limit(1);
+        return { user: raced, created: false, ambiguous: false };
+      }
+      user = created;
+    }
+    if (dealerMatches.length === 1) {
+      const dealer = dealerMatches[0];
+      const [upgraded] = await tx.update(usersTable)
+        .set({ role: "dealer_owner", shopId: dealer.shopId, dealerId: dealer.id })
+        .where(and(eq(usersTable.id, user.id), eq(usersTable.role, "customer")))
+        .returning();
+      if (upgraded) return { user: upgraded, created: !existing, ambiguous: false };
+      const [current] = await tx.select().from(usersTable).where(eq(usersTable.id, user.id)).limit(1);
+      return { user: current, created: !existing, ambiguous: false };
+    }
+    if (customerMatches.length === 1) {
+      const customer = customerMatches[0];
+      const [insertedLink] = await tx.insert(customerUsersTable).values({
+        userId: user.id, customerId: customer.id, shopId: customer.shopId,
+      }).onConflictDoNothing().returning();
+      if (!insertedLink) {
+        // The advisory lock makes this exceptional (for example, a legacy
+        // writer bypassing this path), but fail closed rather than claiming a
+        // customer whose unique link was won elsewhere.
+        const [sameUserLink] = await tx.select({ customerId: customerUsersTable.customerId })
+          .from(customerUsersTable)
+          .where(eq(customerUsersTable.userId, user.id))
+          .limit(1);
+        if (!sameUserLink || sameUserLink.customerId !== customer.id) {
+          // If this request created the otherwise-standalone account, remove it
+          // before committing the conflict result. Existing accounts are left
+          // entirely unchanged.
+          if (!existing) {
+            await tx.delete(usersTable).where(eq(usersTable.id, user.id));
+          }
+          return { user: null, created: false, ambiguous: false, conflict: true };
+        }
+      }
+      const [linked] = await tx.update(usersTable)
+        .set({ role: "customer", shopId: customer.shopId, dealerId: null })
+        .where(and(eq(usersTable.id, user.id), eq(usersTable.role, "customer")))
+        .returning();
+      if (linked) return { user: linked, created: !existing, ambiguous: false };
+      const [current] = await tx.select().from(usersTable).where(eq(usersTable.id, user.id)).limit(1);
+      return { user: current, created: !existing, ambiguous: false };
+    }
+    return { user, created: !existing, ambiguous: false };
   });
+  if (account.ambiguous) {
+    res.status(409).json({
+      message: "This mobile matches more than one business record. Please contact the shop to correct the mobile number.",
+      code: "AMBIGUOUS_MOBILE_MATCH",
+    });
+    return;
+  }
+  if ("conflict" in account && account.conflict) {
+    res.status(409).json({
+      message: "This customer profile is already linked to another account. Please contact the shop.",
+      code: "CUSTOMER_LINK_CONFLICT",
+    });
+    return;
+  }
   const user = account.user;
   if (!user || !user.isActive) {
     // An existing inactive account cannot be reactivated by OTP verification.

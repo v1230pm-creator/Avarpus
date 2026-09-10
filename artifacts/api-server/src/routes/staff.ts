@@ -13,6 +13,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { requireRole } from "../middlewares/requireRole";
 import { asyncHandler } from "../lib/asyncHandler";
 import { sendStaffApprovedEmail, sendStaffRejectedEmail } from "../lib/mailer";
+import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
 import type { Request } from "express";
 import {
   CONFIGURABLE_ROLES,
@@ -140,7 +141,9 @@ router.post(
       res.status(409).json({ message: "Account with this email or mobile already exists" });
       return;
     }
-    const [created] = await db.insert(usersTable).values({
+    const created = await db.transaction(async (tx) => {
+      await lockNormalizedMobiles(tx, mobile);
+      const [newUser] = await tx.insert(usersTable).values({
       name: name.trim(),
       email: normEmail,
       mobile,
@@ -156,13 +159,15 @@ router.post(
           ? designation.trim()
           : null,
       joinDate: new Date().toISOString().split("T")[0],
-    }).returning();
-    await db.insert(shopMembershipsTable).values({
-      shopId: me.shopId,
-      userId: created.id,
-      role,
-      status: created.isActive ? "active" : "pending",
-    }).onConflictDoNothing();
+      }).returning();
+      await tx.insert(shopMembershipsTable).values({
+        shopId: me.shopId!,
+        userId: newUser.id,
+        role,
+        status: newUser.isActive ? "active" : "pending",
+      }).onConflictDoNothing();
+      return newUser;
+    });
     res.json({ user: publicUser(created) });
   }),
 );

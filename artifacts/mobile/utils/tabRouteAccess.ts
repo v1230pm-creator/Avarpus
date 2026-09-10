@@ -35,8 +35,15 @@ export function canAccessTabsRoute(segments: TabSegments, { role, canAccess }: A
     isPersonalRoute(segments) ||
     ['status', 'shop', 'calls'].includes(segments[1] ?? '')
   ) return true;
-  if (isCustomerRole(role)) return false;
-  if (isDealerPortalRole(role)) return segments[1] === 'repairs' && canAccess('repairs_portal');
+  if (isCustomerRole(role)) {
+    if (segments[1] !== 'repairs' || !canAccess('repairs_portal')) return false;
+    // Customer repair deep links are read-only list/detail routes only.
+    return !['new', 'scanner', 'return', 'returns', 'dealer', 'dealer-new'].includes(segments[2] ?? '');
+  }
+  if (isDealerPortalRole(role)) {
+    if (segments[1] !== 'repairs' || !canAccess('repairs_portal')) return false;
+    return !['new', 'scanner', 'return', 'returns', 'dealer', 'dealer-new'].includes(segments[2] ?? '');
+  }
 
   const owner = role === 'dealer' || role === 'super_admin';
   switch (segments[1]) {

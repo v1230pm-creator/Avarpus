@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   blockMutate: vi.fn(),
   unblockMutate: vi.fn(),
   reportMutate: vi.fn(),
+  preferencesMutateAsync: vi.fn(),
+  deleteMutateAsync: vi.fn(),
   toast: vi.fn(),
 }));
 
@@ -29,6 +31,8 @@ vi.mock("@workspace/api-client-react", () => ({
           scope: "global_direct",
           shopId: null,
           isArchived: false,
+          isPinned: true,
+          isMuted: true,
           createdAt: "2026-01-01T10:00:00Z",
         },
       ],
@@ -46,6 +50,8 @@ vi.mock("@workspace/api-client-react", () => ({
         isBlocked: false,
         blockedByMe: false,
         isArchived: false,
+        isPinned: true,
+        isMuted: true,
         createdAt: "2026-01-01T10:00:00Z",
       },
     },
@@ -71,6 +77,11 @@ vi.mock("@workspace/api-client-react", () => ({
   useChatRoomsBlock: () => ({ mutate: mocks.blockMutate, isPending: false }),
   useChatRoomsUnblock: () => ({ mutate: mocks.unblockMutate, isPending: false }),
   useChatReportsCreate: () => ({ mutate: mocks.reportMutate, isPending: false }),
+  useChatRoomsPreferencesUpdate: () => ({
+    mutateAsync: mocks.preferencesMutateAsync,
+    isPending: false,
+  }),
+  useChatRoomsDelete: () => ({ mutateAsync: mocks.deleteMutateAsync, isPending: false }),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -88,6 +99,10 @@ beforeEach(() => {
   mocks.blockMutate.mockReset();
   mocks.unblockMutate.mockReset();
   mocks.reportMutate.mockReset();
+  mocks.preferencesMutateAsync.mockReset();
+  mocks.preferencesMutateAsync.mockResolvedValue({});
+  mocks.deleteMutateAsync.mockReset();
+  mocks.deleteMutateAsync.mockResolvedValue(undefined);
   mocks.toast.mockReset();
   root = createRoot(document.getElementById("root")!);
 });
@@ -154,5 +169,56 @@ describe("web chat safety controls", () => {
       submitButton?.click();
     });
     expect(mocks.reportMutate.mock.calls[1][0].data.clientRequestId).toBe(firstRequestId);
+  });
+
+  it.each([
+    ["Pin", { isPinned: false }],
+    ["Mute", { isMuted: false }],
+    ["Archive", { isArchived: true }],
+  ])("persists the %s action through the generated preference mutation", async (label, data) => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <ChatsPage />
+        </QueryClientProvider>,
+      );
+    });
+    expect(document.querySelector('[aria-label="Pinned"]')).not.toBeNull();
+    expect(document.querySelector('[aria-label="Muted"]')).not.toBeNull();
+    await act(async () => {
+      document.querySelector<HTMLInputElement>('input[type="checkbox"]')?.click();
+    });
+    const action = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.trim() === label,
+    );
+    await act(async () => action?.click());
+    expect(mocks.preferencesMutateAsync).toHaveBeenCalledWith({ roomId: "room-1", data });
+  });
+
+  it("confirms safe caller-only deletion before deleting the selected chat", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <ChatsPage />
+        </QueryClientProvider>,
+      );
+    });
+    await act(async () => {
+      document.querySelector<HTMLInputElement>('input[type="checkbox"]')?.click();
+    });
+    const action = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.trim() === "Delete",
+    );
+    await act(async () => action?.click());
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("anyone else's history"));
+    expect(mocks.deleteMutateAsync).toHaveBeenCalledWith({ roomId: "room-1" });
+    confirm.mockRestore();
   });
 });

@@ -56,9 +56,12 @@ import type {
   ChatReportInput,
   ChatReportsCreate200,
   ChatRoomCreateInput,
+  ChatRoomPreferencesInput,
+  ChatRoomsArchivedList200,
   ChatRoomsCreate200,
   ChatRoomsGet200,
   ChatRoomsList200,
+  ChatRoomsPreferencesUpdate200,
   ChatUploadUrlInput,
   ChatUploadUrlResult,
   CustomerInput,
@@ -120,6 +123,14 @@ import type {
   PaymentsList200,
   PaymentsListParams,
   ProfileUpdateInput,
+  PublicContact,
+  PublicRequestAdminListParams,
+  PublicRequestDetail,
+  PublicRequestIdentityVerificationInput,
+  PublicRequestInput,
+  PublicRequestList,
+  PublicRequestReceipt,
+  PublicRequestStatusUpdate,
   PurchaseInput,
   PurchasesCreate200,
   PurchasesList200,
@@ -149,6 +160,7 @@ import type {
   RepairPaymentVoidInput,
   RepairPaymentsCreate200,
   RepairPaymentsList200,
+  RepairPaymentsVoidAll200,
   RepairPhotoInput,
   RepairPhotosAdd200,
   RepairPhotosList200,
@@ -200,6 +212,8 @@ import type {
   StatusViewersResult,
   StockMovementsList200,
   StockMovementsListParams,
+  SupportNotificationSettings,
+  SupportNotificationSettingsInput,
   TrustedDeviceRecoveryInput,
   UploadUrlRequest,
   UploadUrlResponse
@@ -231,6 +245,609 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getPublicRequestCreateUrl = () => {
+
+
+
+
+  return `/api/public/requests`
+}
+
+/**
+ * Records a request for staff review. A successful response confirms only that the request was received; it never confirms account deletion.
+ * @summary Record a public support or account-deletion request
+ */
+export const publicRequestCreate = async (publicRequestInput: PublicRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<PublicRequestReceipt> => {
+
+  return customFetch<PublicRequestReceipt>(getPublicRequestCreateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(publicRequestInput)
+  }
+);}
+
+
+
+
+
+export const getPublicRequestCreateMutationOptions = <TError = ErrorType<Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publicRequestCreate>>, TError,{data: BodyType<PublicRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publicRequestCreate>>, TError,{data: BodyType<PublicRequestInput>}, TContext> => {
+
+const mutationKey = ['publicRequestCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publicRequestCreate>>, {data: BodyType<PublicRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  publicRequestCreate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublicRequestCreateMutationResult = NonNullable<Awaited<ReturnType<typeof publicRequestCreate>>>
+    export type PublicRequestCreateMutationBody = BodyType<PublicRequestInput>
+    export type PublicRequestCreateMutationError = ErrorType<Message>
+
+    /**
+ * @summary Record a public support or account-deletion request
+ */
+export const usePublicRequestCreate = <TError = ErrorType<Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publicRequestCreate>>, TError,{data: BodyType<PublicRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publicRequestCreate>>,
+        TError,
+        {data: BodyType<PublicRequestInput>},
+        TContext
+      > => {
+      return useMutation(getPublicRequestCreateMutationOptions(options));
+    }
+
+export const getPublicRequestAdminListUrl = (params?: PublicRequestAdminListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/public/requests/admin?${stringifiedParams}` : `/api/public/requests/admin`
+}
+
+/**
+ * @summary List public requests for super administrators
+ */
+export const publicRequestAdminList = async (params?: PublicRequestAdminListParams, options?: Parameters<typeof customFetch>[1]): Promise<PublicRequestList> => {
+
+  return customFetch<PublicRequestList>(getPublicRequestAdminListUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getPublicRequestAdminListQueryKey = (params?: PublicRequestAdminListParams,) => {
+    return [
+    `/api/public/requests/admin`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getPublicRequestAdminListQueryOptions = <TData = Awaited<ReturnType<typeof publicRequestAdminList>>, TError = ErrorType<void>>(params?: PublicRequestAdminListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof publicRequestAdminList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPublicRequestAdminListQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof publicRequestAdminList>>> = ({ signal }) => publicRequestAdminList(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof publicRequestAdminList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type PublicRequestAdminListQueryResult = NonNullable<Awaited<ReturnType<typeof publicRequestAdminList>>>
+export type PublicRequestAdminListQueryError = ErrorType<void>
+
+
+/**
+ * @summary List public requests for super administrators
+ */
+
+export function usePublicRequestAdminList<TData = Awaited<ReturnType<typeof publicRequestAdminList>>, TError = ErrorType<void>>(
+ params?: PublicRequestAdminListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof publicRequestAdminList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getPublicRequestAdminListQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPublicRequestAdminGetUrl = (id: string,) => {
+
+
+
+
+  return `/api/public/requests/admin/${id}`
+}
+
+/**
+ * @summary Get a public request and its review history
+ */
+export const publicRequestAdminGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<PublicRequestDetail> => {
+
+  return customFetch<PublicRequestDetail>(getPublicRequestAdminGetUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getPublicRequestAdminGetQueryKey = (id: string,) => {
+    return [
+    `/api/public/requests/admin/${id}`
+    ] as const;
+    }
+
+
+export const getPublicRequestAdminGetQueryOptions = <TData = Awaited<ReturnType<typeof publicRequestAdminGet>>, TError = ErrorType<void>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof publicRequestAdminGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPublicRequestAdminGetQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof publicRequestAdminGet>>> = ({ signal }) => publicRequestAdminGet(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof publicRequestAdminGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type PublicRequestAdminGetQueryResult = NonNullable<Awaited<ReturnType<typeof publicRequestAdminGet>>>
+export type PublicRequestAdminGetQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get a public request and its review history
+ */
+
+export function usePublicRequestAdminGet<TData = Awaited<ReturnType<typeof publicRequestAdminGet>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof publicRequestAdminGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getPublicRequestAdminGetQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPublicRequestAdminStatusUpdateUrl = (id: string,) => {
+
+
+
+
+  return `/api/public/requests/admin/${id}/status`
+}
+
+/**
+ * @summary Advance a public request through the review workflow
+ */
+export const publicRequestAdminStatusUpdate = async (id: string,
+    publicRequestStatusUpdate: PublicRequestStatusUpdate, options?: Parameters<typeof customFetch>[1]): Promise<PublicRequestDetail> => {
+
+  return customFetch<PublicRequestDetail>(getPublicRequestAdminStatusUpdateUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(publicRequestStatusUpdate)
+  }
+);}
+
+
+
+
+
+export const getPublicRequestAdminStatusUpdateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publicRequestAdminStatusUpdate>>, TError,{id: string;data: BodyType<PublicRequestStatusUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publicRequestAdminStatusUpdate>>, TError,{id: string;data: BodyType<PublicRequestStatusUpdate>}, TContext> => {
+
+const mutationKey = ['publicRequestAdminStatusUpdate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publicRequestAdminStatusUpdate>>, {id: string;data: BodyType<PublicRequestStatusUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  publicRequestAdminStatusUpdate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublicRequestAdminStatusUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof publicRequestAdminStatusUpdate>>>
+    export type PublicRequestAdminStatusUpdateMutationBody = BodyType<PublicRequestStatusUpdate>
+    export type PublicRequestAdminStatusUpdateMutationError = ErrorType<void>
+
+    /**
+ * @summary Advance a public request through the review workflow
+ */
+export const usePublicRequestAdminStatusUpdate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publicRequestAdminStatusUpdate>>, TError,{id: string;data: BodyType<PublicRequestStatusUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publicRequestAdminStatusUpdate>>,
+        TError,
+        {id: string;data: BodyType<PublicRequestStatusUpdate>},
+        TContext
+      > => {
+      return useMutation(getPublicRequestAdminStatusUpdateMutationOptions(options));
+    }
+
+export const getPublicRequestAdminIdentityVerificationCreateUrl = (id: string,) => {
+
+
+
+
+  return `/api/public/requests/admin/${id}/identity-verification`
+}
+
+/**
+ * @summary Record identity verification for an account deletion request
+ */
+export const publicRequestAdminIdentityVerificationCreate = async (id: string,
+    publicRequestIdentityVerificationInput: PublicRequestIdentityVerificationInput, options?: Parameters<typeof customFetch>[1]): Promise<PublicRequestDetail> => {
+
+  return customFetch<PublicRequestDetail>(getPublicRequestAdminIdentityVerificationCreateUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(publicRequestIdentityVerificationInput)
+  }
+);}
+
+
+
+
+
+export const getPublicRequestAdminIdentityVerificationCreateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publicRequestAdminIdentityVerificationCreate>>, TError,{id: string;data: BodyType<PublicRequestIdentityVerificationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publicRequestAdminIdentityVerificationCreate>>, TError,{id: string;data: BodyType<PublicRequestIdentityVerificationInput>}, TContext> => {
+
+const mutationKey = ['publicRequestAdminIdentityVerificationCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publicRequestAdminIdentityVerificationCreate>>, {id: string;data: BodyType<PublicRequestIdentityVerificationInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  publicRequestAdminIdentityVerificationCreate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublicRequestAdminIdentityVerificationCreateMutationResult = NonNullable<Awaited<ReturnType<typeof publicRequestAdminIdentityVerificationCreate>>>
+    export type PublicRequestAdminIdentityVerificationCreateMutationBody = BodyType<PublicRequestIdentityVerificationInput>
+    export type PublicRequestAdminIdentityVerificationCreateMutationError = ErrorType<void>
+
+    /**
+ * @summary Record identity verification for an account deletion request
+ */
+export const usePublicRequestAdminIdentityVerificationCreate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publicRequestAdminIdentityVerificationCreate>>, TError,{id: string;data: BodyType<PublicRequestIdentityVerificationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publicRequestAdminIdentityVerificationCreate>>,
+        TError,
+        {id: string;data: BodyType<PublicRequestIdentityVerificationInput>},
+        TContext
+      > => {
+      return useMutation(getPublicRequestAdminIdentityVerificationCreateMutationOptions(options));
+    }
+
+export const getPublicContactGetUrl = () => {
+
+
+
+
+  return `/api/public/contact`
+}
+
+/**
+ * Unauthenticated read of the operator contact details that are meant to be published. Only fields an operator has explicitly configured are returned; nothing here is derived from requester data.
+ * @summary Public contact details shown on the Avarpus website
+ */
+export const publicContactGet = async ( options?: Parameters<typeof customFetch>[1]): Promise<PublicContact> => {
+
+  return customFetch<PublicContact>(getPublicContactGetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getPublicContactGetQueryKey = () => {
+    return [
+    `/api/public/contact`
+    ] as const;
+    }
+
+
+export const getPublicContactGetQueryOptions = <TData = Awaited<ReturnType<typeof publicContactGet>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof publicContactGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPublicContactGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof publicContactGet>>> = ({ signal }) => publicContactGet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof publicContactGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type PublicContactGetQueryResult = NonNullable<Awaited<ReturnType<typeof publicContactGet>>>
+export type PublicContactGetQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Public contact details shown on the Avarpus website
+ */
+
+export function usePublicContactGet<TData = Awaited<ReturnType<typeof publicContactGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof publicContactGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getPublicContactGetQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSupportNotificationSettingsGetUrl = () => {
+
+
+
+
+  return `/api/settings/support-notifications`
+}
+
+/**
+ * @summary Read the inbox that new public request alerts are emailed to
+ */
+export const supportNotificationSettingsGet = async ( options?: Parameters<typeof customFetch>[1]): Promise<SupportNotificationSettings> => {
+
+  return customFetch<SupportNotificationSettings>(getSupportNotificationSettingsGetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSupportNotificationSettingsGetQueryKey = () => {
+    return [
+    `/api/settings/support-notifications`
+    ] as const;
+    }
+
+
+export const getSupportNotificationSettingsGetQueryOptions = <TData = Awaited<ReturnType<typeof supportNotificationSettingsGet>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof supportNotificationSettingsGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSupportNotificationSettingsGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof supportNotificationSettingsGet>>> = ({ signal }) => supportNotificationSettingsGet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof supportNotificationSettingsGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SupportNotificationSettingsGetQueryResult = NonNullable<Awaited<ReturnType<typeof supportNotificationSettingsGet>>>
+export type SupportNotificationSettingsGetQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read the inbox that new public request alerts are emailed to
+ */
+
+export function useSupportNotificationSettingsGet<TData = Awaited<ReturnType<typeof supportNotificationSettingsGet>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof supportNotificationSettingsGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSupportNotificationSettingsGetQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSupportNotificationSettingsUpdateUrl = () => {
+
+
+
+
+  return `/api/settings/support-notifications`
+}
+
+/**
+ * @summary Set or clear the inbox that new public request alerts are emailed to
+ */
+export const supportNotificationSettingsUpdate = async (supportNotificationSettingsInput: SupportNotificationSettingsInput, options?: Parameters<typeof customFetch>[1]): Promise<SupportNotificationSettings> => {
+
+  return customFetch<SupportNotificationSettings>(getSupportNotificationSettingsUpdateUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(supportNotificationSettingsInput)
+  }
+);}
+
+
+
+
+
+export const getSupportNotificationSettingsUpdateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof supportNotificationSettingsUpdate>>, TError,{data: BodyType<SupportNotificationSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof supportNotificationSettingsUpdate>>, TError,{data: BodyType<SupportNotificationSettingsInput>}, TContext> => {
+
+const mutationKey = ['supportNotificationSettingsUpdate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof supportNotificationSettingsUpdate>>, {data: BodyType<SupportNotificationSettingsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  supportNotificationSettingsUpdate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SupportNotificationSettingsUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof supportNotificationSettingsUpdate>>>
+    export type SupportNotificationSettingsUpdateMutationBody = BodyType<SupportNotificationSettingsInput>
+    export type SupportNotificationSettingsUpdateMutationError = ErrorType<void>
+
+    /**
+ * @summary Set or clear the inbox that new public request alerts are emailed to
+ */
+export const useSupportNotificationSettingsUpdate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof supportNotificationSettingsUpdate>>, TError,{data: BodyType<SupportNotificationSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof supportNotificationSettingsUpdate>>,
+        TError,
+        {data: BodyType<SupportNotificationSettingsInput>},
+        TContext
+      > => {
+      return useMutation(getSupportNotificationSettingsUpdateMutationOptions(options));
+    }
 
 export const getAuthOtpRequestUrl = () => {
 
@@ -4214,6 +4831,79 @@ export const useRepairPaymentsCreate = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getRepairPaymentsCreateMutationOptions(options));
+    }
+
+export const getRepairPaymentsVoidAllUrl = (id: string,) => {
+
+
+
+
+  return `/api/repairs/${id}/payments/void-all`
+}
+
+/**
+ * Reverses all payments that are not already voided, so a repair that was settled by mistake goes back to unpaid. The repair row is locked for the whole operation, so a payment recorded concurrently cannot survive it. Rows are never deleted; each keeps its void audit trail and an offsetting finance entry.
+ * @summary Void every live payment of a repair in one transaction (dealer/owner only)
+ */
+export const repairPaymentsVoidAll = async (id: string,
+    repairPaymentVoidInput: RepairPaymentVoidInput, options?: Parameters<typeof customFetch>[1]): Promise<RepairPaymentsVoidAll200> => {
+
+  return customFetch<RepairPaymentsVoidAll200>(getRepairPaymentsVoidAllUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(repairPaymentVoidInput)
+  }
+);}
+
+
+
+
+
+export const getRepairPaymentsVoidAllMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repairPaymentsVoidAll>>, TError,{id: string;data: BodyType<RepairPaymentVoidInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof repairPaymentsVoidAll>>, TError,{id: string;data: BodyType<RepairPaymentVoidInput>}, TContext> => {
+
+const mutationKey = ['repairPaymentsVoidAll'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof repairPaymentsVoidAll>>, {id: string;data: BodyType<RepairPaymentVoidInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  repairPaymentsVoidAll(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RepairPaymentsVoidAllMutationResult = NonNullable<Awaited<ReturnType<typeof repairPaymentsVoidAll>>>
+    export type RepairPaymentsVoidAllMutationBody = BodyType<RepairPaymentVoidInput>
+    export type RepairPaymentsVoidAllMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Void every live payment of a repair in one transaction (dealer/owner only)
+ */
+export const useRepairPaymentsVoidAll = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repairPaymentsVoidAll>>, TError,{id: string;data: BodyType<RepairPaymentVoidInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof repairPaymentsVoidAll>>,
+        TError,
+        {id: string;data: BodyType<RepairPaymentVoidInput>},
+        TContext
+      > => {
+      return useMutation(getRepairPaymentsVoidAllMutationOptions(options));
     }
 
 export const getRepairPaymentVoidUrl = (id: string,
@@ -9482,6 +10172,83 @@ export const useChatRoomsCreate = <TError = ErrorType<Message | ServiceUnavailab
       return useMutation(getChatRoomsCreateMutationOptions(options));
     }
 
+export const getChatRoomsArchivedListUrl = () => {
+
+
+
+
+  return `/api/chat/rooms/archived`
+}
+
+/**
+ * @summary List the caller's archived customer/direct chats without returning caller-deleted chats
+ */
+export const chatRoomsArchivedList = async ( options?: Parameters<typeof customFetch>[1]): Promise<ChatRoomsArchivedList200> => {
+
+  return customFetch<ChatRoomsArchivedList200>(getChatRoomsArchivedListUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatRoomsArchivedListQueryKey = () => {
+    return [
+    `/api/chat/rooms/archived`
+    ] as const;
+    }
+
+
+export const getChatRoomsArchivedListQueryOptions = <TData = Awaited<ReturnType<typeof chatRoomsArchivedList>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatRoomsArchivedList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getChatRoomsArchivedListQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof chatRoomsArchivedList>>> = ({ signal }) => chatRoomsArchivedList({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof chatRoomsArchivedList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ChatRoomsArchivedListQueryResult = NonNullable<Awaited<ReturnType<typeof chatRoomsArchivedList>>>
+export type ChatRoomsArchivedListQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the caller's archived customer/direct chats without returning caller-deleted chats
+ */
+
+export function useChatRoomsArchivedList<TData = Awaited<ReturnType<typeof chatRoomsArchivedList>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatRoomsArchivedList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getChatRoomsArchivedListQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getChatRoomsGetUrl = (roomId: string,) => {
 
 
@@ -9558,6 +10325,149 @@ export function useChatRoomsGet<TData = Awaited<ReturnType<typeof chatRoomsGet>>
 
 
 
+
+export const getChatRoomsDeleteUrl = (roomId: string,) => {
+
+
+
+
+  return `/api/chat/rooms/${roomId}`
+}
+
+/**
+ * @summary Hide a chat from the caller's inbox without deleting the shared room or any member's history
+ */
+export const chatRoomsDelete = async (roomId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getChatRoomsDeleteUrl(roomId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatRoomsDeleteMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatRoomsDelete>>, TError,{roomId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatRoomsDelete>>, TError,{roomId: string}, TContext> => {
+
+const mutationKey = ['chatRoomsDelete'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatRoomsDelete>>, {roomId: string}> = (props) => {
+          const {roomId} = props ?? {};
+
+          return  chatRoomsDelete(roomId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatRoomsDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof chatRoomsDelete>>>
+
+    export type ChatRoomsDeleteMutationError = ErrorType<void>
+
+    /**
+ * @summary Hide a chat from the caller's inbox without deleting the shared room or any member's history
+ */
+export const useChatRoomsDelete = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatRoomsDelete>>, TError,{roomId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatRoomsDelete>>,
+        TError,
+        {roomId: string},
+        TContext
+      > => {
+      return useMutation(getChatRoomsDeleteMutationOptions(options));
+    }
+
+export const getChatRoomsPreferencesUpdateUrl = (roomId: string,) => {
+
+
+
+
+  return `/api/chat/rooms/${roomId}/preferences`
+}
+
+/**
+ * @summary Update caller-specific pin, mute, or archive state
+ */
+export const chatRoomsPreferencesUpdate = async (roomId: string,
+    chatRoomPreferencesInput: ChatRoomPreferencesInput, options?: Parameters<typeof customFetch>[1]): Promise<ChatRoomsPreferencesUpdate200> => {
+
+  return customFetch<ChatRoomsPreferencesUpdate200>(getChatRoomsPreferencesUpdateUrl(roomId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chatRoomPreferencesInput)
+  }
+);}
+
+
+
+
+
+export const getChatRoomsPreferencesUpdateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatRoomsPreferencesUpdate>>, TError,{roomId: string;data: BodyType<ChatRoomPreferencesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatRoomsPreferencesUpdate>>, TError,{roomId: string;data: BodyType<ChatRoomPreferencesInput>}, TContext> => {
+
+const mutationKey = ['chatRoomsPreferencesUpdate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatRoomsPreferencesUpdate>>, {roomId: string;data: BodyType<ChatRoomPreferencesInput>}> = (props) => {
+          const {roomId,data} = props ?? {};
+
+          return  chatRoomsPreferencesUpdate(roomId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatRoomsPreferencesUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof chatRoomsPreferencesUpdate>>>
+    export type ChatRoomsPreferencesUpdateMutationBody = BodyType<ChatRoomPreferencesInput>
+    export type ChatRoomsPreferencesUpdateMutationError = ErrorType<void>
+
+    /**
+ * @summary Update caller-specific pin, mute, or archive state
+ */
+export const useChatRoomsPreferencesUpdate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatRoomsPreferencesUpdate>>, TError,{roomId: string;data: BodyType<ChatRoomPreferencesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatRoomsPreferencesUpdate>>,
+        TError,
+        {roomId: string;data: BodyType<ChatRoomPreferencesInput>},
+        TContext
+      > => {
+      return useMutation(getChatRoomsPreferencesUpdateMutationOptions(options));
+    }
 
 export const getChatRoomsBlockUrl = (roomId: string,) => {
 

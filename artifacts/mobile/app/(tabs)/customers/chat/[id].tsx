@@ -12,6 +12,7 @@ import {
   Animated,
   FlatList,
   Keyboard,
+  KeyboardAvoidingView,
   Linking,
   PanResponder,
   Platform,
@@ -25,7 +26,6 @@ import {
   useColorScheme,
   useWindowDimensions,
 } from 'react-native';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
@@ -57,6 +57,8 @@ import {
   useChatRoomsGet,
   getChatRoomsGetQueryKey,
   getChatRoomsListQueryKey,
+  getChatRoomsArchivedListQueryKey,
+  useChatRoomsPreferencesUpdate,
   useChatRoomsBlock,
   useChatRoomsUnblock,
   useChatReportsCreate,
@@ -1125,9 +1127,8 @@ export default function ChatScreen() {
   const looksLikeRoomId = routeId && !targetId;
 
   const createRoomMutation = useChatRoomsCreate();
-  const [resolvedRoomId, setResolvedRoomId] = useState<string | null>(
-    looksLikeRoomId ? routeId : null,
-  );
+  const [createdRoomId, setCreatedRoomId] = useState<string | null>(null);
+  const resolvedRoomId = looksLikeRoomId ? routeId : createdRoomId;
   const [roomCreateError, setRoomCreateError] = useState<string | null>(null);
 
   const requestRoomCreation = () => {
@@ -1148,7 +1149,7 @@ export default function ChatScreen() {
       },
       {
         onSuccess: (res) => {
-          setResolvedRoomId(res.room.id);
+          setCreatedRoomId(res.room.id);
           setRoomCreateError(null);
         },
         onError: (err: unknown) => {
@@ -1181,9 +1182,15 @@ export default function ChatScreen() {
   const blockMutation = useChatRoomsBlock();
   const unblockMutation = useChatRoomsUnblock();
   const reportMutation = useChatReportsCreate();
-  const pendingReportRef = useRef<{ reason: ChatReportReason; id: string } | null>(
-    null,
+  const preferencesUpdate = useChatRoomsPreferencesUpdate();
+  const archivePreferenceInFlightRef = useRef(false);
+  const blockPreferenceInFlightRef = useRef(false);
+  const pendingReportsRef = useRef(
+    new Map<string, { reason: ChatReportReason; id: string }>(),
   );
+  const reportInFlightRef = useRef(new Map<string, string>());
+  const activeReportRoomRef = useRef(resolvedRoomId);
+  activeReportRoomRef.current = resolvedRoomId;
 
   const refreshRoomSafetyState = useCallback(async () => {
     if (!resolvedRoomId) return;
@@ -1195,31 +1202,73 @@ export default function ChatScreen() {
     ]);
   }, [queryClient, resolvedRoomId]);
 
+  const updateArchivePreference = useCallback(async () => {
+    if (
+      archivePreferenceInFlightRef.current ||
+      !resolvedRoomId ||
+      !room ||
+      (room.kind !== 'customer' && room.kind !== 'direct')
+    ) return;
+    archivePreferenceInFlightRef.current = true;
+    const nextArchived = room.isArchived !== true;
+    try {
+      await preferencesUpdate.mutateAsync({
+        roomId: resolvedRoomId,
+        data: { isArchived: nextArchived },
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: getChatRoomsGetQueryKey(resolvedRoomId),
+        }),
+        queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() }),
+        queryClient.invalidateQueries({ queryKey: getChatRoomsArchivedListQueryKey() }),
+      ]);
+    } catch (err: any) {
+      Alert.alert(
+        nextArchived ? 'Could not archive chat' : 'Could not restore chat',
+        err?.data?.message ?? err?.message ?? 'Please check your connection and try again.',
+      );
+    } finally {
+      archivePreferenceInFlightRef.current = false;
+    }
+  }, [preferencesUpdate, queryClient, resolvedRoomId, room]);
+
   const submitReport = useCallback(
     (reason: ChatReportReason) => {
-      if (!resolvedRoomId) return;
+      if (!resolvedRoomId || reportInFlightRef.current.has(resolvedRoomId)) return;
+      const pendingReport = pendingReportsRef.current.get(resolvedRoomId);
       const clientRequestId =
-        pendingReportRef.current?.reason === reason
-          ? pendingReportRef.current.id
+        pendingReport?.reason === reason
+          ? pendingReport.id
           : makeClientRequestId('report');
-      pendingReportRef.current = { reason, id: clientRequestId };
+      pendingReportsRef.current.set(resolvedRoomId, { reason, id: clientRequestId });
+      reportInFlightRef.current.set(resolvedRoomId, clientRequestId);
+      const reportRoomId = resolvedRoomId;
       reportMutation.mutate(
         {
-          roomId: resolvedRoomId,
+          roomId: reportRoomId,
           data: { reason, clientRequestId },
         },
         {
           onSuccess: () => {
-            if (pendingReportRef.current?.id === clientRequestId) {
-              pendingReportRef.current = null;
+            if (reportInFlightRef.current.get(reportRoomId) !== clientRequestId) return;
+            reportInFlightRef.current.delete(reportRoomId);
+            if (pendingReportsRef.current.get(reportRoomId)?.id === clientRequestId) {
+              pendingReportsRef.current.delete(reportRoomId);
             }
-            Alert.alert('Report submitted', 'Thank you. The report has been saved for review.');
+            if (activeReportRoomRef.current === reportRoomId) {
+              Alert.alert('Report submitted', 'Thank you. The report has been saved for review.');
+            }
           },
           onError: (err: any) => {
-            Alert.alert(
-              'Could not submit report',
-              err?.data?.message ?? err?.message ?? 'Please try again.',
-            );
+            if (reportInFlightRef.current.get(reportRoomId) !== clientRequestId) return;
+            reportInFlightRef.current.delete(reportRoomId);
+            if (activeReportRoomRef.current === reportRoomId) {
+              Alert.alert(
+                'Could not submit report',
+                err?.data?.message ?? err?.message ?? 'Please try again.',
+              );
+            }
           },
         },
       );
@@ -1252,18 +1301,26 @@ export default function ChatScreen() {
         {
           text: action,
           style: blockedByMe ? 'default' : 'destructive',
-          onPress: () =>
+          onPress: () => {
+            if (blockPreferenceInFlightRef.current) return;
+            blockPreferenceInFlightRef.current = true;
             mutation.mutate(
               { roomId: resolvedRoomId },
               {
-                onSuccess: refreshRoomSafetyState,
-                onError: (err: any) =>
+                onSuccess: () => {
+                  blockPreferenceInFlightRef.current = false;
+                  void refreshRoomSafetyState();
+                },
+                onError: (err: any) => {
+                  blockPreferenceInFlightRef.current = false;
                   Alert.alert(
                     `${action} failed`,
                     err?.data?.message ?? err?.message ?? 'Please try again.',
-                  ),
+                  );
+                },
               },
-            ),
+            );
+          },
         },
       ],
     );
@@ -1283,6 +1340,12 @@ export default function ChatScreen() {
         onPress: () => router.push('/(tabs)/more/settings'),
       },
     ];
+    if (room?.kind === 'customer' || room?.kind === 'direct') {
+      options.push({
+        text: room.isArchived ? 'Restore' : 'Archive',
+        onPress: () => void updateArchivePreference(),
+      });
+    }
     if (room?.scope === 'global_direct') {
       options.push({ text: 'Report', onPress: openReportReasons });
     }
@@ -1295,7 +1358,17 @@ export default function ChatScreen() {
     }
     options.push({ text: 'Cancel', style: 'cancel' });
     Alert.alert('Chat options', undefined, options);
-  }, [blockedByMe, isBlocked, openReportReasons, room?.scope, router, toggleBlock]);
+  }, [
+    blockedByMe,
+    isBlocked,
+    openReportReasons,
+    room?.isArchived,
+    room?.kind,
+    room?.scope,
+    router,
+    toggleBlock,
+    updateArchivePreference,
+  ]);
 
   // ── Messages ────────────────────────────────────────────────────────────
   const {
@@ -1392,6 +1465,12 @@ export default function ChatScreen() {
   const handleSendUpload = useCallback(async (upload?: PendingUpload) => {
     const target = upload ?? pendingUpload;
     if (!target || !resolvedRoomId) return;
+    // queueUpload resolves this before presenting Send, but do not ever ask
+    // the API for a presigned URL with an invalid content length.
+    if (!Number.isFinite(target.size) || target.size <= 0) {
+      setUploadError('Could not read the selected file. Please choose it again.');
+      return;
+    }
 
     setUploadError(null);
     setUploadProgress(target.uploadedObjectPath ? 1 : 0);
@@ -1526,10 +1605,59 @@ export default function ChatScreen() {
         return;
       }
 
-      let size = fileSize ?? 0;
-      if ((fileSize === undefined || fileSize === null) && Platform.OS !== 'web') {
-        const info = await FileSystem.getInfoAsync(uri);
-        size = info.exists && 'size' in info ? (info as any).size : 0;
+      let uploadUri = uri;
+      let size = Number.isFinite(fileSize) && (fileSize ?? 0) > 0 ? fileSize! : 0;
+
+      if (Platform.OS === 'web') {
+        if (size <= 0) {
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          size = blob.size;
+        }
+      } else {
+        const readSize = async (path: string): Promise<number> => {
+          try {
+            const info = await FileSystem.getInfoAsync(path);
+            const resolvedSize = info.exists && 'size' in info ? Number((info as any).size) : 0;
+            return Number.isFinite(resolvedSize) && resolvedSize > 0 ? resolvedSize : 0;
+          } catch {
+            return 0;
+          }
+        };
+
+        // Android document and media providers commonly expose content://
+        // URIs. createUploadTask cannot reliably read them, so materialise a
+        // private cache copy and use that same path for preview and upload.
+        if (!uri.startsWith('file://')) {
+          const cacheDirectory = FileSystem.cacheDirectory;
+          if (!cacheDirectory) throw new Error('Could not read the selected file.');
+          const cachedName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${sanitiseFilename(name)}`;
+          uploadUri = `${cacheDirectory}${cachedName}`;
+          try {
+            await FileSystem.copyAsync({ from: uri, to: uploadUri });
+          } catch {
+            throw new Error('Could not read the selected file.');
+          }
+          size = await readSize(uploadUri);
+        } else if (size <= 0) {
+          size = await readSize(uri);
+          if (size <= 0) {
+            const cacheDirectory = FileSystem.cacheDirectory;
+            if (cacheDirectory) {
+              uploadUri = `${cacheDirectory}${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${sanitiseFilename(name)}`;
+              try {
+                await FileSystem.copyAsync({ from: uri, to: uploadUri });
+                size = await readSize(uploadUri);
+              } catch {
+                // Surface the single useful error below.
+              }
+            }
+          }
+        }
+      }
+
+      if (!Number.isFinite(size) || size <= 0) {
+        throw new Error('Could not read the selected file.');
       }
       if (size > MAX_FILE_BYTES) {
         setUploadError(`File is too large (${formatBytes(size)}). Maximum is 50 MB.`);
@@ -1537,7 +1665,7 @@ export default function ChatScreen() {
       }
 
       setPendingUpload({
-        uri,
+        uri: uploadUri,
         name,
         size,
         contentType,
@@ -1698,9 +1826,11 @@ export default function ChatScreen() {
         // SDK 57's native bridge reliably accepts the stable asset id here.
         // Passing the full JS object can be rejected on Android devices.
         let selectedUri = asset.uri;
+        let selectedSize: number | null | undefined = (asset as any).fileSize ?? (asset as any).size;
         try {
           const info = await MediaLibrary.getAssetInfoAsync(asset.id);
           selectedUri = info.localUri ?? info.uri ?? asset.uri;
+          selectedSize = (info as any).fileSize ?? (info as any).size ?? (asset as any).fileSize;
         } catch {
           // MediaLibrary may reject metadata lookup for provider-backed or
           // limited-access items even though their returned content URI is usable.
@@ -1712,7 +1842,7 @@ export default function ChatScreen() {
           selectedUri,
           name,
           resolveContentType(undefined, name) ?? fallbackType,
-          0,
+          selectedSize,
         );
       } catch (error: any) {
         setUploadError(error?.message ?? 'Could not prepare that photo.');
@@ -2303,68 +2433,133 @@ export default function ChatScreen() {
         <View
           style={[
             styles.attachmentPreview,
+            pendingUpload.contentType.startsWith('image/') && styles.imageAttachmentPreview,
             { backgroundColor: colors.card, borderTopColor: colors.border },
           ]}
         >
-          <Feather
-            name={
-              pendingUpload.contentType.startsWith('image/')
-                ? 'image'
-                : pendingUpload.contentType.startsWith('audio/')
-                ? 'mic'
-                : 'file'
-            }
-            size={18}
-            color={colors.primary}
-          />
-          <View style={styles.attachmentPreviewInfo}>
-            <Text
-              style={[
-                styles.attachmentPreviewName,
-                { color: colors.foreground, fontFamily: 'Inter_500Medium' },
-              ]}
-              numberOfLines={1}
-            >
-              {pendingUpload.name}
-            </Text>
-            <Text
-              style={[
-                styles.attachmentPreviewSize,
-                { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-              ]}
-            >
-              {pendingUpload.durationMs
-                ? formatDuration(pendingUpload.durationMs)
-                : formatBytes(pendingUpload.size)}
-              {uploadProgress !== null && uploadProgress < 1
-                ? `  ·  Uploading ${Math.round(uploadProgress * 100)}%`
-                : isSendingUpload
-                ? '  ·  Sending…'
-                : ''}
-            </Text>
-          </View>
-          {uploadProgress === null && !isSendingUpload ? (
+          {pendingUpload.contentType.startsWith('image/') ? (
             <>
-              <TouchableOpacity
-                onPress={() => handleSendUpload()}
-                style={[styles.attachSendBtn, { backgroundColor: colors.primary }]}
-                accessibilityLabel="Send attachment"
-              >
-                <Feather name="send" size={15} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => {
-                  setPendingUpload(null);
-                  setUploadError(null);
-                }}
-                style={styles.attachCancelBtn}
-                accessibilityLabel="Cancel attachment"
-              >
-                <Feather name="x" size={18} color={colors.mutedForeground} />
-              </TouchableOpacity>
+              <View style={[styles.attachmentImageFrame, { backgroundColor: colors.backgroundSecondary }]}>
+                <Image
+                  source={{ uri: pendingUpload.uri }}
+                  contentFit="contain"
+                  style={styles.attachmentImagePreviewImage}
+                  accessibilityLabel={`Attachment preview: ${pendingUpload.name}`}
+                />
+              </View>
+              <View style={styles.attachmentImageFooter}>
+                <View style={styles.attachmentPreviewInfo}>
+                  <Text
+                    style={[
+                      styles.attachmentPreviewName,
+                      { color: colors.foreground, fontFamily: 'Inter_500Medium' },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {pendingUpload.name}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.attachmentPreviewSize,
+                      { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+                    ]}
+                  >
+                    {formatBytes(pendingUpload.size)}
+                    {uploadProgress !== null && uploadProgress < 1
+                      ? `  ·  Uploading ${Math.round(uploadProgress * 100)}%`
+                      : isSendingUpload
+                      ? '  ·  Sending…'
+                      : ''}
+                  </Text>
+                </View>
+                {uploadProgress === null && !isSendingUpload ? (
+                  <>
+                    <TouchableOpacity
+                      onPress={() => handleSendUpload()}
+                      style={[styles.attachSendBtn, { backgroundColor: colors.primary }]}
+                      accessibilityLabel="Send attachment"
+                      disabled={uploadProgress !== null || isSendingUpload}
+                    >
+                      <Feather name="send" size={15} color="#fff" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setPendingUpload(null);
+                        setUploadError(null);
+                      }}
+                      style={styles.attachCancelBtn}
+                      accessibilityLabel="Cancel attachment"
+                      disabled={uploadProgress !== null || isSendingUpload}
+                    >
+                      <Feather name="x" size={18} color={colors.mutedForeground} />
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                )}
+              </View>
             </>
           ) : (
-            <ActivityIndicator size="small" color={colors.primary} />
+            <>
+              <View style={styles.attachmentIcon}>
+                <Feather
+                  name={pendingUpload.contentType.startsWith('audio/') ? 'mic' : 'file'}
+                  size={18}
+                  color={colors.primary}
+                />
+              </View>
+              <View style={styles.attachmentPreviewInfo}>
+                <Text
+                  style={[
+                    styles.attachmentPreviewName,
+                    { color: colors.foreground, fontFamily: 'Inter_500Medium' },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {pendingUpload.name}
+                </Text>
+                <Text
+                  style={[
+                    styles.attachmentPreviewSize,
+                    { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+                  ]}
+                >
+                  {pendingUpload.durationMs
+                    ? formatDuration(pendingUpload.durationMs)
+                    : formatBytes(pendingUpload.size)}
+                  {uploadProgress !== null && uploadProgress < 1
+                    ? `  ·  Uploading ${Math.round(uploadProgress * 100)}%`
+                    : isSendingUpload
+                    ? '  ·  Sending…'
+                    : ''}
+                </Text>
+              </View>
+              {uploadProgress === null && !isSendingUpload ? (
+                <>
+                  <TouchableOpacity
+                    onPress={() => handleSendUpload()}
+                    style={[styles.attachSendBtn, { backgroundColor: colors.primary }]}
+                    accessibilityLabel="Send attachment"
+                    disabled={uploadProgress !== null || isSendingUpload}
+                  >
+                    <Feather name="send" size={15} color="#fff" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setPendingUpload(null);
+                      setUploadError(null);
+                    }}
+                    style={styles.attachCancelBtn}
+                    accessibilityLabel="Cancel attachment"
+                    disabled={uploadProgress !== null || isSendingUpload}
+                  >
+                    <Feather name="x" size={18} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <ActivityIndicator size="small" color={colors.primary} />
+              )}
+            </>
           )}
         </View>
       )}
@@ -2801,6 +2996,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderTopWidth: 1,
+  },
+  imageAttachmentPreview: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 10,
+  },
+  attachmentImageFrame: {
+    width: '100%',
+    maxWidth: 320,
+    aspectRatio: 1,
+    alignSelf: 'center',
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  attachmentImagePreviewImage: { width: '100%', height: '100%' },
+  attachmentImageFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  attachmentIcon: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   attachmentPreviewInfo: { flex: 1 },
   attachmentPreviewName: { fontSize: 13 },

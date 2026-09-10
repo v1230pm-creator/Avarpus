@@ -32,6 +32,7 @@ interface AuthContextType {
   /** Re-fetch this user's per-role feature toggles from the server. */
   refreshFeatures: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  dealerPortalInactive: boolean;
   /** Message explaining why the user was signed out (e.g. session revoked). */
   signedOutNotice: string | null;
   clearSignedOutNotice: () => void;
@@ -49,6 +50,7 @@ const AuthContext = createContext<AuthContextType>({
   canAccess: () => false,
   refreshFeatures: async () => {},
   refreshUser: async () => {},
+  dealerPortalInactive: false,
   signedOutNotice: null,
   clearSignedOutNotice: () => {},
   trustedDeviceStatus: 'idle',
@@ -111,6 +113,10 @@ function apiErrorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+function apiErrorCode(err: unknown): string | undefined {
+  return (err as { data?: { code?: string } })?.data?.code;
+}
+
 // Human-readable description of this device, recorded server-side at sign-in
 // so the user can recognize sessions in Settings → Active sessions.
 function deviceDescription(): string {
@@ -138,6 +144,7 @@ export function AuthProvider({
   const featureRequestRef = useRef(0);
   // Effective per-role feature toggles from the server (null until loaded).
   const [features, setFeatures] = useState<Record<string, boolean> | null>(null);
+  const [dealerPortalInactive, setDealerPortalInactive] = useState(false);
   const resetIdentityCache = () => {
     void queryClient?.cancelQueries();
     queryClient?.clear();
@@ -161,6 +168,7 @@ export function AuthProvider({
       setSignedOutNotice('You were signed out. Please sign in again.');
       setUser(null);
       setFeatures(null);
+      setDealerPortalInactive(false);
       setIsLoading(false);
       // Fire-and-forget: local state is already cleared for the UI.
       storage.remove(KEYS.AUTH_TOKEN).catch(() => {});
@@ -242,14 +250,19 @@ export function AuthProvider({
     const userId = userRef.current?.id;
     if (!userId) {
       setFeatures(null);
+      setDealerPortalInactive(false);
       return;
     }
     try {
       const res = await roleFeaturesGet();
       if (requestId !== featureRequestRef.current || userRef.current?.id !== userId) return;
       setFeatures(res.features ?? {});
-    } catch {
+      setDealerPortalInactive(false);
+    } catch (error) {
       if (requestId !== featureRequestRef.current || userRef.current?.id !== userId) return;
+      setDealerPortalInactive(
+        isDealerPortalRole(userRef.current?.role) && apiErrorCode(error) === 'DEALER_INACTIVE',
+      );
       // Do not retain a possibly stale grant after a refresh failure. Business
       // access must fail closed until the server supplies a current policy.
       setFeatures(null);
@@ -262,12 +275,14 @@ export function AuthProvider({
     featureRequestRef.current += 1;
     if (!user) {
       setFeatures(null);
+      setDealerPortalInactive(false);
       return;
     }
     if (isCustomerRole(user.role)) {
       // Customer access is a fixed, fail-closed portal policy. Do not call the
       // staff role-feature endpoint, which customer sessions cannot access.
       setFeatures({});
+      setDealerPortalInactive(false);
       return;
     }
     refreshFeatures();
@@ -302,6 +317,7 @@ export function AuthProvider({
       return false;
     }
     setFeatures(null);
+    setDealerPortalInactive(false);
     setUser(u);
     return true;
   };
@@ -340,6 +356,7 @@ export function AuthProvider({
     userRef.current = null;
     setUser(null);
     setFeatures(null);
+    setDealerPortalInactive(false);
     setTrustedDeviceStatus('idle');
     setIsLoading(false);
     await storage.remove(KEYS.AUTH_TOKEN);
@@ -364,7 +381,9 @@ export function AuthProvider({
     // Customer role: fixed permissions only — never evaluated through staff feature toggles.
     if (isCustomerRole(user.role)) {
       const perms = ROLE_PERMISSIONS['customer'];
-      return perms.includes(feature);
+      // shopId is supplied only for a customer linked to a shop. Never infer
+      // repair access from a name, mobile number, or locally cached record.
+      return perms.includes(feature) || (feature === 'repairs_portal' && !!user.shopId);
     }
     // Dealer-portal accounts have an explicit, fixed portal policy. They are
     // not staff feature-toggle users.
@@ -396,6 +415,7 @@ export function AuthProvider({
         canAccess,
         refreshFeatures,
         refreshUser,
+        dealerPortalInactive,
         signedOutNotice,
         clearSignedOutNotice: () => setSignedOutNotice(null),
         trustedDeviceStatus,

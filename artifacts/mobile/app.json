@@ -2,9 +2,9 @@
   "expo": {
     "name": "Avarpus",
     "slug": "avarpus",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "orientation": "portrait",
-    "icon": "./assets/images/avarpus-icon.png",
+    "icon": "./assets/images/avarpus-icon-universal-square.png",
     "scheme": "vmcelectronicerp",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -14,10 +14,10 @@
     "android": {
       "package": "com.vmcelectronicerp.app",
       "versionCode": 16,
-      "icon": "./assets/images/avarpus-android-legacy-icon.png",
+      "icon": "./assets/images/avarpus-icon-legacy.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/avarpus-adaptive-foreground.png",
-        "backgroundColor": "#020817"
+        "backgroundColor": "#006DA8"
       },
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES"
@@ -25,18 +25,18 @@
     },
     "androidStatusBar": {
       "barStyle": "light-content",
-      "backgroundColor": "#040914",
+      "backgroundColor": "#006DA8",
       "translucent": false
     },
     "web": {
-      "favicon": "./assets/images/avarpus-favicon.png"
+      "favicon": "./assets/images/avarpus-icon-universal-square.png"
     },
     "plugins": [
       [
         "expo-splash-screen",
         {
           "android": {
-            "backgroundColor": "#040914",
+            "backgroundColor": "#006DA8",
             "drawable": {
               "icon": "./assets/android/splash-transparent.xml"
             }

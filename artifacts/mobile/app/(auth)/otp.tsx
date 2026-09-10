@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
 import { completeUnlockSuccess } from '@/utils/appLock';
+import { onBlue } from '@/constants/brand';
 
 export default function OTPScreen() {
   const router = useRouter();
@@ -31,19 +32,19 @@ export default function OTPScreen() {
   const refs = useRef<(TextInput | null)[]>([]);
 
   const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  
+
+  // Sign-in runs on one flat brand-blue surface, so this screen uses the
+  // shared on-blue tokens rather than the light/dark app theme.
   const theme = {
-    bg: isDark ? '#040914' : colors.background,
-    card: isDark ? '#0A1221' : colors.card,
-    border: isDark ? '#1E293B' : colors.border,
-    primary: isDark ? '#2563EB' : colors.primary,
-    text: isDark ? '#FFFFFF' : colors.foreground,
-    textMuted: isDark ? '#94A3B8' : colors.textMuted,
-    inputBg: isDark ? '#0F172A' : colors.input,
-    danger: isDark ? '#EF4444' : colors.destructive,
-    dangerBg: isDark ? 'rgba(239, 68, 68, 0.1)' : colors.destructive + '15',
+    bg: onBlue.background,
+    card: onBlue.surface,
+    border: onBlue.surfaceBorder,
+    primary: onBlue.text,
+    text: onBlue.text,
+    textMuted: onBlue.textMuted,
+    inputBg: onBlue.inputBackground,
+    danger: onBlue.danger,
+    dangerBg: onBlue.noticeBackground,
   };
 
   useEffect(() => {
@@ -181,7 +182,7 @@ export default function OTPScreen() {
                   placeholderTextColor={theme.textMuted}
                   style={[styles.nameInput, { borderColor: theme.border, color: theme.text, backgroundColor: theme.inputBg, borderRadius: colors.radius - 2, fontFamily: 'Inter_500Medium' }]}
                 />
-                <Button title="Continue" onPress={saveDisplayName} loading={savingName} disabled={savingName} fullWidth size="lg" />
+                <Button title="Continue" onPress={saveDisplayName} loading={savingName} variant="onBlue" fullWidth size="lg" />
               </>
             ) : (
               <>
@@ -224,7 +225,7 @@ export default function OTPScreen() {
                   </Text>
                 </TouchableOpacity>
 
-                <Button title="Verify & Continue" onPress={handleVerify} loading={loading} disabled={!filled} fullWidth size="lg" />
+                <Button title="Verify & Continue" onPress={handleVerify} loading={loading} disabled={!filled} variant="onBlue" fullWidth size="lg" />
               </>
             )}
             {needsDisplayName && !!error && (

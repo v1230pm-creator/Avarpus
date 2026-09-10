@@ -11,7 +11,7 @@
         "image": "latest"
       },
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "vmc-enterprise-suite.replit.app"
+        "EXPO_PUBLIC_DOMAIN": "api.avarpus.com"
       },
       "node": "24.13.0"
     },
@@ -23,7 +23,7 @@
         "image": "latest"
       },
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "vmc-enterprise-suite.replit.app"
+        "EXPO_PUBLIC_DOMAIN": "api.avarpus.com"
       },
       "node": "24.13.0"
     }

@@ -13,6 +13,10 @@ export function getMailFrom(): string {
   return process.env["MAIL_FROM"] || FALLBACK_FROM;
 }
 
+export function isMailSenderConfigured(): boolean {
+  return Boolean(process.env["MAIL_FROM"]);
+}
+
 export function warnIfMailFromUnset(): void {
   if (!process.env["MAIL_FROM"]) {
     console.warn(
@@ -56,6 +60,87 @@ export async function sendReadyNotification(
     buildReadyHtml(d, amountDue),
     `Hi ${d.customerName},\n\nGood news! Your ${d.brand} ${d.model} (ticket ${d.ticket}) is repaired and ready for pickup.\n\nAmount due on collection: ${amountDue}\n\nThank you,\n${d.businessName}`,
   );
+}
+
+export async function sendPublicRequestAlertEmail(
+  to: string,
+  d: {
+    kindLabel: string;
+    requesterName: string;
+    mobile: string;
+    email: string | null;
+    subject: string | null;
+    message: string;
+  },
+): Promise<void> {
+  const subjectLine = d.subject?.trim()
+    ? `${d.kindLabel}: ${d.subject.trim()}`
+    : `New ${d.kindLabel.toLowerCase()} from ${d.requesterName}`;
+  const lines = [
+    `Name: ${d.requesterName}`,
+    `Mobile: ${d.mobile}`,
+    `Email: ${d.email || "not provided"}`,
+    `Subject: ${d.subject || "not provided"}`,
+    "",
+    d.message,
+  ];
+  await sendEmail(
+    to,
+    subjectLine,
+    buildPublicRequestHtml(d),
+    `${d.kindLabel} received via avarpus.com\n\n${lines.join("\n")}\n\nReview it in the Avarpus admin console under Public Requests.`,
+  );
+}
+
+function buildPublicRequestHtml(d: {
+  kindLabel: string;
+  requesterName: string;
+  mobile: string;
+  email: string | null;
+  subject: string | null;
+  message: string;
+}): string {
+  const row = (label: string, value: string) =>
+    `<tr><td style="padding:4px 12px 4px 0;color:#64748B;font-size:13px;white-space:nowrap;">${label}</td><td style="padding:4px 0;color:#F1F5F9;font-size:14px;">${escapeHtml(value)}</td></tr>`;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>${d.kindLabel}</title></head>
+<body style="margin:0;padding:0;font-family:sans-serif;background:#0D1528;color:#F1F5F9;">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr><td align="center" style="padding:40px 16px;">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#0F172A;border-radius:16px;border:1px solid #1E293B;">
+        <tr><td style="padding:28px 36px 8px;">
+          <h1 style="margin:0 0 4px;font-size:20px;color:#F1F5F9;">Avarpus</h1>
+          <p style="margin:0;color:#60A5FA;font-size:14px;">${d.kindLabel} received via avarpus.com</p>
+        </td></tr>
+        <tr><td style="padding:12px 36px 0;">
+          <table cellpadding="0" cellspacing="0">
+            ${row("Name", d.requesterName)}
+            ${row("Mobile", d.mobile)}
+            ${row("Email", d.email || "not provided")}
+            ${row("Subject", d.subject || "not provided")}
+          </table>
+        </td></tr>
+        <tr><td style="padding:20px 36px 8px;">
+          <div style="background:#0B1220;border:1px solid #1E293B;border-radius:12px;padding:16px;color:#E2E8F0;font-size:14px;line-height:1.6;white-space:pre-wrap;">${escapeHtml(d.message)}</div>
+        </td></tr>
+        <tr><td style="padding:16px 36px 32px;">
+          <p style="color:#64748B;font-size:12px;margin:0;">Review and respond from the Avarpus admin console under Public Requests.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 export async function sendStaffApprovedEmail(

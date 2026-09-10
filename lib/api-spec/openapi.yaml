@@ -23,6 +23,188 @@ tags:
   - name: chat
     description: Real-time chat rooms, messages, read receipts and call tokens.
 paths:
+  /public/requests:
+    post:
+      operationId: publicRequestCreate
+      tags: [public]
+      summary: Record a public support or account-deletion request
+      description: >
+        Records a request for staff review. A successful response confirms only
+        that the request was received; it never confirms account deletion.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublicRequestInput"
+      responses:
+        "202":
+          description: Request recorded for review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicRequestReceipt"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /public/requests/admin:
+    get:
+      operationId: publicRequestAdminList
+      tags: [public]
+      security:
+        - bearerAuth: []
+      summary: List public requests for super administrators
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: cursor, in: query, required: false, schema: { type: string } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [received, in_review, resolved, rejected] } }
+        - { name: kind, in: query, required: false, schema: { type: string, enum: [support, account_deletion] } }
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+      responses:
+        "200":
+          description: Public request queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicRequestList"
+        "401": { description: Authentication required }
+        "403": { description: Super administrator required }
+  /public/requests/admin/{id}:
+    get:
+      operationId: publicRequestAdminGet
+      tags: [public]
+      security:
+        - bearerAuth: []
+      summary: Get a public request and its review history
+      parameters:
+        - $ref: "#/components/parameters/PublicRequestId"
+      responses:
+        "200":
+          description: Public request detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicRequestDetail"
+        "401": { description: Authentication required }
+        "403": { description: Super administrator required }
+        "404": { description: Request not found }
+  /public/requests/admin/{id}/status:
+    patch:
+      operationId: publicRequestAdminStatusUpdate
+      tags: [public]
+      security:
+        - bearerAuth: []
+      summary: Advance a public request through the review workflow
+      parameters:
+        - $ref: "#/components/parameters/PublicRequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublicRequestStatusUpdate"
+      responses:
+        "200":
+          description: Updated public request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicRequestDetail"
+        "400": { description: Invalid status update }
+        "401": { description: Authentication required }
+        "403": { description: Super administrator required }
+        "404": { description: Request not found }
+        "409": { description: Illegal state transition }
+  /public/requests/admin/{id}/identity-verification:
+    post:
+      operationId: publicRequestAdminIdentityVerificationCreate
+      tags: [public]
+      security:
+        - bearerAuth: []
+      summary: Record identity verification for an account deletion request
+      parameters:
+        - $ref: "#/components/parameters/PublicRequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublicRequestIdentityVerificationInput"
+      responses:
+        "200":
+          description: Identity verification recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicRequestDetail"
+        "400": { description: Invalid identity verification }
+        "401": { description: Authentication required }
+        "403": { description: Super administrator required }
+        "404": { description: Request not found }
+        "409": { description: Verification is not permitted }
+  /public/contact:
+    get:
+      operationId: publicContactGet
+      tags: [public]
+      summary: Public contact details shown on the Avarpus website
+      description: >
+        Unauthenticated read of the operator contact details that are meant to
+        be published. Only fields an operator has explicitly configured are
+        returned; nothing here is derived from requester data.
+      responses:
+        "200":
+          description: Published contact details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicContact"
+  /settings/support-notifications:
+    get:
+      operationId: supportNotificationSettingsGet
+      tags: [public]
+      security:
+        - bearerAuth: []
+      summary: Read the inbox that new public request alerts are emailed to
+      responses:
+        "200":
+          description: Current support notification settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportNotificationSettings"
+        "401": { description: Authentication required }
+        "403": { description: Super administrator required }
+    put:
+      operationId: supportNotificationSettingsUpdate
+      tags: [public]
+      security:
+        - bearerAuth: []
+      summary: Set or clear the inbox that new public request alerts are emailed to
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportNotificationSettingsInput"
+      responses:
+        "200":
+          description: Updated support notification settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportNotificationSettings"
+        "400": { description: Invalid email address }
+        "401": { description: Authentication required }
+        "403": { description: Super administrator required }
   /auth/otp/request:
     post:
       operationId: authOtpRequest
@@ -1112,6 +1294,40 @@ paths:
                 properties:
                   payment: { $ref: "#/components/schemas/RepairPayment" }
                 required: [payment]
+  /repairs/{id}/payments/void-all:
+    post:
+      operationId: repairPaymentsVoidAll
+      tags: [business]
+      summary: Void every live payment of a repair in one transaction (dealer/owner only)
+      description: >-
+        Reverses all payments that are not already voided, so a repair that was
+        settled by mistake goes back to unpaid. The repair row is locked for the
+        whole operation, so a payment recorded concurrently cannot survive it.
+        Rows are never deleted; each keeps its void audit trail and an offsetting
+        finance entry.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RepairPaymentVoidInput" }
+      responses:
+        "200":
+          description: The payments that were voided by this call
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  # type: integer makes Orval emit z.int(), which is Zod 4-only
+                  # while lib/api-zod is still on Zod 3.
+                  voidedCount: { type: number }
+                  paidAmount: { type: number }
+                  payments:
+                    type: array
+                    items: { $ref: "#/components/schemas/RepairPayment" }
+                required: [voidedCount, paidAmount, payments]
   /repairs/{id}/payments/{paymentId}/void:
     post:
       operationId: repairPaymentVoid
@@ -2642,6 +2858,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/ServiceUnavailable"
 
+  /chat/rooms/archived:
+    get:
+      operationId: chatRoomsArchivedList
+      tags: [chat]
+      summary: List the caller's archived customer/direct chats without returning caller-deleted chats
+      responses:
+        "200":
+          description: Archived rooms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rooms:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChatRoom"
+                required: [rooms]
+
   /chat/rooms/{roomId}:
     get:
       operationId: chatRoomsGet
@@ -2663,6 +2898,52 @@ paths:
                   room:
                     $ref: "#/components/schemas/ChatRoom"
                 required: [room]
+    delete:
+      operationId: chatRoomsDelete
+      tags: [chat]
+      summary: Hide a chat from the caller's inbox without deleting the shared room or any member's history
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Chat hidden for the caller
+        "404":
+          description: Room not found or caller is not a member
+
+  /chat/rooms/{roomId}/preferences:
+    patch:
+      operationId: chatRoomsPreferencesUpdate
+      tags: [chat]
+      summary: Update caller-specific pin, mute, or archive state
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRoomPreferencesInput"
+      responses:
+        "200":
+          description: Updated caller-specific preferences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  preferences:
+                    $ref: "#/components/schemas/ChatRoomPreferences"
+                required: [preferences]
+        "400":
+          description: No valid preference field supplied
+        "404":
+          description: Room not found or caller is not a member
 
   /chat/rooms/{roomId}/block:
     post:
@@ -3045,12 +3326,173 @@ paths:
           description: Status not found or not owned by caller
 
 components:
+  parameters:
+    PublicRequestId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: opaque
   schemas:
+    PublicRequestInput:
+      type: object
+      required: [kind, name, mobile, message, confirmation]
+      properties:
+        kind:
+          type: string
+          enum: [support, account_deletion]
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        mobile:
+          type: string
+          pattern: '^[6-9][0-9]{9}$'
+        email:
+          type: string
+          maxLength: 254
+        subject:
+          type: string
+          maxLength: 120
+        message:
+          type: string
+          minLength: 10
+          maxLength: 2000
+        confirmation:
+          type: boolean
+          description: >
+            For account deletion this confirms the requester understands that
+            identity verification is required and the form does not instantly
+            delete an account.
+        website:
+          type: string
+          maxLength: 0
+          description: Honeypot field; legitimate clients leave this empty.
+    PublicRequestReceipt:
+      type: object
+      required: [requestId, status, message]
+      properties:
+        requestId:
+          type: string
+        status:
+          type: string
+          enum: [received]
+        message:
+          type: string
+    PublicRequestStatus:
+      type: string
+      enum: [received, in_review, resolved, rejected]
+    PublicRequest:
+      type: object
+      required: [id, kind, requesterName, mobile, message, status, createdAt, reviewedAt, reviewerUserId, confirmationAcceptedAt]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [support, account_deletion] }
+        requesterName: { type: string }
+        mobile: { type: string }
+        email: { type: [string, "null"] }
+        subject: { type: [string, "null"] }
+        message: { type: string }
+        status: { $ref: "#/components/schemas/PublicRequestStatus" }
+        reviewerUserId: { type: [string, "null"] }
+        reviewedAt: { type: [string, "null"], format: date-time }
+        confirmationAcceptedAt: { type: [string, "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+    PublicRequestQueueItem:
+      type: object
+      required: [id, kind, requesterName, mobile, subject, status, createdAt]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [support, account_deletion] }
+        requesterName: { type: string }
+        mobile: { type: string }
+        subject: { type: [string, "null"] }
+        status: { $ref: "#/components/schemas/PublicRequestStatus" }
+        createdAt: { type: string, format: date-time }
+    PublicRequestTransition:
+      type: object
+      required: [id, fromStatus, toStatus, note, reviewerUserId, createdAt]
+      properties:
+        id: { type: string }
+        fromStatus: { $ref: "#/components/schemas/PublicRequestStatus" }
+        toStatus: { $ref: "#/components/schemas/PublicRequestStatus" }
+        note: { type: [string, "null"] }
+        reviewerUserId: { type: string }
+        reviewerName: { type: [string, "null"] }
+        createdAt: { type: string, format: date-time }
+    PublicRequestList:
+      type: object
+      required: [requests, nextCursor]
+      properties:
+        requests:
+          type: array
+          items: { $ref: "#/components/schemas/PublicRequestQueueItem" }
+        nextCursor: { type: [string, "null"] }
+    PublicRequestDetail:
+      type: object
+      required: [request, transitions, identityVerification]
+      properties:
+        request: { $ref: "#/components/schemas/PublicRequest" }
+        transitions:
+          type: array
+          items: { $ref: "#/components/schemas/PublicRequestTransition" }
+        identityVerification:
+          oneOf:
+            - $ref: "#/components/schemas/PublicRequestIdentityVerification"
+            - type: "null"
+    PublicRequestStatusUpdate:
+      type: object
+      required: [status]
+      properties:
+        status: { $ref: "#/components/schemas/PublicRequestStatus" }
+        note: { type: string, minLength: 1, maxLength: 2000 }
+    PublicRequestIdentityVerification:
+      type: object
+      required: [id, reviewerUserId, reviewerName, method, note, createdAt]
+      properties:
+        id: { type: string }
+        reviewerUserId: { type: string }
+        reviewerName: { type: [string, "null"] }
+        method: { type: string }
+        note: { type: string }
+        createdAt: { type: string, format: date-time }
+    PublicRequestIdentityVerificationInput:
+      type: object
+      required: [method, note]
+      properties:
+        method: { type: string, minLength: 2, maxLength: 100 }
+        note: { type: string, minLength: 2, maxLength: 2000 }
+    PublicContact:
+      type: object
+      required: [supportEmail]
+      properties:
+        supportEmail: { type: [string, "null"] }
+    SupportNotificationSettings:
+      type: object
+      required: [recipientEmail, updatedAt, updatedByName, senderConfigured]
+      properties:
+        recipientEmail: { type: [string, "null"] }
+        updatedAt: { type: [string, "null"], format: date-time }
+        updatedByName: { type: [string, "null"] }
+        senderConfigured:
+          type: boolean
+          description: >
+            True when a verified sender address is configured for outgoing
+            mail. When false, alert emails may not be delivered.
+    SupportNotificationSettingsInput:
+      type: object
+      required: [recipientEmail]
+      properties:
+        recipientEmail:
+          type: [string, "null"]
+          maxLength: 254
+          description: >
+            Destination inbox for new public request alerts. Null or an empty
+            string turns alert emails off.
     ProfileUpdateInput:
       type: object
       properties:
@@ -4290,7 +4732,15 @@ components:
         blockedByMe:
           type: boolean
           description: True when the current caller created the active block.
-        isArchived: { type: boolean }
+        isArchived:
+          type: boolean
+          description: Caller-specific archive state.
+        isPinned:
+          type: boolean
+          description: Caller-specific pin state.
+        isMuted:
+          type: boolean
+          description: Caller-specific mute state.
         createdById: { type: string }
         createdByName: { type: string }
         createdAt: { type: string }
@@ -4308,7 +4758,23 @@ components:
           type: string
           format: date-time
           description: Last time the other member synced the application.
-      required: [id, shopId, scope, kind, name, isArchived, createdAt]
+      required: [id, shopId, scope, kind, name, isArchived, isPinned, isMuted, createdAt]
+    ChatRoomPreferences:
+      type: object
+      properties:
+        isPinned: { type: boolean }
+        isMuted: { type: boolean }
+        isArchived: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+      required: [isPinned, isMuted, isArchived, updatedAt]
+    ChatRoomPreferencesInput:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        isPinned: { type: boolean }
+        isMuted: { type: boolean }
+        isArchived: { type: boolean }
     DriveBackupQuota:
       type: object
       properties:

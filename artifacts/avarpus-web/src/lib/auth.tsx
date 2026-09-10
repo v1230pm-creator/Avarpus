@@ -36,6 +36,8 @@ interface AuthContextType {
   logout: () => void;
   canAccess: (feature: string) => boolean;
   apiConfigurationError: string | null;
+  dealerPortalInactive: boolean;
+  retryDealerPortal: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -112,6 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     data: featuresData,
     isLoading: isFeaturesLoading,
     isError: isFeaturesError,
+    error: featuresError,
+    refetch: refetchFeatures,
   } = useRoleFeaturesGet({
     query: {
       queryKey: ["roleFeatures", user?.id],
@@ -139,6 +143,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Undefined is materially different from an empty response: while the
   // request is loading or has failed, staff business access must fail closed.
   const features = isFeaturesError ? undefined : featuresData?.features;
+  const dealerPortalInactive =
+    (user?.role === 'dealer_owner' || user?.role === 'dealer_staff') &&
+    (featuresError as { data?: { code?: string } } | null)?.data?.code === 'DEALER_INACTIVE';
 
   const canAccess = useMemo(() => {
     return (feature: string): boolean => {
@@ -175,6 +182,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       canAccess,
       apiConfigurationError,
+      dealerPortalInactive,
+      retryDealerPortal: async () => {
+        await refetchFeatures();
+      },
     }}>
       {children}
     </AuthContext.Provider>

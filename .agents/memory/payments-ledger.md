@@ -14,3 +14,6 @@ description: How customer money moves through the system — append-only ledger,
 - Customer Khata is append-only and uses one authoritative receivable policy: only delivered repair bills/payments + paid refunds + manual Given − manual Received. Received, in-progress, ready, cancelled, and cannot-repair jobs stay out even if they have an advance.
 **Why:** Khata is a posted account ledger, not a live repair estimate. A repair enters it only when handover records payment or explicitly confirms the remaining amount as due.
 **How to apply:** keep customer cache, Khata detail, and mobile overview on this delivered-only policy; scope idempotency by shop + customer + retry ID and refetch customer aggregates after writes.
+- Reversing a whole job to unpaid is a single server transaction that locks the repair and voids every live payment together, never a client loop over the single-payment void.
+**Why:** separately committed voids miss a payment recorded mid-loop and can leave the job silently paid, and a timeout counted as failure misreports what was reversed.
+**How to apply:** bulk money reversals belong behind one privileged endpoint that returns the authoritative resulting paid amount; repeating it with nothing live must be a no-op, not an error.

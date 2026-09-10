@@ -1,22 +1,41 @@
 import React from 'react';
-import { Platform, View, ViewProps } from 'react-native';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import {
+  KeyboardAvoidingView as ReactNativeKeyboardAvoidingView,
+  Platform,
+  View,
+  ViewProps,
+} from 'react-native';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 
 type Props = ViewProps & { behavior?: 'padding' | 'height' | 'position' };
 
+const NativeKeyboardAvoidingView:
+  | React.ComponentType<Props>
+  | null =
+  Platform.OS !== 'web' &&
+  Constants.executionEnvironment !== ExecutionEnvironment.StoreClient
+    ? require('react-native-keyboard-controller').KeyboardAvoidingView
+    : null;
+
 /**
  * Keyboard-avoiding container for Modal content. Uses the
- * react-native-keyboard-controller KeyboardAvoidingView on native (works
- * reliably on both iOS and Android) and a plain View on web where the
- * on-screen keyboard doesn't overlap the viewport.
+ * native keyboard controller in custom builds, React Native's built-in
+ * fallback in Expo Go, and a plain View on web.
  */
 export function KeyboardAvoidingCompat({ children, behavior = 'padding', ...props }: Props) {
   if (Platform.OS === 'web') {
     return <View {...props}>{children}</View>;
   }
+  if (!NativeKeyboardAvoidingView) {
+    return (
+      <ReactNativeKeyboardAvoidingView behavior={behavior} {...props}>
+        {children}
+      </ReactNativeKeyboardAvoidingView>
+    );
+  }
   return (
-    <KeyboardAvoidingView behavior={behavior} {...props}>
+    <NativeKeyboardAvoidingView behavior={behavior} {...props}>
       {children}
-    </KeyboardAvoidingView>
+    </NativeKeyboardAvoidingView>
   );
 }

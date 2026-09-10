@@ -30,7 +30,12 @@ export interface ChatRoom {
   isBlocked?: boolean;
   /** True when the current caller created the active block. */
   blockedByMe?: boolean;
+  /** Caller-specific archive state. */
   isArchived: boolean;
+  /** Caller-specific pin state. */
+  isPinned: boolean;
+  /** Caller-specific mute state. */
+  isMuted: boolean;
   createdById?: string;
   createdByName?: string;
   createdAt: string;

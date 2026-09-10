@@ -1,11 +1,12 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'react-native';
+import { AVARPUS_BLUE } from '@/constants/brand';
 
 export default function AuthLayout() {
   return (
     <>
-      <StatusBar barStyle="light-content" backgroundColor="#010714" translucent={false} />
-      <Stack screenOptions={{ headerShown: false, animation: 'fade', contentStyle: { backgroundColor: '#010714' } }}>
+      <StatusBar barStyle="light-content" backgroundColor={AVARPUS_BLUE} translucent={false} />
+      <Stack screenOptions={{ headerShown: false, animation: 'fade', contentStyle: { backgroundColor: AVARPUS_BLUE } }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="terms" options={{ animation: 'fade' }} />
         <Stack.Screen name="phone" options={{ animation: 'fade' }} />

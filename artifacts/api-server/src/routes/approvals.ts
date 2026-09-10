@@ -17,6 +17,7 @@ import { requireFeature } from "../lib/roleFeatures";
 import { notifyShop } from "../lib/notify";
 import { asyncHandler } from "../lib/asyncHandler";
 import { recordPayment } from "../lib/repairPayments";
+import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
 import type { Request, Response } from "express";
 
 // Backdated-entry approval workflow.
@@ -237,6 +238,7 @@ async function executeApproved(
     let customerId = str(p.customerId);
     const mobile = str(p.mobile) ?? "";
     if (!customerId && mobile) {
+      await lockNormalizedMobiles(tx, mobile);
       const [existing] = await tx
         .select()
         .from(customersTable)

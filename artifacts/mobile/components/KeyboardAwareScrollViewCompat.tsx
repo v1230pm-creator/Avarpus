@@ -1,10 +1,16 @@
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform, ScrollView, ScrollViewProps } from 'react-native';
-import {
-  KeyboardAwareScrollView,
-  KeyboardAwareScrollViewProps,
-} from 'react-native-keyboard-controller';
+import type { KeyboardAwareScrollViewProps } from 'react-native-keyboard-controller';
 
 type Props = KeyboardAwareScrollViewProps & ScrollViewProps;
+
+const NativeKeyboardAwareScrollView:
+  | React.ComponentType<Props>
+  | null =
+  Platform.OS !== 'web' &&
+  Constants.executionEnvironment !== ExecutionEnvironment.StoreClient
+    ? require('react-native-keyboard-controller').KeyboardAwareScrollView
+    : null;
 
 export function KeyboardAwareScrollViewCompat({
   children,
@@ -15,7 +21,7 @@ export function KeyboardAwareScrollViewCompat({
   removeClippedSubviews = false,
   ...props
 }: Props) {
-  if (Platform.OS === 'web') {
+  if (!NativeKeyboardAwareScrollView) {
     return (
       <ScrollView
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}
@@ -27,12 +33,12 @@ export function KeyboardAwareScrollViewCompat({
     );
   }
   return (
-    <KeyboardAwareScrollView
+    <NativeKeyboardAwareScrollView
       keyboardShouldPersistTaps={keyboardShouldPersistTaps}
       removeClippedSubviews={removeClippedSubviews}
       {...props}
     >
       {children}
-    </KeyboardAwareScrollView>
+    </NativeKeyboardAwareScrollView>
   );
 }

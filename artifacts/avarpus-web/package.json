@@ -6,8 +6,12 @@
   "scripts": {
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts",
+    "build:production": "pnpm run validate:deployment-readiness && pnpm run build",
+    "validate:deployment-readiness": "node scripts/validate-production-api-origin.mjs",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "test:auth-entry": "node --test scripts/test-auth-entry.mjs && vitest run --config vite.config.ts --environment jsdom scripts/test-auth-entry.dom.test.tsx",
+    "test:dealer-portal-recovery": "vitest run --config vite.config.ts --environment jsdom scripts/test-dealer-portal-recovery.dom.test.tsx",
+    "test:production-api-origin": "node --test scripts/test-production-api-origin.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

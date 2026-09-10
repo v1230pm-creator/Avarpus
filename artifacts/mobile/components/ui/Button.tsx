@@ -10,11 +10,17 @@ import {
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
+import { onBlue } from '@/constants/brand';
 
 interface ButtonProps {
   title: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive';
+  /**
+   * `onBlue` is for controls sitting on the brand blue auth surface. It carries
+   * its own disabled colours instead of dimming, because a dimmed control is
+   * effectively invisible against that background.
+   */
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'onBlue';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   disabled?: boolean;
@@ -54,6 +60,7 @@ export function Button({
     outline: 'transparent',
     ghost: 'transparent',
     destructive: colors.destructive,
+    onBlue: disabled ? onBlue.controlBackgroundDisabled : onBlue.controlBackground,
   }[variant];
 
   const txtColor = {
@@ -62,6 +69,7 @@ export function Button({
     outline: colors.primary,
     ghost: colors.foreground,
     destructive: colors.destructiveForeground,
+    onBlue: disabled ? onBlue.controlTextDisabled : onBlue.controlText,
   }[variant];
 
   const padV = { sm: 8, md: 13, lg: 17 }[size];
@@ -124,8 +132,9 @@ export function Button({
              paddingVertical: 0,
             paddingHorizontal: padH,
             borderRadius: colors.radius,
-            opacity: disabled ? 0.5 : 1,
+            opacity: disabled && variant !== 'onBlue' ? 0.5 : 1,
           },
+          variant === 'onBlue' && !disabled && styles.onBlueElevation,
           fullWidth && { width: '100%' },
           (flex !== undefined || flexGrow !== undefined || width !== undefined) && { width: '100%' },
           innerStyle,
@@ -146,4 +155,11 @@ export function Button({
 const styles = StyleSheet.create({
   btn: { alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   text: { fontWeight: '600', lineHeight: 20, textAlign: 'center' },
+  onBlueElevation: {
+    shadowColor: '#012B41',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 4,
+  },
 });

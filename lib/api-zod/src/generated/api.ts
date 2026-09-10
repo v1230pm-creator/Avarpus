@@ -9,6 +9,261 @@ import * as zod from 'zod';
 
 
 /**
+ * Records a request for staff review. A successful response confirms only that the request was received; it never confirms account deletion.
+ * @summary Record a public support or account-deletion request
+ */
+export const publicRequestCreateBodyNameMin = 2;
+export const publicRequestCreateBodyNameMax = 100;
+
+export const publicRequestCreateBodyMobileRegExp = new RegExp('^[6-9][0-9]{9}$');
+export const publicRequestCreateBodyEmailMax = 254;
+
+export const publicRequestCreateBodySubjectMax = 120;
+
+export const publicRequestCreateBodyMessageMin = 10;
+export const publicRequestCreateBodyMessageMax = 2000;
+
+export const publicRequestCreateBodyWebsiteMax = 0;
+
+
+
+export const PublicRequestCreateBody = zod.object({
+  "kind": zod.enum(['support', 'account_deletion']),
+  "name": zod.string().min(publicRequestCreateBodyNameMin).max(publicRequestCreateBodyNameMax),
+  "mobile": zod.string().regex(publicRequestCreateBodyMobileRegExp),
+  "email": zod.string().max(publicRequestCreateBodyEmailMax).optional(),
+  "subject": zod.string().max(publicRequestCreateBodySubjectMax).optional(),
+  "message": zod.string().min(publicRequestCreateBodyMessageMin).max(publicRequestCreateBodyMessageMax),
+  "confirmation": zod.boolean().describe('For account deletion this confirms the requester understands that identity verification is required and the form does not instantly delete an account.\n'),
+  "website": zod.string().max(publicRequestCreateBodyWebsiteMax).optional().describe('Honeypot field; legitimate clients leave this empty.')
+})
+
+export const PublicRequestCreateResponse = zod.object({
+  "requestId": zod.string(),
+  "status": zod.enum(['received']),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary List public requests for super administrators
+ */
+export const publicRequestAdminListQueryLimitMax = 100;
+
+export const publicRequestAdminListQuerySearchMax = 100;
+
+
+
+export const PublicRequestAdminListQueryParams = zod.object({
+  "limit": zod.coerce.number().int().min(1).max(publicRequestAdminListQueryLimitMax).optional(),
+  "cursor": zod.coerce.string().optional(),
+  "status": zod.enum(['received', 'in_review', 'resolved', 'rejected']).optional(),
+  "kind": zod.enum(['support', 'account_deletion']).optional(),
+  "search": zod.coerce.string().max(publicRequestAdminListQuerySearchMax).optional()
+})
+
+export const PublicRequestAdminListResponse = zod.object({
+  "requests": zod.array(zod.object({
+  "id": zod.string(),
+  "kind": zod.enum(['support', 'account_deletion']),
+  "requesterName": zod.string(),
+  "mobile": zod.string(),
+  "subject": zod.string().nullable(),
+  "status": zod.enum(['received', 'in_review', 'resolved', 'rejected']),
+  "createdAt": zod.coerce.date()
+})),
+  "nextCursor": zod.string().nullable()
+})
+
+
+/**
+ * @summary Get a public request and its review history
+ */
+export const PublicRequestAdminGetParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const PublicRequestAdminGetResponse = zod.object({
+  "request": zod.object({
+  "id": zod.string(),
+  "kind": zod.enum(['support', 'account_deletion']),
+  "requesterName": zod.string(),
+  "mobile": zod.string(),
+  "email": zod.string().nullish(),
+  "subject": zod.string().nullish(),
+  "message": zod.string(),
+  "status": zod.enum(['received', 'in_review', 'resolved', 'rejected']),
+  "reviewerUserId": zod.string().nullable(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "confirmationAcceptedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+}),
+  "transitions": zod.array(zod.object({
+  "id": zod.string(),
+  "fromStatus": zod.enum(['received', 'in_review', 'resolved', 'rejected']),
+  "toStatus": zod.enum(['received', 'in_review', 'resolved', 'rejected']),
+  "note": zod.string().nullable(),
+  "reviewerUserId": zod.string(),
+  "reviewerName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "identityVerification": zod.union([zod.object({
+  "id": zod.string(),
+  "reviewerUserId": zod.string(),
+  "reviewerName": zod.string().nullable(),
+  "method": zod.string(),
+  "note": zod.string(),
+  "createdAt": zod.coerce.date()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Advance a public request through the review workflow
+ */
+export const PublicRequestAdminStatusUpdateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const publicRequestAdminStatusUpdateBodyNoteMax = 2000;
+
+
+
+export const PublicRequestAdminStatusUpdateBody = zod.object({
+  "status": zod.enum(['received', 'in_review', 'resolved', 'rejected']),
+  "note": zod.string().min(1).max(publicRequestAdminStatusUpdateBodyNoteMax).optional()
+})
+
+export const PublicRequestAdminStatusUpdateResponse = zod.object({
+  "request": zod.object({
+  "id": zod.string(),
+  "kind": zod.enum(['support', 'account_deletion']),
+  "requesterName": zod.string(),
+  "mobile": zod.string(),
+  "email": zod.string().nullish(),
+  "subject": zod.string().nullish(),
+  "message": zod.string(),
+  "status": zod.enum(['received', 'in_review', 'resolved', 'rejected']),
+  "reviewerUserId": zod.string().nullable(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "confirmationAcceptedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+}),
+  "transitions": zod.array(zod.object({
+  "id": zod.string(),
+  "fromStatus": zod.enum(['received', 'in_review', 'resolved', 'rejected']),
+  "toStatus": zod.enum(['received', 'in_review', 'resolved', 'rejected']),
+  "note": zod.string().nullable(),
+  "reviewerUserId": zod.string(),
+  "reviewerName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "identityVerification": zod.union([zod.object({
+  "id": zod.string(),
+  "reviewerUserId": zod.string(),
+  "reviewerName": zod.string().nullable(),
+  "method": zod.string(),
+  "note": zod.string(),
+  "createdAt": zod.coerce.date()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Record identity verification for an account deletion request
+ */
+export const PublicRequestAdminIdentityVerificationCreateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const publicRequestAdminIdentityVerificationCreateBodyMethodMin = 2;
+export const publicRequestAdminIdentityVerificationCreateBodyMethodMax = 100;
+
+export const publicRequestAdminIdentityVerificationCreateBodyNoteMin = 2;
+export const publicRequestAdminIdentityVerificationCreateBodyNoteMax = 2000;
+
+
+
+export const PublicRequestAdminIdentityVerificationCreateBody = zod.object({
+  "method": zod.string().min(publicRequestAdminIdentityVerificationCreateBodyMethodMin).max(publicRequestAdminIdentityVerificationCreateBodyMethodMax),
+  "note": zod.string().min(publicRequestAdminIdentityVerificationCreateBodyNoteMin).max(publicRequestAdminIdentityVerificationCreateBodyNoteMax)
+})
+
+export const PublicRequestAdminIdentityVerificationCreateResponse = zod.object({
+  "request": zod.object({
+  "id": zod.string(),
+  "kind": zod.enum(['support', 'account_deletion']),
+  "requesterName": zod.string(),
+  "mobile": zod.string(),
+  "email": zod.string().nullish(),
+  "subject": zod.string().nullish(),
+  "message": zod.string(),
+  "status": zod.enum(['received', 'in_review', 'resolved', 'rejected']),
+  "reviewerUserId": zod.string().nullable(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "confirmationAcceptedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+}),
+  "transitions": zod.array(zod.object({
+  "id": zod.string(),
+  "fromStatus": zod.enum(['received', 'in_review', 'resolved', 'rejected']),
+  "toStatus": zod.enum(['received', 'in_review', 'resolved', 'rejected']),
+  "note": zod.string().nullable(),
+  "reviewerUserId": zod.string(),
+  "reviewerName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "identityVerification": zod.union([zod.object({
+  "id": zod.string(),
+  "reviewerUserId": zod.string(),
+  "reviewerName": zod.string().nullable(),
+  "method": zod.string(),
+  "note": zod.string(),
+  "createdAt": zod.coerce.date()
+}),zod.null()])
+})
+
+
+/**
+ * Unauthenticated read of the operator contact details that are meant to be published. Only fields an operator has explicitly configured are returned; nothing here is derived from requester data.
+ * @summary Public contact details shown on the Avarpus website
+ */
+export const PublicContactGetResponse = zod.object({
+  "supportEmail": zod.string().nullable()
+})
+
+
+/**
+ * @summary Read the inbox that new public request alerts are emailed to
+ */
+export const SupportNotificationSettingsGetResponse = zod.object({
+  "recipientEmail": zod.string().nullable(),
+  "updatedAt": zod.coerce.date().nullable(),
+  "updatedByName": zod.string().nullable(),
+  "senderConfigured": zod.boolean().describe('True when a verified sender address is configured for outgoing mail. When false, alert emails may not be delivered.\n')
+})
+
+
+/**
+ * @summary Set or clear the inbox that new public request alerts are emailed to
+ */
+export const supportNotificationSettingsUpdateBodyRecipientEmailMax = 254;
+
+
+
+export const SupportNotificationSettingsUpdateBody = zod.object({
+  "recipientEmail": zod.string().max(supportNotificationSettingsUpdateBodyRecipientEmailMax).nullable().describe('Destination inbox for new public request alerts. Null or an empty string turns alert emails off.\n')
+})
+
+export const SupportNotificationSettingsUpdateResponse = zod.object({
+  "recipientEmail": zod.string().nullable(),
+  "updatedAt": zod.coerce.date().nullable(),
+  "updatedByName": zod.string().nullable(),
+  "senderConfigured": zod.boolean().describe('True when a verified sender address is configured for outgoing mail. When false, alert emails may not be delivered.\n')
+})
+
+
+/**
  * @summary Request an OTP for a mobile number
  */
 export const AuthOtpRequestBody = zod.object({
@@ -1769,6 +2024,42 @@ export const RepairPaymentsCreateResponse = zod.object({
   "voidReason": zod.string().optional(),
   "createdAt": zod.string()
 })
+})
+
+
+/**
+ * Reverses all payments that are not already voided, so a repair that was settled by mistake goes back to unpaid. The repair row is locked for the whole operation, so a payment recorded concurrently cannot survive it. Rows are never deleted; each keeps its void audit trail and an offsetting finance entry.
+ * @summary Void every live payment of a repair in one transaction (dealer/owner only)
+ */
+export const RepairPaymentsVoidAllParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RepairPaymentsVoidAllBody = zod.object({
+  "reason": zod.string()
+})
+
+export const RepairPaymentsVoidAllResponse = zod.object({
+  "voidedCount": zod.number(),
+  "paidAmount": zod.number(),
+  "payments": zod.array(zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "amount": zod.number(),
+  "method": zod.string(),
+  "kind": zod.enum(['advance', 'partial', 'final', 'due', 'refund']),
+  "note": zod.string().optional(),
+  "referenceNo": zod.string().optional(),
+  "recordedById": zod.string().optional(),
+  "recordedByName": zod.string().optional(),
+  "receivedById": zod.string().optional(),
+  "receivedByName": zod.string().optional(),
+  "voidedAt": zod.string().optional(),
+  "voidedById": zod.string().optional(),
+  "voidedByName": zod.string().optional(),
+  "voidReason": zod.string().optional(),
+  "createdAt": zod.string()
+}))
 })
 
 
@@ -3807,7 +4098,9 @@ export const ChatRoomsListResponse = zod.object({
   "peerKey": zod.string().optional().describe('Deterministic sorted pair of participant user IDs for one-to-one rooms.'),
   "isBlocked": zod.boolean().optional().describe('True when either member has blocked the other.'),
   "blockedByMe": zod.boolean().optional().describe('True when the current caller created the active block.'),
-  "isArchived": zod.boolean(),
+  "isArchived": zod.boolean().describe('Caller-specific archive state.'),
+  "isPinned": zod.boolean().describe('Caller-specific pin state.'),
+  "isMuted": zod.boolean().describe('Caller-specific mute state.'),
   "createdById": zod.string().optional(),
   "createdByName": zod.string().optional(),
   "createdAt": zod.string(),
@@ -3861,7 +4154,9 @@ export const ChatRoomsCreateResponse = zod.object({
   "peerKey": zod.string().optional().describe('Deterministic sorted pair of participant user IDs for one-to-one rooms.'),
   "isBlocked": zod.boolean().optional().describe('True when either member has blocked the other.'),
   "blockedByMe": zod.boolean().optional().describe('True when the current caller created the active block.'),
-  "isArchived": zod.boolean(),
+  "isArchived": zod.boolean().describe('Caller-specific archive state.'),
+  "isPinned": zod.boolean().describe('Caller-specific pin state.'),
+  "isMuted": zod.boolean().describe('Caller-specific mute state.'),
   "createdById": zod.string().optional(),
   "createdByName": zod.string().optional(),
   "createdAt": zod.string(),
@@ -3889,14 +4184,10 @@ export const ChatRoomsCreateResponse = zod.object({
 
 
 /**
- * @summary Get a single chat room (members only; unauthorized returns 404)
+ * @summary List the caller's archived customer/direct chats without returning caller-deleted chats
  */
-export const ChatRoomsGetParams = zod.object({
-  "roomId": zod.coerce.string()
-})
-
-export const ChatRoomsGetResponse = zod.object({
-  "room": zod.object({
+export const ChatRoomsArchivedListResponse = zod.object({
+  "rooms": zod.array(zod.object({
   "id": zod.string(),
   "shopId": zod.string().nullable(),
   "scope": zod.enum(['shop', 'global_direct']),
@@ -3910,7 +4201,9 @@ export const ChatRoomsGetResponse = zod.object({
   "peerKey": zod.string().optional().describe('Deterministic sorted pair of participant user IDs for one-to-one rooms.'),
   "isBlocked": zod.boolean().optional().describe('True when either member has blocked the other.'),
   "blockedByMe": zod.boolean().optional().describe('True when the current caller created the active block.'),
-  "isArchived": zod.boolean(),
+  "isArchived": zod.boolean().describe('Caller-specific archive state.'),
+  "isPinned": zod.boolean().describe('Caller-specific pin state.'),
+  "isMuted": zod.boolean().describe('Caller-specific mute state.'),
   "createdById": zod.string().optional(),
   "createdByName": zod.string().optional(),
   "createdAt": zod.string(),
@@ -3932,6 +4225,89 @@ export const ChatRoomsGetResponse = zod.object({
   "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
   "peerOnline": zod.boolean().optional().describe('True while the other member has synced the application recently.'),
   "peerLastSeenAt": zod.coerce.date().optional().describe('Last time the other member synced the application.')
+}))
+})
+
+
+/**
+ * @summary Get a single chat room (members only; unauthorized returns 404)
+ */
+export const ChatRoomsGetParams = zod.object({
+  "roomId": zod.coerce.string()
+})
+
+export const ChatRoomsGetResponse = zod.object({
+  "room": zod.object({
+  "id": zod.string(),
+  "shopId": zod.string().nullable(),
+  "scope": zod.enum(['shop', 'global_direct']),
+  "kind": zod.enum(['customer', 'dealer', 'direct']),
+  "name": zod.string(),
+  "customerId": zod.string().optional(),
+  "dealerId": zod.string().optional(),
+  "providerRoomId": zod.string().optional(),
+  "peerUserId": zod.string().optional().describe('The other member for a direct room, resolved for the current caller.'),
+  "profilePhoto": zod.string().optional().describe('The other member\'s profile image for a direct room.'),
+  "peerKey": zod.string().optional().describe('Deterministic sorted pair of participant user IDs for one-to-one rooms.'),
+  "isBlocked": zod.boolean().optional().describe('True when either member has blocked the other.'),
+  "blockedByMe": zod.boolean().optional().describe('True when the current caller created the active block.'),
+  "isArchived": zod.boolean().describe('Caller-specific archive state.'),
+  "isPinned": zod.boolean().describe('Caller-specific pin state.'),
+  "isMuted": zod.boolean().describe('Caller-specific mute state.'),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "createdAt": zod.string(),
+  "unreadCount": zod.number().optional(),
+  "lastMessage": zod.object({
+  "id": zod.string(),
+  "roomId": zod.string(),
+  "shopId": zod.string().nullable(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "objectPath": zod.string().optional(),
+  "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
+  "clientRequestId": zod.string().optional(),
+  "deletedAt": zod.string().optional(),
+  "createdAt": zod.string()
+}).optional(),
+  "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
+  "peerOnline": zod.boolean().optional().describe('True while the other member has synced the application recently.'),
+  "peerLastSeenAt": zod.coerce.date().optional().describe('Last time the other member synced the application.')
+})
+})
+
+
+/**
+ * @summary Hide a chat from the caller's inbox without deleting the shared room or any member's history
+ */
+export const ChatRoomsDeleteParams = zod.object({
+  "roomId": zod.coerce.string()
+})
+
+export const ChatRoomsDeleteResponse = zod.void()
+
+
+/**
+ * @summary Update caller-specific pin, mute, or archive state
+ */
+export const ChatRoomsPreferencesUpdateParams = zod.object({
+  "roomId": zod.coerce.string()
+})
+
+export const ChatRoomsPreferencesUpdateBody = zod.object({
+  "isPinned": zod.boolean().optional(),
+  "isMuted": zod.boolean().optional(),
+  "isArchived": zod.boolean().optional()
+})
+
+export const ChatRoomsPreferencesUpdateResponse = zod.object({
+  "preferences": zod.object({
+  "isPinned": zod.boolean(),
+  "isMuted": zod.boolean(),
+  "isArchived": zod.boolean(),
+  "updatedAt": zod.coerce.date()
 })
 })
 

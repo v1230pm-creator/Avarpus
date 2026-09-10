@@ -5,24 +5,20 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button } from '@/components/ui/Button';
-import { useColors } from '@/hooks/useColors';
-import { CosmicWelcomeBackground } from '@/components/ui/CosmicWelcomeBackground';
+import { onBlue } from '@/constants/brand';
 
 export default function TermsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ next?: string }>();
   const insets = useSafeAreaInsets();
-  const appColors = useColors();
   const colors = {
-    foreground: '#F6F8FC',
-    textMuted: '#9BA8BC',
-    border: 'rgba(111, 169, 225, 0.34)',
-    primary: appColors.primary,
+    foreground: onBlue.text,
+    textMuted: onBlue.textSecondary,
+    border: onBlue.line,
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: '#010714' }]}>
-      <CosmicWelcomeBackground />
+    <View style={[styles.root, { backgroundColor: onBlue.background }]}>
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 28 }]}
         showsVerticalScrollIndicator={false}
@@ -31,11 +27,11 @@ export default function TermsScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Back to welcome">
             <Feather name="arrow-left" size={22} color={colors.foreground} />
           </TouchableOpacity>
-          <Text style={[styles.wordmark, { color: colors.primary }]}>AVARPUS</Text>
+          <Text style={[styles.wordmark, { color: colors.foreground }]}>AVARPUS</Text>
         </View>
 
         <View style={styles.content}>
-          <Text style={[styles.eyebrow, { color: colors.primary }]}>Before you continue</Text>
+          <Text style={[styles.eyebrow, { color: onBlue.textSecondary }]}>Before you continue</Text>
           <Text style={[styles.title, { color: colors.foreground }]}>Terms and Conditions</Text>
           <Text style={[styles.subtitle, { color: colors.textMuted }]}>
             A quick summary of the rules that keep Avarpus safe and useful for every shop.
@@ -49,6 +45,7 @@ export default function TermsScreen() {
           <View style={styles.buttonArea}>
             <Button
               title="Agree & Continue"
+              variant="onBlue"
               onPress={async () => {
                 await AsyncStorage.setItem('avarpus_terms_accepted', 'true');
                 const nextRoute = params.next === 'register' ? '/(auth)/register' : '/(auth)/phone';
@@ -83,11 +80,11 @@ const styles = StyleSheet.create({
   content: { flex: 1, justifyContent: 'center', paddingVertical: 28, gap: 14 },
   eyebrow: { fontSize: 12, letterSpacing: 1.5, fontFamily: 'Inter_700Bold', textTransform: 'uppercase' },
   title: { fontSize: 28, lineHeight: 34, letterSpacing: -0.6, fontFamily: 'Inter_700Bold', marginBottom: 2 },
-  subtitle: { fontSize: 15, lineHeight: 22, fontFamily: 'Inter_400Regular' },
+  subtitle: { fontSize: 15, lineHeight: 22, fontFamily: 'Inter_500Medium' },
   divider: { height: 1, marginVertical: 14 },
   section: { paddingBottom: 16, marginBottom: 2, borderBottomWidth: 1 },
   sectionTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 5 },
-  sectionText: { fontSize: 14, lineHeight: 21, fontFamily: 'Inter_400Regular' },
+  sectionText: { fontSize: 14.5, lineHeight: 21, fontFamily: 'Inter_500Medium' },
   buttonArea: { width: '100%', height: 64, paddingHorizontal: 5, paddingBottom: 10, marginTop: 4 },
   primaryButton: { borderRadius: 28, minHeight: 54, maxHeight: 54 },
 });

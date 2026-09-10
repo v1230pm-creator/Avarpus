@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/avarpus-official-site/"
+title = "Avarpus Official Website"
+description = "The standalone public website for Avarpus at avarpass.com, providing product information, verified features, security guidance, legal pages, support, account deletion requests, and Android download information."
+version = "1.0.0"
+id = "artifacts/avarpus-official-site"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/avarpus-official-site/" ]
+localPort = 23446
+
+[services.development]
+run = "pnpm --filter @workspace/avarpus-official-site run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/avarpus-official-site", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/avarpus-official-site/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23446"
+BASE_PATH = "/avarpus-official-site/"

@@ -1,48 +1,55 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Image,
+  Linking,
   Modal,
   Platform,
   Pressable,
   RefreshControl,
+  SectionList,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
-  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Contacts from 'expo-contacts';
-import { type Repair } from '@/types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
-import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
+import { buildInviteSmsUrl } from '@/constants/install';
 import { Avatar } from '@/components/ui/Avatar';
-import { formatCurrency, formatDate } from '@/utils/helpers';
 import {
   useChatCapabilities,
   chatMarkRead,
   useChatContactsMatch,
   useChatRoomsCreate,
   useChatRoomsList,
-  useNotificationsList,
+  useChatRoomsArchivedList,
+  useChatRoomsDelete,
+  useChatRoomsPreferencesUpdate,
   getChatRoomsListQueryKey,
-  getRepairsListQueryKey,
-  useRepairsList,
+  getChatRoomsArchivedListQueryKey,
 } from '@workspace/api-client-react';
 import type { ChatContact, ChatRoom } from '@workspace/api-client-react';
-import { APP_BRAND } from '@/constants/branding';
-import { BrandMark } from '@/components/ui/BrandMark';
 
 const PHONE_BATCH_SIZE = 50;
+
+type DevicePhoneContact = {
+  id: string;
+  name: string;
+  phone: string;
+  imageUri?: string;
+};
+
+type ContactListItem =
+  | { kind: 'registered'; contact: ChatContact }
+  | { kind: 'invite'; contact: DevicePhoneContact };
 
 function normalizeIndianPhone(value: string): string | null {
   const digits = value.replace(/\D/g, '');
@@ -58,7 +65,7 @@ function formatRoomTime(dateStr?: string): string {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const diffDays = Math.round((today - messageDay) / (1000 * 60 * 60 * 24));
   if (diffDays === 0) {
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase();
   }
   if (diffDays === 1) {
     return 'Yesterday';
@@ -83,101 +90,91 @@ function RoomItem({
   room,
   currentUserId,
   onPress,
+  onLongPress,
+  selected,
   colors,
 }: {
   room: ChatRoom;
   currentUserId?: string;
   onPress: () => void;
+  onLongPress: () => void;
+  selected: boolean;
   colors: any;
 }) {
   const lastMsg = room.lastMessage;
   const unread = room.unreadCount ?? 0;
   const preview = formatMessagePreview(room);
   const isOutgoing = !!lastMsg && lastMsg.senderId === currentUserId;
-  const receiptColor =
-    room.lastMessageStatus === 'read' ? colors.success : colors.mutedForeground;
-  const receiptText =
-    room.lastMessageStatus === 'delivered' || room.lastMessageStatus === 'read'
-      ? '✓✓'
-      : '✓';
+  const receiptColor = room.lastMessageStatus === 'read' ? '#53BDEB' : colors.mutedForeground;
+  const receiptText = room.lastMessageStatus === 'delivered' || room.lastMessageStatus === 'read' ? '✓✓' : '✓';
+
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.7}
-      style={[styles.roomItem, { borderBottomColor: 'transparent', backgroundColor: colors.background }]}
+      onLongPress={onLongPress}
+      activeOpacity={0.72}
+      accessibilityRole="button"
+      accessibilityLabel={`${selected ? 'Selected, ' : ''}open chat with ${room.name}`}
+      accessibilityState={{ selected }}
       testID={`room-item-${room.id}`}
-      accessibilityLabel={`Open chat with ${room.name}`}
     >
-      <View style={{ position: 'relative' }}>
-        <Avatar
-          name={room.name}
-          url={room.profilePhoto}
-          size={48}
-          style={{ ...styles.roomAvatar, borderColor: colors.backgroundSecondary }}
-        />
-        {/* Mockup shows a heart icon next to some names. We'll skip for real data unless present. */}
-      </View>
-      <View style={styles.roomContent}>
-        <View style={styles.roomHeader}>
-          <Text
-            style={[styles.roomName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 16 }]}
-            numberOfLines={1}
-          >
-            {room.name}
-          </Text>
-          <Text
-            style={[
-              styles.roomTime,
-              {
-                color: unread > 0 ? colors.primary : colors.mutedForeground,
-                fontFamily: unread > 0 ? 'Inter_500Medium' : 'Inter_400Regular',
-                fontSize: 12,
-              },
-            ]}
-          >
-            {formatRoomTime(lastMsg?.createdAt ?? room.createdAt)}
-          </Text>
-        </View>
-        <View style={styles.roomFooter}>
-          {isOutgoing && (
-            <Text
-              style={[styles.receiptTicks, { color: receiptColor }]}
-              accessibilityLabel={
-                room.lastMessageStatus === 'read'
-                  ? 'Message read'
-                  : room.lastMessageStatus === 'delivered'
-                    ? 'Message delivered'
-                    : 'Message sent'
-              }
-              testID={`room-receipt-${room.id}`}
-            >
-              {receiptText}
-            </Text>
-          )}
-          {preview.icon && (
-            <Feather
-              name={preview.icon}
-              size={14}
-              color={unread > 0 ? colors.foreground : colors.primary}
-              style={[styles.roomPreviewIcon, { marginRight: 4 }]}
-            />
-          )}
-          <Text
-            style={[
-              styles.roomLastMsg,
-              { color: unread > 0 ? colors.foreground : colors.mutedForeground, fontFamily: unread > 0 ? 'Inter_500Medium' : 'Inter_400Regular', fontSize: 13, flex: 1 },
-            ]}
-            numberOfLines={1}
-          >
-            {isOutgoing ? `You: ${preview.text}` : preview.text}
-          </Text>
-          {unread > 0 && (
-            <View style={[styles.unreadBadge, { backgroundColor: colors.success }]}>
-              <Text style={[styles.unreadText, { fontFamily: 'Inter_600SemiBold', fontSize: 12, color: '#fff' }]}>
-                {unread > 99 ? '99+' : String(unread)}
-              </Text>
+      <View style={[styles.roomItem, selected && { backgroundColor: 'rgba(33, 192, 99, 0.15)' }]}>
+        <View style={{ position: 'relative' }}>
+          <Avatar
+            name={room.name}
+            url={room.profilePhoto}
+            size={52}
+            style={styles.roomAvatar}
+          />
+          {selected && (
+            <View style={[styles.selectionCheckmark, { borderColor: colors.background }]}>
+              <Feather name="check" size={12} color="#fff" />
             </View>
           )}
+        </View>
+        <View style={styles.roomContent}>
+          <View style={styles.roomHeader}>
+            <Text style={[styles.roomName, { color: colors.foreground }]} numberOfLines={1}>
+              {room.name}
+            </Text>
+            <Text
+              style={[
+                styles.roomTime,
+                { color: unread > 0 && !selected ? '#21C063' : colors.mutedForeground },
+              ]}
+            >
+              {formatRoomTime(lastMsg?.createdAt ?? room.createdAt)}
+            </Text>
+          </View>
+          <View style={styles.roomFooter}>
+            {isOutgoing && (
+              <Text style={[styles.receiptTicks, { color: receiptColor }]}>
+                {receiptText}
+              </Text>
+            )}
+            {preview.icon && (
+              <Feather
+                name={preview.icon}
+                size={14}
+                color={colors.mutedForeground}
+                style={styles.roomPreviewIcon}
+              />
+            )}
+            <Text style={[styles.roomLastMsg, { color: colors.mutedForeground }]} numberOfLines={1}>
+              {isOutgoing && !preview.icon ? `You: ${preview.text}` : preview.text}
+            </Text>
+            <View style={styles.roomFooterIcons}>
+              {room.isPinned && <Feather name="map-pin" size={13} color={colors.mutedForeground} />}
+              {room.isMuted && <Feather name="bell-off" size={13} color={colors.mutedForeground} />}
+              {unread > 0 && !selected && (
+                <View style={styles.unreadBadge}>
+                  <Text style={[styles.unreadText, { color: colors.background }]}>
+                    {unread > 99 ? '99+' : String(unread)}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -191,24 +188,34 @@ function CustomerInboxScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
+  const [searchVisible, setSearchVisible] = useState(false);
+  // Selection mode has its own always-visible search field, so text can survive
+  // into the normal header. Keep the field (and its clear control) reachable
+  // whenever a filter is actually applied.
+  const searchOpen = searchVisible || !!search;
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
-  const [roomFilter, setRoomFilter] = useState<'all' | 'unread'>('all');
+  const [roomFilter, setRoomFilter] = useState<'all' | 'unread' | 'archived'>('all');
+  const [selectedRoomIds, setSelectedRoomIds] = useState<Set<string>>(new Set());
+  const [bulkActionPending, setBulkActionPending] = useState(false);
+
+  // Contact Discovery State
   const [showContactDiscovery, setShowContactDiscovery] = useState(false);
   const [exactPhone, setExactPhone] = useState('');
   const [matchedContacts, setMatchedContacts] = useState<ChatContact[]>([]);
+  const [deviceContacts, setDeviceContacts] = useState<DevicePhoneContact[]>([]);
+  const [contactsLoaded, setContactsLoaded] = useState(false);
   const [contactStatus, setContactStatus] = useState<'idle' | 'loading' | 'denied' | 'empty' | 'error'>('idle');
   const [contactError, setContactError] = useState<string | null>(null);
   const [openingContactId, setOpeningContactId] = useState<string | null>(null);
+
   const contactsMatch = useChatContactsMatch();
   const roomsCreate = useChatRoomsCreate();
+  const preferencesUpdate = useChatRoomsPreferencesUpdate();
+  const roomsDelete = useChatRoomsDelete();
 
   const topPad = Platform.OS === 'web' ? insets.top + 67 : Math.max(insets.top, 20);
 
-  const {
-    data: capData,
-    isLoading: capLoading,
-  } = useChatCapabilities();
-
+  const { data: capData, isLoading: capLoading } = useChatCapabilities();
   const providerConfigured = capData?.matrixAvailable === true;
 
   const {
@@ -225,25 +232,128 @@ function CustomerInboxScreen() {
       refetchOnMount: 'always',
     },
   });
+  const {
+    data: archivedRoomsData,
+    isLoading: archivedRoomsLoading,
+    isError: archivedRoomsError,
+    refetch: archivedRoomsRefetch,
+  } = useChatRoomsArchivedList({
+    query: {
+      enabled: providerConfigured && roomFilter === 'archived',
+      queryKey: getChatRoomsArchivedListQueryKey(),
+      refetchInterval: providerConfigured && roomFilter === 'archived' ? 5_000 : false,
+      refetchIntervalInBackground: false,
+      refetchOnMount: 'always',
+    },
+  });
+
   const rooms = useMemo(() => {
-    // Repairs, payment activity and dealer conversations belong in their own
-    // app areas. Direct rooms are intentionally included alongside customers.
-    const all = (roomsData?.rooms ?? []).filter(
-      (room) => room.kind === 'customer' || room.kind === 'direct',
-    );
-    const filtered = roomFilter === 'unread'
-      ? all.filter((room) => (room.unreadCount ?? 0) > 0)
-      : all;
+    const source = roomFilter === 'archived' ? archivedRoomsData?.rooms : roomsData?.rooms;
+    const all = (source ?? []).filter((room) => room.kind === 'customer' || room.kind === 'direct');
+    const filtered = roomFilter === 'unread' ? all.filter((room) => (room.unreadCount ?? 0) > 0) : all;
     if (!search.trim()) return filtered;
     const q = search.toLowerCase();
     return filtered.filter(
-      (r) =>
-        r.name.toLowerCase().includes(q) ||
-        r.lastMessage?.body.toLowerCase().includes(q),
+      (r) => r.name.toLowerCase().includes(q) || r.lastMessage?.body.toLowerCase().includes(q),
     );
-  }, [roomFilter, roomsData, search]);
+  }, [archivedRoomsData, roomFilter, roomsData, search]);
 
-  const isLoading = capLoading || (providerConfigured && roomsLoading);
+  const isLoading = capLoading || (providerConfigured && (roomFilter === 'archived' ? archivedRoomsLoading : roomsLoading));
+  const roomsQueryError = roomFilter === 'archived' ? archivedRoomsError : roomsError;
+  const refetchRooms = roomFilter === 'archived' ? archivedRoomsRefetch : roomsRefetch;
+
+  const invalidateRoomLists = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() }),
+      queryClient.invalidateQueries({ queryKey: getChatRoomsArchivedListQueryKey() }),
+    ]);
+  }, [queryClient]);
+
+  const toggleSelection = (id: string) => {
+    const next = new Set(selectedRoomIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedRoomIds(next);
+  };
+
+  const clearSelection = () => {
+    setSelectedRoomIds(new Set());
+  };
+
+  const applyBulkAction = useCallback(async (action: 'pin' | 'mute' | 'archive' | 'restore' | 'delete') => {
+    if (bulkActionPending || selectedRoomIds.size === 0) return;
+    const sourceRooms = roomFilter === 'archived' ? archivedRoomsData?.rooms : roomsData?.rooms;
+    const selected = (sourceRooms ?? []).filter((room) => selectedRoomIds.has(room.id));
+    setBulkActionPending(true);
+    try {
+      if (action === 'delete') {
+        await Promise.all([...selectedRoomIds].map((roomId) => roomsDelete.mutateAsync({ roomId })));
+      } else {
+        const field = action === 'pin' ? 'isPinned' : action === 'mute' ? 'isMuted' : 'isArchived';
+        const nextValue = action === 'restore' ? false : !selected.every((room) => room[field] === true);
+        await Promise.all(
+          [...selectedRoomIds].map((roomId) =>
+            preferencesUpdate.mutateAsync({ roomId, data: { [field]: nextValue } }),
+          ),
+        );
+      }
+      clearSelection();
+      await invalidateRoomLists();
+    } catch {
+      Alert.alert('Could not update chats', 'Please check your connection and try again.');
+    } finally {
+      setBulkActionPending(false);
+    }
+  }, [archivedRoomsData?.rooms, bulkActionPending, invalidateRoomLists, preferencesUpdate, roomFilter, roomsData?.rooms, roomsDelete, selectedRoomIds]);
+
+  const handleBulkAction = useCallback((action: 'pin' | 'mute' | 'archive' | 'restore' | 'delete') => {
+    if (action !== 'delete') {
+      void applyBulkAction(action);
+      return;
+    }
+    Alert.alert(
+      'Delete selected chats?',
+      'This hides the chats only for you. It does not delete the shared room or anyone else’s history.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete for me', style: 'destructive', onPress: () => void applyBulkAction('delete') },
+      ],
+    );
+  }, [applyBulkAction]);
+
+  const handleReadAll = useCallback(async () => {
+    setShowOverflowMenu(false);
+    clearSelection();
+    const unreadRooms = (roomsData?.rooms ?? []).filter((room) => (room.unreadCount ?? 0) > 0 && !!room.lastMessage?.id);
+    if (!unreadRooms.length) return;
+    try {
+      await Promise.all(unreadRooms.map((room) => chatMarkRead(room.id, { messageId: room.lastMessage!.id })));
+      await invalidateRoomLists();
+    } catch {
+      Alert.alert('Could not mark chats as read', 'Please check your connection and try again.');
+    }
+  }, [invalidateRoomLists, roomsData?.rooms]);
+
+  const handleOverflowAction = useCallback((action: string) => {
+    setShowOverflowMenu(false);
+    clearSelection();
+    if (action === 'linked-devices') {
+      router.push('/(tabs)/more/account');
+      return;
+    }
+    if (action === 'settings') {
+      router.push('/(tabs)/more/settings');
+      return;
+    }
+    if (action === 'toggle-archived') {
+      setRoomFilter((current) => (current === 'archived' ? 'all' : 'archived'));
+      return;
+    }
+    Alert.alert('Not available yet', 'This option will be available when group messaging is enabled for Avarpus.');
+  }, [router]);
 
   const openDirectChat = useCallback(async (contact: ChatContact) => {
     if (openingContactId) return;
@@ -251,30 +361,21 @@ function CustomerInboxScreen() {
     setContactError(null);
     try {
       const result = await roomsCreate.mutateAsync({
-        data: {
-          name: contact.name,
-          kind: 'direct',
-          targetUserId: contact.userId,
-          matchToken: contact.matchToken,
-        },
+        data: { name: contact.name, kind: 'direct', targetUserId: contact.userId, matchToken: contact.matchToken },
       });
-      await queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
-      router.push(
-        `/(tabs)/customers/chat/${result.room.id}?name=${encodeURIComponent(contact.name)}`,
-      );
+      await invalidateRoomLists();
+      setShowContactDiscovery(false);
+      router.push(`/(tabs)/customers/chat/${result.room.id}?name=${encodeURIComponent(contact.name)}`);
     } catch (error: any) {
       setContactStatus('error');
-      setContactError(
-        error?.data?.message ?? error?.message ?? 'Could not start this conversation. Please try again.',
-      );
+      setContactError(error?.data?.message ?? error?.message ?? 'Could not start this conversation. Please try again.');
     } finally {
       setOpeningContactId(null);
     }
-  }, [openingContactId, queryClient, roomsCreate, router]);
+  }, [invalidateRoomLists, openingContactId, roomsCreate, router]);
 
   const matchPhones = useCallback(async (phones: string[]) => {
     if (!phones.length) {
-      setMatchedContacts([]);
       setContactStatus('empty');
       return;
     }
@@ -306,21 +407,48 @@ function CustomerInboxScreen() {
     setContactStatus('loading');
     setContactError(null);
     try {
-      const permission = await Contacts.requestPermissionsAsync();
+      const currentPermission = await Contacts.getPermissionsAsync();
+      const permission = currentPermission.granted || !currentPermission.canAskAgain
+        ? currentPermission
+        : await Contacts.requestPermissionsAsync();
       if (!permission.granted) {
         setContactStatus('denied');
+        setContactsLoaded(true);
         return;
       }
-      const result = await Contacts.getContactsAsync({ fields: [Contacts.Fields.PhoneNumbers] });
-      const phones = [...new Set(result.data.flatMap((contact) =>
-        (contact.phoneNumbers ?? []).map((phone) => normalizeIndianPhone(phone.number ?? '')).filter((phone): phone is string => !!phone),
-      ))];
+      const result = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Image],
+        sort: Contacts.SortTypes.FirstName,
+      });
+      const byPhone = new Map<string, DevicePhoneContact>();
+      result.data.forEach((contact) => {
+        (contact.phoneNumbers ?? []).forEach((entry, index) => {
+          const phone = normalizeIndianPhone(entry.number ?? '');
+          if (!phone || byPhone.has(phone)) return;
+          byPhone.set(phone, {
+            id: `${contact.id}-${index}`,
+            name: contact.name?.trim() || entry.number || phone,
+            phone,
+            imageUri: contact.image?.uri,
+          });
+        });
+      });
+      const discovered = [...byPhone.values()];
+      const phones = discovered.map((contact) => contact.phone);
+      setDeviceContacts(discovered);
+      setContactsLoaded(true);
       await matchPhones(phones);
     } catch (error: any) {
+      setContactsLoaded(true);
       setContactStatus('error');
       setContactError(error?.message ?? 'Could not read your contacts. Please try again.');
     }
   }, [matchPhones]);
+
+  useEffect(() => {
+    if (!showContactDiscovery || contactsLoaded || contactStatus === 'loading') return;
+    void discoverContacts();
+  }, [contactStatus, contactsLoaded, discoverContacts, showContactDiscovery]);
 
   const lookupExactPhone = useCallback(async () => {
     const phone = normalizeIndianPhone(exactPhone);
@@ -332,187 +460,265 @@ function CustomerInboxScreen() {
     await matchPhones([phone]);
   }, [exactPhone, matchPhones]);
 
-  const handleReadAll = useCallback(async () => {
-    setShowOverflowMenu(false);
-    const unreadRooms = (roomsData?.rooms ?? []).filter(
-      (room) => (room.unreadCount ?? 0) > 0 && !!room.lastMessage?.id,
-    );
-    if (!unreadRooms.length) return;
+  const registeredPhoneSet = useMemo(
+    () => new Set(matchedContacts.map((contact) => normalizeIndianPhone(contact.mobile ?? '')).filter(Boolean)),
+    [matchedContacts],
+  );
+  const deviceContactByPhone = useMemo(
+    () => new Map(deviceContacts.map((contact) => [contact.phone, contact])),
+    [deviceContacts],
+  );
+  const contactQuery = exactPhone.trim().toLowerCase();
+  const contactQueryPhone = normalizeIndianPhone(exactPhone) ?? exactPhone.replace(/\D/g, '');
+  const visibleRegisteredContacts = useMemo(
+    () => matchedContacts.filter((contact) => {
+      const deviceContact = deviceContactByPhone.get(normalizeIndianPhone(contact.mobile ?? '') ?? '');
+      return !contactQuery
+        || contact.name.toLowerCase().includes(contactQuery)
+        || deviceContact?.name.toLowerCase().includes(contactQuery)
+        || contact.mobile.includes(contactQueryPhone);
+    }),
+    [contactQuery, contactQueryPhone, deviceContactByPhone, matchedContacts],
+  );
+  const visibleInviteContacts = useMemo(
+    () => deviceContacts.filter((contact) =>
+      !registeredPhoneSet.has(contact.phone)
+      && (!contactQuery
+        || contact.name.toLowerCase().includes(contactQuery)
+        || contact.phone.includes(contactQueryPhone)),
+    ),
+    [contactQuery, contactQueryPhone, deviceContacts, registeredPhoneSet],
+  );
+  const contactSections = useMemo(() => {
+    const sections: Array<{ title: string; data: ContactListItem[] }> = [
+      {
+        title: 'Contacts on Avarpus',
+        data: visibleRegisteredContacts.map((contact) => ({ kind: 'registered', contact })),
+      },
+      {
+        title: 'Invite to Avarpus',
+        data: visibleInviteContacts.map((contact) => ({ kind: 'invite', contact })),
+      },
+    ];
+    return sections.filter((section) => section.data.length > 0);
+  }, [visibleInviteContacts, visibleRegisteredContacts]);
+
+  const callContact = useCallback(async (phone: string) => {
     try {
-      await Promise.all(
-        unreadRooms.map((room) =>
-          chatMarkRead(room.id, { messageId: room.lastMessage!.id }),
-        ),
-      );
-      await queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
+      await Linking.openURL(`tel:+91${phone}`);
     } catch {
-      Alert.alert('Could not mark chats as read', 'Please check your connection and try again.');
+      Alert.alert('Could not start call', 'This device could not open the phone dialler.');
     }
-  }, [queryClient, roomsData?.rooms]);
+  }, []);
 
-  const handleOverflowAction = useCallback((action: string) => {
-    setShowOverflowMenu(false);
-    if (action === 'linked-devices') {
-      router.push('/(tabs)/more/account');
-      return;
+  const inviteContact = useCallback(async (phone: string) => {
+    try {
+      await Linking.openURL(buildInviteSmsUrl(phone));
+    } catch {
+      Alert.alert('Could not open messages', 'This device could not open the SMS app.');
     }
-    if (action === 'settings') {
-      router.push('/(tabs)/more/settings');
-      return;
-    }
-    Alert.alert(
-      'Not available yet',
-      'This option will be available when group messaging is enabled for Avarpus.',
-    );
-  }, [router]);
+  }, []);
 
-  const renderHeader = () => (
-    <View
-      style={{
-        paddingTop: topPad + 16,
-        paddingHorizontal: 20,
-        paddingBottom: 12,
-        backgroundColor: colors.background,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-      }}
-    >
-      <View style={[styles.chatHeaderRow, { justifyContent: 'space-between', paddingHorizontal: 0 }]}>
-        <Text style={[styles.chatHeaderTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-          Avarpus
-        </Text>
+  const renderSelectionHeader = () => (
+    <View style={[styles.selectionHeader, { paddingTop: topPad, backgroundColor: '#1F2C34' }]}>
+      <View style={styles.selectionHeaderLeft}>
+        <TouchableOpacity onPress={clearSelection} style={styles.iconButton} accessibilityLabel="Exit selection mode">
+          <Feather name="arrow-left" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={styles.selectionCount} testID="selected-room-count">{selectedRoomIds.size}</Text>
+      </View>
+      <View style={styles.selectionHeaderRight}>
+        {roomFilter === 'archived' ? (
+          <TouchableOpacity disabled={bulkActionPending} onPress={() => handleBulkAction('restore')} style={styles.iconButton} accessibilityLabel="Restore selected chats">
+            <Feather name="rotate-ccw" size={20} color="#fff" />
+          </TouchableOpacity>
+        ) : (
+          <>
+        <TouchableOpacity disabled={bulkActionPending} onPress={() => handleBulkAction('pin')} style={styles.iconButton} accessibilityLabel="Pin selected chats">
+          <Feather name="map-pin" size={20} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity disabled={bulkActionPending} onPress={() => handleBulkAction('delete')} style={styles.iconButton} accessibilityLabel="Delete selected chats">
+          <Feather name="trash-2" size={20} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity disabled={bulkActionPending} onPress={() => handleBulkAction('mute')} style={styles.iconButton} accessibilityLabel="Mute selected chats">
+          <Feather name="bell-off" size={20} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity disabled={bulkActionPending} onPress={() => handleBulkAction('archive')} style={styles.iconButton} accessibilityLabel="Archive selected chats">
+          <Feather name="archive" size={20} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowOverflowMenu(true)} style={styles.iconButton} accessibilityLabel="More selection actions">
+          <Feather name="more-vertical" size={20} color="#fff" />
+        </TouchableOpacity>
+          </>
+        )}
+      </View>
+    </View>
+  );
 
-        <View style={styles.chatHeaderActions}>
+  const renderNormalHeader = () => (
+    <View style={[styles.normalHeaderContainer, { paddingTop: topPad }]}>
+      <View style={styles.topAppBar}>
+        <Text style={[styles.appTitle, { color: colors.foreground }]}>Avarpus</Text>
+        <View style={styles.appBarActions}>
           <TouchableOpacity
-            onPress={() => setShowContactDiscovery((visible) => !visible)}
-            style={styles.chatHeaderIcon}
-            accessibilityLabel="Start a new chat"
-            testID="new-chat-control"
+            style={styles.iconButton}
+            onPress={() => {
+              if (searchOpen) {
+                setSearch('');
+                setSearchVisible(false);
+              } else {
+                setSearchVisible(true);
+              }
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={searchOpen ? 'Close chat search' : 'Search conversations'}
+            testID="chat-search-control"
           >
-            <Feather name="plus-circle" size={23} color={colors.foreground} />
+            <Feather name={searchOpen ? 'x' : 'search'} size={22} color={colors.foreground} />
           </TouchableOpacity>
           <TouchableOpacity
+            style={styles.iconButton}
             onPress={() => setShowOverflowMenu(true)}
-            style={styles.chatHeaderIcon}
             accessibilityLabel="Open chat menu"
             testID="account-menu-control"
           >
-            <Feather name="more-vertical" size={24} color={colors.foreground} />
+            <Feather name="more-vertical" size={22} color={colors.foreground} />
           </TouchableOpacity>
         </View>
       </View>
 
-      <View style={[styles.homeSearch, { backgroundColor: colors.backgroundSecondary, marginTop: 12 }]}>
-        <Feather name="search" size={18} color={colors.mutedForeground} />
-        <TextInput
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search your conversations"
-          placeholderTextColor={colors.mutedForeground}
-          style={[styles.homeSearchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
-          returnKeyType="search"
-        />
-        {!!search && (
-          <TouchableOpacity onPress={() => setSearch('')} accessibilityLabel="Clear chat search">
-            <Feather name="x" size={18} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {providerConfigured && (
-        <View style={[styles.roomFilters, { marginTop: 12 }]}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            {(['All', 'Unread', 'Groups', 'Favorites'] as const).map((label) => {
-              const value = label.toLowerCase() as 'all' | 'unread' | 'groups' | 'favorites';
-              const disabled = value === 'groups' || value === 'favorites';
-              const selected = !disabled && roomFilter === value;
-              return (
-                <TouchableOpacity
-                  key={value}
-                  onPress={() => {
-                    if (!disabled) setRoomFilter(value);
-                  }}
-                  disabled={disabled}
-                  accessibilityState={{ disabled, selected }}
-                  accessibilityHint={disabled ? `${label} filtering is not available for direct chats` : undefined}
-                  style={[
-                    styles.roomFilterChip,
-                    {
-                      backgroundColor: selected ? colors.primary : 'transparent',
-                      opacity: disabled ? 0.5 : 1,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={{
-                      color: selected ? '#FFFFFF' : colors.mutedForeground,
-                      fontSize: 13,
-                      fontFamily: 'Inter_500Medium',
-                    }}
-                  >
-                    {label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-      )}
-
-      {providerConfigured && showContactDiscovery && (
-        <View style={{ marginTop: 12 }}>
-          <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 14, marginBottom: 8 }}>
-            Start a direct chat
-          </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TextInput
-              value={exactPhone}
-              onChangeText={setExactPhone}
-              keyboardType="phone-pad"
-              placeholder="10-digit mobile number"
-              placeholderTextColor={colors.mutedForeground}
-              style={{ flex: 1, height: 40, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, color: colors.foreground, fontFamily: 'Inter_400Regular' }}
-              accessibilityLabel="Exact mobile number"
-            />
-            <TouchableOpacity onPress={lookupExactPhone} style={{ marginLeft: 8, padding: 10 }} accessibilityLabel="Find registered contact">
-              <Feather name="search" size={20} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={discoverContacts} style={{ marginLeft: 4, padding: 10 }} accessibilityLabel="Find contacts on this device">
-              <Feather name="users" size={20} color={colors.primary} />
-            </TouchableOpacity>
-          </View>
-          {contactStatus === 'loading' && <ActivityIndicator style={{ marginTop: 12 }} color={colors.primary} />}
-          {contactStatus === 'denied' && <Text style={{ marginTop: 10, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>Contacts permission was denied. Search an exact number instead.</Text>}
-          {contactStatus === 'empty' && <Text style={{ marginTop: 10, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>No registered contacts were found.</Text>}
-          {contactStatus === 'error' && (
-            <View style={{ marginTop: 10 }}>
-              <Text style={{ color: colors.destructive, fontFamily: 'Inter_400Regular' }}>{contactError}</Text>
-              <TouchableOpacity onPress={exactPhone ? lookupExactPhone : discoverContacts} accessibilityLabel="Retry contact lookup">
-                <Text style={{ color: colors.primary, marginTop: 6, fontFamily: 'Inter_600SemiBold' }}>Retry</Text>
-              </TouchableOpacity>
+      {searchOpen && (
+        <View style={styles.searchContainer}>
+          <View style={[styles.searchBar, { backgroundColor: colors.backgroundSecondary }]}>
+            <View style={styles.searchBarLeft}>
+              <Feather name="search" size={18} color={colors.mutedForeground} />
             </View>
-          )}
-          {matchedContacts.map((contact) => (
-            <TouchableOpacity
-              key={contact.userId}
-              onPress={() => void openDirectChat(contact)}
-              disabled={openingContactId !== null}
-              testID={`matched-contact-${contact.userId}`}
-              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border, opacity: openingContactId && openingContactId !== contact.userId ? 0.5 : 1 }}
-            >
-              <Avatar name={contact.name} url={contact.profilePhoto} size={36} />
-              <View style={{ marginLeft: 10 }}>
-                <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{contact.name}</Text>
-                <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12 }}>{contact.mobile}</Text>
-              </View>
-              {openingContactId === contact.userId && (
-                <ActivityIndicator style={{ marginLeft: 'auto' }} color={colors.primary} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search conversations"
+              placeholderTextColor={colors.mutedForeground}
+              style={[styles.searchInput, { color: colors.foreground }]}
+              returnKeyType="search"
+              autoFocus={searchVisible}
+            />
+            {!!search && (
+              <TouchableOpacity onPress={() => setSearch('')} accessibilityLabel="Clear chat search">
+                <Feather name="x" size={18} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
+    </View>
+  );
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Fixed Header */}
+      {selectedRoomIds.size > 0 ? (
+        <View style={{ backgroundColor: colors.background }}>
+          {renderSelectionHeader()}
+          <View style={[styles.searchContainer, styles.selectionSearchContainer]}>
+            <View style={[styles.searchBar, { backgroundColor: colors.backgroundSecondary }]}>
+              <Feather name="search" size={18} color={colors.mutedForeground} />
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search conversations"
+                placeholderTextColor={colors.mutedForeground}
+                style={[styles.searchInput, { color: colors.foreground }]}
+                returnKeyType="search"
+              />
+              {!!search && (
+                <TouchableOpacity onPress={() => setSearch('')} accessibilityLabel="Clear chat search">
+                  <Feather name="x" size={18} color={colors.mutedForeground} />
+                </TouchableOpacity>
               )}
-            </TouchableOpacity>
-          ))}
+            </View>
+          </View>
+        </View>
+      ) : renderNormalHeader()}
+
+      <FlatList
+        data={rooms}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <RoomItem
+            room={item}
+            currentUserId={user?.id}
+            colors={colors}
+            selected={selectedRoomIds.has(item.id)}
+            onPress={() => {
+              if (selectedRoomIds.size > 0) {
+                toggleSelection(item.id);
+                return;
+              }
+              router.push(`/(tabs)/customers/chat/${item.id}?name=${encodeURIComponent(item.name)}`);
+            }}
+            onLongPress={() => {
+              if (selectedRoomIds.size === 0) {
+                toggleSelection(item.id);
+              }
+            }}
+          />
+        )}
+        ListEmptyComponent={
+          !isLoading && providerConfigured ? (
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                {search ? `No results for "${search}"` : roomFilter === 'archived' ? 'No archived chats' : 'No conversations yet'}
+              </Text>
+            </View>
+          ) : null
+        }
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+      />
+
+      {/* States Overlays (Loading, Errors) */}
+      {isLoading && (
+        <View style={styles.centeredState}>
+          <ActivityIndicator color={colors.primary} size="large" />
+          <Text style={[styles.stateText, { color: colors.mutedForeground }]}>Loading conversations…</Text>
         </View>
       )}
 
+      {!providerConfigured && !isLoading && (
+        <View style={styles.centeredState}>
+          <Feather name="message-square" size={32} color={colors.mutedForeground} style={{ marginBottom: 12 }} />
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Chat provider not configured</Text>
+        </View>
+      )}
+
+      {roomsQueryError && (
+        <View style={styles.centeredState}>
+          <Feather name="alert-circle" size={32} color={colors.destructive} style={{ marginBottom: 12 }} />
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Could not load conversations</Text>
+          <TouchableOpacity onPress={() => refetchRooms()} style={[styles.retryBtn, { backgroundColor: colors.primary }]}>
+            <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Floating Action Button */}
+      {providerConfigured && roomFilter !== 'archived' && selectedRoomIds.size === 0 && (
+        <TouchableOpacity
+          style={[styles.fab, { bottom: 76 + Math.max(insets.bottom, 8) }]}
+          activeOpacity={0.8}
+          onPress={() => setShowContactDiscovery(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Start a new chat"
+          testID="new-chat-control"
+        >
+          <Feather name="message-square" size={24} color="#0B141A" />
+          <View style={styles.fabPlusBadge}>
+            <Feather name="plus" size={12} color="#0B141A" />
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Overflow Menu Modal */}
       <Modal
         visible={showOverflowMenu}
         transparent
@@ -522,737 +728,162 @@ function CustomerInboxScreen() {
       >
         <Pressable style={styles.overflowBackdrop} onPress={() => setShowOverflowMenu(false)}>
           <Pressable
-            style={[
-              styles.overflowMenu,
-              {
-                top: topPad + 58,
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-              },
-            ]}
+            style={[styles.overflowMenu, { top: topPad + 40, backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={(event) => event.stopPropagation()}
           >
             {[
               { id: 'new-group', label: 'New group' },
               { id: 'new-community', label: 'New community' },
-              { id: 'broadcast-lists', label: 'Broadcast lists' },
-              { id: 'linked-devices', label: 'Linked devices' },
               { id: 'read-all', label: 'Read all' },
+              { id: 'toggle-archived', label: roomFilter === 'archived' ? 'All chats' : 'Archived' },
               { id: 'settings', label: 'Settings' },
             ].map((item) => (
               <TouchableOpacity
                 key={item.id}
                 style={styles.overflowMenuItem}
-                activeOpacity={0.65}
-                onPress={() => {
-                  if (item.id === 'read-all') {
-                    void handleReadAll();
-                  } else {
-                    handleOverflowAction(item.id);
-                  }
-                }}
-                accessibilityRole="menuitem"
+                onPress={() => item.id === 'read-all' ? void handleReadAll() : handleOverflowAction(item.id)}
               >
-                <Text
-                  style={[
-                    styles.overflowMenuLabel,
-                    { color: colors.foreground, fontFamily: 'Inter_400Regular' },
-                  ]}
-                >
-                  {item.label}
-                </Text>
+                <Text style={[styles.overflowMenuLabel, { color: colors.foreground }]}>{item.label}</Text>
               </TouchableOpacity>
             ))}
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
-  );
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {renderHeader()}
-        <View style={styles.centeredState}>
-          <ActivityIndicator color={colors.primary} size="large" />
-          <Text style={[styles.stateText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            Loading conversations…
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  // Provider not configured
-  if (!providerConfigured) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {renderHeader()}
-        <View style={styles.emptyContainer}>
-          <View style={[styles.iconWrap, { backgroundColor: colors.accent }]}>
-            <Feather name="message-square" size={32} color={colors.primary} />
-          </View>
-          <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-            Chat provider not configured
-          </Text>
-          <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            Messaging, attachments, voice notes and calls will be available after the communication
-            service is connected. Until then, conversations will not appear here.
-          </Text>
-          <View style={[styles.shieldBox, { backgroundColor: colors.backgroundSecondary }]}>
-            <Feather name="shield" size={16} color={colors.mutedForeground} />
-            <Text style={[styles.shieldText, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
-              End-to-end encryption is not enabled
-            </Text>
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  // Rooms fetch error
-  if (roomsError) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {renderHeader()}
-        <View style={styles.emptyContainer}>
-          <View style={[styles.iconWrap, { backgroundColor: colors.destructive + '18' }]}>
-            <Feather name="alert-circle" size={32} color={colors.destructive} />
-          </View>
-          <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-            Could not load conversations
-          </Text>
-          <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            A network error occurred. Please check your connection and try again.
-          </Text>
-          <TouchableOpacity
-            onPress={() => roomsRefetch()}
-            style={[styles.retryBtn, { backgroundColor: colors.primary }]}
-          >
-            <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // Empty state
-  if (rooms.length === 0 && !search) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {renderHeader()}
-        <View style={styles.emptyContainer}>
-          <View style={[styles.iconWrap, { backgroundColor: colors.accent }]}>
-            <Feather name="message-square" size={32} color={colors.primary} />
-          </View>
-          <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-            No conversations yet
-          </Text>
-          <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            Customer and direct conversations will appear here.
-          </Text>
-          <View style={[styles.shieldBox, { backgroundColor: colors.backgroundSecondary }]}>
-            <Feather name="shield" size={16} color={colors.mutedForeground} />
-            <Text style={[styles.shieldText, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
-              End-to-end encryption is not enabled
-            </Text>
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <FlatList
-        data={rooms}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={renderHeader}
-        renderItem={({ item }) => (
-          <RoomItem
-            room={item}
-            currentUserId={user?.id}
-            colors={colors}
-            onPress={() => {
-              // Existing rooms always open by room id. Contact discovery is
-              // the only path that creates a new direct room.
-              router.push(
-                `/(tabs)/customers/chat/${item.id}?name=${encodeURIComponent(item.name)}`,
-              );
-            }}
-          />
-        )}
-        ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
-        ListEmptyComponent={
-          search ? (
-            <View style={styles.emptyContainer}>
-              <Feather name="search" size={28} color={colors.mutedForeground} />
-              <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold', marginTop: 12 }]}>
-                No results for "{search}"
-              </Text>
-            </View>
-          ) : null
-        }
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: 24, paddingTop: 8, paddingHorizontal: 12 }}
-        showsVerticalScrollIndicator={false}
-      />
-    </View>
-  );
-}
-
-function formatRepairTime(dateStr?: string): string {
-  if (!dateStr) return '';
-  return new Date(dateStr).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function repairStatusLine(repair: Repair): string {
-  if (repair.status === 'received') {
-    return `Received: ${formatDate(repair.receiveDate || repair.createdAt)}`;
-  }
-  if (repair.status === 'ready') return 'Ready for Delivery';
-  if (repair.status === 'delivered') {
-    return `Delivered: ${formatDate(repair.deliveryDate || repair.createdAt)}`;
-  }
-  if (repair.status === 'testing') return 'Testing in progress';
-  if (repair.status === 'waiting_parts') return 'Waiting for parts';
-  if (repair.status === 'customer_approval') return 'Customer approval pending';
-  if (repair.status === 'cannot_repair') return 'Cannot repair';
-  return 'In Repair';
-}
-
-function normalizeIdentityText(value?: string): string {
-  return (value ?? '').trim().toLocaleLowerCase();
-}
-
-function normalizePhone(value?: string): string {
-  return (value ?? '').replace(/\D/g, '');
-}
-
-function RepairHomeItem({
-  repair,
-  colors,
-  onPress,
-  onCustomerPress,
-}: {
-  repair: Repair;
-  colors: any;
-  onPress: () => void;
-  onCustomerPress?: () => void;
-}) {
-  const total = repair.totalAmount ?? repair.repairCharge + repair.partsCharge;
-  const paid = repair.paidAmount ?? repair.advance;
-  const due = Math.max(0, total - paid);
-  const isPaid = total > 0 && due <= 0;
-  const avatarPalette = [
-    colors.primary,
-    colors.purple,
-    colors.info,
-    colors.success,
-    colors.warning,
-  ];
-  const avatarIndex =
-    Array.from(repair.customerName).reduce(
-      (sum, char) => sum + char.charCodeAt(0),
-      0,
-    ) % avatarPalette.length;
-  const initials = repair.customerName
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-  const statusColor =
-    repair.status === 'received'
-      ? colors.primary
-      : repair.status === 'ready' || repair.status === 'delivered'
-        ? colors.success
-        : colors.info;
-
-  return (
-    <View
-      style={[styles.repairItem, { borderBottomColor: colors.border }]}
-    >
-      <TouchableOpacity
-        activeOpacity={0.72}
-        onPress={onCustomerPress}
-        disabled={!onCustomerPress}
-        style={[
-          styles.repairAvatar,
-          { backgroundColor: avatarPalette[avatarIndex] },
-        ]}
-        testID={`home-customer-avatar-${repair.id}`}
-        accessibilityLabel={`Open chat with ${repair.customerName}`}
+      <Modal
+        visible={showContactDiscovery}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowContactDiscovery(false)}
       >
-        <Text
-          style={[
-            styles.repairAvatarText,
-            { fontFamily: 'Inter_700Bold' },
-          ]}
-        >
-          {initials || 'C'}
-        </Text>
-      </TouchableOpacity>
-
-      <View style={styles.repairContent}>
-        <View style={styles.repairNameRow}>
-          <TouchableOpacity
-            activeOpacity={0.72}
-            onPress={onCustomerPress}
-            disabled={!onCustomerPress}
-            style={styles.repairNameWrap}
-            testID={`home-chat-customer-${repair.id}`}
-            accessibilityLabel={`Open chat with ${repair.customerName}`}
-          >
-            <Text
-              style={[
-                styles.repairCustomerName,
-                {
-                  color: colors.foreground,
-                  fontFamily: 'Inter_700Bold',
-                },
-              ]}
-              numberOfLines={1}
-            >
-              {repair.customerName}
-            </Text>
-            {!!repair.dealerName && (
-              <View
-                style={[
-                  styles.dealerPill,
-                  { backgroundColor: colors.successLight },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.dealerPillText,
-                    {
-                      color: colors.success,
-                      fontFamily: 'Inter_600SemiBold',
-                    },
-                  ]}
-                >
-                  Dealer
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            activeOpacity={0.72}
-            onPress={onPress}
-            accessibilityLabel={`Open repair ${repair.repairId}`}
-          >
-            <Text
-              style={[
-                styles.repairTime,
-                {
-                  color: colors.mutedForeground,
-                  fontFamily: 'Inter_500Medium',
-                },
-              ]}
-            >
-              {formatRepairTime(repair.createdAt)}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity
-          activeOpacity={0.72}
-          onPress={onPress}
-          testID={`home-repair-${repair.id}`}
-          accessibilityLabel={`Open repair ${repair.repairId}`}
-        >
-          <View style={styles.repairTicketRow}>
-            <Text
-              style={[
-                styles.repairMeta,
-                {
-                  color: colors.secondaryForeground,
-                  fontFamily: 'Inter_500Medium',
-                },
-              ]}
-            >
-              {repair.repairId}
-            </Text>
-            <Text
-              style={[
-                styles.repairDevice,
-                {
-                  color: colors.secondaryForeground,
-                  fontFamily: 'Inter_500Medium',
-                },
-              ]}
-              numberOfLines={1}
-            >
-              · {repair.brand} {repair.model}
-            </Text>
-          </View>
-
-          <View style={styles.repairBottomRow}>
-            <Text
-              style={[
-                styles.repairStatus,
-                { color: statusColor, fontFamily: 'Inter_600SemiBold' },
-              ]}
-              numberOfLines={1}
-            >
-              {repairStatusLine(repair)}
-            </Text>
-
-            <View
-              style={[
-                styles.amountPill,
-                {
-                  backgroundColor:
-                    total <= 0
-                      ? colors.backgroundSecondary
-                      : isPaid
-                        ? colors.successLight
-                        : `${colors.destructive}12`,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.amountLabel,
-                  {
-                    color:
-                      total <= 0
-                        ? colors.mutedForeground
-                        : isPaid
-                          ? colors.success
-                          : colors.destructive,
-                    fontFamily: 'Inter_600SemiBold',
-                  },
-                ]}
-              >
-                {total <= 0 ? 'No Amount' : isPaid ? 'Paid' : 'Due'}
-              </Text>
-              {total > 0 && (
-                <Text
-                  style={[
-                    styles.amountValue,
-                    {
-                      color: isPaid ? colors.success : colors.destructive,
-                      fontFamily: 'Inter_700Bold',
-                    },
-                  ]}
-                >
-                  {formatCurrency(isPaid ? total : due)}
-                </Text>
-              )}
-            </View>
-          </View>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
-function RepairHomeScreen() {
-  const colors = useColors();
-  const { data: notificationData } = useNotificationsList({
-    query: {
-      enabled: true,
-      refetchInterval: 5_000,
-      refetchIntervalInBackground: false,
-      refetchOnMount: 'always',
-    },
-  } as any);
-  const unreadNotificationCount = notificationData?.unreadCount ?? 0;
-  const scheme = useColorScheme();
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const { canAccess } = useAuth();
-  const { customers } = useData();
-  const [search, setSearch] = useState('');
-  const searchInputRef = useRef<TextInput>(null);
-
-  const repairsParams = {
-    q: search.trim() || undefined,
-    page: 1,
-    limit: 50,
-  };
-  const {
-    data,
-    isLoading,
-    isError,
-    refetch,
-    isFetching,
-  } = useRepairsList(repairsParams, {
-    query: { queryKey: getRepairsListQueryKey(repairsParams) },
-  });
-  const allRepairs = (data?.repairs ?? []) as Repair[];
-  const repairs = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return allRepairs;
-    return allRepairs.filter((repair) =>
-      [
-        repair.customerName,
-        repair.repairId,
-        repair.mobile,
-        repair.brand,
-        repair.model,
-      ].some((value) => value?.toLowerCase().includes(query)),
-    );
-  }, [allRepairs, search]);
-  const topPad =
-    Platform.OS === 'web' ? insets.top + 67 : Math.max(insets.top, 12);
-  const canCreateRepair = canAccess('repairs_create');
-  const chatCustomerForRepair = useCallback(
-    (repair: Repair) => {
-      const directMatch = customers.find((customer) => customer.id === repair.customerId);
-      if (directMatch) return directMatch;
-
-      // Older repair rows can predate the customerId link. Resolve a safe,
-      // unique customer identity from the live, shop-scoped customer list.
-      const mobile = normalizePhone(repair.mobile);
-      const mobileMatches = mobile
-        ? customers.filter((customer) => normalizePhone(customer.mobile) === mobile)
-        : [];
-      if (mobileMatches.length === 1) return mobileMatches[0];
-
-      const customerName = normalizeIdentityText(repair.customerName);
-      const nameMatches = customerName
-        ? customers.filter(
-            (customer) => normalizeIdentityText(customer.name) === customerName,
-          )
-        : [];
-      return nameMatches.length === 1 ? nameMatches[0] : null;
-    },
-    [customers],
-  );
-
-  const renderHeader = () => (
-    <View
-      style={[
-        styles.homeHeader,
-        {
-          paddingTop: topPad,
-          backgroundColor: colors.card,
-          borderBottomColor: colors.border,
-        },
-      ]}
-    >
-      <View style={styles.homeHeaderRow}>
-        <TouchableOpacity
-          onPress={() => router.push('/(tabs)/more')}
-          style={styles.headerIconButton}
-          accessibilityLabel="Open menu"
-        >
-          <Feather name="menu" size={27} color={colors.foreground} />
-        </TouchableOpacity>
-
-        <View style={styles.brandLockup}>
-          <BrandMark size={27} />
-          <Text style={[styles.brandName, { color: colors.foreground }]}>{APP_BRAND}</Text>
-        </View>
-
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            onPress={() => searchInputRef.current?.focus()}
-            style={styles.headerIconButton}
-            accessibilityLabel="Search repairs"
-          >
-            <Feather name="search" size={23} color={colors.foreground} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => router.push('/(tabs)/more/notifications')}
-            style={[styles.headerIconButton, styles.notificationButton]}
-            accessibilityLabel="Open notifications"
-          >
-            <Feather name="bell" size={22} color={colors.foreground} />
-            {unreadNotificationCount > 0 && (
-              <View style={[styles.headerNotificationBadge, { backgroundColor: colors.destructive }]}>
-                <Text style={styles.headerNotificationBadgeText}>
-                  {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={styles.searchRow}>
-        <View
-          style={[
-            styles.homeSearch,
-            { backgroundColor: colors.backgroundSecondary },
-          ]}
-        >
-          <Feather
-            name="search"
-            size={19}
-            color={colors.mutedForeground}
-          />
-          <TextInput
-            ref={searchInputRef}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search customer or ticket..."
-            placeholderTextColor={colors.mutedForeground}
-            style={[
-              styles.homeSearchInput,
-              {
-                color: colors.foreground,
-                fontFamily: 'Inter_400Regular',
-              },
-            ]}
-            accessibilityLabel="Search customer or ticket"
-            returnKeyType="search"
-          />
-          {search.length > 0 && (
+        <View style={[styles.contactScreen, { backgroundColor: colors.background, paddingTop: Platform.OS === 'web' ? topPad : insets.top }]}>
+          <View style={[styles.contactDiscoveryHeader, { borderBottomColor: colors.border }]}>
             <TouchableOpacity
-              onPress={() => setSearch('')}
-              accessibilityLabel="Clear search"
+              onPress={() => setShowContactDiscovery(false)}
+              style={styles.iconButton}
+              accessibilityLabel="Close contact picker"
             >
-              <Feather
-                name="x"
-                size={18}
-                color={colors.mutedForeground}
-              />
+              <Feather name="arrow-left" size={24} color={colors.foreground} />
             </TouchableOpacity>
-          )}
-        </View>
-        <TouchableOpacity
-          onPress={() => router.push('/(tabs)/repairs')}
-          style={[
-            styles.filterButton,
-            { backgroundColor: colors.backgroundSecondary },
-          ]}
-          accessibilityLabel="Open repair filters"
-        >
-          <Feather name="sliders" size={21} color={colors.foreground} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+            <View style={styles.contactHeaderTitle}>
+              <Text style={[styles.contactTitle, { color: colors.foreground }]}>Select contact</Text>
+              <Text style={[styles.contactCount, { color: colors.mutedForeground }]}>
+                {contactsLoaded ? `${deviceContacts.length} contacts` : 'Loading contacts…'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => {
+                setContactsLoaded(false);
+                setContactStatus('idle');
+              }}
+              style={styles.iconButton}
+              accessibilityLabel="Find contacts on this device"
+            >
+              <Feather name="refresh-cw" size={20} color={colors.foreground} />
+            </TouchableOpacity>
+          </View>
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <FlatList
-        data={repairs}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => {
-          const chatCustomer = chatCustomerForRepair(item);
-          return (
-            <RepairHomeItem
-              repair={item}
-              colors={colors}
-              onPress={() => router.push(`/(tabs)/repairs/${item.id}`)}
-              onCustomerPress={
-                chatCustomer
-                  ? () =>
-                      router.push(
-                        `/(tabs)/customers/chat/${chatCustomer.id}?targetId=${chatCustomer.id}&type=customer&name=${encodeURIComponent(chatCustomer.name)}`,
-                      )
-                  : undefined
-              }
+          <View style={[styles.contactSearchBar, { backgroundColor: colors.backgroundSecondary }]}>
+            <Feather name="search" size={20} color={colors.mutedForeground} />
+            <TextInput
+              value={exactPhone}
+              onChangeText={setExactPhone}
+              placeholder="Search name or number"
+              placeholderTextColor={colors.mutedForeground}
+              style={[styles.contactSearchInput, { color: colors.foreground }]}
+              accessibilityLabel="Exact mobile number"
             />
-          );
-        }}
-        ListHeaderComponent={renderHeader}
-        ListEmptyComponent={
-          isLoading ? (
-            <View style={styles.homeEmpty}>
-              <ActivityIndicator size="large" color={colors.primary} />
+            {!!exactPhone && (
+              <TouchableOpacity onPress={() => setExactPhone('')} accessibilityLabel="Clear contact search">
+                <Feather name="x" size={19} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={lookupExactPhone} accessibilityLabel="Find registered contact">
+              <Feather name="search" size={20} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+
+          {contactStatus === 'loading' ? (
+            <View style={styles.contactLoading}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={{ color: colors.mutedForeground }}>Checking your contacts on Avarpus…</Text>
+            </View>
+          ) : contactStatus === 'denied' ? (
+            <View style={styles.contactPermissionState}>
+              <Feather name="users" size={36} color={colors.mutedForeground} />
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Allow contacts access</Text>
+              <Text style={[styles.contactPermissionText, { color: colors.mutedForeground }]}>
+                Contacts permission was denied. Allow access so Avarpus can show who is registered and who you can invite.
+              </Text>
+              <TouchableOpacity onPress={() => void Linking.openSettings()} style={[styles.permissionButton, { backgroundColor: colors.primary }]}>
+                <Text style={styles.permissionButtonText}>Open settings</Text>
+              </TouchableOpacity>
             </View>
           ) : (
-            <View style={styles.homeEmpty}>
-              <Feather
-                name={isError ? 'alert-circle' : 'clipboard'}
-                size={32}
-                color={
-                  isError ? colors.destructive : colors.mutedForeground
-                }
-              />
-              <Text
-                style={[
-                  styles.homeEmptyTitle,
-                  {
-                    color: colors.foreground,
-                    fontFamily: 'Inter_700Bold',
-                  },
-                ]}
-              >
-                {isError
-                  ? 'Could not load repairs'
-                  : search
-                    ? 'No matching repairs'
-                    : 'No repairs yet'}
-              </Text>
-              <Text
-                style={[
-                  styles.homeEmptyText,
-                  {
-                    color: colors.mutedForeground,
-                    fontFamily: 'Inter_400Regular',
-                  },
-                ]}
-              >
-                {isError
-                  ? 'Check your connection and try again.'
-                  : search
-                    ? 'Try a customer name or repair ticket.'
-                    : 'New repair jobs will appear here.'}
-              </Text>
-              {isError && (
-                <TouchableOpacity
-                  onPress={() => refetch()}
-                  style={[
-                    styles.retryBtn,
-                    { backgroundColor: colors.primary },
-                  ]}
-                >
-                  <Text
-                    style={{
-                      color: colors.primaryForeground,
-                      fontFamily: 'Inter_600SemiBold',
-                    }}
-                  >
-                    Retry
-                  </Text>
-                </TouchableOpacity>
+            <SectionList<ContactListItem>
+              sections={contactSections}
+              keyExtractor={(item) => item.kind === 'registered' ? item.contact.userId : item.contact.id}
+              stickySectionHeadersEnabled
+              keyboardShouldPersistTaps="handled"
+              renderSectionHeader={({ section }) => (
+                <View style={[styles.contactSectionHeader, { backgroundColor: colors.background }]}>
+                  <Text style={[styles.contactSectionTitle, { color: colors.mutedForeground }]}>{section.title}</Text>
+                </View>
               )}
-            </View>
-          )
-        }
-        contentContainerStyle={styles.homeListContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isFetching && !isLoading}
-            onRefresh={refetch}
-            tintColor={colors.primary}
-          />
-        }
-      />
-
-      {canCreateRepair && (
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: colors.primary }]}
-          onPress={() => router.push('/(tabs)/repairs/new')}
-          accessibilityLabel="Create new repair"
-          testID="home-create-repair"
-        >
-          <Feather
-            name="plus"
-            size={32}
-            color={colors.primaryForeground}
-          />
-        </TouchableOpacity>
-      )}
+              renderItem={({ item }) => item.kind === 'registered' ? (
+                <TouchableOpacity
+                  onPress={() => void openDirectChat(item.contact)}
+                  disabled={openingContactId !== null}
+                  style={[styles.contactItem, { opacity: openingContactId === item.contact.userId ? 0.5 : 1 }]}
+                  testID={`matched-contact-${item.contact.userId}`}
+                >
+                  <Avatar
+                    name={deviceContactByPhone.get(normalizeIndianPhone(item.contact.mobile ?? '') ?? '')?.name ?? item.contact.name}
+                    url={deviceContactByPhone.get(normalizeIndianPhone(item.contact.mobile ?? '') ?? '')?.imageUri ?? item.contact.profilePhoto}
+                    size={48}
+                  />
+                  <View style={styles.contactDetails}>
+                    <Text style={[styles.contactName, { color: colors.foreground }]} numberOfLines={1}>
+                      {deviceContactByPhone.get(normalizeIndianPhone(item.contact.mobile ?? '') ?? '')?.name ?? item.contact.name}
+                    </Text>
+                    <Text style={[styles.contactPhone, { color: colors.mutedForeground }]}>+91 {item.contact.mobile}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => void openDirectChat(item.contact)} style={styles.contactRowAction} accessibilityLabel={`Message ${item.contact.name}`}>
+                    <Feather name="message-circle" size={21} color={colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => void callContact(item.contact.mobile)} style={styles.contactRowAction} accessibilityLabel={`Call ${item.contact.name}`}>
+                    <Feather name="phone" size={20} color={colors.primary} />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.contactItem}>
+                  <Avatar name={item.contact.name} url={item.contact.imageUri} size={48} />
+                  <View style={styles.contactDetails}>
+                    <Text style={[styles.contactName, { color: colors.foreground }]} numberOfLines={1}>{item.contact.name}</Text>
+                    <Text style={[styles.contactPhone, { color: colors.mutedForeground }]}>+91 {item.contact.phone}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => void inviteContact(item.contact.phone)} style={styles.inviteAction} accessibilityLabel={`Invite ${item.contact.name}`}>
+                    <Text style={[styles.inviteText, { color: colors.primary }]}>Invite</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              ListEmptyComponent={
+                <View style={styles.contactPermissionState}>
+                  <Text style={[styles.contactPermissionText, { color: colors.mutedForeground }]}>
+                    {contactStatus === 'error' ? contactError : exactPhone ? 'No contacts match your search.' : 'No phone contacts were found.'}
+                  </Text>
+                </View>
+              }
+              contentContainerStyle={styles.contactListContent}
+            />
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
 
 export default function HomeScreen() {
-  // The first tab is Chats for every role. Repair, payment, and dealer
-  // workflows stay in their own tabs instead of leaking into the chat inbox.
   return <CustomerInboxScreen />;
 }
 
@@ -1260,130 +891,209 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  centeredState: {
-    flex: 1,
+  normalHeaderContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  topAppBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
+    height: 56,
   },
-  stateText: {
-    fontSize: 14,
+  appTitle: {
+    fontSize: 22,
+    fontFamily: 'Inter_700Bold',
   },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  iconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 22,
-    maxWidth: 320,
-    marginBottom: 24,
-  },
-  shieldBox: {
+  appBarActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchContainer: {
+    marginTop: 4,
+  },
+  selectionSearchContainer: {
+    marginTop: 0,
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+    borderRadius: 24,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
   },
-  shieldText: {
-    fontSize: 12,
+  searchBarLeft: {
+    marginRight: 12,
   },
-  retryBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    fontFamily: 'Inter_400Regular',
+    paddingVertical: 0,
+  },
+  selectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 72,
+    paddingHorizontal: 8,
+  },
+  selectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  selectionCount: {
+    fontSize: 18,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#fff',
+  },
+  selectionHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  listContent: {
+    flexGrow: 1,
+    paddingBottom: 80, // room for FAB
   },
   roomItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    gap: 13,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   roomAvatar: {
     borderWidth: 0,
   },
+  selectionCheckmark: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#21C063',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   roomContent: {
     flex: 1,
+    marginLeft: 14,
     minWidth: 0,
-    gap: 3,
   },
   roomHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 3,
   },
   roomName: {
     fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
     flex: 1,
     marginRight: 12,
   },
   roomTime: {
     fontSize: 12,
+    fontFamily: 'Inter_400Regular',
   },
   roomFooter: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  roomLastMsg: {
-    fontSize: 14,
-    marginRight: 8,
-  },
-  roomPreviewIcon: {
-    marginRight: 5,
-  },
   receiptTicks: {
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
-    letterSpacing: -3,
-    marginRight: 7,
-    paddingRight: 3,
+    letterSpacing: -2,
+    marginRight: 4,
+  },
+  roomPreviewIcon: {
+    marginRight: 4,
+  },
+  roomLastMsg: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    flex: 1,
+  },
+  roomFooterIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   unreadBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 12,
-    marginLeft: 6,
+    backgroundColor: '#21C063',
     minWidth: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 6,
   },
   unreadText: {
     fontSize: 11,
-    color: '#FFFFFF',
+    fontFamily: 'Inter_600SemiBold',
   },
-  chatHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  chatHeaderTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  chatHeaderTitle: { fontSize: 24 },
-  chatHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  chatHeaderIcon: {
-    width: 32,
-    height: 32,
+  fab: {
+    position: 'absolute',
+    right: 16,
+    width: 56,
+    height: 56,
     borderRadius: 16,
+    backgroundColor: '#21C063',
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  fabPlusBadge: {
+    position: 'absolute',
+    bottom: 14,
+    right: 14,
+    backgroundColor: '#21C063',
+  },
+  centeredState: {
+    position: 'absolute',
+    top: 200,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stateText: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+  },
+  emptyContainer: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 15,
+    fontFamily: 'Inter_500Medium',
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter_700Bold',
+  },
+  retryBtn: {
+    marginTop: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
   overflowBackdrop: {
     flex: 1,
@@ -1395,247 +1105,134 @@ const styles = StyleSheet.create({
     width: 214,
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 7,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
-    elevation: 12,
+    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   overflowMenuItem: {
-    minHeight: 51,
-    justifyContent: 'center',
-    paddingHorizontal: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   overflowMenuLabel: {
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 15,
+    fontFamily: 'Inter_400Regular',
   },
-  roomFilters: {
+  contactDiscoveryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 10,
-  },
-  roomFilterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 100,
-    marginRight: 4,
-  },
-  securePill: {
-    marginLeft: 'auto',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  homeHeader: {
+    paddingHorizontal: 8,
+    paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 20,
-    paddingBottom: 14,
   },
-  homeHeaderRow: {
-    height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 11,
+  contactScreen: {
+    flex: 1,
   },
-  headerIconButton: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
+  contactHeaderTitle: {
+    flex: 1,
+    marginLeft: 8,
   },
-  notificationButton: { position: 'relative' },
-  headerNotificationBadge: {
-    position: 'absolute',
-    top: 1,
-    right: 0,
-    minWidth: 16,
-    height: 16,
-    paddingHorizontal: 3,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+  contactTitle: {
+    fontSize: 19,
+    fontFamily: 'Inter_600SemiBold',
   },
-  headerNotificationBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    lineHeight: 11,
-    fontFamily: 'Inter_700Bold',
+  contactCount: {
+    marginTop: 2,
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
   },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 1,
-  },
-  brandLockup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  brandLogo: {
-    width: 38,
-    height: 38,
-  },
-  brandName: {
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-  },
-  searchRow: {
+  contactSearchBar: {
+    minHeight: 46,
+    marginHorizontal: 14,
+    marginVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 23,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  homeSearch: {
-    flex: 1,
-    height: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 13,
-    paddingHorizontal: 14,
-  },
-  homeSearchInput: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 14,
-    paddingVertical: 0,
-  },
-  filterButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  homeListContent: {
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  repairItem: {
-    minHeight: 112,
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  repairAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 13,
-    marginTop: 1,
-  },
-  repairAvatarText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-  },
-  repairContent: {
+  contactSearchInput: {
     flex: 1,
     minWidth: 0,
+    paddingVertical: 10,
+    fontSize: 15,
+    fontFamily: 'Inter_400Regular',
   },
-  repairNameRow: {
-    flexDirection: 'row',
+  contactLoading: {
+    paddingTop: 42,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
+    gap: 12,
   },
-  repairNameWrap: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  repairCustomerName: {
-    flexShrink: 1,
-    fontSize: 16,
-  },
-  dealerPill: {
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  dealerPillText: {
-    fontSize: 10,
-  },
-  repairTime: {
-    fontSize: 11,
-  },
-  repairTicketRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 3,
-    minWidth: 0,
-  },
-  repairMeta: {
-    fontSize: 12,
-  },
-  repairDevice: {
-    flex: 1,
-    fontSize: 12,
-  },
-  repairBottomRow: {
-    marginTop: 6,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  repairStatus: {
-    flex: 1,
-    fontSize: 12,
-  },
-  amountPill: {
-    alignItems: 'flex-end',
-    borderRadius: 9,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    minWidth: 72,
-  },
-  amountLabel: {
-    fontSize: 11,
-  },
-  amountValue: {
-    fontSize: 13,
-    marginTop: 1,
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: Platform.OS === 'web' ? 100 : 24,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#0B63F6',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.25,
-    shadowRadius: 9,
-    elevation: 6,
-  },
-  homeEmpty: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  contactPermissionState: {
     paddingHorizontal: 32,
-    paddingTop: 72,
+    paddingTop: 56,
+    alignItems: 'center',
+    gap: 12,
   },
-  homeEmptyTitle: {
-    fontSize: 17,
-    marginTop: 14,
-  },
-  homeEmptyText: {
+  contactPermissionText: {
     fontSize: 14,
-    marginTop: 6,
+    lineHeight: 20,
     textAlign: 'center',
+  },
+  permissionButton: {
+    marginTop: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 22,
+  },
+  permissionButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  contactListContent: {
+    paddingBottom: 28,
+  },
+  contactSectionHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  contactSectionTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 68,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  contactDetails: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: 14,
+  },
+  contactName: {
+    fontSize: 16,
+    fontFamily: 'Inter_500Medium',
+  },
+  contactPhone: {
+    marginTop: 3,
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+  },
+  contactRowAction: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inviteAction: {
+    minWidth: 58,
+    paddingVertical: 10,
+    alignItems: 'flex-end',
+  },
+  inviteText: {
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
   },
 });

@@ -29,7 +29,7 @@ import { RepairStatusBadge, PriorityBadge, SampleBadge } from '@/components/ui/B
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
-import { RepairStatus } from '@/types';
+import { Repair, RepairStatus, isDealerPortalRole, isLinkedCustomerPortalUser } from '@/types';
 import { formatDate, formatCurrency, REPAIR_STATUS_LABELS, REPAIR_STATUSES, getReturnStatusColor } from '@/utils/helpers';
 import { storage, KEYS } from '@/utils/storage';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
@@ -40,7 +40,7 @@ import {
   requestUploadUrl, repairPhotosAdd,
   useReturnsList, getReturnsListQueryKey,
   useRepairPartsList, getRepairPartsListQueryKey, repairPartsAdd,
-  useRepairPaymentsList, getRepairPaymentsListQueryKey, repairPaymentsCreate, repairPaymentVoid,
+  useRepairPaymentsList, getRepairPaymentsListQueryKey, repairPaymentsCreate, repairPaymentVoid, repairPaymentsVoidAll,
   useStaffList, getStaffListQueryKey, repairAssignTechnician,
   useRepairTesting, repairTesting, useEstimateApprovalsList, getEstimateApprovalsListQueryKey, estimateApprovalsCreate,
   estimateApprovalsDecide, repairNotifyReady, estimateApprovalsSendOtp,
@@ -98,6 +98,53 @@ function SummaryRow({ icon, label, value, color, bold, rightElement }: { icon: a
   );
 }
 
+function ReadOnlyRepairDetail({ repair, topPad }: { repair: Repair; topPad: number }) {
+  const colors = useColors();
+  const router = useRouter();
+  const total = repair.totalAmount ?? repair.repairCharge + repair.partsCharge;
+  const paid = repair.paidAmount ?? repair.advance ?? 0;
+  const rawBalance = repair.balance ?? total - paid;
+  const balanceLabel = rawBalance > 0 ? 'Due' : rawBalance < 0 ? 'Advance' : 'Paid / Settled';
+  const balanceAmount = rawBalance === 0 ? formatCurrency(0) : formatCurrency(Math.abs(rawBalance));
+  const balanceColor = rawBalance > 0 ? colors.destructive : rawBalance < 0 ? colors.success : colors.success;
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
+      <View style={[styles.detailHeader, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityLabel="Back">
+          <Feather name="arrow-left" size={22} color={colors.foreground} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.detailTitle, { color: colors.foreground }]}>Repair Details</Text>
+          <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Read-only repair portal</Text>
+        </View>
+      </View>
+      <ScrollView contentContainerStyle={[styles.scroll, { padding: 16, paddingBottom: 36 }]} showsVerticalScrollIndicator={false}>
+        <Card>
+          <Text style={[styles.cardLabel, { color: colors.mutedForeground }]}>REPAIR</Text>
+          <InfoRow label="Ticket" value={repair.repairId} bold />
+          <InfoRow label="Status" value={REPAIR_STATUS_LABELS[repair.status] || repair.status} />
+          <InfoRow label="Customer" value={repair.customerName} />
+          <InfoRow label="Device" value={[repair.deviceType, repair.brand, repair.model].filter(Boolean).join(' · ')} />
+          <InfoRow label="Problem" value={repair.problem || 'Not provided'} />
+        </Card>
+        <Card>
+          <Text style={[styles.cardLabel, { color: colors.mutedForeground }]}>COMPLETED REPAIR WORK</Text>
+          <Text style={{ fontSize: 14, color: repair.workPerformed ? colors.foreground : colors.mutedForeground, lineHeight: 20 }}>
+            {repair.workPerformed || 'Repair work has not been completed yet.'}
+          </Text>
+        </Card>
+        <Card>
+          <Text style={[styles.cardLabel, { color: colors.mutedForeground }]}>PAYMENT SUMMARY</Text>
+          <InfoRow label="Charges / Price" value={formatCurrency(total)} bold />
+          <InfoRow label="Paid / Deposit" value={formatCurrency(paid)} color={colors.success} />
+          <InfoRow label={balanceLabel} value={balanceAmount} color={balanceColor} bold />
+        </Card>
+      </ScrollView>
+    </View>
+  );
+}
+
 export default function RepairDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -138,6 +185,11 @@ export default function RepairDetailScreen() {
   const [voidTarget, setVoidTarget] = useState<{ id: string; amount: number; method: string } | null>(null);
   const [voidReason, setVoidReason] = useState('');
   const [voidSubmitting, setVoidSubmitting] = useState(false);
+  // Owner-only "mark the whole job unpaid" on a delivered repair: every live
+  // payment is voided with one shared reason (rows are never deleted).
+  const [showMarkUnpaid, setShowMarkUnpaid] = useState(false);
+  const [markUnpaidReason, setMarkUnpaidReason] = useState('');
+  const [markUnpaidSubmitting, setMarkUnpaidSubmitting] = useState(false);
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentSuccess, setPaymentSuccess] = useState<{
@@ -190,7 +242,17 @@ export default function RepairDetailScreen() {
   const tabBarHeight = Platform.OS === 'web' ? 84 : 62 + Math.max(insets.bottom, 8);
   const anims = useStaggerAnim(16);
 
-  const repair = useMemo(() => repairs.find((r) => r.id === id), [repairs, id]);
+  const repairFromList = useMemo(() => repairs.find((r) => r.id === id), [repairs, id]);
+  const [repairSnapshot, setRepairSnapshot] = useState<Repair | undefined>(repairFromList);
+  useEffect(() => {
+    if (repairFromList) setRepairSnapshot(repairFromList);
+  }, [repairFromList]);
+  // A status transition can immediately remove the repair from the currently
+  // filtered list (for example received -> repairing). Keep the open detail
+  // anchored to the last server-confirmed record instead of rendering the
+  // misleading "Repair not found" state.
+  const repair = repairFromList ?? repairSnapshot;
+  const isReadOnlyPortal = isDealerPortalRole(user?.role) || isLinkedCustomerPortalUser(user);
 
   // Keep the Testing tab's Pass/Fail state in sync with the saved checklist.
   const savedTestingJson = JSON.stringify(repair?.testingChecklist || {});
@@ -198,16 +260,17 @@ export default function RepairDetailScreen() {
     setEditTesting(JSON.parse(savedTestingJson));
   }, [savedTestingJson]);
 
-  const { data: photosData } = useRepairPhotosList(id as string, { query: { enabled: !!id, queryKey: getRepairPhotosListQueryKey(id as string) } });
+  const portalQueriesEnabled = !!id && !isReadOnlyPortal;
+  const { data: photosData } = useRepairPhotosList(id as string, { query: { enabled: portalQueriesEnabled, queryKey: getRepairPhotosListQueryKey(id as string) } });
   // Fullscreen viewer for receiving photos / signatures — tap a thumbnail to open.
   const [viewerImage, setViewerImage] = useState<{ uri: string; label: string } | null>(null);
-  const { data: eventsData } = useRepairEventsList(id as string, { query: { enabled: !!id, queryKey: getRepairEventsListQueryKey(id as string) } });
-  const { data: returnsData } = useReturnsList({ query: { queryKey: getReturnsListQueryKey() } });
-  const { data: partsData, refetch: partsRefetch } = useRepairPartsList(id as string, { query: { enabled: !!id, queryKey: getRepairPartsListQueryKey(id as string) } });
+  const { data: eventsData } = useRepairEventsList(id as string, { query: { enabled: portalQueriesEnabled, queryKey: getRepairEventsListQueryKey(id as string) } });
+  const { data: returnsData } = useReturnsList({ query: { enabled: !isReadOnlyPortal, queryKey: getReturnsListQueryKey() } });
+  const { data: partsData, refetch: partsRefetch } = useRepairPartsList(id as string, { query: { enabled: portalQueriesEnabled, queryKey: getRepairPartsListQueryKey(id as string) } });
 
-  const { data: paymentsData, refetch: paymentsRefetch } = useRepairPaymentsList(id as string, { query: { enabled: !!id, queryKey: getRepairPaymentsListQueryKey(id as string) } });
-  const { data: staffData } = useStaffList({ query: { queryKey: getStaffListQueryKey() } });
-  const { data: approvalsData, refetch: approvalsRefetch } = useEstimateApprovalsList(id as string, { query: { enabled: !!id, queryKey: getEstimateApprovalsListQueryKey(id as string) } });
+  const { data: paymentsData, refetch: paymentsRefetch } = useRepairPaymentsList(id as string, { query: { enabled: portalQueriesEnabled, queryKey: getRepairPaymentsListQueryKey(id as string) } });
+  const { data: staffData } = useStaffList({ query: { enabled: !isReadOnlyPortal, queryKey: getStaffListQueryKey() } });
+  const { data: approvalsData, refetch: approvalsRefetch } = useEstimateApprovalsList(id as string, { query: { enabled: portalQueriesEnabled, queryKey: getEstimateApprovalsListQueryKey(id as string) } });
 
   const repairReturns = useMemo(() => returnsData?.returns?.filter(r => r.repairId === id) || [], [returnsData, id]);
   const parts = partsData?.parts || [];
@@ -234,6 +297,12 @@ export default function RepairDetailScreen() {
         </View>
       </View>
     );
+  }
+
+  // Portal sessions are deliberately rendered by a separate, action-free
+  // screen. They consume only the repair returned by the server-scoped list.
+  if (isReadOnlyPortal) {
+    return <ReadOnlyRepairDetail repair={repair} topPad={topPad} />;
   }
 
   const balance = repair.balance !== undefined
@@ -365,6 +434,32 @@ export default function RepairDetailScreen() {
       Alert.alert('Void Failed', e.message || 'Could not void payment.');
     } finally {
       setVoidSubmitting(false);
+    }
+  };
+
+  // Reverse the whole job in one server transaction so it goes back to unpaid.
+  // The server locks the repair and voids every live payment together — a
+  // client-side loop over single voids could miss a payment recorded midway
+  // and leave the job silently paid.
+  const submitMarkUnpaid = async () => {
+    const reason = markUnpaidReason.trim();
+    if (!reason || markUnpaidSubmitting) return;
+    setMarkUnpaidSubmitting(true);
+    try {
+      const res = await repairPaymentsVoidAll(repair.id, { reason });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      setShowMarkUnpaid(false);
+      setMarkUnpaidReason('');
+      if (res.voidedCount === 0) {
+        Alert.alert('Pehle se Unpaid', 'Is job par koi live payment nahi tha.');
+      }
+    } catch (e: any) {
+      Alert.alert('Unpaid Nahi Ho Paya', e?.message || 'Payments reverse nahi ho paye.');
+    } finally {
+      await loadAll();
+      await paymentsRefetch();
+      queryClient.invalidateQueries();
+      setMarkUnpaidSubmitting(false);
     }
   };
 
@@ -546,10 +641,11 @@ export default function RepairDetailScreen() {
     setUpdating(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await updateRepair({
+      const updatedRepair = await updateRepair({
         ...repair,
         status: newStatus as RepairStatus,
       });
+      setRepairSnapshot(updatedRepair);
       setShowStatusPicker(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
@@ -1189,20 +1285,24 @@ export default function RepairDetailScreen() {
             <InfoRow label="Estimate" value={formatCurrency(payTotal)} bold />
             <InfoRow label="Paid" value={formatCurrency(payPaid)} color={colors.success} />
             <InfoRow label="Balance" value={formatCurrency(payRemaining)} color={payRemaining > 0 ? colors.warning : colors.success} bold />
-            <TouchableOpacity
-              onPress={() => {
-                setEditRepairCharge(repair.repairCharge.toString());
-                setEditServiceCharge((repair.serviceCharge || 0).toString());
-                setEditOtherCharge((repair.otherCharge || 0).toString());
-                setEditDiscount((repair.discount || 0).toString());
-                setEditTaxPercent((repair.taxPercent || 0).toString());
-                setShowFinancialEdit(true);
-              }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}
-            >
-              <Feather name="edit-2" size={13} color={colors.primary} />
-              <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_500Medium' }}>Edit Estimate</Text>
-            </TouchableOpacity>
+            {/* Charges on a delivered/closed job may only be corrected by the
+                dealer/owner — the server rejects staff edits there anyway. */}
+            {(isActiveRepair || isDealer) && (
+              <TouchableOpacity
+                onPress={() => {
+                  setEditRepairCharge(repair.repairCharge.toString());
+                  setEditServiceCharge((repair.serviceCharge || 0).toString());
+                  setEditOtherCharge((repair.otherCharge || 0).toString());
+                  setEditDiscount((repair.discount || 0).toString());
+                  setEditTaxPercent((repair.taxPercent || 0).toString());
+                  setShowFinancialEdit(true);
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}
+              >
+                <Feather name="edit-2" size={13} color={colors.primary} />
+                <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_500Medium' }}>Edit Estimate</Text>
+              </TouchableOpacity>
+            )}
           </Card>
         ) : (
           <Card>
@@ -1341,7 +1441,63 @@ export default function RepairDetailScreen() {
                 <Feather name="check-circle" size={18} color={colors.success} />
                 <Text style={{ fontSize: 15, color: colors.success, fontFamily: 'Inter_700Bold' }}>JOB COMPLETED ✓</Text>
               </View>
-              {/* Dealer/owner corrections on a delivered job: edit or delete. */}
+              {/* Dealer/owner corrections on a delivered job: money, details,
+                  payment status, or delete. Staff see none of this. */}
+              {canSeeFinance && (
+                <View style={{ marginTop: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', letterSpacing: 0.5 }}>
+                      OWNER CONTROLS
+                    </Text>
+                    <Text style={{ fontSize: 11, color: (payRemaining <= 0 && payTotal > 0) ? colors.success : payPaid > 0 ? colors.warning : colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }}>
+                      {(payRemaining <= 0 && payTotal > 0) ? 'PAID' : payPaid > 0 ? 'PARTIALLY PAID' : 'UNPAID'}
+                    </Text>
+                  </View>
+                  <InfoRow label="Total" value={formatCurrency(payTotal)} bold />
+                  <InfoRow label="Paid" value={formatCurrency(payPaid)} color={colors.success} />
+                  <InfoRow label="Balance" value={formatCurrency(payRemaining)} color={payRemaining > 0 ? colors.warning : colors.success} bold />
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                    {payRemainingCents > 0 && (
+                      <View style={{ flex: 1 }}>
+                        <Button title="Mark as Paid" variant="outline" onPress={openPaymentModal} />
+                      </View>
+                    )}
+                    {payPaid > 0 && (
+                      <View style={{ flex: 1 }}>
+                        <Button
+                          title="Mark as Unpaid"
+                          variant="outline"
+                          onPress={() => {
+                            setMarkUnpaidReason('');
+                            setShowMarkUnpaid(true);
+                          }}
+                        />
+                      </View>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEditRepairCharge(repair.repairCharge.toString());
+                      setEditServiceCharge((repair.serviceCharge || 0).toString());
+                      setEditOtherCharge((repair.otherCharge || 0).toString());
+                      setEditDiscount((repair.discount || 0).toString());
+                      setEditTaxPercent((repair.taxPercent || 0).toString());
+                      setShowFinancialEdit(true);
+                    }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}
+                  >
+                    <Feather name="edit-2" size={13} color={colors.primary} />
+                    <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_500Medium' }}>Edit Price & Charges</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setShowMore(true)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}
+                  >
+                    <Feather name="list" size={13} color={colors.primary} />
+                    <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_500Medium' }}>Payment History & Single Void</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
                 <View style={{ flex: 1 }}>
                   <Button title="Edit Details" variant="outline" onPress={openServiceEdit} />
@@ -2326,6 +2482,44 @@ export default function RepairDetailScreen() {
         </KeyboardAvoidingCompat>
       </Modal>
 
+      {/* Mark Whole Job Unpaid (dealer/owner) */}
+      <Modal
+        visible={showMarkUnpaid}
+        animationType="fade"
+        transparent
+        onRequestClose={() => { if (!markUnpaidSubmitting) setShowMarkUnpaid(false); }}
+      >
+        <KeyboardAvoidingCompat style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Mark as Unpaid</Text>
+            <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 12, fontFamily: 'Inter_400Regular' }}>
+              {payments.filter(p => !(p as any).voidedAt).length} payment(s), total {formatCurrency(payPaid)} reverse honge aur job dobara unpaid ho jayegi. Records delete nahi hote — ledger mein VOIDED mark hoke dikhte hain aur finance mein reversal entry banti hai.
+            </Text>
+            <Text style={[styles.label, { color: colors.foreground }]}>Reason <Text style={{ color: colors.destructive }}>*</Text></Text>
+            <View collapsable={false}>
+              <TextInput
+                value={markUnpaidReason}
+                onChangeText={setMarkUnpaidReason}
+                maxLength={120}
+                placeholder="Galti se paid mark ho gaya tha..."
+                placeholderTextColor={colors.mutedForeground}
+                style={[styles.input, { color: colors.foreground, borderColor: colors.border }]}
+              />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <Button title="Cancel" variant="outline" onPress={() => setShowMarkUnpaid(false)} style={{ flex: 1 }} />
+              <Button
+                title="Unpaid Karein"
+                onPress={submitMarkUnpaid}
+                loading={markUnpaidSubmitting}
+                disabled={!markUnpaidReason.trim()}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        </KeyboardAvoidingCompat>
+      </Modal>
+
       {/* Service Edit Modal */}
       <Modal visible={showServiceEdit} animationType="fade" transparent onRequestClose={() => setShowServiceEdit(false)}>
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
@@ -2434,6 +2628,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingBottom: 14,
   },
+  detailHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1,
+  },
+  detailTitle: { fontSize: 18, fontFamily: 'Inter_700Bold' },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   repairId: { fontSize: 20 },

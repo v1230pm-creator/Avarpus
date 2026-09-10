@@ -1,0 +1,43 @@
+{
+  "families": [
+    { "id": "dealer-profile", "label": "dealer profile", "inactiveProbe": { "method": "GET", "path": "/dealers/me" } },
+    { "id": "repair-history", "label": "repair history", "inactiveProbe": { "method": "GET", "path": "/repairs" } },
+    { "id": "role-features", "label": "role features", "inactiveProbe": { "method": "GET", "path": "/role-features" } },
+    { "id": "auth-self-service", "label": "auth self-service", "inactiveDealerExempt": true },
+    { "id": "drive-backup", "label": "Drive backup", "inactiveProbe": { "method": "GET", "path": "/drive-backup" } },
+    { "id": "notifications", "label": "notifications", "inactiveProbe": { "method": "GET", "path": "/notifications" } },
+    { "id": "chat", "label": "chat", "inactiveProbe": { "method": "GET", "path": "/chat/capabilities" } }
+  ],
+  "rules": [
+    { "family": "dealer-profile", "method": "GET", "pattern": "^/dealers/me$" },
+    { "family": "repair-history", "method": "GET", "pattern": "^/repairs$" },
+    { "family": "repair-history", "method": "GET", "pattern": "^/repairs/[0-9a-fA-F-]{36}$" },
+    { "family": "role-features", "method": "GET", "pattern": "^/role-features$" },
+    { "family": "auth-self-service", "method": "GET", "pattern": "^/auth/.*$" },
+    { "family": "auth-self-service", "method": "POST", "pattern": "^/auth/.*$" },
+    { "family": "auth-self-service", "method": "PATCH", "pattern": "^/auth/.*$" },
+    { "family": "auth-self-service", "method": "DELETE", "pattern": "^/auth/.*$" },
+    { "family": "drive-backup", "method": "GET", "pattern": "^/drive-backup(?:/.*)?$" },
+    { "family": "drive-backup", "method": "POST", "pattern": "^/drive-backup(?:/.*)?$" },
+    { "family": "drive-backup", "method": "PATCH", "pattern": "^/drive-backup(?:/.*)?$" },
+    { "family": "drive-backup", "method": "DELETE", "pattern": "^/drive-backup(?:/.*)?$" },
+    { "family": "notifications", "method": "GET", "pattern": "^/notifications$" },
+    { "family": "notifications", "method": "POST", "pattern": "^/notifications/read$" },
+    { "family": "chat", "method": "GET", "pattern": "^/chat/capabilities$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/contacts/match$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/rooms$" },
+    { "family": "chat", "method": "GET", "pattern": "^/chat/rooms$" },
+    { "family": "chat", "method": "GET", "pattern": "^/chat/rooms/archived$" },
+    { "family": "chat", "method": "PATCH", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/preferences$" },
+    { "family": "chat", "method": "GET", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/block$" },
+    { "family": "chat", "method": "DELETE", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/block$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/reports$" },
+    { "family": "chat", "method": "GET", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/messages$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/messages$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/read$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/upload-url$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/call-token$" },
+    { "family": "chat", "method": "GET", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/messages/[0-9a-fA-F-]{36}/media$" }
+  ]
+}

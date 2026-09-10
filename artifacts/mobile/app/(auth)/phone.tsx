@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,24 +9,24 @@ import * as Haptics from 'expo-haptics';
 import { authOtpRequest } from '@workspace/api-client-react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
-import { useColors } from '@/hooks/useColors';
-import { CosmicWelcomeBackground } from '@/components/ui/CosmicWelcomeBackground';
+import { onBlue } from '@/constants/brand';
 
 export default function PhoneScreen() {
   const { signedOutNotice, clearSignedOutNotice } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const colors = useColors();
   const theme = {
-    bg: '#010714',
-    border: 'rgba(111, 169, 225, 0.48)',
-    primary: colors.primary,
-    text: '#F6F8FC',
-    textMuted: '#9BA8BC',
-    danger: '#F87171',
-    dangerBg: 'rgba(239, 68, 68, 0.12)',
-    info: '#60A5FA',
-    infoBg: 'rgba(59, 130, 246, 0.12)',
+    bg: onBlue.background,
+    // Field underlines must stay findable against the bright blue, so they
+    // use the strong hairline rather than the decorative one.
+    border: onBlue.lineStrong,
+    primary: onBlue.text,
+    text: onBlue.text,
+    textMuted: onBlue.textMuted,
+    danger: onBlue.danger,
+    info: onBlue.info,
+    noticeBg: onBlue.noticeBackground,
+    noticeBorder: onBlue.noticeBorder,
   };
 
   const [mobile, setMobile] = useState('');
@@ -47,9 +47,16 @@ export default function PhoneScreen() {
     return () => { active = false; };
   }, [router]);
 
+  // Next stays enabled, so validation feedback has to be announced as well as
+  // shown: otherwise a screen-reader user just hears nothing when they tap.
+  const reportError = (message: string) => {
+    setError(message);
+    AccessibilityInfo.announceForAccessibility(message);
+  };
+
   const handleSendOtp = async () => {
     if (mobile.length !== 10) {
-      setError('Please enter a valid 10-digit mobile number');
+      reportError('Please enter a valid 10-digit mobile number');
       return;
     }
     setError('');
@@ -60,7 +67,7 @@ export default function PhoneScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       router.push({ pathname: '/(auth)/otp', params: { mobile, rememberMe: '1' } });
     } catch (err: any) {
-      setError(err?.data?.message ?? 'Could not send OTP. Please try again.');
+      reportError(err?.data?.message ?? 'Could not send OTP. Please try again.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setOtpLoading(false);
@@ -70,15 +77,13 @@ export default function PhoneScreen() {
   if (!termsReady) {
     return (
       <View style={[styles.loadingRoot, { backgroundColor: theme.bg }]}>
-        <CosmicWelcomeBackground />
-        <ActivityIndicator color={theme.primary} />
+        <ActivityIndicator color={theme.text} />
       </View>
     );
   }
 
   return (
     <View style={[styles.root, { backgroundColor: theme.bg }]}>
-      <CosmicWelcomeBackground />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 20 }]}
         showsVerticalScrollIndicator={false}
@@ -100,13 +105,17 @@ export default function PhoneScreen() {
           </Text>
 
           {!!signedOutNotice && !error && (
-            <View style={[styles.alertBox, { backgroundColor: theme.infoBg, borderColor: theme.infoBg }]}>
+            <View style={[styles.alertBox, { backgroundColor: theme.noticeBg, borderColor: theme.noticeBorder }]}>
               <Feather name="info" size={14} color={theme.info} />
               <Text style={[styles.alertText, { color: theme.info }]}>{signedOutNotice}</Text>
             </View>
           )}
           {!!error && (
-            <View style={[styles.alertBox, { backgroundColor: theme.dangerBg, borderColor: theme.dangerBg }]}>
+            <View
+              accessibilityLiveRegion="polite"
+              accessibilityRole="alert"
+              style={[styles.alertBox, { backgroundColor: theme.noticeBg, borderColor: theme.noticeBorder }]}
+            >
               <Feather name="alert-circle" size={14} color={theme.danger} />
               <Text style={[styles.alertText, { color: theme.danger }]}>{error}</Text>
             </View>
@@ -115,7 +124,7 @@ export default function PhoneScreen() {
           <View style={styles.phoneForm}>
             <TouchableOpacity style={[styles.countryRow, { borderBottomColor: theme.border }]} activeOpacity={0.75}>
               <Text style={[styles.countryText, { color: theme.text }]}>India</Text>
-              <Feather name="chevron-down" size={18} color={theme.primary} />
+              <Feather name="chevron-down" size={18} color={theme.text} />
             </TouchableOpacity>
             <View style={styles.phoneRow}>
               <View style={[styles.codeField, { borderBottomColor: theme.border }]}>
@@ -124,7 +133,7 @@ export default function PhoneScreen() {
               <View collapsable={false} style={[styles.numberField, { borderBottomColor: theme.border }]}>
                 <TextInput
                   value={mobile}
-                  onChangeText={(text) => setMobile(text.replace(/\D/g, '').slice(0, 10))}
+                  onChangeText={(text) => { setMobile(text.replace(/\D/g, '').slice(0, 10)); if (error) setError(''); }}
                   placeholder="Phone number"
                   placeholderTextColor={theme.textMuted}
                   keyboardType="phone-pad"
@@ -138,11 +147,14 @@ export default function PhoneScreen() {
           </View>
         </View>
         <View style={styles.nextButtonArea}>
+          {/* Deliberately always enabled: a dimmed control disappears against
+              this blue surface, and an incomplete number is already reported
+              inline when the user taps. */}
           <Button
             title={otpLoading ? 'Sending code...' : 'Next'}
             onPress={handleSendOtp}
             loading={otpLoading}
-            disabled={mobile.length !== 10}
+            variant="onBlue"
             fullWidth
             size="lg"
             style={styles.nextButton}
@@ -162,8 +174,8 @@ const styles = StyleSheet.create({
   headerBrand: { fontSize: 21, fontFamily: 'Inter_600SemiBold', letterSpacing: 1.8 },
   headerSpacer: { width: 34 },
   content: { flex: 1, alignItems: 'center', paddingTop: 46 },
-  title: { fontSize: 28, lineHeight: 36, letterSpacing: -0.5, fontFamily: 'Inter_500Medium', textAlign: 'center' },
-  subtitle: { maxWidth: 330, fontSize: 14, lineHeight: 21, fontFamily: 'Inter_400Regular', textAlign: 'center', marginTop: 18 },
+  title: { fontSize: 28, lineHeight: 36, letterSpacing: -0.5, fontFamily: 'Inter_600SemiBold', textAlign: 'center' },
+  subtitle: { maxWidth: 330, fontSize: 14.5, lineHeight: 21, fontFamily: 'Inter_500Medium', textAlign: 'center', marginTop: 18 },
   phoneForm: { width: '100%', maxWidth: 306, marginTop: 34 },
   countryRow: {
     height: 48,
@@ -176,11 +188,11 @@ const styles = StyleSheet.create({
   countryText: { fontSize: 18, fontFamily: 'Inter_500Medium' },
   phoneRow: { flexDirection: 'row', gap: 14, marginTop: 12 },
   codeField: { width: 82, height: 50, borderBottomWidth: 1.5, justifyContent: 'center' },
-  codeText: { fontSize: 18, fontFamily: 'Inter_400Regular' },
+  codeText: { fontSize: 18, fontFamily: 'Inter_500Medium' },
   numberField: { flex: 1, height: 50, borderBottomWidth: 1.5, justifyContent: 'center' },
-  numberInput: { height: 48, fontSize: 18, fontFamily: 'Inter_400Regular', paddingHorizontal: 0 },
+  numberInput: { height: 48, fontSize: 18, fontFamily: 'Inter_500Medium', paddingHorizontal: 0 },
   nextButtonArea: { width: '100%', height: 64, marginTop: 'auto', paddingHorizontal: 5, paddingBottom: 10 },
   nextButton: { borderRadius: 28, minHeight: 54, maxHeight: 54 },
-  alertBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 8, borderWidth: 1 },
-  alertText: { fontSize: 12, flex: 1, fontFamily: 'Inter_500Medium', lineHeight: 16 },
+  alertBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginTop: 18 },
+  alertText: { fontSize: 12.5, flex: 1, fontFamily: 'Inter_500Medium', lineHeight: 17 },
 });

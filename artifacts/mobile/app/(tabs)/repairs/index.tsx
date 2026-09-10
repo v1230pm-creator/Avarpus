@@ -22,13 +22,13 @@ import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/
 import { FlatCard } from '@/components/ui/FlatCard';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { Avatar } from '@/components/ui/Avatar';
-import { Repair, isDealerPortalRole } from '@/types';
+import { Repair, isDealerPortalRole, isLinkedCustomerPortalUser } from '@/types';
 import { formatDate, formatCurrency, getReturnStatusColor } from '@/utils/helpers';
 import * as Network from 'expo-network';
 import { offlineQueue, QueuedRepair } from '@/utils/offlineQueue';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { useReturnsList, useRepairsList, getRepairsListQueryKey, useDealersList, useDealersMe, useDealersOverview } from '@workspace/api-client-react';
+import { useReturnsList, useRepairsList, getRepairsListQueryKey, useDealersList, useDealersMe, useDealersOverview, useCustomersKhataGet } from '@workspace/api-client-react';
 
 const FILTERS = ['Received', 'Repair', 'Ready', 'Delivered', 'Dealers', 'After-Sales Service'] as const;
 type Filter = (typeof FILTERS)[number];
@@ -37,8 +37,11 @@ const PORTAL_FILTERS = ['All', 'Received', 'Repair', 'Ready', 'Delivered'] as co
 
 function RepairCard({ repair, onPress }: { repair: Repair; onPress: () => void; }) {
   const colors = useColors();
-  const balance = Math.max(0, repair.repairCharge + repair.partsCharge - (repair.advance || 0));
-  const total = repair.repairCharge + repair.partsCharge;
+  const total = repair.totalAmount ?? repair.repairCharge + repair.partsCharge;
+  const paid = repair.paidAmount ?? repair.advance ?? 0;
+  const rawBalance = repair.balance ?? total - paid;
+  const balanceLabel = rawBalance > 0 ? 'Due' : rawBalance < 0 ? 'Advance' : 'Paid / Settled';
+  const balanceColor = rawBalance > 0 ? colors.destructive : rawBalance < 0 ? colors.success : colors.mutedForeground;
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
@@ -69,10 +72,10 @@ function RepairCard({ repair, onPress }: { repair: Repair; onPress: () => void; 
             {formatCurrency(total)}
           </Text>
           <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
-            Paid: {formatCurrency(repair.advance || 0)}
+             Paid / Deposit: {formatCurrency(paid)}
           </Text>
-          <Text style={{ fontSize: 11, color: balance > 0 ? colors.destructive : colors.mutedForeground, fontFamily: balance > 0 ? 'Inter_600SemiBold' : 'Inter_400Regular' }}>
-            Due: {formatCurrency(balance)}
+           <Text style={{ fontSize: 11, color: balanceColor, fontFamily: rawBalance !== 0 ? 'Inter_600SemiBold' : 'Inter_400Regular' }}>
+             {balanceLabel}: {formatCurrency(Math.abs(rawBalance))}
           </Text>
         </View>
 
@@ -86,7 +89,9 @@ export default function RepairsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { canAccess, user } = useAuth();
-  const isPortal = isDealerPortalRole(user?.role);
+  const isDealerPortal = isDealerPortalRole(user?.role);
+  const isCustomerPortal = isLinkedCustomerPortalUser(user);
+  const isPortal = isDealerPortal || isCustomerPortal;
   const isOwner = user?.role === 'dealer' || user?.role === 'super_admin';
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -150,7 +155,8 @@ export default function RepairsScreen() {
   const { data: overviewData } = useDealersOverview({ query: { enabled: !isPortal && filter === 'Dealers' && isOwner } } as any);
 
   // Dealer-portal: own dealer profile + stats.
-  const { data: myDealer } = useDealersMe({ query: { enabled: isPortal } } as any);
+  const { data: myDealer } = useDealersMe({ query: { enabled: isDealerPortal } } as any);
+  const { data: myKhata } = useCustomersKhataGet('me', { query: { enabled: isCustomerPortal } } as any);
 
   const getStatusQuery = () => {
     if (isPortal) {
@@ -268,7 +274,7 @@ export default function RepairsScreen() {
             </Text>
             <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
               {isPortal
-                ? (myDealer?.dealer ? `${myDealer.dealer.dealerCode} · ${myDealer.dealer.name}` : `${totalCount} jobs`)
+                ? (isDealerPortal && myDealer?.dealer ? `${myDealer.dealer.dealerCode} · ${myDealer.dealer.name}` : `${totalCount} jobs`)
                 : filter === 'Dealers' ? `${totalCount} dealers` : `${totalCount} jobs`}
             </Text>
           </View>
@@ -372,7 +378,7 @@ export default function RepairsScreen() {
         )}
 
         {/* Dealer-portal stats header */}
-        {isPortal && myDealer?.stats && (
+        {isDealerPortal && myDealer?.stats && (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {[
               { label: 'Total', value: String(myDealer.stats.totalRepairs), color: colors.primary },
@@ -387,6 +393,28 @@ export default function RepairsScreen() {
             ))}
           </View>
         )}
+
+        {isCustomerPortal && myKhata?.totals && (() => {
+          const balance = myKhata.totals.balance;
+          const label = balance > 0 ? 'Due' : balance < 0 ? 'Advance' : 'Paid / Settled';
+          const color = balance > 0 ? colors.destructive : colors.success;
+          return (
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <FlatCard style={{ flex: 1, padding: 12, gap: 3 }}>
+                <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>TOTAL REPAIR VALUE</Text>
+                <Text style={{ fontSize: 17, color: colors.foreground, fontFamily: 'Inter_700Bold' }}>
+                  {formatCurrency(myKhata.totals.totalGiven)}
+                </Text>
+              </FlatCard>
+              <FlatCard style={{ flex: 1, padding: 12, gap: 3 }}>
+                <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{label.toUpperCase()}</Text>
+                <Text style={{ fontSize: 17, color, fontFamily: 'Inter_700Bold' }}>
+                  {formatCurrency(Math.abs(balance))}
+                </Text>
+              </FlatCard>
+            </View>
+          );
+        })()}
 
         {/* Filter Tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 2 }}>

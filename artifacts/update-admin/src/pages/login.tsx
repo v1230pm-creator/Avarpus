@@ -59,10 +59,10 @@ export default function Login() {
         mobile,
         code,
         rememberMe: true,
-        deviceInfo: 'Avarpus Release Console',
+        deviceInfo: 'Avarpus Admin Console',
       });
       if (session.user.role !== 'super_admin') {
-        setErrorMsg('Access denied. Only super administrators can access the release console.');
+        setErrorMsg('Access denied. Only super administrators can access the admin console.');
         return;
       }
       localStorage.setItem('auth_token', session.token);
@@ -79,8 +79,8 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8 text-center">
           <AvarpusLogo className="h-28 w-28 rounded-[1.75rem] shadow-lg mb-4" />
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Avarpus Release Console</h1>
-          <p className="text-muted-foreground mt-2">Sign in to manage and ship over-the-air updates</p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Avarpus Admin Console</h1>
+          <p className="text-muted-foreground mt-2">Sign in to manage releases and public requests</p>
         </div>
         
         <Card className="border-border/50 shadow-xl">

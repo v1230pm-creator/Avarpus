@@ -1,13 +1,21 @@
 import * as React from "react"
 import { Link, useLocation } from "wouter"
-import { useAuthMe, useAuthLogout } from "@workspace/api-client-react"
+import {
+  useAuthMe,
+  useAuthLogout,
+  useNotificationsList,
+  useNotificationsMarkRead,
+} from "@workspace/api-client-react"
 import {
   LogOut,
   LayoutDashboard,
   PackageSearch,
   PlusCircle,
   Menu,
-  X
+  X,
+  Inbox,
+  Bell,
+  Settings as SettingsIcon
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -17,12 +25,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation()
   const { data: me } = useAuthMe()
   const logout = useAuthLogout()
+  const { data: notificationData, refetch: refetchNotifications } = useNotificationsList({
+    query: { refetchInterval: 30_000 },
+  } as any)
+  const markNotificationRead = useNotificationsMarkRead({
+    mutation: { onSuccess: () => refetchNotifications() },
+  })
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
+  const requestAlerts = (notificationData?.notifications ?? [])
+    .filter((notification) =>
+      notification.type === "public_request_received" &&
+      !notification.read &&
+      typeof (notification.data as Record<string, unknown>).href === "string"
+    )
+    .slice(0, 3)
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/public-requests", label: "Public Requests", icon: Inbox },
     { href: "/releases", label: "Releases", icon: PackageSearch },
     { href: "/releases/new", label: "New Release", icon: PlusCircle },
+    { href: "/settings", label: "Settings", icon: SettingsIcon },
   ]
 
   const handleLogout = () => {
@@ -75,6 +98,37 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </Link>
             )
           })}
+
+          {requestAlerts.length > 0 && (
+            <div className="mt-6 border-t border-sidebar-border pt-4">
+              <div className="flex items-center gap-2 px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/60">
+                <Bell className="h-3.5 w-3.5" />
+                New request alerts
+              </div>
+              <div className="space-y-1">
+                {requestAlerts.map((notification) => {
+                  const href = (notification.data as Record<string, unknown>).href as string
+                  return (
+                    <Link
+                      key={notification.id}
+                      href={href}
+                      onClick={() => {
+                        setSidebarOpen(false)
+                        markNotificationRead.mutate({ data: { ids: [notification.id] } })
+                      }}
+                    >
+                      <div className="cursor-pointer rounded-md bg-sidebar-accent/50 px-3 py-2 hover:bg-sidebar-accent">
+                        <div className="text-sm font-medium">{notification.title}</div>
+                        <div className="mt-0.5 text-xs text-sidebar-foreground/60">
+                          {notification.body}
+                        </div>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </nav>
 
         <div className="p-4 border-t border-sidebar-border">

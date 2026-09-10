@@ -19,6 +19,7 @@ export function getVisiblePrimaryTabs({
   portal: _portal,
   canAccess: _canAccess,
 }: TabVisibilityInput): PrimaryTabName[] {
+  if (_customer && _canAccess('repairs_portal')) return ['index', 'repairs', 'status', 'shop', 'calls'];
   return ['index', 'status', 'shop', 'calls'];
 }
 

@@ -193,6 +193,35 @@ async function run(token) {
   check("restore repair 1 to delivered", u1s === 200, { u1s });
   s = await customerStats(token, customerId);
   check("after restore: total=2, due=900", s.total === 2 && s.due === 900, s);
+
+  // 7) Owner marks the fully paid, delivered repair 2 unpaid: every live
+  //    payment is voided in one transaction, so its 300 comes back as due
+  //    (900 + 300) without the ledger rows disappearing.
+  const { status: vaNo } = await api("POST", `/repairs/${repair2}/payments/void-all`, token, {});
+  check("void-all rejects a missing reason", vaNo === 400, { vaNo });
+  const { status: vas, json: vaj } = await api("POST", `/repairs/${repair2}/payments/void-all`, token, {
+    reason: "Galti se paid mark ho gaya tha",
+  });
+  check("void-all reverses every live payment", vas === 200 && vaj.voidedCount === 1 && vaj.paidAmount === 0, { vas, vaj });
+  s = await customerStats(token, customerId);
+  check("after void-all: due=1200", s.total === 2 && s.due === 1200, s);
+  const { json: ledger } = await api("GET", `/repairs/${repair2}/payments`, token);
+  check(
+    "voided payment stays in the ledger with its reason",
+    ledger.payments?.length === 1 && !!ledger.payments[0].voidedAt && !!ledger.payments[0].voidReason,
+    ledger.payments,
+  );
+  // Repeating it is a no-op rather than an error, so a retry after a dropped
+  // response cannot double-reverse anything.
+  const { status: va2s, json: va2j } = await api("POST", `/repairs/${repair2}/payments/void-all`, token, {
+    reason: "retry",
+  });
+  check("void-all is idempotent when nothing is live", va2s === 200 && va2j.voidedCount === 0, { va2s, va2j });
+  // The balance is collectable again after the reversal.
+  const { status: rp } = await payAdvance(repair2, 300);
+  check("repair can be paid again after void-all", rp === 200, { rp });
+  s = await customerStats(token, customerId);
+  check("after re-payment: due=900", s.total === 2 && s.due === 900, s);
 }
 
 async function main() {

@@ -36,6 +36,38 @@ args = "registration-gate"
 task = "workflow.run"
 args = "stage-locks"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "portal-repair-isolation"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "api-typecheck"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "workspace-typecheck"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "workspace-build"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "deployment-readiness"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "public-requests"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "admin-public-requests-browser"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "official-site-public-claims"
+
 [[workflows.workflow]]
 name = "typecheck"
 author = "agent"
@@ -90,6 +122,94 @@ args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock sh -c 'pnpm 
 
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow]]
+name = "portal-repair-isolation"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock sh -c 'pnpm run build && node scripts/test-portal-repair-isolation.mjs'"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "api-typecheck"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/api-server run typecheck"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "workspace-typecheck"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm run typecheck"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "workspace-build"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm run build"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "deployment-readiness"
+author = "agent"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "VITE_API_URL=https://api.avarpus.com pnpm run validate:deployment-readiness"
+
+[[workflows.workflow]]
+name = "public-requests"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock sh -c 'pnpm run build && node scripts/test-public-requests.mjs'"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "admin-public-requests-browser"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/update-admin run test:public-requests-browser"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "official-site-public-claims"
+author = "agent"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/avarpus-official-site run validate:public-claims"
 
 [agent]
 stack = "PNPM_WORKSPACE"

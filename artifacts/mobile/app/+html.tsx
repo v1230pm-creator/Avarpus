@@ -7,7 +7,7 @@ export default function Root({ children }: PropsWithChildren) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <meta name="theme-color" content="#010714" />
+        <meta name="theme-color" content="#006DA8" />
         <ScrollViewStyleReset />
         <style
           dangerouslySetInnerHTML={{
@@ -15,11 +15,7 @@ export default function Root({ children }: PropsWithChildren) {
               html, body {
                 margin: 0;
                 min-height: 100%;
-                background-color: #010714;
-                background-image: url('/avarpus-loading.jpg');
-                background-position: center;
-                background-size: cover;
-                background-repeat: no-repeat;
+                background-color: #006DA8;
               }
               body, #root {
                 min-height: 100vh;

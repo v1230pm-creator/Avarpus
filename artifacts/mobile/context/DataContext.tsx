@@ -9,7 +9,7 @@ import {
   financeList, financeCreate, financeUpdate,
   sampleDataLoad, sampleDataClear,
 } from '@workspace/api-client-react';
-import { Repair, Customer, InventoryItem, Purchase, FinanceEntry, isDealerPortalRole } from '@/types';
+import { Repair, Customer, InventoryItem, Purchase, FinanceEntry, isDealerPortalRole, isLinkedCustomerPortalUser } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { toFriendlyError } from '@/utils/friendlyError';
 import { offlineQueue } from '@/utils/offlineQueue';
@@ -39,7 +39,7 @@ interface DataContextType {
   loadError: string | null;
   loadAll: () => Promise<void>;
   addRepair: (r: Repair) => Promise<Repair>;
-  updateRepair: (r: Repair) => Promise<void>;
+  updateRepair: (r: Repair) => Promise<Repair>;
   /** Permanently delete a repair — dealer/owner only (server-enforced). */
   deleteRepair: (id: string) => Promise<void>;
   addCustomer: (c: NewCustomer) => Promise<Customer>;
@@ -64,7 +64,7 @@ const DataContext = createContext<DataContextType>({
   loadError: null,
   loadAll: async () => {},
   addRepair: async (r) => r,
-  updateRepair: async () => {},
+  updateRepair: async (r) => r,
   deleteRepair: async () => {},
   addCustomer: async (c) => c as Customer,
   updateCustomer: async () => {},
@@ -84,7 +84,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // Dealer-portal accounts are read-only and only allowed to fetch their own
   // repairs — bulk shop data (customers/inventory/purchases/finance) would
   // just 403 server-side, so skip loading it entirely.
-  const isPortal = isDealerPortalRole(user?.role);
+  const isPortal = isDealerPortalRole(user?.role) || isLinkedCustomerPortalUser(user);
   const canLoadRepairs = isPortal ? canAccess('repairs_portal') : canAccess('repairs');
   const canLoadCustomers = !isPortal && canAccess('customers');
   const canLoadInventory = !isPortal && canAccess('inventory');
@@ -353,6 +353,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // (network vs server vs validation) that screens can show directly in an
   // alert. The original error is preserved on `cause`.
   const guarded = async <T,>(action: string, fn: () => Promise<T>): Promise<T> => {
+    if (isPortal) {
+      throw new Error('This repair portal is read-only.');
+    }
     // Bump the mutation sequence at start AND end: any background refresh
     // that overlaps this write in either direction discards its snapshot
     // instead of overwriting the fresher local result.
@@ -462,6 +465,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const updated = res.repair as Repair;
     setRepairs((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
     refreshCustomers();
+    return updated;
   });
 
   const deleteRepair = async (id: string) => guarded('delete the repair', async () => {

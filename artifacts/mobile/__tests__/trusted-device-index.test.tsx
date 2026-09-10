@@ -90,7 +90,7 @@ describe('trusted-device entry status', () => {
 
     expect(screen.getByText('Splash loading')).toBeTruthy();
     await act(async () => {
-      jest.advanceTimersByTime(3599);
+      jest.advanceTimersByTime(2199);
     });
     expect(screen.queryByText('Checking trusted device')).toBeNull();
 

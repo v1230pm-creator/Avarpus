@@ -1,5 +1,5 @@
 import { useAuth } from "@/lib/auth";
-import { Redirect, Route, Switch } from "wouter";
+import { Redirect, Route, Switch, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 
 import { DashboardPage } from "@/pages/dashboard";
@@ -17,7 +17,9 @@ import { NotificationsPage } from "@/pages/notifications";
 import { DealersPage } from "@/pages/dealers";
 import { SettingsPage } from "@/pages/settings";
 import { ChatsPage } from "@/pages/chats";
-import { ComponentType } from "react";
+import { ComponentType, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { LockKeyhole } from "lucide-react";
 
 function ProtectedRoute({ component: Component, feature }: { component: ComponentType<any>, feature?: string }) {
   const { canAccess } = useAuth();
@@ -59,8 +61,46 @@ function AccountLanding() {
   );
 }
 
+function DealerInactivePage() {
+  const { logout, retryDealerPortal } = useAuth();
+  const [, setLocation] = useLocation();
+  const [retrying, setRetrying] = useState(false);
+
+  const retry = async () => {
+    setRetrying(true);
+    try {
+      await retryDealerPortal();
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
+      <div className="w-full max-w-lg text-center">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-muted" aria-hidden="true">
+          <LockKeyhole className="h-7 w-7 text-primary" />
+        </div>
+        <h1 className="text-3xl font-bold tracking-tight">Dealer portal is inactive</h1>
+        <p className="mt-3 text-muted-foreground">
+          Your shop has disabled access to this dealer portal. No repair information is available while access is inactive.
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          If the shop reactivates your access, retry to continue without signing in again.
+        </p>
+        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <Button onClick={retry} disabled={retrying}>{retrying ? "Checking..." : "Retry access"}</Button>
+          <Button variant="outline" onClick={() => setLocation("/settings")}>Manage account</Button>
+        </div>
+        <Button className="mt-3" variant="ghost" onClick={logout}>Sign out</Button>
+      </div>
+    </main>
+  );
+}
+
 export function ProtectedRoutes() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, dealerPortalInactive } = useAuth();
+  const [location] = useLocation();
 
   if (isLoading) {
     return (
@@ -76,6 +116,10 @@ export function ProtectedRoutes() {
 
   if (user?.needsDisplayName) {
     return <Redirect to="/verify?setup=display-name" />;
+  }
+
+  if (dealerPortalInactive && location !== "/settings") {
+    return <DealerInactivePage />;
   }
 
   return (

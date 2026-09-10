@@ -2,9 +2,9 @@ import React from 'react';
 import { StatusBar, useColorScheme } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BackgroundRelock } from '@/components/BackgroundRelock';
+import { KeyboardProviderCompat } from '@/components/KeyboardProviderCompat';
 import { PrivacyShield } from '@/components/PrivacyShield';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import {
@@ -20,6 +20,7 @@ import { setAuthTokenGetter, setBaseUrl } from '@workspace/api-client-react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { DataProvider } from '@/context/DataContext';
 import { storage, KEYS } from '@/utils/storage';
+import { AVARPUS_BLUE } from '@/constants/brand';
 
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 setAuthTokenGetter(() => storage.get<string>(KEYS.AUTH_TOKEN));
@@ -28,9 +29,17 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-function RootLayoutNav() {
+function RootLayoutNav({ dark }: { dark: boolean }) {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        // Without this the native stack falls back to its own light surface,
+        // which flashes through while the splash fades out and between screen
+        // transitions. Binding it to the theme keeps opening seamless.
+        contentStyle: { backgroundColor: AVARPUS_BLUE },
+      }}
+    >
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false, animation: 'fade' }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -59,7 +68,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <StatusBar
         barStyle={dark ? 'light-content' : 'dark-content'}
-        backgroundColor={dark ? '#040914' : '#F4F7FB'}
+        backgroundColor={AVARPUS_BLUE}
         translucent={false}
       />
       <ErrorBoundary>
@@ -67,12 +76,12 @@ export default function RootLayout() {
           <AuthProvider queryClient={queryClient}>
             <IdentityBoundDataProvider>
               <GestureHandlerRootView style={{ flex: 1 }}>
-                <KeyboardProvider>
+                <KeyboardProviderCompat>
                   <BackgroundRelock>
-                    <RootLayoutNav />
+                    <RootLayoutNav dark={dark} />
                     <PrivacyShield />
                   </BackgroundRelock>
-                </KeyboardProvider>
+                </KeyboardProviderCompat>
               </GestureHandlerRootView>
             </IdentityBoundDataProvider>
           </AuthProvider>

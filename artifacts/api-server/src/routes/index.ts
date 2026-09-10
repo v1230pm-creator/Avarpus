@@ -16,6 +16,8 @@ import chatRouter from "./chat";
 import shopRouter from "./shop";
 import statusRouter from "./status";
 import driveBackupRouter from "./driveBackup";
+import publicRequestsRouter from "./publicRequests";
+import appSettingsRouter from "./appSettings";
 
 const router: IRouter = Router();
 
@@ -36,5 +38,7 @@ router.use(chatRouter);
 router.use(shopRouter);
 router.use(statusRouter);
 router.use(driveBackupRouter);
+router.use(publicRequestsRouter);
+router.use(appSettingsRouter);
 
 export default router;

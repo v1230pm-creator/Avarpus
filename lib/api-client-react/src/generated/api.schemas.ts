@@ -5,6 +5,192 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type PublicRequestInputKind = typeof PublicRequestInputKind[keyof typeof PublicRequestInputKind];
+
+
+export const PublicRequestInputKind = {
+  support: 'support',
+  account_deletion: 'account_deletion',
+} as const;
+
+export interface PublicRequestInput {
+  kind: PublicRequestInputKind;
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
+  name: string;
+  /** @pattern ^[6-9][0-9]{9}$ */
+  mobile: string;
+  /** @maxLength 254 */
+  email?: string;
+  /** @maxLength 120 */
+  subject?: string;
+  /**
+     * @minLength 10
+     * @maxLength 2000
+     */
+  message: string;
+  /** For account deletion this confirms the requester understands that identity verification is required and the form does not instantly delete an account. */
+  confirmation: boolean;
+  /**
+     * Honeypot field; legitimate clients leave this empty.
+     * @maxLength 0
+     */
+  website?: string;
+}
+
+export type PublicRequestReceiptStatus = typeof PublicRequestReceiptStatus[keyof typeof PublicRequestReceiptStatus];
+
+
+export const PublicRequestReceiptStatus = {
+  received: 'received',
+} as const;
+
+export interface PublicRequestReceipt {
+  requestId: string;
+  status: PublicRequestReceiptStatus;
+  message: string;
+}
+
+export type PublicRequestStatus = typeof PublicRequestStatus[keyof typeof PublicRequestStatus];
+
+
+export const PublicRequestStatus = {
+  received: 'received',
+  in_review: 'in_review',
+  resolved: 'resolved',
+  rejected: 'rejected',
+} as const;
+
+export type PublicRequestKind = typeof PublicRequestKind[keyof typeof PublicRequestKind];
+
+
+export const PublicRequestKind = {
+  support: 'support',
+  account_deletion: 'account_deletion',
+} as const;
+
+export interface PublicRequest {
+  id: string;
+  kind: PublicRequestKind;
+  requesterName: string;
+  mobile: string;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  subject?: string | null;
+  message: string;
+  status: PublicRequestStatus;
+  /** @nullable */
+  reviewerUserId: string | null;
+  /** @nullable */
+  reviewedAt: string | null;
+  /** @nullable */
+  confirmationAcceptedAt: string | null;
+  createdAt: string;
+}
+
+export type PublicRequestQueueItemKind = typeof PublicRequestQueueItemKind[keyof typeof PublicRequestQueueItemKind];
+
+
+export const PublicRequestQueueItemKind = {
+  support: 'support',
+  account_deletion: 'account_deletion',
+} as const;
+
+export interface PublicRequestQueueItem {
+  id: string;
+  kind: PublicRequestQueueItemKind;
+  requesterName: string;
+  mobile: string;
+  /** @nullable */
+  subject: string | null;
+  status: PublicRequestStatus;
+  createdAt: string;
+}
+
+export interface PublicRequestTransition {
+  id: string;
+  fromStatus: PublicRequestStatus;
+  toStatus: PublicRequestStatus;
+  /** @nullable */
+  note: string | null;
+  reviewerUserId: string;
+  /** @nullable */
+  reviewerName?: string | null;
+  createdAt: string;
+}
+
+export interface PublicRequestList {
+  requests: PublicRequestQueueItem[];
+  /** @nullable */
+  nextCursor: string | null;
+}
+
+export interface PublicRequestIdentityVerification {
+  id: string;
+  reviewerUserId: string;
+  /** @nullable */
+  reviewerName: string | null;
+  method: string;
+  note: string;
+  createdAt: string;
+}
+
+export interface PublicRequestDetail {
+  request: PublicRequest;
+  transitions: PublicRequestTransition[];
+  identityVerification: PublicRequestIdentityVerification | null;
+}
+
+export interface PublicRequestStatusUpdate {
+  status: PublicRequestStatus;
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  note?: string;
+}
+
+export interface PublicRequestIdentityVerificationInput {
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
+  method: string;
+  /**
+     * @minLength 2
+     * @maxLength 2000
+     */
+  note: string;
+}
+
+export interface PublicContact {
+  /** @nullable */
+  supportEmail: string | null;
+}
+
+export interface SupportNotificationSettings {
+  /** @nullable */
+  recipientEmail: string | null;
+  /** @nullable */
+  updatedAt: string | null;
+  /** @nullable */
+  updatedByName: string | null;
+  /** True when a verified sender address is configured for outgoing mail. When false, alert emails may not be delivered. */
+  senderConfigured: boolean;
+}
+
+export interface SupportNotificationSettingsInput {
+  /**
+     * Destination inbox for new public request alerts. Null or an empty string turns alert emails off.
+     * @maxLength 254
+     * @nullable
+     */
+  recipientEmail: string | null;
+}
+
 export interface ProfileUpdateInput {
   name?: string;
   mobile?: string;
@@ -1482,7 +1668,12 @@ export interface ChatRoom {
   isBlocked?: boolean;
   /** True when the current caller created the active block. */
   blockedByMe?: boolean;
+  /** Caller-specific archive state. */
   isArchived: boolean;
+  /** Caller-specific pin state. */
+  isPinned: boolean;
+  /** Caller-specific mute state. */
+  isMuted: boolean;
   createdById?: string;
   createdByName?: string;
   createdAt: string;
@@ -1494,6 +1685,19 @@ export interface ChatRoom {
   peerOnline?: boolean;
   /** Last time the other member synced the application. */
   peerLastSeenAt?: string;
+}
+
+export interface ChatRoomPreferences {
+  isPinned: boolean;
+  isMuted: boolean;
+  isArchived: boolean;
+  updatedAt: string;
+}
+
+export interface ChatRoomPreferencesInput {
+  isPinned?: boolean;
+  isMuted?: boolean;
+  isArchived?: boolean;
 }
 
 export interface DriveBackupQuota {
@@ -1803,6 +2007,39 @@ export interface ServiceUnavailable {
   code?: string;
 }
 
+export type PublicRequestAdminListParams = {
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+cursor?: string;
+status?: PublicRequestAdminListStatus;
+kind?: PublicRequestAdminListKind;
+/**
+ * @maxLength 100
+ */
+search?: string;
+};
+
+export type PublicRequestAdminListStatus = typeof PublicRequestAdminListStatus[keyof typeof PublicRequestAdminListStatus];
+
+
+export const PublicRequestAdminListStatus = {
+  received: 'received',
+  in_review: 'in_review',
+  resolved: 'resolved',
+  rejected: 'rejected',
+} as const;
+
+export type PublicRequestAdminListKind = typeof PublicRequestAdminListKind[keyof typeof PublicRequestAdminListKind];
+
+
+export const PublicRequestAdminListKind = {
+  support: 'support',
+  account_deletion: 'account_deletion',
+} as const;
+
 export type AuthOtpRequest200 = {
   message: string;
 };
@@ -1972,6 +2209,12 @@ export type RepairPaymentsList200 = {
 
 export type RepairPaymentsCreate200 = {
   payment: RepairPayment;
+};
+
+export type RepairPaymentsVoidAll200 = {
+  voidedCount: number;
+  paidAmount: number;
+  payments: RepairPayment[];
 };
 
 export type RepairPaymentVoid200 = {
@@ -2255,8 +2498,16 @@ export type ChatRoomsCreate200 = {
   created: boolean;
 };
 
+export type ChatRoomsArchivedList200 = {
+  rooms: ChatRoom[];
+};
+
 export type ChatRoomsGet200 = {
   room: ChatRoom;
+};
+
+export type ChatRoomsPreferencesUpdate200 = {
+  preferences: ChatRoomPreferences;
 };
 
 export type ChatReportsCreate200 = {

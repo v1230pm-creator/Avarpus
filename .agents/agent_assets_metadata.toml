@@ -36,3 +36,45 @@ mtime_ms = 1788033123209
 storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:3c2b05f7-3c61-425c-9ed4-67462616b38f/04318a2d-a645-4b34-8d7e-9757926b4ba4/b488f7ca-19ca-4aea-b4dc-486863a14a65"
 storage_version_token = "1788033137640966"
 content_type = "image/png"
+
+[[outputs]]
+id = "9CG7FxorFx9jTzHip5Ifd"
+uri = "file://exports/avarpus-official-website-hostinger.zip"
+type = "unspecified"
+title = "Avarpus Official Website — Hostinger Package"
+description = "Production-ready static ZIP for direct extraction into Hostinger public_html. Includes the complete built website and Apache SPA routing fallback; excludes source, node_modules, Git data, caches, and development files."
+logical_id = "79551a58-dab5-4b7a-935a-51dc81e1b807"
+content_hash = "sha256:f23d2baff1faa6292c8e3453ff47d7db9862987195ddcb6d947db90ab60668bc"
+size = 3268197
+mtime_ms = 1788987989394
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:3c2b05f7-3c61-425c-9ed4-67462616b38f/79551a58-dab5-4b7a-935a-51dc81e1b807/aa16f6b2-5e68-4650-bc2f-e6e333c3282a"
+storage_version_token = "1788988014494403"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "hnhJIG4VjxhEco4MNBI4k"
+uri = "file://exports/avarpus-official-website-hostinger-hq.zip"
+type = "unspecified"
+title = "Avarpus Hostinger Website — HQ Fixed ZIP"
+description = "High-quality phone rendering, current blue Avarpus logo only, Hostinger SPA routing for /support and other nested pages, and cache rules that prevent old bundles from reappearing."
+logical_id = "05f1fa1a-3271-472d-a001-8e663eed5cd3"
+content_hash = "sha256:69df94e3644dd9e23aede01cb9c94488220cca4cd80a7116aae8a720781adb07"
+size = 3267433
+mtime_ms = 1788990792416
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:3c2b05f7-3c61-425c-9ed4-67462616b38f/05f1fa1a-3271-472d-a001-8e663eed5cd3/1d8d8a6f-fd41-4dc4-aa5c-c487de0dc191"
+storage_version_token = "1788990844443231"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "CanCJ99odGGWbFrm2ZICt"
+uri = "file://releases/avarpus-website-hostinger.zip"
+type = "unspecified"
+title = "Avarpus website — Hostinger upload (support email published)"
+description = "Static build for the Hostinger root folder. The support page now shows support@avarpus.com as a clickable mailto link, and it picks up the address configured in the admin console when the API is reachable. Includes the .htaccess with SPA rewrites and cache rules."
+logical_id = "26b766b0-a7b6-4203-be26-d0b2591eb22e"
+content_hash = "sha256:c3fdc4b95b41c72022bb9881a33023a24712a9115c2cceb37bd11899130d43ff"
+size = 3271030
+mtime_ms = 1789014623485
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:3c2b05f7-3c61-425c-9ed4-67462616b38f/26b766b0-a7b6-4203-be26-d0b2591eb22e/446c42fd-58bc-4240-a482-2489c226663b"
+storage_version_token = "1789014632241859"
+content_type = "application/octet-stream"

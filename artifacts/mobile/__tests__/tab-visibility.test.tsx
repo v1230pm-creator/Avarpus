@@ -30,11 +30,19 @@ describe('primary tab visibility', () => {
     })).toEqual(['index', 'status', 'shop', 'calls']);
   });
 
-  it('lets personal-only customers use chat, status, shop and calls', () => {
+  it('keeps standalone customers chat/profile-only by hiding repair navigation', () => {
     expect(getVisiblePrimaryTabs({
       customer: true,
       portal: false,
       canAccess: () => false,
     })).toEqual(['index', 'status', 'shop', 'calls']);
+  });
+
+  it('shows My Repairs only for a server-linked customer portal', () => {
+    expect(getVisiblePrimaryTabs({
+      customer: true,
+      portal: false,
+      canAccess: (feature) => feature === 'repairs_portal',
+    })).toEqual(['index', 'repairs', 'status', 'shop', 'calls']);
   });
 });

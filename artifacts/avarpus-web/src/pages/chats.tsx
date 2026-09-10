@@ -7,12 +7,15 @@ import {
   useChatMessagesList,
   useChatReportsCreate,
   useChatRoomsBlock,
+  useChatRoomsDelete,
   useChatRoomsGet,
   useChatRoomsList,
+  useChatRoomsPreferencesUpdate,
   useChatRoomsUnblock,
 } from "@workspace/api-client-react";
 import type { ChatReportReason } from "@workspace/api-client-react";
 import { format } from "date-fns";
+import { Archive, BellOff, Pin, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,6 +27,8 @@ export function ChatsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [selectedRoomIds, setSelectedRoomIds] = useState<Set<string>>(new Set());
+  const [managementPending, setManagementPending] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState<ChatReportReason>("spam");
   const [reportDetails, setReportDetails] = useState("");
@@ -65,6 +70,61 @@ export function ChatsPage() {
   const blockMutation = useChatRoomsBlock();
   const unblockMutation = useChatRoomsUnblock();
   const reportMutation = useChatReportsCreate();
+  const preferencesMutation = useChatRoomsPreferencesUpdate();
+  const deleteMutation = useChatRoomsDelete();
+
+  const toggleRoomSelection = (roomId: string) => {
+    setSelectedRoomIds((current) => {
+      const next = new Set(current);
+      if (next.has(roomId)) next.delete(roomId);
+      else next.add(roomId);
+      return next;
+    });
+  };
+
+  const manageSelectedRooms = async (
+    action: "pin" | "mute" | "archive" | "delete",
+  ) => {
+    if (!selectedRoomIds.size || managementPending) return;
+    const selected = rooms.filter((candidate: any) => selectedRoomIds.has(candidate.id));
+    if (
+      action === "delete" &&
+      !window.confirm(
+        "Hide the selected chats only for you? This will not delete the shared room or anyone else's history.",
+      )
+    ) {
+      return;
+    }
+    setManagementPending(true);
+    try {
+      if (action === "delete") {
+        await Promise.all(
+          [...selectedRoomIds].map((roomId) => deleteMutation.mutateAsync({ roomId })),
+        );
+      } else {
+        const field =
+          action === "pin" ? "isPinned" : action === "mute" ? "isMuted" : "isArchived";
+        const value = !selected.every((candidate: any) => candidate[field] === true);
+        await Promise.all(
+          [...selectedRoomIds].map((roomId) =>
+            preferencesMutation.mutateAsync({ roomId, data: { [field]: value } }),
+          ),
+        );
+      }
+      setSelectedRoomIds(new Set());
+      setSelectedRoomId(null);
+      await queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
+      toast({ title: "Chats updated", description: "Your changes are synced across devices." });
+    } catch (err: any) {
+      toast({
+        title: "Could not update chats",
+        description: err?.data?.message ?? err?.message ?? "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setManagementPending(false);
+    }
+  };
 
   const refreshSafetyState = async () => {
     if (!activeRoomId) return;
@@ -162,33 +222,64 @@ export function ChatsPage() {
         ) : (
           <div className="flex h-full">
             <div className="w-1/3 border-r flex flex-col">
-              <div className="p-4 border-b font-medium">Conversations</div>
+              <div className="p-4 border-b">
+                <div className="font-medium">Conversations</div>
+                {selectedRoomIds.size > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Chat management actions">
+                    <span className="text-xs text-muted-foreground">
+                      {selectedRoomIds.size} selected
+                    </span>
+                    <Button variant="outline" size="sm" disabled={managementPending} onClick={() => void manageSelectedRooms("pin")}>
+                      <Pin className="h-3.5 w-3.5" /> Pin
+                    </Button>
+                    <Button variant="outline" size="sm" disabled={managementPending} onClick={() => void manageSelectedRooms("mute")}>
+                      <BellOff className="h-3.5 w-3.5" /> Mute
+                    </Button>
+                    <Button variant="outline" size="sm" disabled={managementPending} onClick={() => void manageSelectedRooms("archive")}>
+                      <Archive className="h-3.5 w-3.5" /> Archive
+                    </Button>
+                    <Button variant="destructive" size="sm" disabled={managementPending} onClick={() => void manageSelectedRooms("delete")}>
+                      <Trash2 className="h-3.5 w-3.5" /> Delete
+                    </Button>
+                  </div>
+                )}
+              </div>
               <div className="flex-1 overflow-y-auto">
                 {rooms.map((room: any) => (
-                  <button
-                    key={room.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedRoomId(room.id);
-                      setShowReport(false);
-                      pendingReportRef.current = null;
-                    }}
-                    className={`w-full p-4 border-b text-left hover:bg-muted/50 ${
-                      room.id === activeRoomId ? "bg-muted/70" : ""
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <h4 className="font-semibold text-sm truncate">{room.name}</h4>
-                      {room.lastMessageAt && (
-                        <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">
-                          {format(new Date(room.lastMessageAt), 'MMM d')}
+                  <div key={room.id} className={`flex border-b hover:bg-muted/50 ${room.id === activeRoomId ? "bg-muted/70" : ""}`}>
+                    <label className="flex items-center pl-3" aria-label={`Select ${room.name}`}>
+                      <input
+                        type="checkbox"
+                        checked={selectedRoomIds.has(room.id)}
+                        onChange={() => toggleRoomSelection(room.id)}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRoomId(room.id);
+                        setShowReport(false);
+                        pendingReportRef.current = null;
+                      }}
+                      className="min-w-0 flex-1 p-4 text-left"
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <h4 className="font-semibold text-sm truncate">{room.name}</h4>
+                        <span className="ml-2 flex items-center gap-1 text-muted-foreground">
+                          {room.isPinned && <Pin className="h-3 w-3" aria-label="Pinned" />}
+                          {room.isMuted && <BellOff className="h-3 w-3" aria-label="Muted" />}
+                          {room.lastMessageAt && (
+                            <span className="text-[10px] whitespace-nowrap">
+                              {format(new Date(room.lastMessageAt), "MMM d")}
+                            </span>
+                          )}
                         </span>
+                      </div>
+                      {room.lastMessageBody && (
+                        <p className="text-xs text-muted-foreground truncate">{room.lastMessageBody}</p>
                       )}
-                    </div>
-                    {room.lastMessageBody && (
-                      <p className="text-xs text-muted-foreground truncate">{room.lastMessageBody}</p>
-                    )}
-                  </button>
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>

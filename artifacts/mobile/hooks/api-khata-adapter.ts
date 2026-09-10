@@ -49,8 +49,8 @@ export function useCustomerKhataGet(id: string, options?: any) {
                   : entry.type === 'repair_payment_void'
                     ? 'Payment Voided'
                     : entry.direction === 'given'
-                      ? 'You Gave'
-                      : 'You Received',
+                      ? 'Payment Given'
+                      : 'Payment Received',
           note: entry.note,
           method: entry.method,
           debit: entry.direction === 'given' ? entry.amount : 0,

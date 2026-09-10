@@ -9,6 +9,9 @@ import Login from '@/pages/login';
 import Dashboard from '@/pages/dashboard';
 import Releases from '@/pages/releases';
 import ReleaseEditor from '@/pages/releases/edit';
+import PublicRequests from '@/pages/public-requests/index';
+import PublicRequestDetail from '@/pages/public-requests/detail';
+import Settings from '@/pages/settings';
 import { setAuthTokenGetter, setUnauthorizedHandler, useAuthMe, getAuthMeQueryKey } from '@workspace/api-client-react';
 import {
   Route,
@@ -72,18 +75,29 @@ function Router() {
         
         {/* Protected Routes */}
         <Route path="/">
-          {(params) => <ProtectedRoute component={Dashboard} params={params} />}
+          {(params: Record<string, string | undefined>) => <ProtectedRoute component={Dashboard} params={params} />}
         </Route>
         <Route path="/releases">
-          {(params) => <ProtectedRoute component={Releases} params={params} />}
+          {(params: Record<string, string | undefined>) => <ProtectedRoute component={Releases} params={params} />}
         </Route>
         <Route path="/releases/new">
-          {(params) => <ProtectedRoute component={ReleaseEditor} params={params} />}
+          {(params: Record<string, string | undefined>) => <ProtectedRoute component={ReleaseEditor} params={params} />}
         </Route>
         <Route path="/releases/:id">
-          {(params) => <ProtectedRoute component={ReleaseEditor} params={params} />}
+          {(params: Record<string, string | undefined>) => <ProtectedRoute component={ReleaseEditor} params={params} />}
         </Route>
         
+        <Route path="/public-requests">
+          {(params: Record<string, string | undefined>) => <ProtectedRoute component={PublicRequests} params={params} />}
+        </Route>
+        <Route path="/public-requests/:id">
+          {(params: Record<string, string | undefined>) => <ProtectedRoute component={PublicRequestDetail} params={params} />}
+        </Route>
+
+        <Route path="/settings">
+          {(params) => <ProtectedRoute component={Settings} params={params} />}
+        </Route>
+
         <Route component={NotFound} />
       </Switch>
     </RoutedErrorBoundary>

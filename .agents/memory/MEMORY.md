@@ -35,6 +35,7 @@
 - [Nested chat navigation](nested-chat-navigation.md) — tab-nested conversations need explicit stack registration, focused tab-bar control, and deterministic profile back navigation.
 - [Repair chat identity](repair-chat-identity.md) — legacy repair rows can lack customer links; resolve only one safe, live customer before opening chat.
 - [Chats inbox scope](chats-inbox-scope.md) — Chats shows customer and exact-contact direct rooms only; keep repair, payment, delivery, and dealer content in their own areas.
+- [Chat room preferences](chat-room-preferences.md) — pin/mute/archive/delete are caller-specific; delete hides an inbox copy and must never destroy a shared Matrix room or another member’s history.
 - [Chat provisioning recovery](chat-provisioning-recovery.md) — never reclaim a possibly live Matrix room reservation without provider-side create idempotency and fencing.
 - [Static web API bootstrapping](static-web-api-bootstrapping.md) — configure bearer API client before React Query hooks mount; external builds must require a public API origin.
 - [Expo simulator API routing](expo-simulator-api-routing.md) — browser/Expo development must use the current Replit dev domain; a production fallback silently exercises stale deployed auth code.
@@ -56,4 +57,12 @@
 - [Native chat attachment safety](native-chat-attachment-safety.md) — keep sheet drags off nested galleries, paginate device media, and confirm precise location before sending.
 - [Drive backup privacy](drive-backup-privacy.md) — cloud backup defaults off; never claim end-to-end encryption until a user-held recovery secret protects archive contents.
 - [Artifact service environment](artifact-service-env.md) — runtime-required variables belong in service-level env, but a missing port is not proven until startup logs confirm it.
+- [Headless workspace builds](headless-workspace-builds.md) — root build checks may use non-routable placeholders, but artifact builds must keep real deployment-env safeguards.
+- [Public install link](install-distribution-link.md) — outsider-facing install links use the official website download page; dev domains and exp:// sessions are banned.
 - [Expo SDK 57 migration](expo-sdk57-migration.md) — Expo Go uses SDK 57; keep legacy media asset APIs explicit and mock Worklets/native modules at test boundaries.
+- [Expo Go native imports](expo-go-native-imports.md) — never statically import custom-only native modules from startup or route code; gate them behind StoreClient-safe fallbacks.
+- [Startup splash continuity](startup-splash-continuity.md) — fade splash contents only, bind stack contentStyle to the theme, and never gate opening on decorative asset decode.
+- [Public legal publication gate](public-legal-publication-gate.md) — support/deletion forms must not ship with placeholder operator, privacy-contact, or effective-date details.
+- [Operator settings store](operator-settings-store.md) — admin-editable platform config lives in app_settings (never secrets); values are per-environment and alert emails stay best-effort.
+- [Hostinger static releases](hostinger-static-releases.md) — root ZIPs must include SPA rewrites and no-cache app-shell headers; avoid parent transforms that rasterize phone UI.
+- [Optimized web regression checks](optimized-web-regression-checks.md) — run critical browser checks against production bundles; dev resolution can hide duplicated context runtimes.

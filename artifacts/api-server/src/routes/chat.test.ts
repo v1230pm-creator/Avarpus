@@ -38,6 +38,7 @@ import {
   chatProviderIdentitiesTable,
   chatRoomsTable,
   chatRoomMembersTable,
+  chatRoomPreferencesTable,
   chatMessagesTable,
   chatReadStateTable,
   chatContactMatchGrantsTable,
@@ -304,13 +305,18 @@ describe("Cross-shop isolation: invites", () => {
 // ── Customer portal: fail-closed boundary ─────────────────────────────────────
 
 describe("Customer portal: fail-closed auth boundary", () => {
-  it("customer blocked from GET /api/repairs → 403 CUSTOMER_PORTAL_FORBIDDEN", async () => {
+  it("customer allowed read-only GET /api/repairs for their linked profile", async () => {
     if (!customerTokenA) return;
     const res = await request(app)
       .get("/api/repairs")
       .set("Authorization", `Bearer ${customerTokenA}`);
-    expect(res.status).toBe(403);
-    expect(res.body.code).toBe("CUSTOMER_PORTAL_FORBIDDEN");
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      repairs: [],
+      total: 0,
+      page: 1,
+      limit: 50,
+    });
   });
 
   it("customer blocked from GET /api/customers → 403", async () => {
@@ -603,6 +609,162 @@ describe("Membership required for all roles (same-shop staff isolation)", () => 
       .get(`/api/chat/rooms/${roomA.id}`)
       .set("Authorization", `Bearer ${staffToken}`);
     expect(res.status).toBe(200);
+  });
+});
+
+describe("Caller-specific chat management preferences", () => {
+  beforeAll(async () => {
+    if (customerUserA) {
+      await db.insert(chatRoomMembersTable).values({
+        roomId: roomA.id,
+        shopId: shopA.id,
+        userId: customerUserA.id,
+      }).onConflictDoNothing();
+    }
+  });
+
+  afterAll(async () => {
+    await db.delete(chatRoomPreferencesTable).where(eq(chatRoomPreferencesTable.roomId, roomA.id));
+  });
+
+  it("persists pin, mute, and archive without changing the shared room", async () => {
+    const update = await request(app)
+      .patch(`/api/chat/rooms/${roomA.id}/preferences`)
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ isPinned: true, isMuted: true });
+    expect(update.status).toBe(200);
+    expect(update.body.preferences).toMatchObject({
+      isPinned: true,
+      isMuted: true,
+      isArchived: false,
+    });
+
+    const listed = await request(app)
+      .get("/api/chat/rooms")
+      .set("Authorization", `Bearer ${dealerTokenA}`);
+    expect(listed.status).toBe(200);
+    expect(listed.body.rooms.find((room: { id: string }) => room.id === roomA.id)).toMatchObject({
+      isPinned: true,
+      isMuted: true,
+      isArchived: false,
+    });
+    expect(listed.body.rooms[0]?.id).toBe(roomA.id);
+
+    const fetched = await request(app)
+      .get(`/api/chat/rooms/${roomA.id}`)
+      .set("Authorization", `Bearer ${dealerTokenA}`);
+    expect(fetched.status).toBe(200);
+    expect(fetched.body.room).toMatchObject({
+      isPinned: true,
+      isMuted: true,
+      isArchived: false,
+    });
+
+    const archive = await request(app)
+      .patch(`/api/chat/rooms/${roomA.id}/preferences`)
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ isArchived: true });
+    expect(archive.status).toBe(200);
+    const afterArchive = await request(app)
+      .get("/api/chat/rooms")
+      .set("Authorization", `Bearer ${dealerTokenA}`);
+    expect(afterArchive.body.rooms.some((room: { id: string }) => room.id === roomA.id)).toBe(false);
+    const archived = await request(app)
+      .get("/api/chat/rooms/archived")
+      .set("Authorization", `Bearer ${dealerTokenA}`);
+    expect(archived.status).toBe(200);
+    expect(archived.body.rooms.find((room: { id: string }) => room.id === roomA.id))
+      .toMatchObject({ isArchived: true });
+    if (customerTokenA) {
+      const otherMemberList = await request(app)
+        .get("/api/chat/rooms")
+        .set("Authorization", `Bearer ${customerTokenA}`);
+      expect(otherMemberList.body.rooms.find((candidate: { id: string }) => candidate.id === roomA.id))
+        .toMatchObject({ isPinned: false, isMuted: false, isArchived: false });
+      const otherMemberArchivedList = await request(app)
+        .get("/api/chat/rooms/archived")
+        .set("Authorization", `Bearer ${customerTokenA}`);
+      expect(otherMemberArchivedList.body.rooms.some((candidate: { id: string }) => candidate.id === roomA.id))
+        .toBe(false);
+
+      const customerArchive = await request(app)
+        .patch(`/api/chat/rooms/${roomA.id}/preferences`)
+        .set("Authorization", `Bearer ${customerTokenA}`)
+        .send({ isArchived: true });
+      expect(customerArchive.status).toBe(200);
+      const customerArchivedList = await request(app)
+        .get("/api/chat/rooms/archived")
+        .set("Authorization", `Bearer ${customerTokenA}`);
+      expect(customerArchivedList.body.rooms.find((candidate: { id: string }) => candidate.id === roomA.id))
+        .toMatchObject({ isArchived: true });
+
+      const customerRestore = await request(app)
+        .patch(`/api/chat/rooms/${roomA.id}/preferences`)
+        .set("Authorization", `Bearer ${customerTokenA}`)
+        .send({ isArchived: false });
+      expect(customerRestore.status).toBe(200);
+      const customerRestoredList = await request(app)
+        .get("/api/chat/rooms")
+        .set("Authorization", `Bearer ${customerTokenA}`);
+      expect(customerRestoredList.body.rooms.find((candidate: { id: string }) => candidate.id === roomA.id))
+        .toMatchObject({ isArchived: false });
+    }
+
+    const [shared] = await db
+      .select({ isArchived: chatRoomsTable.isArchived })
+      .from(chatRoomsTable)
+      .where(eq(chatRoomsTable.id, roomA.id));
+    expect(shared.isArchived).toBe(false);
+  });
+
+  it("rejects preference and delete mutations from a non-member in another shop", async () => {
+    const preference = await request(app)
+      .patch(`/api/chat/rooms/${roomA.id}/preferences`)
+      .set("Authorization", `Bearer ${dealerTokenB}`)
+      .send({ isPinned: true });
+    expect(preference.status).toBe(404);
+
+    const deletion = await request(app)
+      .delete(`/api/chat/rooms/${roomA.id}`)
+      .set("Authorization", `Bearer ${dealerTokenB}`);
+    expect(deletion.status).toBe(404);
+  });
+
+  it("delete hides only the caller's inbox copy and preserves room membership", async () => {
+    await request(app)
+      .patch(`/api/chat/rooms/${roomA.id}/preferences`)
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ isArchived: false });
+    const deletion = await request(app)
+      .delete(`/api/chat/rooms/${roomA.id}`)
+      .set("Authorization", `Bearer ${dealerTokenA}`);
+    expect(deletion.status).toBe(204);
+
+    const listed = await request(app)
+      .get("/api/chat/rooms")
+      .set("Authorization", `Bearer ${dealerTokenA}`);
+    expect(listed.body.rooms.some((room: { id: string }) => room.id === roomA.id)).toBe(false);
+    const archived = await request(app)
+      .get("/api/chat/rooms/archived")
+      .set("Authorization", `Bearer ${dealerTokenA}`);
+    expect(archived.body.rooms.some((room: { id: string }) => room.id === roomA.id)).toBe(false);
+    if (customerTokenA) {
+      const otherMemberList = await request(app)
+        .get("/api/chat/rooms")
+        .set("Authorization", `Bearer ${customerTokenA}`);
+      expect(otherMemberList.body.rooms.some((candidate: { id: string }) => candidate.id === roomA.id))
+        .toBe(true);
+    }
+
+    const roomStillExists = await request(app)
+      .get(`/api/chat/rooms/${roomA.id}`)
+      .set("Authorization", `Bearer ${dealerTokenA}`);
+    expect(roomStillExists.status).toBe(200);
+    const membership = await db
+      .select({ id: chatRoomMembersTable.id })
+      .from(chatRoomMembersTable)
+      .where(and(eq(chatRoomMembersTable.roomId, roomA.id), eq(chatRoomMembersTable.userId, dealerA.id)));
+    expect(membership).toHaveLength(1);
   });
 });
 
@@ -2583,6 +2745,34 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
         eq(notificationsTable.type, "chat_message"),
       ));
     expect(senderAlerts).toHaveLength(0);
+  });
+
+  it("does not notify a recipient who muted the room", async () => {
+    await db
+      .insert(chatRoomPreferencesTable)
+      .values({ roomId: createdDirectRoomId!, userId: directTarget2.id, isMuted: true })
+      .onConflictDoUpdate({
+        target: [chatRoomPreferencesTable.roomId, chatRoomPreferencesTable.userId],
+        set: { isMuted: true, updatedAt: new Date() },
+      });
+    const sent = await request(app)
+      .post(`/api/chat/rooms/${createdDirectRoomId}/messages`)
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({
+        kind: "text",
+        body: "Muted direct hello",
+        clientRequestId: `direct-muted-alert-${RUN}`,
+      });
+    expect(sent.status).toBe(200);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const alerts = await db
+      .select()
+      .from(notificationsTable)
+      .where(eq(
+        notificationsTable.dedupeKey,
+        `chat-message:${sent.body.message.id}:${directTarget2.id}`,
+      ));
+    expect(alerts).toHaveLength(0);
   });
 
   it("does not replay another member's clientRequestId to a same-shop nonmember", async () => {

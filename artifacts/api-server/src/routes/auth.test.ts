@@ -14,6 +14,10 @@ import {
   trustedDeviceTrustsTable,
   trustedDeviceRecoveryRateLimitsTable,
   usersTable,
+  shopsTable,
+  dealersTable,
+  customersTable,
+  customerUsersTable,
 } from "@workspace/db";
 
 vi.mock("../lib/mailer", () => ({
@@ -545,6 +549,124 @@ describe("POST /api/auth/otp/verify", () => {
     expect(created.dealerId).toBeNull();
     await db.delete(sessionsTable).where(eq(sessionsTable.userId, created.id));
     await db.delete(usersTable).where(eq(usersTable.id, created.id));
+  });
+
+  it("links a uniquely matching active dealer mobile as that dealer's owner", async () => {
+    const mobile = `4${RUN}`;
+    let ownerId: string | undefined;
+    let shopId: string | undefined;
+    let portalUserId: string | undefined;
+    try {
+      const [owner] = await db.insert(usersTable).values({
+        name: "Dealer Link Shop Owner", email: `dealer-link-owner-${RUN}@example.test`,
+        mobile: `6${RUN}`, role: "dealer", isActive: true,
+      }).returning();
+      ownerId = owner.id;
+      const [shop] = await db.insert(shopsTable).values({
+        dealerId: owner.id, businessName: "Dealer Link Shop",
+      }).returning();
+      shopId = shop.id;
+      const [dealer] = await db.insert(dealersTable).values({
+        shopId, dealerCode: `OTP-DLR-${RUN}`, name: "Unique Portal Dealer",
+        mobile: `+91${mobile}`, isActive: true,
+      }).returning();
+
+      const code = await createOtp(mobile, "login");
+      const res = await request(app).post("/api/auth/otp/verify").send({ mobile, code });
+      expect(res.status).toBe(200);
+      expect(res.body.user.role).toBe("dealer_owner");
+      expect(res.body.user.shopId).toBe(shopId);
+      expect(res.body.user.dealerId).toBe(dealer.id);
+
+      const [linked] = await db.select().from(usersTable).where(eq(usersTable.mobile, mobile));
+      portalUserId = linked.id;
+      expect(linked.role).toBe("dealer_owner");
+      expect(linked.shopId).toBe(shopId);
+      expect(linked.dealerId).toBe(dealer.id);
+    } finally {
+      if (portalUserId) await db.delete(usersTable).where(eq(usersTable.id, portalUserId));
+      await db.delete(otpCodesTable).where(eq(otpCodesTable.identifier, mobile));
+      if (shopId) await db.delete(shopsTable).where(eq(shopsTable.id, shopId));
+      if (ownerId) await db.delete(usersTable).where(eq(usersTable.id, ownerId));
+    }
+  });
+
+  it("links a uniquely matching customer mobile and creates customer_users", async () => {
+    const mobile = `3${RUN}`;
+    let ownerId: string | undefined;
+    let shopId: string | undefined;
+    let portalUserId: string | undefined;
+    try {
+      const [owner] = await db.insert(usersTable).values({
+        name: "Customer Link Shop Owner", email: `customer-link-owner-${RUN}@example.test`,
+        mobile: `0${RUN}`, role: "dealer", isActive: true,
+      }).returning();
+      ownerId = owner.id;
+      const [shop] = await db.insert(shopsTable).values({
+        dealerId: owner.id, businessName: "Customer Link Shop",
+      }).returning();
+      shopId = shop.id;
+      const [customer] = await db.insert(customersTable).values({
+        shopId, name: "Unique Portal Customer", mobile: `+91${mobile}`,
+      }).returning();
+
+      const code = await createOtp(mobile, "login");
+      const res = await request(app).post("/api/auth/otp/verify").send({ mobile, code });
+      expect(res.status).toBe(200);
+      expect(res.body.user.role).toBe("customer");
+      expect(res.body.user.shopId).toBe(shopId);
+
+      const [linked] = await db.select().from(usersTable).where(eq(usersTable.mobile, mobile));
+      portalUserId = linked.id;
+      const [link] = await db.select().from(customerUsersTable)
+        .where(and(eq(customerUsersTable.userId, linked.id), eq(customerUsersTable.customerId, customer.id)));
+      expect(linked.shopId).toBe(shopId);
+      expect(linked.dealerId).toBeNull();
+      expect(link.shopId).toBe(shopId);
+    } finally {
+      if (portalUserId) await db.delete(usersTable).where(eq(usersTable.id, portalUserId));
+      await db.delete(otpCodesTable).where(eq(otpCodesTable.identifier, mobile));
+      if (shopId) await db.delete(shopsTable).where(eq(shopsTable.id, shopId));
+      if (ownerId) await db.delete(usersTable).where(eq(usersTable.id, ownerId));
+    }
+  });
+
+  it("fails closed without creating an identity when dealer and customer matches are ambiguous", async () => {
+    const mobile = `2${RUN}`;
+    let ownerId: string | undefined;
+    let shopId: string | undefined;
+    try {
+      const [owner] = await db.insert(usersTable).values({
+        name: "Ambiguous Link Shop Owner", email: `ambiguous-link-owner-${RUN}@example.test`,
+        mobile: `1${RUN}`, role: "dealer", isActive: true,
+      }).returning();
+      ownerId = owner.id;
+      const [shop] = await db.insert(shopsTable).values({
+        dealerId: owner.id, businessName: "Ambiguous Link Shop",
+      }).returning();
+      shopId = shop.id;
+      await db.insert(dealersTable).values({
+        shopId, dealerCode: `OTP-AMB-${RUN}`, name: "Ambiguous Dealer", mobile, isActive: true,
+      });
+      await db.insert(customersTable).values({
+        shopId, name: "Ambiguous Customer", mobile,
+      });
+
+      const code = await createOtp(mobile, "login");
+      const res = await request(app).post("/api/auth/otp/verify").send({ mobile, code });
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe("AMBIGUOUS_MOBILE_MATCH");
+      const users = await db.select().from(usersTable).where(eq(usersTable.mobile, mobile));
+      const links = await db.select().from(customerUsersTable)
+        .innerJoin(usersTable, eq(customerUsersTable.userId, usersTable.id))
+        .where(eq(usersTable.mobile, mobile));
+      expect(users).toHaveLength(0);
+      expect(links).toHaveLength(0);
+    } finally {
+      await db.delete(otpCodesTable).where(eq(otpCodesTable.identifier, mobile));
+      if (shopId) await db.delete(shopsTable).where(eq(shopsTable.id, shopId));
+      if (ownerId) await db.delete(usersTable).where(eq(usersTable.id, ownerId));
+    }
   });
 
   it("uses the mobile unique index as a concurrency-safe standalone provisioning mutex", async () => {

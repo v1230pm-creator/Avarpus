@@ -83,3 +83,49 @@ export async function notifyUser(input: NotifyUserInput): Promise<void> {
     console.error("notifyUser failed:", err);
   }
 }
+
+export async function notifyActiveSuperAdminsOfPublicRequest(input: {
+  requestId: string;
+  kind: "support" | "account_deletion";
+}): Promise<void> {
+  if (process.env.DISABLE_PUBLIC_REQUEST_ALERTS === "true") return;
+
+  try {
+    const recipients = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(
+        and(
+          eq(usersTable.role, "super_admin"),
+          eq(usersTable.isActive, true),
+        ),
+      );
+    if (recipients.length === 0) return;
+
+    const isDeletion = input.kind === "account_deletion";
+    await db
+      .insert(notificationsTable)
+      .values(
+        recipients.map(({ id: userId }) => ({
+          shopId: null,
+          userId,
+          type: "public_request_received",
+          title: isDeletion ? "Account deletion request received" : "Support request received",
+          body: isDeletion
+            ? "A new account deletion request needs secure review."
+            : "A new support request needs review.",
+          data: {
+            publicRequestId: input.requestId,
+            kind: input.kind,
+            href: `/public-requests/${input.requestId}`,
+          },
+          dedupeKey: `public-request:${input.requestId}:${userId}`,
+        })),
+      )
+      .onConflictDoNothing();
+  } catch (err) {
+    // Public intake is already committed before this best-effort alert runs.
+    // eslint-disable-next-line no-console
+    console.error("notifyActiveSuperAdminsOfPublicRequest failed:", err);
+  }
+}

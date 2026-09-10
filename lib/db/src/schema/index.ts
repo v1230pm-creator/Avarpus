@@ -9,3 +9,5 @@ export * from "./phoneVerification";
 export * from "./status";
 export * from "./pendingUploads";
 export * from "./driveBackup";
+export * from "./publicRequests";
+export * from "./appSettings";

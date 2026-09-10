@@ -386,6 +386,13 @@
       "when": 1788243000000,
       "tag": "0053_drive_backup_upload_lease",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1788760800000,
+      "tag": "0054_chat_room_preferences",
+      "breakpoints": true
     }
   ]
 }

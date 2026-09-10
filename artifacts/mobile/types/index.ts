@@ -14,8 +14,12 @@ export const DEALER_PORTAL_ROLES: UserRole[] = ['dealer_owner', 'dealer_staff'];
 export const isDealerPortalRole = (role?: string | null): boolean =>
   role === 'dealer_owner' || role === 'dealer_staff';
 
-/** Customer self-service role — can only see Home (chat) and their own profile. */
+/** Customer self-service role. A shop-linked account may also view its own repairs. */
 export const isCustomerRole = (role?: string | null): boolean => role === 'customer';
+
+/** A customer portal is enabled only by the server-scoped shop link. */
+export const isLinkedCustomerPortalUser = (user?: Pick<User, 'role' | 'shopId'> | null): boolean =>
+  isCustomerRole(user?.role) && !!user?.shopId;
 
 export interface User {
   id: string;

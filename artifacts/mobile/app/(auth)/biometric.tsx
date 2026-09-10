@@ -1,30 +1,29 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuth } from '@/context/AuthContext';
-import { useColors } from '@/hooks/useColors';
 import { completeUnlockSuccess, isBiometricLockEnabled, setUnlocked } from '@/utils/appLock';
+import { onBlue } from '@/constants/brand';
 
 export default function BiometricScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
 
+  // The unlock gate is part of the opening experience, so it shares the same
+  // flat brand-blue surface as the rest of the sign-in path.
   const theme = {
-    bg: isDark ? '#040914' : colors.background,
-    card: isDark ? '#0A1221' : colors.card,
-    border: isDark ? '#1E293B' : colors.border,
-    primary: isDark ? '#2563EB' : colors.primary,
-    text: isDark ? '#FFFFFF' : colors.foreground,
-    textMuted: isDark ? '#94A3B8' : colors.textMuted,
-    danger: isDark ? '#EF4444' : colors.destructive,
-    dangerBg: isDark ? 'rgba(239, 68, 68, 0.1)' : colors.destructive + '15',
+    bg: onBlue.background,
+    card: onBlue.surface,
+    border: onBlue.surfaceBorder,
+    primary: onBlue.text,
+    text: onBlue.text,
+    textMuted: onBlue.textMuted,
+    danger: onBlue.danger,
+    dangerBg: onBlue.noticeBackground,
   };
 
   const { isAuthenticated, isLoading, logout } = useAuth();
@@ -130,14 +129,14 @@ export default function BiometricScreen() {
         <TouchableOpacity
           onPress={unlock}
           disabled={checking || authenticating}
-          style={[styles.unlockButton, { backgroundColor: theme.primary }, (checking || authenticating) && { opacity: 0.6 }]}
+          style={[styles.unlockButton, { backgroundColor: onBlue.controlBackground }, (checking || authenticating) && { opacity: 0.75 }]}
           activeOpacity={0.8}
         >
           {checking || authenticating ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color={onBlue.controlText} />
           ) : (
             <>
-              <Feather name="unlock" size={18} color="#FFFFFF" />
+              <Feather name="unlock" size={18} color={onBlue.controlText} />
               <Text style={[styles.unlockText, { fontFamily: 'Inter_600SemiBold' }]}>Authenticate</Text>
             </>
           )}
@@ -163,7 +162,7 @@ const styles = StyleSheet.create({
   errorBox: { width: '100%', flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 8, borderWidth: 1 },
   errorText: { flex: 1, fontSize: 13, lineHeight: 18 },
   unlockButton: { width: '100%', minHeight: 50, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  unlockText: { color: '#FFFFFF', fontSize: 15 },
+  unlockText: { color: onBlue.controlText, fontSize: 15 },
   signOutButton: { paddingVertical: 10, paddingHorizontal: 16 },
   signOutText: { fontSize: 13 },
 });

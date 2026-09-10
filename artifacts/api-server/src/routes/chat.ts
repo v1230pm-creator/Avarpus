@@ -43,6 +43,7 @@ import {
   dealersTable,
   chatRoomsTable,
   chatRoomMembersTable,
+  chatRoomPreferencesTable,
   chatMessagesTable,
   chatBlocksTable,
   chatReportsTable,
@@ -54,6 +55,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
+import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
 import { ObjectStorageService } from "../lib/objectStorage";
 import {
   chatCapabilities,
@@ -381,10 +383,21 @@ async function getRoomRecipientUserIds(roomId: string, senderUserId: string): Pr
   const recipients = await db
     .select({ userId: chatRoomMembersTable.userId })
     .from(chatRoomMembersTable)
+    .leftJoin(
+      chatRoomPreferencesTable,
+      and(
+        eq(chatRoomPreferencesTable.roomId, chatRoomMembersTable.roomId),
+        eq(chatRoomPreferencesTable.userId, chatRoomMembersTable.userId),
+      ),
+    )
     .where(
       and(
         eq(chatRoomMembersTable.roomId, roomId),
         ne(chatRoomMembersTable.userId, senderUserId),
+        or(
+          isNull(chatRoomPreferencesTable.id),
+          eq(chatRoomPreferencesTable.isMuted, false),
+        ),
       ),
     );
   return [...new Set(recipients.map((recipient) => recipient.userId))];
@@ -574,6 +587,7 @@ router.post(
 
     // Create user account + customer_users link + mark invite consumed — atomically
     const newUser = await db.transaction(async (tx) => {
+      await lockNormalizedMobiles(tx, customer.mobile);
       const [created] = await tx
         .insert(usersTable)
         .values({
@@ -621,10 +635,7 @@ router.get(
 
 // ── Chat rooms ────────────────────────────────────────────────────────────────
 
-router.get(
-  "/chat/rooms",
-  requireAuth,
-  asyncHandler(async (req, res) => {
+async function listChatRoomsForCaller(req: AuthedRequest, archived: boolean) {
     const me = (req as AuthedRequest).user;
     const shopId = resolveShopId(me);
     const syncedAt = new Date();
@@ -635,11 +646,22 @@ router.get(
     // Membership is required for EVERY role: only rooms the caller is an
     // explicit member of are returned. No shop-wide staff bypass.
     const rows = await db
-      .select({ room: chatRoomsTable, joinedAt: chatRoomMembersTable.joinedAt })
+      .select({
+        room: chatRoomsTable,
+        joinedAt: chatRoomMembersTable.joinedAt,
+        preference: chatRoomPreferencesTable,
+      })
       .from(chatRoomsTable)
       .innerJoin(
         chatRoomMembersTable,
         eq(chatRoomsTable.id, chatRoomMembersTable.roomId),
+      )
+      .leftJoin(
+        chatRoomPreferencesTable,
+        and(
+          eq(chatRoomPreferencesTable.roomId, chatRoomsTable.id),
+          eq(chatRoomPreferencesTable.userId, me.id),
+        ),
       )
       .where(
         and(
@@ -648,19 +670,93 @@ router.get(
             shopId ? and(eq(chatRoomsTable.scope, "shop"), eq(chatRoomsTable.shopId, shopId)) : sql`false`,
           ),
           eq(chatRoomMembersTable.userId, me.id),
+          isNull(chatRoomPreferencesTable.deletedAt),
+          archived
+            ? eq(chatRoomPreferencesTable.isArchived, true)
+            : or(
+                isNull(chatRoomPreferencesTable.id),
+                eq(chatRoomPreferencesTable.isArchived, false),
+              ),
         ),
       )
       .orderBy(desc(chatRoomsTable.createdAt));
 
     const rooms = await Promise.all(
-      rows.map((row) => formatRoomSummaryForUser(row.room, me.id, row.joinedAt)),
+      rows.map((row) => formatRoomSummaryForUser(row.room, me.id, row.joinedAt, row.preference)),
     );
     rooms.sort((a, b) => {
+      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
       const aDate = a.lastMessage?.createdAt ?? a.createdAt;
       const bDate = b.lastMessage?.createdAt ?? b.createdAt;
       return bDate.localeCompare(aDate);
     });
-    res.json({ rooms });
+    return rooms;
+}
+
+router.get(
+  "/chat/rooms",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    res.json({ rooms: await listChatRoomsForCaller(req as AuthedRequest, false) });
+  }),
+);
+
+router.get(
+  "/chat/rooms/archived",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    res.json({ rooms: await listChatRoomsForCaller(req as AuthedRequest, true) });
+  }),
+);
+
+router.patch(
+  "/chat/rooms/:roomId/preferences",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const me = (req as AuthedRequest).user;
+    const roomId = String(req.params.roomId ?? "");
+    if (!UUID_RE.test(roomId) || !(await authorizeRoom(me, roomId))) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
+    const allowed = ["isPinned", "isMuted", "isArchived"] as const;
+    const supplied = allowed.filter((key) => typeof req.body?.[key] === "boolean");
+    if (!supplied.length || Object.keys(req.body ?? {}).some((key) => !allowed.includes(key as typeof allowed[number]))) {
+      res.status(400).json({ message: "Supply at least one valid preference" });
+      return;
+    }
+    const changes = Object.fromEntries(supplied.map((key) => [key, req.body[key]]));
+    const [preference] = await db
+      .insert(chatRoomPreferencesTable)
+      .values({ roomId, userId: me.id, ...changes, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: [chatRoomPreferencesTable.roomId, chatRoomPreferencesTable.userId],
+        set: { ...changes, updatedAt: new Date(), deletedAt: null },
+      })
+      .returning();
+    res.json({ preferences: formatRoomPreference(preference) });
+  }),
+);
+
+router.delete(
+  "/chat/rooms/:roomId",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const me = (req as AuthedRequest).user;
+    const roomId = String(req.params.roomId ?? "");
+    if (!UUID_RE.test(roomId) || !(await authorizeRoom(me, roomId))) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
+    const now = new Date();
+    await db
+      .insert(chatRoomPreferencesTable)
+      .values({ roomId, userId: me.id, deletedAt: now, updatedAt: now })
+      .onConflictDoUpdate({
+        target: [chatRoomPreferencesTable.roomId, chatRoomPreferencesTable.userId],
+        set: { deletedAt: now, updatedAt: now },
+      });
+    res.status(204).end();
   }),
 );
 
@@ -2359,26 +2455,42 @@ function chatStorageScope(room: typeof chatRoomsTable.$inferSelect): string {
 async function formatRoomForUser(
   room: typeof chatRoomsTable.$inferSelect,
   viewerUserId: string,
+  suppliedPreference?: typeof chatRoomPreferencesTable.$inferSelect | null,
 ) {
   const base = formatRoom(room);
 
-  const [peer] = await db
-    .select({
-      id: usersTable.id,
-      name: usersTable.name,
-      profilePhoto: usersTable.profilePhoto,
-      lastSyncedAt: chatRoomMembersTable.lastSyncedAt,
-    })
-    .from(chatRoomMembersTable)
-    .innerJoin(usersTable, eq(usersTable.id, chatRoomMembersTable.userId))
-    .where(
-      and(
-        eq(chatRoomMembersTable.roomId, room.id),
-        ne(chatRoomMembersTable.userId, viewerUserId),
-        eq(usersTable.isActive, true),
-      ),
-    )
-    .limit(1);
+  const [[peer], [storedPreference]] = await Promise.all([
+    db
+      .select({
+        id: usersTable.id,
+        name: usersTable.name,
+        profilePhoto: usersTable.profilePhoto,
+        lastSyncedAt: chatRoomMembersTable.lastSyncedAt,
+      })
+      .from(chatRoomMembersTable)
+      .innerJoin(usersTable, eq(usersTable.id, chatRoomMembersTable.userId))
+      .where(
+        and(
+          eq(chatRoomMembersTable.roomId, room.id),
+          ne(chatRoomMembersTable.userId, viewerUserId),
+          eq(usersTable.isActive, true),
+        ),
+      )
+      .limit(1),
+    suppliedPreference === undefined
+      ? db
+          .select()
+          .from(chatRoomPreferencesTable)
+          .where(
+            and(
+              eq(chatRoomPreferencesTable.roomId, room.id),
+              eq(chatRoomPreferencesTable.userId, viewerUserId),
+            ),
+          )
+          .limit(1)
+      : Promise.resolve([]),
+  ]);
+  const preference = suppliedPreference === undefined ? storedPreference : suppliedPreference;
 
   const blockState =
     room.scope === "global_direct" && peer
@@ -2394,6 +2506,16 @@ async function formatRoomForUser(
       peer.lastSyncedAt.getTime() >= Date.now() - 20_000,
     peerLastSeenAt: peer?.lastSyncedAt?.toISOString(),
     ...blockState,
+    ...formatRoomPreference(preference),
+  };
+}
+
+function formatRoomPreference(preference: typeof chatRoomPreferencesTable.$inferSelect | null | undefined) {
+  return {
+    isPinned: preference?.isPinned ?? false,
+    isMuted: preference?.isMuted ?? false,
+    isArchived: preference?.isArchived ?? false,
+    updatedAt: (preference?.updatedAt ?? new Date(0)).toISOString(),
   };
 }
 
@@ -2418,6 +2540,7 @@ async function formatRoomSummaryForUser(
   room: typeof chatRoomsTable.$inferSelect,
   viewerUserId: string,
   viewerJoinedAt: Date,
+  preference?: typeof chatRoomPreferencesTable.$inferSelect | null,
 ) {
   const [
     base,
@@ -2426,7 +2549,7 @@ async function formatRoomSummaryForUser(
     [peerMember],
     [peerReadState],
   ] = await Promise.all([
-    formatRoomForUser(room, viewerUserId),
+    formatRoomForUser(room, viewerUserId, preference),
     db
       .select()
       .from(chatMessagesTable)
@@ -2504,6 +2627,7 @@ async function formatRoomSummaryForUser(
 
   return {
     ...base,
+    ...formatRoomPreference(preference),
     unreadCount: Number(unread?.value ?? 0),
     lastMessage: lastMessage ? formatMessage(lastMessage) : undefined,
     lastMessageStatus,

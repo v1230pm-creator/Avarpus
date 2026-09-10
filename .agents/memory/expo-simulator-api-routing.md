@@ -1,10 +1,20 @@
 ---
 name: Expo simulator API routing
-description: Keep the browser/Expo development simulator on the current Replit development API rather than a stale production deployment.
+description: Expo Go normally shares the production API for account/data parity; use the explicit local-API script only when testing unpublished backend changes.
 ---
 
-In development, inject the current Replit development domain as the mobile API origin. Keep the stable production origin limited to production/EAS builds.
+The normal Expo Go workflow and EAS release builds use the verified production
+API custom domain so the same login sees the same shop and records. An explicit
+local-API development script switches Expo Go to the current Replit development
+domain when testing backend changes that have not been published.
 
-**Why:** the browser-side Expo Android simulator once silently called an older deployed backend, so OTP requests exercised retired MSG91 code even though the workspace API had already moved to Hanu. Pointing development at the current dev domain restored Hanu delivery.
+**Why:** using the temporary development API during ordinary Expo Go testing
+creates a separate account/data universe from the installed app. Conversely,
+unpublished backend work cannot be validated against production. The explicit
+mode split makes the selected data environment intentional. The production
+origin must be the verified custom domain, never a stale generated deployment
+hostname.
 
-**How to apply:** when changing authentication or API behavior, confirm the request appears in the development API workflow logs. If it appears only in deployment logs, inspect the Expo development API-origin injection before debugging the provider.
+**How to apply:** use the normal mobile workflow to reproduce what users see in
+the installed app. Use the local-API script only while developing server/auth
+changes, and confirm those requests in the development API workflow logs.

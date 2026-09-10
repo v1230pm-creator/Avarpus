@@ -1,0 +1,29 @@
+Options -MultiViews
+DirectoryIndex index.html
+
+RewriteEngine On
+RewriteBase /
+
+# Serve real files and directories without routing them through React.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Let every client-side route, including /support, survive a direct load or refresh.
+RewriteRule ^ index.html [L]
+
+<IfModule mod_headers.c>
+  # Always revalidate the app shell so a new upload cannot keep an old logo or bundle.
+  <FilesMatch "^(index\.html)?$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+
+  # Vite assets have content hashes, so these files are safe to cache for a long time.
+  <FilesMatch "\.(css|js|png|jpg|jpeg|webp|svg|ico|woff|woff2)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
+
+ErrorDocument 404 /index.html
