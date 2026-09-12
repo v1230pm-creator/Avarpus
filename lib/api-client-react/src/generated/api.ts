@@ -89,6 +89,7 @@ import type {
   DailyRepairsStatsParams,
   DashboardStats200,
   DealerInput,
+  DealerPortalProfile,
   DealerProfile,
   DealersCreate200,
   DealersDetect200,
@@ -3508,11 +3509,12 @@ export const getDealersMeUrl = () => {
 }
 
 /**
+ * Stats also count repairs booked under the login's own walk-in customer rows in this shop (same mobile), matching what GET /repairs lists for the same login. `supplier` describes the repair shop from the portal login's side: the business that repairs the phones they send in, with the shop owner's name and mobile.
  * @summary Dealer-portal account's own dealer profile + stats
  */
-export const dealersMe = async ( options?: Parameters<typeof customFetch>[1]): Promise<DealerProfile> => {
+export const dealersMe = async ( options?: Parameters<typeof customFetch>[1]): Promise<DealerPortalProfile> => {
 
-  return customFetch<DealerProfile>(getDealersMeUrl(),
+  return customFetch<DealerPortalProfile>(getDealersMeUrl(),
   {
     ...options,
     method: 'GET'

@@ -65,12 +65,34 @@ function shopIdOr403(req: Request, res: Response): string | null {
   return me.shopId;
 }
 
-async function customerIdForUser(userId: string, shopId: string): Promise<string | null> {
-  const [link] = await db.select({ customerId: customerUsersTable.customerId })
+// Every customer row of this shop owned by the login. One person may own
+// several rows (entered twice by staff, or a dealer whose number was also
+// booked as a walk-in customer); the portal must show all of them.
+async function customerIdsForUser(userId: string, shopId: string): Promise<string[]> {
+  const links = await db.select({ customerId: customerUsersTable.customerId })
     .from(customerUsersTable)
-    .where(and(eq(customerUsersTable.userId, userId), eq(customerUsersTable.shopId, shopId)))
-    .limit(1);
-  return link?.customerId ?? null;
+    .where(and(eq(customerUsersTable.userId, userId), eq(customerUsersTable.shopId, shopId)));
+  return links.map((link) => link.customerId);
+}
+
+// Portal ownership predicate for a repair row. Customer logins own repairs
+// booked under any of their customer rows; dealer-portal logins own their
+// dealer's repairs plus any booked under their own customer rows.
+async function portalRepairOwnership(me: DbUser, shopId: string): Promise<SQL | null> {
+  if (me.role === "customer") {
+    const customerIds = await customerIdsForUser(me.id, shopId);
+    if (customerIds.length === 0) return null;
+    return inArray(repairsTable.customerId, customerIds);
+  }
+  if (isDealerPortalRole(me.role)) {
+    if (!me.dealerId) return null;
+    const customerIds = await customerIdsForUser(me.id, shopId);
+    const byDealer = eq(repairsTable.dealerId, me.dealerId);
+    return customerIds.length > 0
+      ? (or(byDealer, inArray(repairsTable.customerId, customerIds)) as SQL)
+      : byDealer;
+  }
+  return null;
 }
 
 // Customer portal reads are deliberate and independent of staff feature flags.
@@ -289,44 +311,49 @@ router.get(
     // Customers can only use the self endpoint. Do not honor a supplied
     // customer UUID for their portal, even if it happens to be valid.
     let customerId = String(req.params.id ?? "");
+    let linkedCustomerIds: string[] | null = null;
     if (me.role === "customer") {
       if (customerId !== "me") {
         res.status(403).json({ message: "Customer khata is available only through your self endpoint.", code: "FORBIDDEN" });
         return;
       }
-      const linkedCustomerId = await customerIdForUser(me.id, shopId);
-      if (!linkedCustomerId) {
+      linkedCustomerIds = await customerIdsForUser(me.id, shopId);
+      if (linkedCustomerIds.length === 0) {
         res.status(403).json({ message: "Your account is not linked to a customer profile.", code: "FORBIDDEN" });
         return;
       }
-      customerId = linkedCustomerId;
+      // The oldest row is the "primary" profile shown in the header; the
+      // ledger below merges every row the login owns.
+      customerId = linkedCustomerIds[0];
     } else if (!(await userHasFeature(me, "payments"))) {
       res.status(403).json({ message: "You do not have permission to view khata", code: "FORBIDDEN" });
       return;
     }
-    const [customer] = await db.select().from(customersTable).where(and(
-      eq(customersTable.id, customerId),
+    const customerRows = await db.select().from(customersTable).where(and(
+      inArray(customersTable.id, linkedCustomerIds ?? [customerId]),
       eq(customersTable.shopId, shopId),
-    ));
+    )).orderBy(asc(customersTable.createdAt), asc(customersTable.id));
+    const customer = customerRows[0];
     if (!customer) {
       res.status(404).json({ message: "Customer not found" });
       return;
     }
+    const customerIds = customerRows.map((row) => row.id);
     const [repairs, payments, refunds, manual] = await Promise.all([
       db.select().from(repairsTable).where(and(
-        eq(repairsTable.shopId, shopId), eq(repairsTable.customerId, customerId),
+        eq(repairsTable.shopId, shopId), inArray(repairsTable.customerId, customerIds),
         eq(repairsTable.status, "delivered"),
       )),
       db.select().from(repairPaymentsTable).where(and(
-        eq(repairPaymentsTable.shopId, shopId), eq(repairPaymentsTable.customerId, customerId),
+        eq(repairPaymentsTable.shopId, shopId), inArray(repairPaymentsTable.customerId, customerIds),
       )),
       db.select().from(refundsTable).where(and(
-        eq(refundsTable.shopId, shopId), eq(refundsTable.customerId, customerId),
+        eq(refundsTable.shopId, shopId), inArray(refundsTable.customerId, customerIds),
         eq(refundsTable.status, "paid"),
       )),
       db.select().from(customerKhataTransactionsTable).where(and(
         eq(customerKhataTransactionsTable.shopId, shopId),
-        eq(customerKhataTransactionsTable.customerId, customerId),
+        inArray(customerKhataTransactionsTable.customerId, customerIds),
       )),
     ]);
     type LedgerEntry = {
@@ -776,21 +803,20 @@ router.get(
 
     const conds: SQL[] = [eq(repairsTable.shopId, shopId)];
 
-    // Dealer-portal accounts only EVER see their own dealer's repairs —
-    // enforced server-side regardless of any client-supplied filters.
-    if (me.role === "customer") {
-      const customerId = await customerIdForUser(me.id, shopId);
-      if (!customerId) {
-        res.status(403).json({ message: "Your account is not linked to a customer profile." });
+    // Portal accounts only EVER see repairs they own (their customer rows,
+    // or their dealer party) — enforced server-side regardless of any
+    // client-supplied filters.
+    if (me.role === "customer" || isDealerPortalRole(me.role)) {
+      const ownership = await portalRepairOwnership(me, shopId);
+      if (!ownership) {
+        res.status(403).json({
+          message: me.role === "customer"
+            ? "Your account is not linked to a customer profile."
+            : "Your dealer account is not linked to a dealer profile.",
+        });
         return;
       }
-      conds.push(eq(repairsTable.customerId, customerId));
-    } else if (isDealerPortalRole(me.role)) {
-      if (!me.dealerId) {
-        res.status(403).json({ message: "Your dealer account is not linked to a dealer profile." });
-        return;
-      }
-      conds.push(eq(repairsTable.dealerId, me.dealerId));
+      conds.push(ownership);
     } else {
       const dealerFilter = qstr("dealerId");
       if (dealerFilter === "none") {
@@ -1791,25 +1817,13 @@ async function repairInShop(shopId: string, id: string) {
 // belong to THEIR dealer — a shop-level match alone is not enough (IDOR).
 async function repairAccessible(req: Request, shopId: string, id: string) {
   const me = (req as AuthedRequest).user;
-  if (me.role === "customer") {
-    const customerId = await customerIdForUser(me.id, shopId);
-    if (!customerId) return null;
+  if (me.role === "customer" || isDealerPortalRole(me.role)) {
+    const ownership = await portalRepairOwnership(me, shopId);
+    if (!ownership) return null;
     const [row] = await db
       .select({ id: repairsTable.id })
       .from(repairsTable)
-      .where(and(
-        eq(repairsTable.id, id),
-        eq(repairsTable.shopId, shopId),
-        eq(repairsTable.customerId, customerId),
-      ));
-    return row ?? null;
-  }
-  if (isDealerPortalRole(me.role)) {
-    if (!me.dealerId) return null;
-    const [row] = await db
-      .select({ id: repairsTable.id })
-      .from(repairsTable)
-      .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId), eq(repairsTable.dealerId, me.dealerId)));
+      .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId), ownership));
     return row ?? null;
   }
   return repairInShop(shopId, id);

@@ -472,7 +472,7 @@ export const authMeUpdateBodyProfileLinksMax = 8;
 
 export const AuthMeUpdateBody = zod.object({
   "name": zod.string().optional(),
-  "mobile": zod.string().optional(),
+  "mobile": zod.string().optional().describe('Deprecated. The sign-in mobile is immutable here; sending a value other than the current one fails with 400 MOBILE_CHANGE_REQUIRES_OTP. Only a verified OTP binds a number.'),
   "profilePhoto": zod.string().nullish(),
   "profileAbout": zod.string().max(authMeUpdateBodyProfileAboutMax).nullish(),
   "profileUsername": zod.string().regex(authMeUpdateBodyProfileUsernameRegExp).nullish(),
@@ -1204,6 +1204,7 @@ export const DealersDetectResponse = zod.object({
 
 
 /**
+ * Stats also count repairs booked under the login's own walk-in customer rows in this shop (same mobile), matching what GET /repairs lists for the same login. `supplier` describes the repair shop from the portal login's side: the business that repairs the phones they send in, with the shop owner's name and mobile.
  * @summary Dealer-portal account's own dealer profile + stats
  */
 export const DealersMeResponse = zod.object({
@@ -1231,7 +1232,13 @@ export const DealersMeResponse = zod.object({
   "refundedAmount": zod.number(),
   "totalRepairValue": zod.number(),
   "pendingAmount": zod.number()
-})
+}),
+  "supplier": zod.union([zod.object({
+  "businessName": zod.string(),
+  "address": zod.string().optional(),
+  "ownerName": zod.string(),
+  "ownerMobile": zod.string()
+}).describe('The repair shop as seen by a dealer-portal login.'),zod.null()])
 })
 
 

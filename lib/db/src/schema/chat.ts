@@ -15,17 +15,19 @@ import { shopsTable, usersTable } from "./auth";
 import { customersTable } from "./business";
 
 // ── Customer user accounts ───────────────────────────────────────────────────
-// A customer user is a regular user (role = "customer") linked one-to-one to a
-// customers row in the same shop. Created via an activation invite flow only —
-// never by public registration. The link is enforced by a uniqueIndex so one
-// customer can have at most one login account.
+// A customer user is a login account (role = "customer", or a dealer-portal
+// account whose mobile is also on file as a walk-in customer) linked to one or
+// more customers rows. One customer row can have at most one login account
+// (customerId unique), but one login may own several customer rows — the same
+// person entered twice by staff, or on file at more than one shop. Links are
+// created by the activation invite flow and by OTP verification, never by
+// public registration.
 export const customerUsersTable = pgTable(
   "customer_users",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     userId: uuid("user_id")
       .notNull()
-      .unique()
       .references(() => usersTable.id, { onDelete: "cascade" }),
     customerId: uuid("customer_id")
       .notNull()
@@ -39,7 +41,7 @@ export const customerUsersTable = pgTable(
       .defaultNow(),
   },
   (t) => [
-    uniqueIndex("customer_users_user_shop_idx").on(t.userId, t.shopId),
+    index("customer_users_user_shop_idx").on(t.userId, t.shopId),
   ],
 );
 

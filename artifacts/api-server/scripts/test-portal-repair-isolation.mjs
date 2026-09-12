@@ -265,6 +265,75 @@ async function verifyPortal(label, portal, ownId, sameShopForeignId, crossShopId
   }
 }
 
+// A dealer-portal login whose mobile was also booked as a walk-in customer
+// owns those customer rows too: their repairs join the dealer's list and
+// stats, while every other customer of the shop stays invisible.
+async function verifyDealerPortalOwnCustomerRows({
+  A,
+  dealerOwnerPortal,
+  ownDealerRepairId,
+  foreignSameShopRepairId,
+  crossShopRepairId,
+}) {
+  const label = "dealer owner portal with own customer row";
+  const ownCustomerId = await seedCustomer(A.shopId, "A3");
+  const ownCustomerRepairId = await seedRepair({
+    shopId: A.shopId, customerId: ownCustomerId, dealerId: null, tag: "A3",
+  });
+  await pool.query(
+    `INSERT INTO customer_users (user_id, customer_id, shop_id) VALUES ($1, $2, $3)`,
+    [dealerOwnerPortal.userId, ownCustomerId, A.shopId],
+  );
+
+  const list = await api("GET", "/repairs", dealerOwnerPortal.token);
+  const ids = (list.json.repairs ?? []).map((repair) => repair.id).sort();
+  check(
+    `${label} lists dealer repairs plus its own customer-row repairs`,
+    list.status === 200 && ids.join() === [ownDealerRepairId, ownCustomerRepairId].sort().join(),
+    list,
+  );
+  const own = await api("GET", `/repairs/${ownCustomerRepairId}`, dealerOwnerPortal.token);
+  check(`${label} can open its own customer-row repair`, own.status === 200 && own.json.repair?.id === ownCustomerRepairId, own);
+  check(`${label} detail redacts sensitive fields`, leakedKeys(own.json).length === 0, leakedKeys(own.json));
+  for (const [scope, id] of [["same-shop foreign", foreignSameShopRepairId], ["cross-shop", crossShopRepairId]]) {
+    const foreign = await api("GET", `/repairs/${id}`, dealerOwnerPortal.token);
+    check(`${label} still cannot open ${scope} repair`, foreign.status === 404 || foreign.status === 403, foreign);
+  }
+
+  const { rows: [owner] } = await pool.query(`SELECT name, mobile FROM users WHERE id = $1`, [A.ownerId]);
+  const me = await api("GET", "/dealers/me", dealerOwnerPortal.token);
+  check(
+    `${label} stats count dealer and own customer-row repairs`,
+    me.status === 200 && me.json.stats?.totalRepairs === 2,
+    me,
+  );
+  check(
+    `${label} sees the repair shop as its supplier with the owner's contact`,
+    me.status === 200
+      && me.json.supplier?.ownerMobile === owner.mobile
+      && me.json.supplier?.ownerName === owner.name
+      && typeof me.json.supplier?.businessName === "string",
+    me,
+  );
+  check(
+    `${label} supplier block exposes nothing beyond the owner's contact`,
+    me.status === 200
+      && Object.keys(me.json.supplier ?? {}).every((key) => ["businessName", "address", "ownerName", "ownerMobile"].includes(key)),
+    me,
+  );
+
+  await pool.query(`DELETE FROM customer_users WHERE user_id = $1 AND customer_id = $2`, [dealerOwnerPortal.userId, ownCustomerId]);
+  const afterUnlink = await api("GET", `/repairs/${ownCustomerRepairId}`, dealerOwnerPortal.token);
+  check(`${label} loses the customer-row repair once the link is removed`, afterUnlink.status === 404, afterUnlink);
+  const listAfter = await api("GET", "/repairs", dealerOwnerPortal.token);
+  const idsAfter = (listAfter.json.repairs ?? []).map((repair) => repair.id);
+  check(
+    `${label} list returns to dealer repairs only after unlink`,
+    listAfter.status === 200 && idsAfter.length === 1 && idsAfter[0] === ownDealerRepairId,
+    listAfter,
+  );
+}
+
 function responseRevealsRepair(result, repairId) {
   return JSON.stringify(result.json).includes(repairId) || leakedKeys(result.json).length > 0;
 }
@@ -917,6 +986,13 @@ async function run(A, B) {
   );
   await verifyPortal("dealer owner portal", dealerOwnerPortal, repairA1, repairA2, repairB);
   await verifyPortal("dealer staff portal", dealerStaffPortal, repairA1, repairA2, repairB);
+  await verifyDealerPortalOwnCustomerRows({
+    A,
+    dealerOwnerPortal,
+    ownDealerRepairId: repairA1,
+    foreignSameShopRepairId: repairA2,
+    crossShopRepairId: repairB,
+  });
 
   await pool.query(`UPDATE dealers SET is_active = false WHERE id = $1`, [dealerA1]);
   for (const [label, portal] of [

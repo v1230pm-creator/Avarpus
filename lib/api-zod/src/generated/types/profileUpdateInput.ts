@@ -8,6 +8,10 @@
 
 export interface ProfileUpdateInput {
   name?: string;
+  /**
+     * Deprecated. The sign-in mobile is immutable here; sending a value other than the current one fails with 400 MOBILE_CHANGE_REQUIRES_OTP. Only a verified OTP binds a number.
+     * @deprecated
+     */
   mobile?: string;
   profilePhoto?: string | null;
   /** @maxLength 500 */

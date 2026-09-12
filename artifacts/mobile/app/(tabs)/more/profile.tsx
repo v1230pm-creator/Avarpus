@@ -22,7 +22,6 @@ export default function ProfileScreen() {
   const queryClient = useQueryClient();
 
   const [name, setName] = useState(user?.name ?? '');
-  const [mobile, setMobile] = useState(user?.mobile ?? '');
   const [profilePhoto, setProfilePhoto] = useState(user?.profilePhoto ?? null);
   const [about, setAbout] = useState(user?.profileAbout ?? '');
   const [username, setUsername] = useState(user?.profileUsername ?? '');
@@ -33,7 +32,6 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     setName(user?.name ?? '');
-    setMobile(user?.mobile ?? '');
     setProfilePhoto(user?.profilePhoto ?? null);
     setAbout(user?.profileAbout ?? '');
     setUsername(user?.profileUsername ?? '');
@@ -141,8 +139,6 @@ export default function ProfileScreen() {
     if (!trimmedName) return notify('Error', 'Name cannot be empty');
     if (Array.from(trimmedName).length > 120) return notify('Error', 'Name must be 120 characters or fewer');
 
-    if (mobile && !/^\d{10}$/.test(mobile)) return notify('Error', 'Mobile must be a 10-digit number');
-
     if (username && !/^[a-z0-9_]{3,30}$/i.test(username)) {
       return notify('Error', 'Username must be 3-30 characters (letters, numbers, underscores)');
     }
@@ -156,7 +152,6 @@ export default function ProfileScreen() {
 
       await authMeUpdate({
         name: trimmedName,
-        mobile: mobile || undefined,
         profileAbout: about.trim() || null,
         profileUsername: username.trim() || null,
         profileLinks: parsedLinks.length > 0 ? parsedLinks : null
@@ -265,14 +260,12 @@ export default function ProfileScreen() {
             </View>
             <View style={[styles.fieldContent, { borderBottomColor: colors.border }]}>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Phone</Text>
-              <TextInput
-                style={[styles.fieldInput, { color: colors.foreground }]}
-                value={mobile}
-                onChangeText={(t) => setMobile(t.replace(/[^0-9]/g, '').slice(0, 10))}
-                placeholder="10-digit mobile"
-                placeholderTextColor={colors.mutedForeground}
-                keyboardType="number-pad"
-              />
+              <Text style={[styles.fieldInput, { color: colors.foreground }]} testID="profile-mobile-readonly">
+                {user?.mobile || '—'}
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 2 }}>
+                This is your sign-in number. To use a different number, sign in with it.
+              </Text>
             </View>
           </View>
 

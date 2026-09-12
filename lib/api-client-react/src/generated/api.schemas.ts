@@ -193,6 +193,10 @@ export interface SupportNotificationSettingsInput {
 
 export interface ProfileUpdateInput {
   name?: string;
+  /**
+     * Deprecated. The sign-in mobile is immutable here; sending a value other than the current one fails with 400 MOBILE_CHANGE_REQUIRES_OTP. Only a verified OTP binds a number.
+     * @deprecated
+     */
   mobile?: string;
   profilePhoto?: string | null;
   /** @maxLength 500 */
@@ -739,6 +743,22 @@ export interface DealerStats {
 export interface DealerProfile {
   dealer: Dealer;
   stats: DealerStats;
+}
+
+/**
+ * The repair shop as seen by a dealer-portal login.
+ */
+export interface DealerSupplier {
+  businessName: string;
+  address?: string;
+  ownerName: string;
+  ownerMobile: string;
+}
+
+export interface DealerPortalProfile {
+  dealer: Dealer;
+  stats: DealerStats;
+  supplier: DealerSupplier | null;
 }
 
 export interface DealerOverviewStats {

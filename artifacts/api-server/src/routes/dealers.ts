@@ -1,11 +1,14 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import {
   db,
   dealersTable,
   repairsTable,
   repairReturnsTable,
   refundsTable,
+  customerUsersTable,
+  shopsTable,
+  usersTable,
   type DbUser,
   type DbDealer,
 } from "@workspace/db";
@@ -68,7 +71,13 @@ function dealerOut(d: DbDealer) {
 
 // Per-dealer aggregate stats computed from the single source-of-truth
 // repairs table (+ returns/refunds). Never cached — always live.
-async function dealerStats(shopId: string, dealerId: string) {
+// `ownCustomerIds` widens the set for the dealer portal: repairs booked under
+// the portal login's own walk-in customer rows count as theirs too, so the
+// header numbers match the list the same login is shown.
+async function dealerStats(shopId: string, dealerId: string, ownCustomerIds: string[] = []) {
+  const owned: SQL = ownCustomerIds.length > 0
+    ? (or(eq(repairsTable.dealerId, dealerId), inArray(repairsTable.customerId, ownCustomerIds)) as SQL)
+    : eq(repairsTable.dealerId, dealerId);
   const [r] = await db
     .select({
       totalRepairs: sql<number>`count(*)::int`,
@@ -86,7 +95,7 @@ async function dealerStats(shopId: string, dealerId: string) {
       paid: sql<number>`coalesce(sum(case when ${repairsTable.status} in ('cancelled','cannot_repair') then 0 else ${repairsTable.advance} end), 0)::float`,
     })
     .from(repairsTable)
-    .where(and(eq(repairsTable.shopId, shopId), eq(repairsTable.dealerId, dealerId)));
+    .where(and(eq(repairsTable.shopId, shopId), owned));
 
   const [as] = await db
     .select({
@@ -94,7 +103,7 @@ async function dealerStats(shopId: string, dealerId: string) {
     })
     .from(repairReturnsTable)
     .innerJoin(repairsTable, eq(repairReturnsTable.repairId, repairsTable.id))
-    .where(and(eq(repairReturnsTable.shopId, shopId), eq(repairsTable.dealerId, dealerId)));
+    .where(and(eq(repairReturnsTable.shopId, shopId), owned));
 
   const [rf] = await db
     .select({
@@ -103,7 +112,7 @@ async function dealerStats(shopId: string, dealerId: string) {
     })
     .from(refundsTable)
     .innerJoin(repairsTable, eq(refundsTable.repairId, repairsTable.id))
-    .where(and(eq(refundsTable.shopId, shopId), eq(repairsTable.dealerId, dealerId)));
+    .where(and(eq(refundsTable.shopId, shopId), owned));
 
   const totalValue = Math.round((r?.totalValue ?? 0) * 100) / 100;
   const paid = Math.round((r?.paid ?? 0) * 100) / 100;
@@ -140,8 +149,34 @@ router.get(
       res.status(404).json({ message: "Dealer profile not found" });
       return;
     }
-    const stats = await dealerStats(me.shopId, dealer.id);
-    res.json({ dealer: dealerOut(dealer), stats });
+    const [ownCustomerLinks, [shop]] = await Promise.all([
+      db.select({ customerId: customerUsersTable.customerId })
+        .from(customerUsersTable)
+        .where(and(eq(customerUsersTable.userId, me.id), eq(customerUsersTable.shopId, me.shopId))),
+      db.select({
+        businessName: shopsTable.businessName,
+        address: shopsTable.address,
+        ownerName: usersTable.name,
+        ownerMobile: usersTable.mobile,
+      })
+        .from(shopsTable)
+        .innerJoin(usersTable, eq(usersTable.id, shopsTable.dealerId))
+        .where(eq(shopsTable.id, me.shopId))
+        .limit(1),
+    ]);
+    const stats = await dealerStats(me.shopId, dealer.id, ownCustomerLinks.map((link) => link.customerId));
+    // From the portal login's side the repair shop is their supplier: the
+    // shop that repairs the phones they send in. Only the owner's contact is
+    // exposed — never staff details or shop settings.
+    const supplier = shop
+      ? {
+          businessName: shop.businessName,
+          address: shop.address ?? undefined,
+          ownerName: shop.ownerName,
+          ownerMobile: shop.ownerMobile,
+        }
+      : null;
+    res.json({ dealer: dealerOut(dealer), stats, supplier });
   }),
 );
 

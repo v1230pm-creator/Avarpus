@@ -42,7 +42,7 @@
 - [Expo simulator API routing](expo-simulator-api-routing.md) — browser/Expo development must use the current Replit dev domain; a production fallback silently exercises stale deployed auth code.
 - [Wouter query navigation](wouter-query-navigation.md) — query-only login transitions need local React step state to rerender reliably.
 - [Local Expo native modules](local-expo-native-modules.md) — use autolinked modules under artifacts/mobile/modules; Expo Go must fail closed for sensitive native features.
-- [OTP-only account access](otp-only-account-access.md) — mobile OTP is the sole primary sign-in path; saved email is recovery-only, while retired SIM/device data stays non-destructively archived.
+- [OTP-only account access](otp-only-account-access.md) — mobile OTP is the sole sign-in; multi-match never fails closed (dealer wins, many customer rows per login); sessions cannot self-change mobile.
 - [Trusted-device recovery](trusted-device-recovery.md) — OTP sessions persist until revocation; Android reinstall recovery stays short, immutable, serialized, throttled, and fail-closed.
 - [Chat report moderation](chat-report-moderation.md) — abuse reports are super_admin-only; review state is one-way and terminal; the reporter's own view is waiting-or-finished and nothing more.
 - [Customer portal allowlist](customer-portal-allowlist.md) — customer-role accounts 403 on any endpoint the portal contract does not name, and each family must declare a real isolation probe.

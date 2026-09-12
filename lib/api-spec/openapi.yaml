@@ -895,13 +895,19 @@ paths:
       operationId: dealersMe
       tags: [business]
       summary: Dealer-portal account's own dealer profile + stats
+      description: >-
+        Stats also count repairs booked under the login's own walk-in customer
+        rows in this shop (same mobile), matching what GET /repairs lists for
+        the same login. `supplier` describes the repair shop from the portal
+        login's side: the business that repairs the phones they send in, with
+        the shop owner's name and mobile.
       responses:
         "200":
           description: Own dealer profile
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DealerProfile"
+                $ref: "#/components/schemas/DealerPortalProfile"
   /dealers/overview:
     get:
       operationId: dealersOverview
@@ -3900,7 +3906,13 @@ components:
       type: object
       properties:
         name: { type: string }
-        mobile: { type: string }
+        mobile:
+          type: string
+          description: >-
+            Deprecated. The sign-in mobile is immutable here; sending a value
+            other than the current one fails with 400 MOBILE_CHANGE_REQUIRES_OTP.
+            Only a verified OTP binds a number.
+          deprecated: true
         profilePhoto: { type: string, nullable: true }
         profileAbout: { type: string, nullable: true, maxLength: 500 }
         profileUsername: { type: string, nullable: true, pattern: '^[a-z0-9][a-z0-9_]{2,29}$' }
@@ -4413,6 +4425,27 @@ components:
         stats:
           $ref: "#/components/schemas/DealerStats"
       required: [dealer, stats]
+    DealerSupplier:
+      type: object
+      description: The repair shop as seen by a dealer-portal login.
+      properties:
+        businessName: { type: string }
+        address: { type: string }
+        ownerName: { type: string }
+        ownerMobile: { type: string }
+      required: [businessName, ownerName, ownerMobile]
+    DealerPortalProfile:
+      type: object
+      properties:
+        dealer:
+          $ref: "#/components/schemas/Dealer"
+        stats:
+          $ref: "#/components/schemas/DealerStats"
+        supplier:
+          oneOf:
+            - $ref: "#/components/schemas/DealerSupplier"
+            - type: "null"
+      required: [dealer, stats, supplier]
     DealerOverviewStats:
       type: object
       properties:

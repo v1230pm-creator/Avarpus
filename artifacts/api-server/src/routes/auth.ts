@@ -90,6 +90,41 @@ function deviceInfoFrom(req: Request, parsedDeviceInfo?: string): string | null 
   return typeof ua === "string" && ua.trim() ? ua.trim().slice(0, 120) : null;
 }
 
+// Accounts whose business identity is derived from dealer/customer rows that
+// carry their mobile. Shop owners, staff and super admins are never in here.
+function isPortalLinkableRole(role: string): boolean {
+  return role === "customer" || role === "dealer_owner" || role === "dealer_staff";
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function reloadUser(tx: Tx, userId: string) {
+  const [current] = await tx.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  return current;
+}
+
+// Link every matching customer row of ONE shop to this login. A row already
+// claimed by a different login is left alone (customer_id is unique), so a
+// stale or mistyped record can never be re-pointed at a newer account.
+// Returns how many rows of that shop this login owns afterwards.
+async function linkOwnedCustomerRows(
+  tx: Tx,
+  userId: string,
+  shopId: string,
+  customerMatches: Array<{ id: string; shopId: string }>,
+): Promise<number> {
+  const inShop = customerMatches.filter((customer) => customer.shopId === shopId);
+  if (inShop.length > 0) {
+    await tx.insert(customerUsersTable)
+      .values(inShop.map((customer) => ({ userId, customerId: customer.id, shopId })))
+      .onConflictDoNothing();
+  }
+  const owned = await tx.select({ id: customerUsersTable.id })
+    .from(customerUsersTable)
+    .where(and(eq(customerUsersTable.userId, userId), eq(customerUsersTable.shopId, shopId)));
+  return owned.length;
+}
+
 // ── Mobile OTP login ──────────────────────────────────────────────────────
 router.post("/auth/otp/request", asyncHandler(async (req, res) => {
   const body = parseBody(AuthOtpRequestBody, req, res);
@@ -237,10 +272,12 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
     return;
   }
 
-  // A verified mobile may be an existing B2B dealer or end customer. Resolve
-  // only an exact, normalized, *unique* record and never replace an existing
-  // business identity. This is deliberately done after OTP verification and in
-  // one transaction: a duplicate phone must not silently grant either shop.
+  // A verified mobile may already be on file as a B2B dealer party and/or as
+  // one or more walk-in customer rows (the same person entered twice, or on
+  // file at more than one shop). OTP proves control of the number, so every
+  // matching record belongs to this caller: never refuse the login because the
+  // number appears more than once. Resolution is done after OTP verification,
+  // in one transaction, and never replaces an existing business identity.
   const account = await db.transaction(async (tx) => {
     // Serialize resolution and customer-link claims for this normalized phone
     // across API processes. hashtext is used only as a transaction-local lock
@@ -252,16 +289,11 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
       .where(eq(usersTable.mobile, mobile))
       .limit(1);
     // Inactive users are authoritative and can never be reactivated by OTP.
-    if (existing && !existing.isActive) return { user: existing, created: false, ambiguous: false };
-    // A business user, or an already-linked customer, is authoritative. Do not
-    // use a changed customer/dealer row to overwrite its identity.
-    if (existing && (existing.role !== "customer" || existing.shopId || existing.dealerId)) {
-      return { user: existing, created: false, ambiguous: false };
-    }
-    if (existing) {
-      const [link] = await tx.select({ id: customerUsersTable.id }).from(customerUsersTable)
-        .where(eq(customerUsersTable.userId, existing.id)).limit(1);
-      if (link) return { user: existing, created: false, ambiguous: false };
+    if (existing && !existing.isActive) return { user: existing, created: false };
+    // Shop owners, staff and super admins are authoritative. Do not use a
+    // dealer/customer row that happens to share the number to reshape them.
+    if (existing && !isPortalLinkableRole(existing.role)) {
+      return { user: existing, created: false };
     }
 
     // Existing data predates normalized mobile columns. Normalize each stored
@@ -270,20 +302,18 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
       tx.select().from(dealersTable).where(eq(dealersTable.isActive, true)),
       tx.select().from(customersTable),
     ]);
-    const dealerMatches = dealers.filter((dealer) => normaliseIndianMobile(dealer.mobile) === mobile);
-    const customerMatches = customers.filter((customer) => normaliseIndianMobile(customer.mobile) === mobile);
-    if (dealerMatches.length + customerMatches.length > 1) {
-      return { user: null, created: false, ambiguous: true };
-    }
-    // Do this before creating a standalone account so an occupied customer
-    // link fails with no account or link mutation at all.
-    if (customerMatches.length === 1) {
-      const [otherLink] = await tx.select({ userId: customerUsersTable.userId }).from(customerUsersTable)
-        .where(eq(customerUsersTable.customerId, customerMatches[0].id)).limit(1);
-      if (otherLink && (!existing || otherLink.userId !== existing.id)) {
-        return { user: null, created: false, ambiguous: true };
-      }
-    }
+    // Most recent relationship first: when the number is on file more than
+    // once, the newest record decides which shop the portal opens on. Rows
+    // written in one transaction share a created_at, so break ties on id to
+    // keep the choice stable across logins.
+    const newestFirst = <T extends { id: string; createdAt: Date }>(a: T, b: T) =>
+      b.createdAt.getTime() - a.createdAt.getTime() || a.id.localeCompare(b.id);
+    const dealerMatches = dealers
+      .filter((dealer) => normaliseIndianMobile(dealer.mobile) === mobile)
+      .sort(newestFirst);
+    const customerMatches = customers
+      .filter((customer) => normaliseIndianMobile(customer.mobile) === mobile)
+      .sort(newestFirst);
 
     let user = existing;
     if (!user) {
@@ -300,67 +330,49 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
         .returning();
       if (!created) {
         const [raced] = await tx.select().from(usersTable).where(eq(usersTable.mobile, mobile)).limit(1);
-        return { user: raced, created: false, ambiguous: false };
+        return { user: raced, created: false };
       }
       user = created;
     }
-    if (dealerMatches.length === 1) {
-      const dealer = dealerMatches[0];
-      const [upgraded] = await tx.update(usersTable)
-        .set({ role: "dealer_owner", shopId: dealer.shopId, dealerId: dealer.id })
-        .where(and(eq(usersTable.id, user.id), eq(usersTable.role, "customer")))
-        .returning();
-      if (upgraded) return { user: upgraded, created: !existing, ambiguous: false };
-      const [current] = await tx.select().from(usersTable).where(eq(usersTable.id, user.id)).limit(1);
-      return { user: current, created: !existing, ambiguous: false };
-    }
-    if (customerMatches.length === 1) {
-      const customer = customerMatches[0];
-      const [insertedLink] = await tx.insert(customerUsersTable).values({
-        userId: user.id, customerId: customer.id, shopId: customer.shopId,
-      }).onConflictDoNothing().returning();
-      if (!insertedLink) {
-        // The advisory lock makes this exceptional (for example, a legacy
-        // writer bypassing this path), but fail closed rather than claiming a
-        // customer whose unique link was won elsewhere.
-        const [sameUserLink] = await tx.select({ customerId: customerUsersTable.customerId })
-          .from(customerUsersTable)
-          .where(eq(customerUsersTable.userId, user.id))
-          .limit(1);
-        if (!sameUserLink || sameUserLink.customerId !== customer.id) {
-          // If this request created the otherwise-standalone account, remove it
-          // before committing the conflict result. Existing accounts are left
-          // entirely unchanged.
-          if (!existing) {
-            await tx.delete(usersTable).where(eq(usersTable.id, user.id));
-          }
-          return { user: null, created: false, ambiguous: false, conflict: true };
+
+    // A standalone account attaches to a business identity here. A dealer
+    // party wins over walk-in customer rows: the dealer portal can also show
+    // the repairs booked under this person's customer rows in the same shop.
+    if (user.role === "customer" && !user.shopId && !user.dealerId) {
+      if (dealerMatches.length > 0) {
+        const dealer = dealerMatches[0];
+        const [upgraded] = await tx.update(usersTable)
+          .set({ role: "dealer_owner", shopId: dealer.shopId, dealerId: dealer.id })
+          .where(and(eq(usersTable.id, user.id), eq(usersTable.role, "customer")))
+          .returning();
+        user = upgraded ?? await reloadUser(tx, user.id);
+      } else if (customerMatches.length > 0) {
+        // Try the newest shop first. A customer row already claimed by another
+        // login is skipped rather than treated as a conflict; the account only
+        // opens on a shop where it actually owns at least one customer row.
+        const shopOrder = [...new Set(customerMatches.map((customer) => customer.shopId))];
+        for (const shopId of shopOrder) {
+          const owned = await linkOwnedCustomerRows(tx, user.id, shopId, customerMatches);
+          if (owned === 0) continue;
+          const [linked] = await tx.update(usersTable)
+            .set({ role: "customer", shopId, dealerId: null })
+            .where(and(eq(usersTable.id, user.id), eq(usersTable.role, "customer")))
+            .returning();
+          user = linked ?? await reloadUser(tx, user.id);
+          break;
         }
       }
-      const [linked] = await tx.update(usersTable)
-        .set({ role: "customer", shopId: customer.shopId, dealerId: null })
-        .where(and(eq(usersTable.id, user.id), eq(usersTable.role, "customer")))
-        .returning();
-      if (linked) return { user: linked, created: !existing, ambiguous: false };
-      const [current] = await tx.select().from(usersTable).where(eq(usersTable.id, user.id)).limit(1);
-      return { user: current, created: !existing, ambiguous: false };
     }
-    return { user, created: !existing, ambiguous: false };
+
+    // Keep an attached portal account's customer links complete: rows added
+    // under this number after the first login (or alongside a dealer party)
+    // are picked up on every verification. Rows in other shops stay unlinked —
+    // the portal is single-shop.
+    if (user.shopId && isPortalLinkableRole(user.role)) {
+      await linkOwnedCustomerRows(tx, user.id, user.shopId, customerMatches);
+    }
+    return { user, created: !existing };
   });
-  if (account.ambiguous) {
-    res.status(409).json({
-      message: "This mobile matches more than one business record. Please contact the shop to correct the mobile number.",
-      code: "AMBIGUOUS_MOBILE_MATCH",
-    });
-    return;
-  }
-  if ("conflict" in account && account.conflict) {
-    res.status(409).json({
-      message: "This customer profile is already linked to another account. Please contact the shop.",
-      code: "CUSTOMER_LINK_CONFLICT",
-    });
-    return;
-  }
   const user = account.user;
   if (!user || !user.isActive) {
     // An existing inactive account cannot be reactivated by OTP verification.
@@ -725,18 +737,18 @@ router.patch("/auth/me", requireAuth, asyncHandler(async (req, res) => {
       res.status(400).json({ message: "Mobile must be a 10-digit number" });
       return;
     }
+    // The mobile is the sign-in identity and the key that business records
+    // (customer rows, dealer parties) are auto-linked by at OTP time. Letting
+    // a session rewrite it without proving control of the new number would
+    // let one account inherit whatever the next OTP on that number matches,
+    // so it is immutable here; only a verified OTP may bind a number.
     if (mobile !== me.mobile) {
-      const clash = await db
-        .select({ id: usersTable.id })
-        .from(usersTable)
-        .where(eq(usersTable.mobile, mobile))
-        .limit(1);
-      if (clash.length > 0 && clash[0].id !== me.id) {
-        res.status(409).json({ message: "Another account already uses this mobile number" });
-        return;
-      }
+      res.status(400).json({
+        code: "MOBILE_CHANGE_REQUIRES_OTP",
+        message: "Your sign-in mobile number cannot be changed here. Sign in with the new number to use it.",
+      });
+      return;
     }
-    set.mobile = mobile;
   }
   if (profilePhoto !== undefined) {
     if (profilePhoto === null || profilePhoto === "") {

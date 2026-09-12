@@ -571,41 +571,53 @@ router.post(
       return;
     }
 
-    // Check no user account exists for this customer yet
-    const [alreadyLinked] = await db
-      .select({ id: customerUsersTable.id })
-      .from(customerUsersTable)
-      .where(eq(customerUsersTable.customerId, invite.customerId))
-      .limit(1);
-    if (alreadyLinked) {
-      await db
-        .update(customerInvitesTable)
-        .set({ consumedAt: now })
-        .where(eq(customerInvitesTable.id, invite.id));
-      res.status(409).json({ message: "A user account already exists for this customer" });
-      return;
-    }
-
     // Synthesize email if the customer record lacks one
     const email = customer.email?.trim()
       ? customer.email.trim().toLowerCase()
       : `customer-${customer.id}@shop-${invite.shopId}.local`;
 
-    // Check uniqueness of email/mobile in users table
-    const { or } = await import("drizzle-orm");
-    const clash = await db
-      .select({ id: usersTable.id })
-      .from(usersTable)
-      .where(or(eq(usersTable.email, email), eq(usersTable.mobile, customer.mobile)))
-      .limit(1);
-    if (clash.length > 0) {
-      res.status(409).json({ message: "An account with this email or mobile already exists" });
-      return;
-    }
-
-    // Create user account + customer_users link + mark invite consumed — atomically
-    const newUser = await db.transaction(async (tx) => {
+    // Every ownership check runs under the same per-mobile advisory lock the
+    // OTP path takes, so a concurrent OTP claim of this number cannot slip
+    // between a precheck and the insert. A row already linked, or a mobile
+    // already owned by an account outside this shop, ends the invite.
+    type ActivationOutcome =
+      | { kind: "activated"; user: typeof usersTable.$inferSelect }
+      | { kind: "row_linked" }
+      | { kind: "mobile_taken" };
+    const outcome = await db.transaction(async (tx): Promise<ActivationOutcome> => {
       await lockNormalizedMobiles(tx, customer.mobile);
+
+      const [alreadyLinked] = await tx
+        .select({ id: customerUsersTable.id })
+        .from(customerUsersTable)
+        .where(eq(customerUsersTable.customerId, invite.customerId))
+        .limit(1);
+      if (alreadyLinked) {
+        await tx.update(customerInvitesTable).set({ consumedAt: now }).where(eq(customerInvitesTable.id, invite.id));
+        return { kind: "row_linked" };
+      }
+
+      const [clash] = await tx
+        .select()
+        .from(usersTable)
+        .where(or(eq(usersTable.email, email), eq(usersTable.mobile, customer.mobile)))
+        .limit(1);
+      if (clash) {
+        // The same person already signed in with this number on this shop
+        // (the OTP path may have linked a duplicate row first): attach this
+        // row to that account instead of stranding it. Any other owner of the
+        // number or email is a hard stop.
+        const sameShopCustomer =
+          clash.mobile === customer.mobile && clash.isActive
+          && clash.role === "customer" && clash.shopId === invite.shopId;
+        if (!sameShopCustomer) return { kind: "mobile_taken" };
+        await tx.insert(customerUsersTable)
+          .values({ userId: clash.id, customerId: invite.customerId, shopId: invite.shopId })
+          .onConflictDoNothing();
+        await tx.update(customerInvitesTable).set({ consumedAt: now }).where(eq(customerInvitesTable.id, invite.id));
+        return { kind: "activated", user: clash };
+      }
+
       const [created] = await tx
         .insert(usersTable)
         .values({
@@ -630,13 +642,22 @@ router.post(
         .set({ consumedAt: now })
         .where(eq(customerInvitesTable.id, invite.id));
 
-      return created;
+      return { kind: "activated", user: created };
     });
+
+    if (outcome.kind === "row_linked") {
+      res.status(409).json({ message: "A user account already exists for this customer" });
+      return;
+    }
+    if (outcome.kind === "mobile_taken") {
+      res.status(409).json({ message: "An account with this email or mobile already exists" });
+      return;
+    }
 
     const { publicUser } = await import("../lib/authUtils");
     res.json({
       message: "Account activated. Sign in with a mobile OTP to continue.",
-      user: publicUser(newUser),
+      user: publicUser(outcome.user),
     });
   }),
 );

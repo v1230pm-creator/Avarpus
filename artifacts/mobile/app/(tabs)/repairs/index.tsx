@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   FlatList,
+  Linking,
   Platform,
   RefreshControl,
   StyleSheet,
@@ -380,6 +381,33 @@ export default function RepairsScreen() {
               )}
             </TouchableOpacity>
           </View>
+        )}
+
+        {/* Dealer-portal supplier card: the repair shop, from the dealer's side */}
+        {isDealerPortal && myDealer?.supplier && (
+          <FlatCard testID="portal-supplier-card" style={{ padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primary + '1A', alignItems: 'center', justifyContent: 'center' }}>
+              <Feather name="tool" size={18} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', letterSpacing: 0.4 }}>SUPPLIER</Text>
+              <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }} numberOfLines={1}>
+                {myDealer.supplier.businessName}
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>
+                {myDealer.supplier.ownerName} · {myDealer.supplier.ownerMobile}
+              </Text>
+            </View>
+            <TouchableOpacity
+              testID="portal-supplier-call"
+              accessibilityRole="button"
+              accessibilityLabel={`Call ${myDealer.supplier.businessName}`}
+              onPress={() => { void Linking.openURL(`tel:${myDealer.supplier?.ownerMobile ?? ''}`); }}
+              style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.success + '1A', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Feather name="phone-call" size={16} color={colors.success} />
+            </TouchableOpacity>
+          </FlatCard>
         )}
 
         {/* Dealer-portal stats header */}

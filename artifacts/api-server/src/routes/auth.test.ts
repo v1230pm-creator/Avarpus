@@ -537,6 +537,21 @@ describe("POST /api/auth/otp/verify", () => {
     expect(longName.status).toBe(400);
     expect(longName.body.message).toMatch(/120 characters or fewer/i);
 
+    // The sign-in mobile is the key business records are linked by; a session
+    // must not be able to move itself onto another number without an OTP.
+    const mobileChange = await request(app)
+      .patch("/api/auth/me")
+      .set("Authorization", `Bearer ${res.body.token}`)
+      .send({ mobile: altMobile("3") });
+    expect(mobileChange.status).toBe(400);
+    expect(mobileChange.body.code).toBe("MOBILE_CHANGE_REQUIRES_OTP");
+    const sameMobile = await request(app)
+      .patch("/api/auth/me")
+      .set("Authorization", `Bearer ${res.body.token}`)
+      .send({ mobile: res.body.user.mobile, name: "Priya Same" });
+    expect(sameMobile.status).toBe(200);
+    expect(sameMobile.body.user.mobile).toBe(res.body.user.mobile);
+
     const updatedName = await request(app)
       .patch("/api/auth/me")
       .set("Authorization", `Bearer ${res.body.token}`)
@@ -678,41 +693,129 @@ describe("POST /api/auth/otp/verify", () => {
     }
   });
 
-  it("fails closed without creating an identity when dealer and customer matches are ambiguous", async () => {
+  it("opens the dealer portal when the mobile is both a dealer party and a walk-in customer", async () => {
     const mobile = altMobile("2");
     let ownerId: string | undefined;
     let shopId: string | undefined;
+    let portalUserId: string | undefined;
     try {
       const [owner] = await db.insert(usersTable).values({
-        name: "Ambiguous Link Shop Owner", email: `ambiguous-link-owner-${RUN}@example.test`,
+        name: "Dual Link Shop Owner", email: `dual-link-owner-${RUN}@example.test`,
         mobile: altMobile("1"), role: "dealer", isActive: true,
       }).returning();
       ownerId = owner.id;
       const [shop] = await db.insert(shopsTable).values({
-        dealerId: owner.id, businessName: "Ambiguous Link Shop",
+        dealerId: owner.id, businessName: "Dual Link Shop",
       }).returning();
       shopId = shop.id;
-      await db.insert(dealersTable).values({
-        shopId, dealerCode: `OTP-AMB-${RUN}`, name: "Ambiguous Dealer", mobile, isActive: true,
-      });
-      await db.insert(customersTable).values({
-        shopId, name: "Ambiguous Customer", mobile,
-      });
+      const [dealer] = await db.insert(dealersTable).values({
+        shopId, dealerCode: `OTP-DUAL-${RUN}`, name: "Dual Dealer", mobile, isActive: true,
+      }).returning();
+      // Two walk-in rows for the same number: staff entered the person twice.
+      const [customerA] = await db.insert(customersTable).values({
+        shopId, name: "Dual Customer", mobile: `+91${mobile}`,
+      }).returning();
+      const [customerB] = await db.insert(customersTable).values({
+        shopId, name: "Dual Customer (again)", mobile,
+      }).returning();
 
       const code = await createOtp(mobile, "login");
       const res = await request(app).post("/api/auth/otp/verify").send({ mobile, code });
-      expect(res.status).toBe(409);
-      expect(res.body.code).toBe("AMBIGUOUS_MOBILE_MATCH");
-      const users = await db.select().from(usersTable).where(eq(usersTable.mobile, mobile));
+      expect(res.status).toBe(200);
+      expect(res.body.user.role).toBe("dealer_owner");
+      expect(res.body.user.shopId).toBe(shopId);
+      expect(res.body.user.dealerId).toBe(dealer.id);
+
+      const [linked] = await db.select().from(usersTable).where(eq(usersTable.mobile, mobile));
+      portalUserId = linked.id;
       const links = await db.select().from(customerUsersTable)
-        .innerJoin(usersTable, eq(customerUsersTable.userId, usersTable.id))
-        .where(eq(usersTable.mobile, mobile));
-      expect(users).toHaveLength(0);
-      expect(links).toHaveLength(0);
+        .where(eq(customerUsersTable.userId, linked.id));
+      expect(links.map((link) => link.customerId).sort()).toEqual([customerA.id, customerB.id].sort());
+      expect(links.every((link) => link.shopId === shopId)).toBe(true);
+
+      // The dealer portal profile names the shop as this login's supplier.
+      const me = await request(app).get("/api/dealers/me").set("Authorization", `Bearer ${res.body.token}`);
+      expect(me.status).toBe(200);
+      expect(me.body.supplier).toEqual({
+        businessName: "Dual Link Shop",
+        ownerName: "Dual Link Shop Owner",
+        ownerMobile: altMobile("1"),
+      });
     } finally {
+      if (portalUserId) await db.delete(usersTable).where(eq(usersTable.id, portalUserId));
       await db.delete(otpCodesTable).where(eq(otpCodesTable.identifier, mobile));
       if (shopId) await db.delete(shopsTable).where(eq(shopsTable.id, shopId));
       if (ownerId) await db.delete(usersTable).where(eq(usersTable.id, ownerId));
+    }
+  });
+
+  it("links every duplicate customer row of the newest shop and skips rows owned by another login", async () => {
+    const mobile = altMobile("6");
+    const ownerIds: string[] = [];
+    const shopIds: string[] = [];
+    let portalUserId: string | undefined;
+    let otherUserId: string | undefined;
+    try {
+      const makeShop = async (tag: string) => {
+        const [owner] = await db.insert(usersTable).values({
+          name: `Dup Owner ${tag}`, email: `dup-owner-${tag}-${RUN}@example.test`,
+          mobile: `7${tag}${RUN.slice(0, 8)}`, role: "dealer", isActive: true,
+        }).returning();
+        ownerIds.push(owner.id);
+        const [shop] = await db.insert(shopsTable).values({
+          dealerId: owner.id, businessName: `Dup Shop ${tag}`,
+        }).returning();
+        shopIds.push(shop.id);
+        return shop.id;
+      };
+      const olderShopId = await makeShop("1");
+      const newerShopId = await makeShop("2");
+      const past = new Date(Date.now() - 60_000);
+      await db.insert(customersTable).values({
+        shopId: olderShopId, name: "Older Shop Row", mobile, createdAt: past,
+      });
+      const [newerA] = await db.insert(customersTable).values({
+        shopId: newerShopId, name: "Newer Shop Row", mobile,
+      }).returning();
+      const [newerB] = await db.insert(customersTable).values({
+        shopId: newerShopId, name: "Newer Shop Row 2", mobile: `91${mobile}`,
+      }).returning();
+      const [claimed] = await db.insert(customersTable).values({
+        shopId: newerShopId, name: "Claimed Row", mobile,
+      }).returning();
+      // A different login already owns one of the rows; it must stay theirs.
+      const [other] = await db.insert(usersTable).values({
+        name: "Other Login", email: `dup-other-${RUN}@example.test`,
+        mobile: `79${RUN.slice(0, 8)}`, role: "customer", isActive: true, shopId: newerShopId,
+      }).returning();
+      otherUserId = other.id;
+      await db.insert(customerUsersTable).values({ userId: other.id, customerId: claimed.id, shopId: newerShopId });
+
+      const code = await createOtp(mobile, "login");
+      const res = await request(app).post("/api/auth/otp/verify").send({ mobile, code });
+      expect(res.status).toBe(200);
+      expect(res.body.user.role).toBe("customer");
+      expect(res.body.user.shopId).toBe(newerShopId);
+
+      const [linked] = await db.select().from(usersTable).where(eq(usersTable.mobile, mobile));
+      portalUserId = linked.id;
+      const links = await db.select().from(customerUsersTable)
+        .where(eq(customerUsersTable.userId, linked.id));
+      expect(links.map((link) => link.customerId).sort()).toEqual([newerA.id, newerB.id].sort());
+      const [claimedLink] = await db.select().from(customerUsersTable)
+        .where(eq(customerUsersTable.customerId, claimed.id));
+      expect(claimedLink.userId).toBe(other.id);
+
+      // The portal lists repairs across every owned row and the ledger merges them.
+      const khata = await request(app).get("/api/customers/me/khata").set("Authorization", `Bearer ${res.body.token}`);
+      expect(khata.status).toBe(200);
+      expect([newerA.id, newerB.id]).toContain(khata.body.customer.id);
+    } finally {
+      if (portalUserId) await db.delete(usersTable).where(eq(usersTable.id, portalUserId));
+      if (otherUserId) await db.delete(usersTable).where(eq(usersTable.id, otherUserId));
+      await db.delete(otpCodesTable).where(eq(otpCodesTable.identifier, mobile));
+      for (const shopId of shopIds) await db.delete(shopsTable).where(eq(shopsTable.id, shopId));
+      for (const ownerId of ownerIds) await db.delete(usersTable).where(eq(usersTable.id, ownerId));
     }
   });
 
