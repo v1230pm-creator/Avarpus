@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Platform,
   ScrollView,
@@ -11,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { AvarpusLoadingScreen } from '@/components/ui/AvarpusSpinner';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -174,9 +174,7 @@ export default function StaffPermissionsScreen() {
       </View>
 
       {loading && !settings ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} size="large" />
-        </View>
+        <AvarpusLoadingScreen size={40} />
       ) : loadError && !settings ? (
         <View style={styles.center}>
           <Feather name="alert-circle" size={28} color={colors.destructive} />

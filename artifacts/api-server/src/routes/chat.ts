@@ -68,8 +68,20 @@ import {
   matrixUserIdForApp,
   matrixTxnId,
 } from "../lib/chatProviders";
+import {
+  AuthActivateInviteBody,
+  ChatContactsMatchBody,
+  ChatMarkReadBody,
+  ChatMessagesSendBody,
+  ChatMyReportListQueryParams,
+  ChatReportsCreateBody,
+  ChatRoomsCreateBody,
+  ChatRoomsPreferencesUpdateBody,
+  ChatUploadUrlBody,
+} from "@workspace/api-zod";
 import { generateToken, sha256 } from "../lib/authUtils";
 import { notifyUser } from "../lib/notify";
+import { parseBody, uuidParam } from "../lib/validate";
 import {
   claimPendingUpload,
   CHAT_PROVIDER_SEND_TIMEOUT_MS,
@@ -80,6 +92,9 @@ import {
 } from "../lib/pendingUploads";
 
 const router: IRouter = Router();
+router.param("id", uuidParam);
+router.param("roomId", uuidParam);
+router.param("messageId", uuidParam);
 const objectStorageService = new ObjectStorageService();
 
 class MatchGrantError extends Error {}
@@ -510,11 +525,10 @@ router.post(
 router.post(
   "/auth/activate-invite",
   asyncHandler(async (req, res) => {
-    const { token, name } = req.body ?? {};
-    if (
-      typeof token !== "string" || !token.trim() ||
-      typeof name !== "string" || !name.trim()
-    ) {
+    const body = parseBody(AuthActivateInviteBody, req, res);
+    if (!body) return;
+    const { token, name } = body;
+    if (!token.trim() || !name.trim()) {
       res.status(400).json({ message: "token and name are required" });
       return;
     }
@@ -719,13 +733,15 @@ router.patch(
       res.status(404).json({ message: "Room not found" });
       return;
     }
+    const body = parseBody(ChatRoomsPreferencesUpdateBody, req, res);
+    if (!body) return;
     const allowed = ["isPinned", "isMuted", "isArchived"] as const;
-    const supplied = allowed.filter((key) => typeof req.body?.[key] === "boolean");
+    const supplied = allowed.filter((key) => body[key] !== undefined);
     if (!supplied.length || Object.keys(req.body ?? {}).some((key) => !allowed.includes(key as typeof allowed[number]))) {
       res.status(400).json({ message: "Supply at least one valid preference" });
       return;
     }
-    const changes = Object.fromEntries(supplied.map((key) => [key, req.body[key]]));
+    const changes = Object.fromEntries(supplied.map((key) => [key, body[key]]));
     const [preference] = await db
       .insert(chatRoomPreferencesTable)
       .values({ roomId, userId: me.id, ...changes, updatedAt: new Date() })
@@ -862,11 +878,14 @@ router.post(
       return;
     }
 
+    const body = parseBody(ChatContactsMatchBody, req, res);
+    if (!body) return;
+
     // Accept a single phone string or a bounded array.
-    const { phone, phones } = req.body ?? {};
+    const { phone, phones } = body;
 
     // Build the raw list from either input.
-    let rawList: unknown[];
+    let rawList: string[];
     if (typeof phone === "string") {
       rawList = [phone];
     } else if (Array.isArray(phones)) {
@@ -889,7 +908,6 @@ router.post(
 
     // Normalize each entry; skip any that don't parse as Indian mobile.
     const normalized = rawList
-      .filter((p): p is string => typeof p === "string")
       .map(normalizeIndianMobile)
       .filter((p): p is string => p !== null);
 
@@ -982,6 +1000,8 @@ router.post(
     const me = (req as AuthedRequest).user;
     const shopId = resolveShopId(me);
 
+    const body = parseBody(ChatRoomsCreateBody, req, res);
+    if (!body) return;
     const {
       name,
       kind,
@@ -990,22 +1010,15 @@ router.post(
       targetUserId: bodyTargetUserId,
       matchToken,
       clientRequestId,
-    } = req.body ?? {};
-    if (typeof name !== "string" || !name.trim()) {
+    } = body;
+    const matchTokenValue = matchToken?.trim() ?? "";
+    if (!name.trim()) {
       res.status(400).json({ message: "name is required" });
       return;
     }
     // Restricted customer/dealer-portal accounts may only create direct rooms.
     if ((me.role === "customer" || isDealerPortal(me.role)) && kind !== "direct") {
       res.status(403).json({ message: "This account may only create direct chat rooms (kind=direct)" });
-      return;
-    }
-    // Only supported kinds.
-    const validKinds = ["customer", "dealer", "direct"] as const;
-    if (typeof kind !== "string" || !(validKinds as readonly string[]).includes(kind)) {
-      res.status(400).json({
-        message: "kind must be one of: customer, dealer, direct (support/group not supported yet)",
-      });
       return;
     }
     if (kind !== "direct" && !shopId) {
@@ -1015,7 +1028,7 @@ router.post(
     const roomScope = kind === "direct" ? "global_direct" as const : "shop" as const;
 
     // ── Idempotency #1: clientRequestId ────────────────────────────────────
-    if (typeof clientRequestId === "string" && clientRequestId.trim()) {
+    if (clientRequestId?.trim()) {
       const [existing] = await db
         .select()
         .from(chatRoomsTable)
@@ -1085,10 +1098,9 @@ router.post(
       // Both values must originate from exact contact matching. Keep all proof
       // failures generic so arbitrary IDs cannot be used as a user oracle.
       if (
-        typeof bodyTargetUserId !== "string" ||
+        bodyTargetUserId === undefined ||
         !UUID_RE.test(bodyTargetUserId.trim()) ||
-        typeof matchToken !== "string" ||
-        !matchToken.trim()
+        !matchTokenValue
       ) {
         res.status(403).json({ message: "Direct chat authorization is invalid or expired." });
         return;
@@ -1100,7 +1112,7 @@ router.post(
       }
       targetUserId = tid;
     } else if (kind === "customer") {
-      if (typeof customerId !== "string" || !customerId.trim()) {
+      if (!customerId?.trim()) {
         res.status(400).json({ message: "customerId is required for kind=customer" });
         return;
       }
@@ -1138,7 +1150,7 @@ router.post(
       resolvedCustomerId = customerId;
     } else {
       // kind === "dealer"
-      if (typeof dealerId !== "string" || !dealerId.trim()) {
+      if (!dealerId?.trim()) {
         res.status(400).json({ message: "dealerId is required for kind=dealer" });
         return;
       }
@@ -1231,7 +1243,7 @@ router.post(
               .from(chatContactMatchGrantsTable)
               .where(
                 and(
-                  eq(chatContactMatchGrantsTable.tokenHash, sha256(matchToken.trim())),
+                  eq(chatContactMatchGrantsTable.tokenHash, sha256(matchTokenValue)),
                   eq(chatContactMatchGrantsTable.callerUserId, me.id),
                   eq(chatContactMatchGrantsTable.targetUserId, targetUserId),
                   or(isNull(chatContactMatchGrantsTable.shopId), eq(chatContactMatchGrantsTable.shopId, shopId!)),
@@ -1310,7 +1322,7 @@ router.post(
               .from(chatContactMatchGrantsTable)
               .where(
                 and(
-                  eq(chatContactMatchGrantsTable.tokenHash, sha256(matchToken.trim())),
+                  eq(chatContactMatchGrantsTable.tokenHash, sha256(matchTokenValue)),
                   eq(chatContactMatchGrantsTable.callerUserId, me.id),
                   eq(chatContactMatchGrantsTable.targetUserId, targetUserId),
                   or(isNull(chatContactMatchGrantsTable.shopId), eq(chatContactMatchGrantsTable.shopId, shopId!)),
@@ -1329,7 +1341,7 @@ router.post(
         }
 
         if (kind === "direct") {
-          const tokenHash = sha256(matchToken.trim());
+          const tokenHash = sha256(matchTokenValue);
           const [grant] = await tx
             .select({ id: chatContactMatchGrantsTable.id })
             .from(chatContactMatchGrantsTable)
@@ -1423,7 +1435,7 @@ router.post(
           .from(chatContactMatchGrantsTable)
           .where(
             and(
-              eq(chatContactMatchGrantsTable.tokenHash, sha256(matchToken.trim())),
+              eq(chatContactMatchGrantsTable.tokenHash, sha256(matchTokenValue)),
               eq(chatContactMatchGrantsTable.callerUserId, me.id),
               eq(chatContactMatchGrantsTable.targetUserId, targetUserId),
               or(isNull(chatContactMatchGrantsTable.shopId), eq(chatContactMatchGrantsTable.shopId, shopId!)),
@@ -1580,14 +1592,6 @@ router.delete(
   }),
 );
 
-const CHAT_REPORT_REASONS = [
-  "spam",
-  "harassment",
-  "scam",
-  "inappropriate",
-  "other",
-] as const;
-
 router.post(
   "/chat/rooms/:roomId/reports",
   requireAuth,
@@ -1605,39 +1609,20 @@ router.post(
       return;
     }
 
-    const { clientRequestId, reason, messageId, details } = req.body ?? {};
-    if (
-      typeof clientRequestId !== "string" ||
-      !clientRequestId.trim() ||
-      clientRequestId.trim().length > 200
-    ) {
+    const body = parseBody(ChatReportsCreateBody, req, res);
+    if (!body) return;
+    const { clientRequestId, reason, messageId, details } = body;
+    if (!clientRequestId.trim()) {
       res.status(400).json({ message: "clientRequestId is required" });
       return;
     }
     if (
-      typeof reason !== "string" ||
-      !(CHAT_REPORT_REASONS as readonly string[]).includes(reason)
-    ) {
-      res.status(400).json({
-        message: `reason must be one of: ${CHAT_REPORT_REASONS.join(", ")}`,
-      });
-      return;
-    }
-    if (
       messageId !== undefined &&
-      (typeof messageId !== "string" || !UUID_RE.test(messageId))
+      !UUID_RE.test(messageId)
     ) {
       res.status(400).json({ message: "messageId must be a valid message in this room" });
       return;
     }
-    if (
-      details !== undefined &&
-      (typeof details !== "string" || details.trim().length > 1000)
-    ) {
-      res.status(400).json({ message: "details must be a string of at most 1000 characters" });
-      return;
-    }
-
     if (messageId) {
       const [message] = await db
         .select({ id: chatMessagesTable.id })
@@ -1697,8 +1682,7 @@ router.post(
           messageId: messageId ?? null,
           clientRequestId: requestId,
           reason,
-          details:
-            typeof details === "string" && details.trim() ? details.trim() : null,
+          details: details?.trim() ? details.trim() : null,
         })
         .returning();
       return { report: created, rateLimited: false };
@@ -1720,6 +1704,122 @@ router.post(
         reason: report.reason,
         createdAt: report.createdAt.toISOString(),
       },
+    });
+  }),
+);
+
+// ── The reporter's own record of what they reported ──────────────────────────
+// A report is otherwise invisible to the person who filed it once the one-off
+// "we reviewed it" notification is gone, which is what makes people report the
+// same account again. This read gives them back their own submissions and
+// nothing else. It is deliberately NOT a second door into the operator queue in
+// chatReports.ts: it is filtered to the caller's own rows, and it returns none
+// of the reviewer identity, review note, or accused-account data that queue
+// carries. Both terminal decisions look identical here — the reporter learns a
+// human finished, never what happened to the other account.
+const MY_REPORTS_PAGE = 25;
+
+// Reviewers move a report open → reviewed → actioned|dismissed. Only the
+// terminal decisions close the loop for the reporter; "reviewed" is an internal
+// staging step and still reads as waiting.
+const MY_REPORT_SETTLED_STATUSES = ["actioned", "dismissed"] as const;
+
+function encodeMyReportCursor(row: { createdAt: Date; id: string }): string {
+  return Buffer.from(
+    JSON.stringify({ createdAt: row.createdAt.toISOString(), id: row.id }),
+  ).toString("base64url");
+}
+
+function decodeMyReportCursor(
+  cursor: string,
+): { createdAt: Date; id: string } | null {
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+    const createdAt = new Date(parsed.createdAt);
+    if (
+      typeof parsed.id !== "string" ||
+      !UUID_RE.test(parsed.id) ||
+      Number.isNaN(createdAt.getTime())
+    ) {
+      return null;
+    }
+    return { createdAt, id: parsed.id };
+  } catch {
+    return null;
+  }
+}
+
+router.get(
+  "/chat/reports/mine",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const me = (req as AuthedRequest).user;
+
+    const parsed = ChatMyReportListQueryParams.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid report list filters" });
+      return;
+    }
+    const limit = parsed.data.limit ?? MY_REPORTS_PAGE;
+    const cursor = parsed.data.cursor;
+    const after = cursor ? decodeMyReportCursor(cursor) : null;
+    if (cursor && !after) {
+      res.status(400).json({ message: "Invalid report list cursor" });
+      return;
+    }
+
+    const rows = await db
+      .select({
+        id: chatReportsTable.id,
+        reason: chatReportsTable.reason,
+        details: chatReportsTable.details,
+        status: chatReportsTable.status,
+        createdAt: chatReportsTable.createdAt,
+        messageId: chatReportsTable.messageId,
+        roomId: chatReportsTable.roomId,
+        roomName: chatRoomsTable.name,
+        roomScope: chatRoomsTable.scope,
+      })
+      .from(chatReportsTable)
+      .innerJoin(chatRoomsTable, eq(chatRoomsTable.id, chatReportsTable.roomId))
+      .where(
+        and(
+          // The only scope this endpoint has. Every other filter is paging.
+          eq(chatReportsTable.reporterUserId, me.id),
+          ...(after
+            ? [
+              sql`(${chatReportsTable.createdAt}, ${chatReportsTable.id}) < (${after.createdAt}, ${after.id}::uuid)`,
+            ]
+            : []),
+        ),
+      )
+      .orderBy(desc(chatReportsTable.createdAt), desc(chatReportsTable.id))
+      .limit(limit + 1);
+
+    const hasMore = rows.length > limit;
+    const page = rows.slice(0, limit);
+
+    res.json({
+      reports: page.map((row) => ({
+        id: row.id,
+        reason: row.reason,
+        details: row.details ?? null,
+        createdAt: row.createdAt.toISOString(),
+        room: {
+          id: row.roomId,
+          // The conversation as the reporter already sees it in their own chat
+          // list — no account details are resolved for this list.
+          name: row.roomName ?? null,
+          scope: row.roomScope ?? null,
+        },
+        messageId: row.messageId ?? null,
+        state: (MY_REPORT_SETTLED_STATUSES as readonly string[]).includes(
+          row.status,
+        )
+          ? "closed"
+          : "in_review",
+      })),
+      nextCursor: hasMore ? encodeMyReportCursor(page[page.length - 1]!) : null,
     });
   }),
 );
@@ -1831,10 +1931,18 @@ router.post(
       }
     }
 
-    const { kind, body, objectPath, durationMs, clientRequestId } = req.body ?? {};
+    const parsedBody = parseBody(ChatMessagesSendBody, req, res);
+    if (!parsedBody) return;
+    const {
+      kind,
+      body: messageBody,
+      objectPath,
+      durationMs,
+      clientRequestId,
+    } = parsedBody;
 
     // clientRequestId is required and must be a stable non-empty string.
-    if (typeof clientRequestId !== "string" || !clientRequestId.trim()) {
+    if (!clientRequestId.trim()) {
       res.status(400).json({ message: "clientRequestId is required" });
       return;
     }
@@ -1873,12 +1981,7 @@ router.post(
       return;
     }
 
-    const validKinds = ["text", "image", "file", "audio"] as const;
-    if (typeof kind !== "string" || !(validKinds as readonly string[]).includes(kind)) {
-      res.status(400).json({ message: "kind must be one of: text, image, file, audio" });
-      return;
-    }
-    if (typeof body !== "string" || !body.trim()) {
+    if (!messageBody.trim()) {
       res.status(400).json({ message: "body is required" });
       return;
     }
@@ -1988,7 +2091,7 @@ router.post(
         matrixRoomId: room.providerRoomId,
         senderUserId: senderMatrixUserId,
         msgtype,
-        body: body.trim().slice(0, 4000),
+        body: messageBody.trim().slice(0, 4000),
         url: resolvedObjectPath ?? undefined,
         // For voice notes, include Matrix content info.duration (milliseconds).
         info: resolvedDurationMs !== null ? { duration: resolvedDurationMs } : undefined,
@@ -2044,8 +2147,8 @@ router.post(
         shopId: room.shopId,
         senderId: me.id,
         senderName: me.name,
-        kind: kind as "text" | "image" | "file" | "audio",
-        body: body.trim().slice(0, 4000),
+        kind,
+        body: messageBody.trim().slice(0, 4000),
         objectPath: resolvedObjectPath,
         durationMs: resolvedDurationMs,
         providerEventId,
@@ -2143,11 +2246,9 @@ router.post(
       return;
     }
 
-    const { messageId } = req.body ?? {};
-    if (typeof messageId !== "string") {
-      res.status(400).json({ message: "messageId is required" });
-      return;
-    }
+    const body = parseBody(ChatMarkReadBody, req, res);
+    if (!body) return;
+    const { messageId } = body;
 
     // Verify the message belongs to this room
     const [message] = await db
@@ -2239,11 +2340,13 @@ router.post(
       }
     }
 
-    const { name, size, contentType } = req.body ?? {};
+    const body = parseBody(ChatUploadUrlBody, req, res);
+    if (!body) return;
+    const { name, size, contentType } = body;
     if (
-      typeof name !== "string" || !name.trim() ||
-      typeof contentType !== "string" || !contentType.trim() ||
-      typeof size !== "number" || size <= 0
+      !name.trim() ||
+      !contentType.trim() ||
+      size <= 0
     ) {
       res.status(400).json({ error: "Missing or invalid required fields: name, size, contentType" });
       return;

@@ -7,6 +7,7 @@ import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SectionLoader } from "@/components/ui/spinner";
 import { 
   Package, 
   Download, 
@@ -15,7 +16,6 @@ import {
   Smartphone,
   PlusCircle,
   ArrowRight,
-  Loader2,
   MessageSquareText,
   KeyRound,
   CheckCircle2,
@@ -34,11 +34,7 @@ export default function Dashboard() {
   } = useAuthOtpProviderStatus();
 
   if (statsLoading || releasesLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <SectionLoader className="flex-1" />;
   }
 
   const liveRelease = recentReleases?.updates?.find(u => u.status === 'published');

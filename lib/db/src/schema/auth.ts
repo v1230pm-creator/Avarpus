@@ -117,6 +117,12 @@ export const sessionsTable = pgTable("sessions", {
     .notNull()
     .defaultNow(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  // Last authenticated request on this session (touched at most every few
+  // minutes). Drives the inactivity cutoff for privileged accounts and the
+  // "last active" label users see in their device list.
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 // Android device recovery material. The identifier is SHA-256 hashed before

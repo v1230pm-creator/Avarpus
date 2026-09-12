@@ -3,7 +3,7 @@
 // photos, timeline events, parts, inventory items, purchases, finance
 // entries, returns/refunds, and approval requests — and list endpoints must
 // never leak another shop's rows.
-// Usage: pnpm run build && node scripts/test-shop-isolation.mjs
+// Usage: node scripts/run-isolated.mjs scripts/test-shop-isolation.mjs
 //
 // Seeds two throwaway dealer shops directly in the database (same pattern as
 // test-customer-balances.mjs), spawns the built server, and drives the API
@@ -15,6 +15,11 @@ import { createRequire } from "node:module";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+// Built server entry. scripts/run-isolated.mjs builds into a private per-run
+// directory and passes it here so a concurrent `pnpm run build` rewriting
+// ./dist cannot pull the bundle out from under this run.
+const SERVER_ENTRY = process.env.API_SERVER_ENTRY ?? "./dist/index.mjs";
 
 // Resolve `pg` through the db workspace package (pnpm keeps deps local).
 const dbPkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../lib/db");
@@ -362,7 +367,7 @@ async function run(A, B) {
 
 async function main() {
   const [A, B] = [await seedTestShop("A"), await seedTestShop("B")];
-  const child = spawn("node", ["--enable-source-maps", "./dist/index.mjs"], {
+  const child = spawn("node", ["--enable-source-maps", SERVER_ENTRY], {
     env: { ...process.env, PORT: String(PORT), NODE_ENV: "test" },
     stdio: ["ignore", "ignore", "inherit"],
   });

@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   Inbox,
+  MessageSquareWarning,
   Bell,
   Settings as SettingsIcon
 } from "lucide-react"
@@ -43,6 +44,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/public-requests", label: "Public Requests", icon: Inbox },
+    { href: "/chat-reports", label: "Chat Reports", icon: MessageSquareWarning },
     { href: "/releases", label: "Releases", icon: PackageSearch },
     { href: "/releases/new", label: "New Release", icon: PlusCircle },
     { href: "/settings", label: "Settings", icon: SettingsIcon },
@@ -62,7 +64,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 border-b bg-sidebar text-sidebar-foreground">
         <div className="flex items-center gap-2 font-bold tracking-tight">
-          <AvarpusLogo className="h-9 w-9 rounded-lg" />
+          <AvarpusLogo className="h-9 w-9 rounded-full" />
           <span>Avarpus Update Admin</span>
         </div>
         <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} className="text-sidebar-foreground">
@@ -76,7 +78,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
           <div className="p-5 hidden md:flex items-center gap-3">
-           <AvarpusLogo className="h-11 w-11 rounded-xl" />
+           <AvarpusLogo className="h-11 w-11 rounded-full" />
            <span className="font-bold text-lg tracking-tight">Avarpus Admin</span>
         </div>
 

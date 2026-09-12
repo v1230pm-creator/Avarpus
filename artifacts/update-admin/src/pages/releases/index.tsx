@@ -4,25 +4,21 @@ import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SectionLoader } from "@/components/ui/spinner";
 import { formatBytes } from "@/lib/utils";
 import { 
   PlusCircle, 
   Download,
   Smartphone,
   Calendar,
-  Package,
-  Loader2
+  Package
 } from "lucide-react";
 
 export default function Releases() {
   const { data, isLoading } = useListAppUpdates();
 
   if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <SectionLoader className="flex-1" />;
   }
 
   const updates = data?.updates || [];

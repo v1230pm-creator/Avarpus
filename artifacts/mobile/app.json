@@ -17,7 +17,7 @@
       "icon": "./assets/images/avarpus-icon-legacy.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/avarpus-adaptive-foreground.png",
-        "backgroundColor": "#006DA8"
+        "backgroundColor": "#0FA9FF"
       },
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES"
@@ -50,6 +50,13 @@
         }
       ],
       "expo-font",
+      [
+        "expo-notifications",
+        {
+          "color": "#006DA8",
+          "defaultChannel": "default"
+        }
+      ],
       "expo-web-browser",
       "expo-secure-store",
       [

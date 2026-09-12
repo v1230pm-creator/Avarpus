@@ -22,9 +22,12 @@ jest.mock('@workspace/api-client-react', () => ({
   setUnauthorizedHandler: jest.fn(),
 }));
 
+// Push registration checks the execution environment before touching any
+// native module; a store client skips it, which keeps this suite on auth.
 jest.mock('expo-constants', () => ({
   __esModule: true,
-  default: { deviceName: 'Pixel Test' },
+  ExecutionEnvironment: { Bare: 'bare', Standalone: 'standalone', StoreClient: 'storeClient' },
+  default: { deviceName: 'Pixel Test', executionEnvironment: 'storeClient' },
 }));
 
 jest.mock('@/utils/seedData', () => ({

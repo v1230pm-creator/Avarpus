@@ -11,10 +11,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
+import { Spinner } from "@/components/ui/spinner";
 
 export function RepairsPage() {
   const [search, setSearch] = useState("");
-  const { data: repairsData, isLoading } = useRepairsList({ q: search }, { query: { queryKey: ["repairsList", search] } });
+  const { data: repairsData, isLoading, isFetching } = useRepairsList({ q: search }, { query: { queryKey: ["repairsList", search] } });
+  const searchBusy = isFetching && search.trim().length > 0;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { canAccess } = useAuth();
@@ -119,10 +121,11 @@ export function RepairsPage() {
       <div className="flex items-center gap-2">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <span className="pointer-events-none absolute left-8 top-2.5 flex size-4 items-center justify-center">{searchBusy ? <Spinner size={14} label={null} /> : null}</span>
           <Input
             type="search"
             placeholder="Search tickets, customers, devices..."
-            className="pl-8"
+            className="pl-14"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />

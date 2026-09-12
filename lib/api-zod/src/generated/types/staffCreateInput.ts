@@ -8,8 +8,11 @@
 import type { StaffCreateInputRole } from './staffCreateInputRole';
 
 export interface StaffCreateInput {
+  /** @minLength 1 */
   name: string;
+  /** @pattern ^[^\s@]+@[^\s@]+\.[^\s@]+$ */
   email: string;
+  /** @pattern ^\d{10}$ */
   mobile: string;
   role: StaffCreateInputRole;
   designation?: string;

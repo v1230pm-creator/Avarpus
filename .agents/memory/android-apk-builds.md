@@ -3,7 +3,17 @@ name: Android APK builds
 description: How the VMC Android APK gets built (expo.dev GitHub builds) and the pitfalls hit
 ---
 
-Replit cannot build Android APKs (Expo Launch is iOS-only). Avarpus builds from the private GitHub repo `v1230pm-creator/Avarpus-`, branch `avarpus`, on EAS project `avarpus` under `avarpus-team`; base directory is `artifacts/mobile`, profile `production`.
+Replit cannot build Android APKs (Expo Launch is iOS-only). Avarpus builds from the private GitHub repo `v1230pm-creator/Avarpus`, branch `main`, on EAS project `avarpus` under `avarpus-team`; base directory is `artifacts/mobile`, profile `production`. (An older dashed repo/branch name no longer resolves — confirm the repo via the GitHub connector before syncing.)
+
+Task environments generally have **no shell Git credentials** (no SSH key, HTTPS unauthenticated), so `git push` fails with `Permission denied (publickey)` while the GitHub connector still works. Sync via the Git Data API instead: read file bytes with `node:fs` *inside* the `"use impure"` function (avoids the CodeExecution byte budget and shellExec base64 truncation), POST each blob, then chunk `POST /git/trees` with `base_tree` and `sha:null` entries for deletions, create the commit, and PATCH the ref. Verify by comparing the remote recursive tree's blob SHAs against local `git ls-tree -r HEAD`.
+
+Only real build inputs need syncing; heavy unrelated binaries (screenshots, site export archives) can be excluded, which also avoids the connector WAF limits. The resulting remote tree then intentionally differs from local `HEAD^{tree}`, so verify per-path SHAs rather than the root tree SHA.
+
+A finished APK can be verified in the workspace without any Expo credentials: `aapt2` and `apksigner` exist in the Nix store (find them under `/nix/store/*/bin/`). `aapt2 dump badging` gives versionName/versionCode/label; `apksigner verify --print-certs` confirms the release keystore identity. Release builds shrink resource names, so launcher and bundled logo images land at opaque paths like `res/qs.webp` — map them with `aapt2 dump resources` (`mipmap/ic_launcher*`, `drawable/assets_images_*`) and extract those, then look at them. Bundled image bytes are re-encoded by AAPT, so CRC/SHA comparison against the source PNGs fails even when the art is correct; compare visually instead. `aapt2 dump resources` on a large APK is slow — always run it under `timeout` and grep.
+
+Local APK copies live in `artifacts/mobile/releases/` and are gitignored (they exceed GitHub's file-size limit anyway).
+
+Triggering the cloud build is **user-side**: no Expo/EAS token exists in the environment and the EAS CLI is off-limits, so the user runs the build from expo.dev after the commit is on `main`.
 
 Fixes that were required (all live in `artifacts/mobile/eas.json` + root package.json):
 - **Why:** EAS defaults broke each stage in turn.

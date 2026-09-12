@@ -1,5 +1,5 @@
 // Integration test for the public registration gate.
-// Usage: pnpm run build && node scripts/test-registration-gate.mjs
+// Usage: node scripts/run-isolated.mjs scripts/test-registration-gate.mjs
 //
 // Current contract (see src/routes/auth.ts): public registration is limited
 // to dealer roles. Staff, admin, and super_admin can never be requested
@@ -9,6 +9,11 @@ import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { createHash, randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
+
+// Built server entry. scripts/run-isolated.mjs builds into a private per-run
+// directory and passes it here so a concurrent `pnpm run build` rewriting
+// ./dist cannot pull the bundle out from under this run.
+const SERVER_ENTRY = process.env.API_SERVER_ENTRY ?? "./dist/index.mjs";
 
 const PORT = 5641;
 const BASE = `http://localhost:${PORT}/api`;
@@ -50,7 +55,7 @@ function check(label, cond, detail) {
 }
 
 async function withServer(env, fn) {
-  const child = spawn("node", ["--enable-source-maps", "./dist/index.mjs"], {
+  const child = spawn("node", ["--enable-source-maps", SERVER_ENTRY], {
     env: { ...process.env, PORT: String(PORT), ...env },
     stdio: ["ignore", "ignore", "inherit"],
   });

@@ -6,10 +6,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Search } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { SectionLoader } from "@/components/ui/spinner";
 
 export function FinancePage() {
   const [search, setSearch] = useState("");
-  const { data, isLoading } = useFinanceList({ query: { queryKey: ["finance", search] } });
+  // Whole-list endpoint: filter in the browser and keep the search term out of
+  // the query key so typing does not re-fetch the same rows repeatedly.
+  const { data, isLoading } = useFinanceList();
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto h-full flex flex-col">
@@ -39,7 +42,7 @@ export function FinancePage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={5} className="h-24 text-center">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5}><SectionLoader className="py-8" /></TableCell></TableRow>
               ) : data?.entries.length === 0 ? (
                 <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground">No entries found.</TableCell></TableRow>
               ) : (

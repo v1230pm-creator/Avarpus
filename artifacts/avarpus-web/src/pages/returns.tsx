@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { SectionLoader } from "@/components/ui/spinner";
 
 export function ReturnsPage() {
   const { data, isLoading } = useReturnsList();
@@ -32,7 +33,7 @@ export function ReturnsPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="h-24 text-center">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6}><SectionLoader className="py-8" /></TableCell></TableRow>
               ) : data?.returns.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No returns found.</TableCell></TableRow>
               ) : (

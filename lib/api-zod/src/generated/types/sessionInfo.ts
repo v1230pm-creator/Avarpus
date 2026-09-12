@@ -11,5 +11,7 @@ export interface SessionInfo {
   deviceInfo?: string;
   createdAt: string;
   expiresAt: string;
+  /** Time of the most recent authenticated request on this session. */
+  lastSeenAt: string;
   current: boolean;
 }

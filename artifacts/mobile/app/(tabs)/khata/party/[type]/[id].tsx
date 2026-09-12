@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   RefreshControl,
   ScrollView,
@@ -11,6 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { AvarpusLoadingScreen } from '@/components/ui/AvarpusSpinner';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatCurrency } from '@/utils/helpers';
 import { useKhataLedger } from '@/hooks/useKhataLedger';
@@ -123,11 +123,7 @@ export default function KhataDetailScreen() {
   };
 
   if (isLoading && ledger.length === 0) {
-    return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} size="large" />
-      </View>
-    );
+    return <AvarpusLoadingScreen background={colors.background} size={40} />;
   }
 
   if (fallbackError && !newKhataData && ledger.length === 0) {

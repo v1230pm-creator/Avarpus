@@ -160,6 +160,7 @@ describe("Drive backup routes", () => {
       });
 
     expect(response.status).toBe(400);
-    expect(response.body.message).toContain("Invalid encrypted backup");
+    expect(response.body.code).toBe("VALIDATION_ERROR");
+    expect(response.body.field).toBe("sizeBytes");
   });
 });

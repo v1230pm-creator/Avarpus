@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   boolean,
   integer,
   jsonb,
@@ -293,6 +294,8 @@ export const chatMessagesTable = pgTable(
 // ── Abuse reports ────────────────────────────────────────────────────────────
 // Reports retain only the references needed for moderation. The reported peer
 // is derived server-side from a member-only global direct room.
+// `status` is the operator review state: open | reviewed | actioned | dismissed.
+// Only platform operators (super_admin) ever read or advance these rows.
 export const chatReportsTable = pgTable(
   "chat_reports",
   {
@@ -313,6 +316,20 @@ export const chatReportsTable = pgTable(
     reason: text("reason").notNull(),
     details: text("details"),
     status: text("status").notNull().default("open"),
+    // Operator attribution for the review decision. Null while the report is
+    // still open. The reviewer reference survives operator deletion so the
+    // moderation record itself is never lost.
+    reviewerUserId: uuid("reviewer_user_id").references(() => usersTable.id, {
+      onDelete: "set null",
+    }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewNote: text("review_note"),
+    // The bulk decision this row's current state came from, when it came from
+    // one. Anything that moves the row afterwards clears it, so a withdrawal
+    // can only ever restore rows still carrying that batch's own decision.
+    // Deliberately not a foreign key: the batch table points back at reports,
+    // and declaring both directions would make the two modules circular.
+    decisionBatchId: uuid("decision_batch_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -322,6 +339,146 @@ export const chatReportsTable = pgTable(
     ),
     index("chat_reports_room_created_idx").on(t.roomId, t.createdAt),
     index("chat_reports_status_created_idx").on(t.status, t.createdAt),
+    // Keyset paging for the unfiltered operator queue.
+    index("chat_reports_created_idx").on(t.createdAt, t.id),
+    // One abusive account can collect reports from many different people. The
+    // queue counts the other open reports naming each reported user on the
+    // page, which is a grouped lookup keyed by exactly these two columns.
+    index("chat_reports_reported_status_idx").on(t.reportedUserId, t.status),
+  ],
+);
+
+// ── Bulk decision batches ────────────────────────────────────────────────────
+// One click can settle every report still open against the same account, which
+// is several different people's complaints moving at once. The batch itself is
+// therefore a row: who recorded it, when, and what each report looked like
+// before it moved, so the operator who recorded it can withdraw it inside a
+// short window. Batch rows are never deleted — a withdrawal is recorded on the
+// row, not by removing it, or the undo would erase its own audit trail.
+export const chatReportDecisionBatchesTable = pgTable(
+  "chat_report_decision_batches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    reportedUserId: uuid("reported_user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    // The report the operator was looking at when they recorded the decision.
+    // Nulled rather than cascaded if that report is ever removed, so the rest
+    // of the batch's trail survives.
+    anchorReportId: uuid("anchor_report_id").references(
+      (): AnyPgColumn => chatReportsTable.id,
+      { onDelete: "set null" },
+    ),
+    // Who recorded it. The name is copied in so the trail still names a human
+    // if the operator account is later deleted.
+    operatorUserId: uuid("operator_user_id").references(() => usersTable.id, {
+      onDelete: "set null",
+    }),
+    operatorName: text("operator_name").notNull(),
+    // The decision the batch applied: reviewed | actioned | dismissed.
+    status: text("status").notNull(),
+    decidedAt: timestamp("decided_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // A withdrawal is an audited act of its own: who undid it and when.
+    withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+    withdrawnByUserId: uuid("withdrawn_by_user_id").references(
+      () => usersTable.id,
+      { onDelete: "set null" },
+    ),
+    withdrawnByName: text("withdrawn_by_name"),
+    // How many reports the withdrawal actually put back. Rows another operator
+    // had moved on in the meantime are not among them.
+    restoredReportCount: integer("restored_report_count"),
+  },
+  (t) => [
+    index("chat_report_decision_batches_operator_idx").on(
+      t.operatorUserId,
+      t.decidedAt,
+    ),
+    index("chat_report_decision_batches_reported_idx").on(
+      t.reportedUserId,
+      t.decidedAt,
+    ),
+  ],
+);
+
+// What one batched report looked like before the batch moved it. This is the
+// only record of the state a withdrawal restores — each report in a batch can
+// have come from a different place (its own earlier note, its own reviewer),
+// so the batch as a whole cannot describe it.
+export const chatReportDecisionBatchItemsTable = pgTable(
+  "chat_report_decision_batch_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    batchId: uuid("batch_id")
+      .notNull()
+      .references(() => chatReportDecisionBatchesTable.id, {
+        onDelete: "cascade",
+      }),
+    reportId: uuid("report_id")
+      .notNull()
+      .references((): AnyPgColumn => chatReportsTable.id, {
+        onDelete: "cascade",
+      }),
+    previousStatus: text("previous_status").notNull(),
+    previousReviewerUserId: uuid("previous_reviewer_user_id").references(
+      () => usersTable.id,
+      { onDelete: "set null" },
+    ),
+    previousReviewedAt: timestamp("previous_reviewed_at", {
+      withTimezone: true,
+    }),
+    previousReviewNote: text("previous_review_note"),
+    // Set when a withdrawal put this particular report back.
+    restoredAt: timestamp("restored_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("chat_report_decision_batch_items_unique").on(
+      t.batchId,
+      t.reportId,
+    ),
+    index("chat_report_decision_batch_items_report_idx").on(t.reportId),
+  ],
+);
+
+// ── Transcript access trail ──────────────────────────────────────────────────
+// Every time a platform operator opens the conversation behind an abuse report
+// they read two private people's messages. That read is logged here so the
+// access itself can be reviewed later. The operator reference is nulled if the
+// operator account is ever deleted, but their name is copied in so the trail
+// still names a human. Rows are never updated — one row per opened transcript.
+export const chatReportTranscriptViewsTable = pgTable(
+  "chat_report_transcript_views",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    reportId: uuid("report_id")
+      .notNull()
+      .references(() => chatReportsTable.id, { onDelete: "cascade" }),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => chatRoomsTable.id, { onDelete: "cascade" }),
+    operatorUserId: uuid("operator_user_id").references(() => usersTable.id, {
+      onDelete: "set null",
+    }),
+    operatorName: text("operator_name").notNull(),
+    // The message the report pointed at, when it still exists.
+    anchorMessageId: uuid("anchor_message_id").references(
+      () => chatMessagesTable.id,
+      { onDelete: "set null" },
+    ),
+    // How much of the conversation the operator was shown in this read.
+    messageCount: integer("message_count").notNull(),
+    viewedAt: timestamp("viewed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("chat_report_transcript_views_report_idx").on(t.reportId, t.viewedAt),
+    index("chat_report_transcript_views_operator_idx").on(
+      t.operatorUserId,
+      t.viewedAt,
+    ),
   ],
 );
 
@@ -389,5 +546,11 @@ export type DbChatRoomMember = typeof chatRoomMembersTable.$inferSelect;
 export type DbChatBlock = typeof chatBlocksTable.$inferSelect;
 export type DbChatMessage = typeof chatMessagesTable.$inferSelect;
 export type DbChatReport = typeof chatReportsTable.$inferSelect;
+export type DbChatReportDecisionBatch =
+  typeof chatReportDecisionBatchesTable.$inferSelect;
+export type DbChatReportDecisionBatchItem =
+  typeof chatReportDecisionBatchItemsTable.$inferSelect;
+export type DbChatReportTranscriptView =
+  typeof chatReportTranscriptViewsTable.$inferSelect;
 export type DbChatReadState = typeof chatReadStateTable.$inferSelect;
 export type DbChatProviderIdentity = typeof chatProviderIdentitiesTable.$inferSelect;

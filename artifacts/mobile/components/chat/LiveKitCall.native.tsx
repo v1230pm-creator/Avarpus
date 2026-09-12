@@ -36,10 +36,10 @@ import {
   Text,
   TouchableOpacity,
   View,
-  ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import {
   LiveKitRoom,
   VideoTrack,
@@ -272,7 +272,7 @@ function CallControls({ mode, remoteName, nav }: CallUIProps) {
       {/* Loading overlay */}
       {isConnecting && (
         <View style={[styles.loadingOverlay, { backgroundColor: colors.background }]} testID="call-loading">
-          <ActivityIndicator color={colors.primary} size="large" />
+          <AvarpusSpinner size={40} />
           <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>Connecting…</Text>
         </View>
       )}

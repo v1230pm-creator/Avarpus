@@ -68,6 +68,34 @@ args = "admin-public-requests-browser"
 task = "workflow.run"
 args = "official-site-public-claims"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "chat-blocks"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "chat-reports"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "admin-chat-reports-browser"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "push-delivery"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "brand-assets"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "web-list-search"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "session-idle"
+
 [[workflows.workflow]]
 name = "typecheck"
 author = "agent"
@@ -88,7 +116,7 @@ isValidation = true
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock sh -c 'pnpm run build && node scripts/test-shop-isolation.mjs'"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-shop-isolation.mjs"
 
 [[workflows.workflow]]
 name = "customer-balances"
@@ -99,7 +127,7 @@ isValidation = true
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock sh -c 'pnpm run build && node scripts/test-customer-balances.mjs'"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-customer-balances.mjs"
 
 [[workflows.workflow]]
 name = "registration-gate"
@@ -110,29 +138,29 @@ isValidation = true
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock sh -c 'pnpm run build && node scripts/test-registration-gate.mjs'"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-registration-gate.mjs"
 
 [[workflows.workflow]]
 name = "stage-locks"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock sh -c 'pnpm run build && node scripts/test-stage-locks.mjs'"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-stage-locks.mjs"
 
 [[workflows.workflow]]
 name = "portal-repair-isolation"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock sh -c 'pnpm run build && node scripts/test-portal-repair-isolation.mjs'"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-portal-repair-isolation.mjs"
 
 [[workflows.workflow]]
 name = "api-typecheck"
@@ -182,12 +210,12 @@ args = "VITE_API_URL=https://api.avarpus.com pnpm run validate:deployment-readin
 name = "public-requests"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock sh -c 'pnpm run build && node scripts/test-public-requests.mjs'"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-public-requests.mjs"
 
 [[workflows.workflow]]
 name = "admin-public-requests-browser"
@@ -210,6 +238,83 @@ isValidation = true
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/avarpus-official-site run validate:public-claims"
+
+[[workflows.workflow]]
+name = "chat-blocks"
+author = "agent"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-chat-blocks.mjs"
+
+[[workflows.workflow]]
+name = "chat-reports"
+author = "agent"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-chat-reports.mjs"
+
+[[workflows.workflow]]
+name = "admin-chat-reports-browser"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/update-admin run test:chat-reports-browser"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "push-delivery"
+author = "agent"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-push-notifications.mjs"
+
+[[workflows.workflow]]
+name = "brand-assets"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm run validate:brand-assets"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "web-list-search"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/avarpus-web run test:list-search"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "session-idle"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-session-idle.mjs"
+
+[workflows.workflow.metadata]
+isValidation = true
 
 [agent]
 stack = "PNPM_WORKSPACE"

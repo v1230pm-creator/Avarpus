@@ -22,6 +22,8 @@ import {
   revokeDriveConnection,
   type BackupFrequency,
 } from "../lib/driveBackup";
+import { DriveBackupCompleteBody, DriveBackupSettingsUpdateBody } from "@workspace/api-zod";
+import { parseBody } from "../lib/validate";
 
 const router: IRouter = Router();
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
@@ -135,9 +137,11 @@ router.patch(
   "/drive-backup/settings",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const frequency = req.body?.automaticFrequency;
-    const allowCellular = req.body?.allowCellular;
-    const includeVideos = req.body?.includeVideos;
+    const body = parseBody(DriveBackupSettingsUpdateBody, req, res);
+    if (!body) return;
+    const frequency = body.automaticFrequency;
+    const allowCellular = body.allowCellular;
+    const includeVideos = body.includeVideos;
     if (
       !FREQUENCIES.has(frequency) ||
       typeof allowCellular !== "boolean" ||
@@ -198,17 +202,8 @@ router.post(
   "/drive-backup/complete",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const input = req.body;
-    if (
-      typeof input?.fileId !== "string" ||
-      typeof input?.sizeBytes !== "string" ||
-      typeof input?.encryptionSalt !== "string" ||
-      typeof input?.encryptionVerifier !== "string" ||
-      typeof input?.uploadLeaseToken !== "string"
-    ) {
-      res.status(400).json({ message: "Invalid encrypted backup completion." });
-      return;
-    }
+    const input = parseBody(DriveBackupCompleteBody, req, res);
+    if (!input) return;
     try {
       res.json(await completeClientDriveBackup(req.user!.id, input));
     } catch (error) {

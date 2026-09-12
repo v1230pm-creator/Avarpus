@@ -12,7 +12,10 @@ import { useQueryClient } from "@tanstack/react-query";
 
 export function CustomersPage() {
   const [search, setSearch] = useState("");
-  const { data: customersData, isLoading } = useCustomersList({ query: { queryKey: ["customersList", search] } });
+  // The endpoint returns the caller's whole customer list, so search is applied
+  // in the browser. Keeping the term out of the query key means typing reuses
+  // the cached list instead of re-fetching identical rows on every keystroke.
+  const { data: customersData, isLoading } = useCustomersList();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 

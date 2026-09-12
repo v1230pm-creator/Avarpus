@@ -7,7 +7,6 @@ import React, {
   useState,
 } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   FlatList,
@@ -31,6 +30,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import * as Contacts from 'expo-contacts';
 import {
   useAudioPlayer,
@@ -708,7 +708,7 @@ function AttachmentSheet({
           >
             {contactsLoading ? (
               <View style={styles.attachmentEmptyState}>
-                <ActivityIndicator color={colors.primary} />
+                <AvarpusSpinner size={20} />
                 <Text style={[styles.attachmentEmptyText, { color: colors.mutedForeground }]}>
                   Reading contacts…
                 </Text>
@@ -829,7 +829,7 @@ function AttachmentSheet({
             ) : null}
             {recentLoading ? (
               <View style={styles.attachmentLoadingRow}>
-                <ActivityIndicator color={colors.primary} />
+                <AvarpusSpinner size={20} />
                 <Text style={[styles.attachmentEmptyText, { color: colors.mutedForeground }]}>
                   Loading photos…
                 </Text>
@@ -908,7 +908,7 @@ function AttachmentSheet({
                 ))}
                 {expanded && recentLoadingMore ? (
                   <View style={styles.attachmentPageLoader}>
-                    <ActivityIndicator color={colors.primary} />
+                    <AvarpusSpinner size={20} />
                   </View>
                 ) : null}
                 {expanded && !recentHasMore && recentAssets.length > 0 ? (
@@ -2205,7 +2205,7 @@ export default function ChatScreen() {
         <ChatWallpaper colors={colors} />
         {capLoading ? (
           <View style={styles.centeredState}>
-            <ActivityIndicator color={colors.primary} />
+            <AvarpusSpinner size={20} />
           </View>
         ) : !providerAvailable ? (
           <View style={styles.centeredState}>
@@ -2284,7 +2284,7 @@ export default function ChatScreen() {
           </View>
         ) : !resolvedRoomId || msgsLoading ? (
           <View style={styles.centeredState}>
-            <ActivityIndicator color={colors.primary} />
+            <AvarpusSpinner size={20} />
             <Text
               style={[
                 styles.stateText,
@@ -2495,7 +2495,7 @@ export default function ChatScreen() {
                     </TouchableOpacity>
                   </>
                 ) : (
-                  <ActivityIndicator size="small" color={colors.primary} />
+                  <AvarpusSpinner size={20} />
                 )}
               </View>
             </>
@@ -2557,7 +2557,7 @@ export default function ChatScreen() {
                   </TouchableOpacity>
                 </>
               ) : (
-                <ActivityIndicator size="small" color={colors.primary} />
+                <AvarpusSpinner size={20} />
               )}
             </>
           )}

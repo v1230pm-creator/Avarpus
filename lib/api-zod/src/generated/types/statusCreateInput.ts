@@ -19,7 +19,11 @@ export interface StatusCreateInput {
   objectPath?: string | null;
   /** @nullable */
   mimeType?: string | null;
-  /** @nullable */
+  /**
+     * @minimum 1
+     * @maximum 67108864
+     * @nullable
+     */
   sizeBytes?: number | null;
   audience?: StatusCreateInputAudience;
 }

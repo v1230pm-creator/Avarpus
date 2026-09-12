@@ -7,8 +7,10 @@
  */
 
 export interface DealerInput {
+  /** @minLength 1 */
   name?: string;
   shopName?: string;
+  /** @pattern ^\d{10}$ */
   mobile?: string;
   location?: string;
   isActive?: boolean;

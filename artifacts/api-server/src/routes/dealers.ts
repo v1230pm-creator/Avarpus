@@ -9,11 +9,18 @@ import {
   type DbUser,
   type DbDealer,
 } from "@workspace/db";
+import {
+  DealersCreateBody,
+  DealersDetectQueryParams,
+  DealersListQueryParams,
+  DealersUpdateBody,
+} from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { isDealerPortalRole } from "../lib/dealerPortal";
 import { requireFeature } from "../lib/roleFeatures";
 import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
+import { parseBody, parseQuery, uuidParam } from "../lib/validate";
 import type { Request, Response } from "express";
 
 // ── B2B Dealer repair management ────────────────────────────────────────────
@@ -24,6 +31,7 @@ import type { Request, Response } from "express";
 // /dealers/me (everything else is blocked in requireAuth).
 
 const router: IRouter = Router();
+router.param("id", uuidParam);
 
 type AuthedRequest = Request & { user: DbUser };
 
@@ -149,7 +157,9 @@ router.get(
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
-    const mobile = str(req.query.mobile);
+    const query = parseQuery(DealersDetectQueryParams, req, res);
+    if (!query) return;
+    const mobile = str(query.mobile);
     if (!mobile || !/^\d{10}$/.test(mobile)) {
       res.json({ dealers: [] });
       return;
@@ -179,7 +189,9 @@ router.get(
     // All shop staff (including technicians) may browse the dealer directory
     // so they can link repairs to dealers.
     const conds: SQL[] = [eq(dealersTable.shopId, shopId)];
-    const q = str(req.query.q);
+    const query = parseQuery(DealersListQueryParams, req, res);
+    if (!query) return;
+    const q = str(query.q);
     if (q) {
       const like = `%${q}%`;
       const orCond = or(
@@ -321,7 +333,8 @@ router.post(
     if (!shopId) return;
     const me = (req as AuthedRequest).user;
     // All shop staff (including technicians) may add dealers to the directory.
-    const b = req.body ?? {};
+    const b = parseBody(DealersCreateBody, req, res);
+    if (!b) return;
     const name = str(b.name);
     const mobile = str(b.mobile);
     if (!name || !mobile) {
@@ -408,7 +421,8 @@ router.patch(
       res.status(403).json({ message: "Dealer/Owner access required." });
       return;
     }
-    const b = req.body ?? {};
+    const b = parseBody(DealersUpdateBody, req, res);
+    if (!b) return;
     const patch: Partial<typeof dealersTable.$inferInsert> = {};
     if (b.name !== undefined) {
       const name = str(b.name);

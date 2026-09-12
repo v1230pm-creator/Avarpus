@@ -16,11 +16,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
+import { SignedInDevices } from "@/components/signed-in-devices";
 import {
   AlertTriangle,
   CheckCircle2,
-  Loader2,
   Mail,
   MailX,
 } from "lucide-react";
@@ -99,7 +100,7 @@ export default function Settings() {
           <CardContent className="space-y-5">
             {isLoading ? (
               <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner size={16} label={null} />
                 Loading current setting...
               </div>
             ) : isError ? (
@@ -143,7 +144,7 @@ export default function Settings() {
                     data-testid="button-save-support-email"
                   >
                     {update.isPending && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Spinner className="mr-2" size={16} label={null} />
                     )}
                     Save
                   </Button>
@@ -193,6 +194,8 @@ export default function Settings() {
             )}
           </CardContent>
         </Card>
+
+        <SignedInDevices />
       </div>
     </div>
   );

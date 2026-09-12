@@ -1,14 +1,15 @@
 import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 
 /** Centered spinner shown during the initial data fetch. */
 export function DataLoadingState({ message = 'Loading shop data…' }: { message?: string }) {
   const colors = useColors();
   return (
     <View style={styles.wrap}>
-      <ActivityIndicator size="large" color={colors.primary} />
+      <AvarpusSpinner size={40} />
       <Text style={[styles.message, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
         {message}
       </Text>

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getHanuOtpStatus, hanuSendOtp } from "./hanuOtp";
+import { getHanuOtpStatus, hanuSendOtp, normaliseIndianMobile } from "./hanuOtp";
 
 const ORIGINAL_API_KEY = process.env["HANU_OTP_API_KEY"];
 const ORIGINAL_TEMPLATE_ID = process.env["HANU_OTP_TEMPLATE_ID"];
@@ -60,12 +60,47 @@ describe("hanuSendOtp", () => {
     await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({
       ok: false,
       reason: "Hanu OTP error: Invalid API Key",
+      invalidNumber: false,
     });
 
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("<html>bad gateway</html>"));
     await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({
       ok: false,
       reason: "Hanu OTP error: <html>bad gateway</html>",
+      invalidNumber: false,
+    });
+  });
+
+  it("flags an unusable destination whether the refusal arrives as 200 or an HTTP error", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          status: "error",
+          message: "Invalid mobile number. Only 10-digit Indian numbers starting with 6,7,8,9 are supported",
+        }),
+      ),
+    );
+    await expect(hanuSendOtp("9876543210", "123456")).resolves.toMatchObject({
+      ok: false,
+      invalidNumber: true,
+    });
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ message: "Invalid mobile number" }), { status: 400 }),
+    );
+    await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({
+      ok: false,
+      reason: "Hanu OTP returned HTTP 400: Invalid mobile number",
+      invalidNumber: true,
+    });
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("service unavailable", { status: 503 }),
+    );
+    await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({
+      ok: false,
+      reason: "Hanu OTP returned HTTP 503: service unavailable",
+      invalidNumber: false,
     });
   });
 
@@ -75,6 +110,7 @@ describe("hanuSendOtp", () => {
     await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({
       ok: false,
       reason: "HANU_OTP_API_KEY is not configured",
+      invalidNumber: false,
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -133,7 +169,34 @@ describe("hanuSendOtp", () => {
     await expect(sending).resolves.toEqual({
       ok: false,
       reason: "Hanu OTP send failed: aborted",
+      invalidNumber: false,
     });
+  });
+});
+
+describe("normaliseIndianMobile", () => {
+  it.each([
+    ["9876543210", "9876543210"],
+    ["+919876543210", "9876543210"],
+    ["919876543210", "9876543210"],
+    ["09876543210", "9876543210"],
+    ["+91 98765-43210", "9876543210"],
+    ["  6123456789  ", "6123456789"],
+  ])("normalises %s to a local 10-digit number", (raw, expected) => {
+    expect(normaliseIndianMobile(raw)).toBe(expected);
+  });
+
+  it.each([
+    "1234567890",
+    "5876543210",
+    "0987654321",
+    "987654321",
+    "98765432101",
+    "+15551234567",
+    "not-a-number",
+    "",
+  ])("rejects %s, which the SMS network cannot deliver to", (raw) => {
+    expect(normaliseIndianMobile(raw)).toBeNull();
   });
 });
 
@@ -144,6 +207,7 @@ describe("getHanuOtpStatus", () => {
       provider: "Hanu OTP",
       configured: true,
       endpoint: "https://api.hanuotp.in/sms-otp.php",
+      templateId: "default",
       apiKeyConfigured: true,
     });
     expect(JSON.stringify(status)).not.toContain("test-hanu-key");

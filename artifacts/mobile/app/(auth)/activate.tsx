@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -7,25 +7,20 @@ import { useAuthActivateInvite } from '@workspace/api-client-react';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { useColors } from '@/hooks/useColors';
+import { onBlue } from '@/constants/brand';
 
 export default function ActivateScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-
   const theme = {
-    bg: isDark ? '#040914' : colors.background,
-    card: isDark ? '#0A1221' : colors.card,
-    border: isDark ? '#1E293B' : colors.border,
-    primary: isDark ? '#2563EB' : colors.primary,
-    text: isDark ? '#FFFFFF' : colors.foreground,
-    textMuted: isDark ? '#94A3B8' : colors.textMuted,
-    danger: isDark ? '#EF4444' : colors.destructive,
-    dangerBg: isDark ? 'rgba(239, 68, 68, 0.1)' : colors.destructive + '15',
-    infoBg: isDark ? '#0F172A' : colors.secondary,
+    bg: onBlue.background,
+    card: onBlue.surface,
+    border: onBlue.surfaceBorder,
+    text: onBlue.text,
+    textMuted: onBlue.textMuted,
+    danger: onBlue.danger,
+    dangerBg: onBlue.noticeBackground,
+    infoBg: onBlue.noticeBackground,
   };
 
   const params = useLocalSearchParams<{ token?: string }>();
@@ -80,6 +75,7 @@ export default function ActivateScreen() {
 
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Input
+            onBlue
             label="Activation Token"
             value={token}
             onChangeText={(t) => { setToken(t); setError(''); }}
@@ -89,6 +85,7 @@ export default function ActivateScreen() {
             autoCorrect={false}
           />
           <Input
+            onBlue
             label="Full Name"
             value={name}
             onChangeText={(t) => { setName(t); setError(''); }}
@@ -100,6 +97,7 @@ export default function ActivateScreen() {
             title="Activate & Continue" 
             onPress={handleActivate} 
             loading={activateMutation.isPending} 
+            variant="onBlue"
             fullWidth 
             size="lg" 
             style={{ marginTop: 8 }}

@@ -79,7 +79,6 @@ export function canAccessTabsRoute(segments: TabSegments, { role, canAccess }: A
         case 'activity':
           return owner;
         case 'app-update': return owner || canAccess('repairs') || canAccess('inventory') || canAccess('finance');
-        case 'update-manager': return role === 'super_admin';
         default: return false;
       }
     default:

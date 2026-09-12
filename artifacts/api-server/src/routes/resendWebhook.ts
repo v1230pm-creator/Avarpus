@@ -7,6 +7,8 @@ import {
   resendWebhookEventsTable,
   usersTable,
 } from "@workspace/db";
+import { dispatchPushToUsers } from "../lib/push";
+import { maskEmail } from "../lib/authUtils";
 
 const WEBHOOK_TOLERANCE_SECONDS = 5 * 60;
 const TRACKED_EVENT_TYPES = new Set([
@@ -157,7 +159,8 @@ export const resendWebhookHandler: RequestHandler = (req, res, next) => {
     const reason = failureReason(eventType, payload.data);
     const resendEmailId = stringValue(payload.data?.email_id, 160);
 
-    const created = await db.transaction(async (tx) => {
+    type OwnerAlert = { userIds: string[]; title: string; body: string; data: Record<string, unknown> };
+    const outcome = await db.transaction(async (tx): Promise<{ created: boolean; alert: OwnerAlert | null }> => {
       const inserted = await tx
         .insert(resendWebhookEventsTable)
         .values({
@@ -171,8 +174,10 @@ export const resendWebhookHandler: RequestHandler = (req, res, next) => {
         })
         .onConflictDoNothing({ target: resendWebhookEventsTable.providerEventId })
         .returning({ id: resendWebhookEventsTable.id });
-      if (!inserted[0]) return false;
-      if (!shopId || !isVerificationEmail || !FAILURE_EVENT_TYPES.has(eventType)) return true;
+      if (!inserted[0]) return { created: false, alert: null };
+      if (!shopId || !isVerificationEmail || !FAILURE_EVENT_TYPES.has(eventType)) {
+        return { created: true, alert: null };
+      }
 
       const owners = await tx
         .select({ id: usersTable.id })
@@ -182,26 +187,42 @@ export const resendWebhookHandler: RequestHandler = (req, res, next) => {
           eq(usersTable.isActive, true),
           inArray(usersTable.role, ["dealer", "super_admin"]),
         ));
-      if (owners.length === 0) return true;
+      if (owners.length === 0) return { created: true, alert: null };
 
+      const title = "Verification email could not be delivered";
+      const body = `Registration verification email to ${recipient} was not delivered${reason ? `: ${reason}` : ""}`;
+      const data = { recipient, reason, eventType };
       await tx.insert(notificationsTable).values(
         owners.map((owner) => ({
           shopId,
           userId: owner.id,
           type: "verification_email_delivery_failed",
-          title: "Verification email could not be delivered",
-          body: `Registration verification email to ${recipient} was not delivered${reason ? `: ${reason}` : ""}`,
-          data: {
-            recipient,
-            reason,
-            eventType,
-          },
+          title,
+          body,
+          data,
         })),
       );
-      return true;
+      // Push goes out after the transaction commits, with the row's own
+      // wording, so a rolled-back insert never leaves a delivered alert behind.
+      return {
+        created: true,
+        alert: { userIds: owners.map((owner) => owner.id), title, body, data },
+      };
     });
 
-    req.log.info({ eventType, recipient, duplicate: !created }, "Resend delivery webhook processed");
+    if (outcome.alert) {
+      dispatchPushToUsers(outcome.alert.userIds, {
+        type: "verification_email_delivery_failed",
+        title: outcome.alert.title,
+        body: outcome.alert.body,
+        data: outcome.alert.data,
+      });
+    }
+
+    req.log.info(
+      { eventType, recipient: maskEmail(recipient), duplicate: !outcome.created },
+      "Resend delivery webhook processed",
+    );
     res.status(204).end();
   })().catch(next);
 };

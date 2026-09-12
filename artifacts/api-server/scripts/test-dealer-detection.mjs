@@ -4,13 +4,18 @@
 // customer numbers stay unlinked, inactive dealers never match, explicit
 // dealerId:null suppresses auto-link, manual dealerId still validates, and
 // updating a dealer's mobile changes future detection.
-// Usage: pnpm run build && node scripts/test-dealer-detection.mjs
+// Usage: node scripts/run-isolated.mjs scripts/test-dealer-detection.mjs
 import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { createRequire } from "node:module";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+// Built server entry. scripts/run-isolated.mjs builds into a private per-run
+// directory and passes it here so a concurrent `pnpm run build` rewriting
+// ./dist cannot pull the bundle out from under this run.
+const SERVER_ENTRY = process.env.API_SERVER_ENTRY ?? "./dist/index.mjs";
 
 const dbPkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../lib/db");
 const require = createRequire(path.join(dbPkgDir, "package.json"));
@@ -224,7 +229,7 @@ async function run(A, B) {
 
 async function main() {
   const [A, B] = [await seedTestShop("A"), await seedTestShop("B")];
-  const child = spawn("node", ["--enable-source-maps", "./dist/index.mjs"], {
+  const child = spawn("node", ["--enable-source-maps", SERVER_ENTRY], {
     env: { ...process.env, PORT: String(PORT), NODE_ENV: "test" },
     stdio: ["ignore", "ignore", "inherit"],
   });

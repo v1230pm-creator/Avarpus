@@ -21,11 +21,11 @@ export default function MoreLayout() {
       <Stack.Screen name="permissions" />
       <Stack.Screen name="profile" />
       <Stack.Screen name="notifications" />
+      <Stack.Screen name="my-reports" />
       <Stack.Screen name="security" />
       <Stack.Screen name="purchases" />
       <Stack.Screen name="approvals" />
       <Stack.Screen name="app-update" />
-      <Stack.Screen name="update-manager" />
     </Stack>
   );
 }

@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { SectionLoader } from "@/components/ui/spinner";
 
 export function ApprovalsPage() {
   const { data, isLoading } = useApprovalsList();
@@ -102,7 +103,7 @@ export function ApprovalsPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="h-24 text-center">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6}><SectionLoader className="py-8" /></TableCell></TableRow>
               ) : data?.approvals.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No pending approvals.</TableCell></TableRow>
               ) : (

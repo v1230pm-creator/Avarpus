@@ -8,10 +8,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { SectionLoader } from "@/components/ui/spinner";
 
 export function InventoryPage() {
   const [search, setSearch] = useState("");
-  const { data: inventoryData, isLoading } = useInventoryList({ query: { queryKey: ["inventoryList", search] } });
+  // Whole-list endpoint: filter in the browser and keep the search term out of
+  // the query key so typing does not re-fetch the same rows repeatedly.
+  const { data: inventoryData, isLoading } = useInventoryList();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -129,7 +132,7 @@ export function InventoryPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={4} className="h-24 text-center">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={4}><SectionLoader className="py-8" /></TableCell></TableRow>
               ) : inventoryData?.items.length === 0 ? (
                 <TableRow><TableCell colSpan={4} className="h-32 text-center text-muted-foreground">No items found.</TableCell></TableRow>
               ) : (

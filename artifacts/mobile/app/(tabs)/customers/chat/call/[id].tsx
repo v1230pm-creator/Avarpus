@@ -16,7 +16,6 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   StyleSheet,
   Text,
@@ -30,6 +29,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useChatCallToken } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import type { CallMode, LiveKitCallProps } from '@/components/chat/LiveKitCallTypes';
+import { AvarpusLoadingScreen } from '@/components/ui/AvarpusSpinner';
 
 function supportsLiveKitNative(): boolean {
   return (
@@ -144,15 +144,7 @@ export default function CallScreen() {
         ]}
         testID="call-loading-screen"
       >
-        <ActivityIndicator color={colors.primary} size="large" />
-        <Text
-          style={[
-            styles.loadingText,
-            { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' },
-          ]}
-        >
-          Preparing call…
-        </Text>
+        <AvarpusLoadingScreen background={colors.background} message="Preparing call…" size={40} />
       </View>
     );
   }

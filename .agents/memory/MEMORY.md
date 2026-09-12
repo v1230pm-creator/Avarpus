@@ -14,7 +14,7 @@
 - [Returns & refunds](returns-refunds.md) — return cases have a strict server state machine; refunds are separate rows with a cumulative repair-level cap; closed cases frozen; FOR UPDATE + conditional claims everywhere.
 - [Expo package version pinning](expo-package-versions.md) — plain pnpm add grabs SDK-incompatible expo-* majors that crash at runtime; always npx expo install.
 - [Mobile Jest setup quirks](mobile-jest-setup.md) — pnpm-aware transformIgnorePatterns, global fake timers to avoid hangs, mock at API-client boundary not context.
-- [API validation steps](api-validation-steps.md) — isolation/balances/registration scripts run as validation steps; whole-command flock + api-server cwd, or concurrent builds clobber dist.
+- [API validation steps](api-validation-steps.md) — api-server test scripts must run via run-isolated.mjs (private per-run build dir); shared dist/ gets clobbered by any concurrent build. Toast assertions scope to the Notifications region.
 - [brace-expansion override scoping](brace-expansion-override.md) — blanket CVE overrides of deep deps break RN codegen; scope per major; codegen CLI reproduces EAS failures locally.
 - [Android APK builds](android-apk-builds.md) — APK only via expo.dev GitHub builds (base dir artifacts/mobile); pnpm/Node/image pins in eas.json are load-bearing; user holds the keystore.
 - [Android focus loss fix](android-focus-collapsable.md) — focus-styled input wrappers need collapsable={false} or Android view flattening blurs the TextInput and kills the keyboard.
@@ -27,6 +27,7 @@
 - [Role feature toggles](role-feature-toggles.md) — owner-editable per-role Staff Permissions; new mutation endpoints in toggleable areas must add requireFeature; never gate shared GET collections.
 - [Route-level feature gates](route-level-feature-gates.md) — hidden tabs are not protection; sensitive mobile routes must deny access before their data hooks mount.
 - [Prod data import path](prod-data-import.md) — prod SQL is read-only; use the token-guarded import endpoint; jsonb columns reject JS arrays via node-postgres, stringify first.
+- [Push delivery](push-delivery.md) — push copies a notification row verbatim, only for rows actually inserted, and tokens live and die with the session they were registered on.
 - [In-app notifications](notifications.md) — notification rows to owners+targeted extras minus actor, fire-and-forget; never JSON.stringify jsonb objects for Drizzle inserts.
 - [APK release identity](apk-release-identity.md) — release labels never change APK contents; each new release needs a fresh checksum, actual native version/build, and serialized state changes.
 - [Background APK downloads](background-apk-downloads.md) — app-close survival requires Android DownloadManager plus native durable identity; JS resumables are fallback-only.
@@ -43,6 +44,9 @@
 - [Local Expo native modules](local-expo-native-modules.md) — use autolinked modules under artifacts/mobile/modules; Expo Go must fail closed for sensitive native features.
 - [OTP-only account access](otp-only-account-access.md) — mobile OTP is the sole primary sign-in path; saved email is recovery-only, while retired SIM/device data stays non-destructively archived.
 - [Trusted-device recovery](trusted-device-recovery.md) — OTP sessions persist until revocation; Android reinstall recovery stays short, immutable, serialized, throttled, and fail-closed.
+- [Chat report moderation](chat-report-moderation.md) — abuse reports are super_admin-only; review state is one-way and terminal; the reporter's own view is waiting-or-finished and nothing more.
+- [Customer portal allowlist](customer-portal-allowlist.md) — customer-role accounts 403 on any endpoint the portal contract does not name, and each family must declare a real isolation probe.
+- [Keyset windows around a row](pg-timestamp-keyset-precision.md) — compare to the stored row in SQL; a JS Date loses microseconds and the anchor lands on both sides of its own window.
 - [Chat abuse controls](chat-abuse-controls.md) — pair blocks are bidirectional in effect; reports need server limits and stable client retry identities.
 - [Task-branch publishing isolation](task-branch-publishing.md) — Publishing from the parent workspace does not include an assigned task's isolated branch until that task is merged.
 - [React Native API caching](react-native-api-caching.md) — dynamic/authenticated API responses must not use HTTP validators; body-less 304 responses surface as client query failures.
@@ -66,3 +70,12 @@
 - [Operator settings store](operator-settings-store.md) — admin-editable platform config lives in app_settings (never secrets); values are per-environment and alert emails stay best-effort.
 - [Hostinger static releases](hostinger-static-releases.md) — root ZIPs must include SPA rewrites and no-cache app-shell headers; avoid parent transforms that rasterize phone UI.
 - [Optimized web regression checks](optimized-web-regression-checks.md) — run critical browser checks against production bundles; dev resolution can hide duplicated context runtimes.
+- [Custom API domain DNS](custom-api-domain-dns.md) — a missing `api` record breaks every released app install while the deployment stays healthy; NXDOMAIN from outside is the tell, not sandbox noise.
+- [ripgrep -r is replace](ripgrep-replace-flag.md) — `rg -rn` rewrites matches with the flag's argument and fabricates fake "corrupted source" evidence.
+- [OTP number validation](otp-number-validation.md) — classify provider refusal prose on every non-success branch; never hand-copy the normaliser into a test mock.
+- [Post-merge setup script](post-merge-setup.md) — schema push must be forced/non-interactive; a post-merge "timeout" is usually a hidden prompt or an orphan dev process, not slow work.
+- [API origin failover](api-origin-failover.md) — a fallback API origin must be build-time validated HTTPS and must never auto-replay mutations.
+- [Branded loading indicator](branded-loading-indicator.md) — one 12-blade ring everywhere; only a real in-flight request may drive it, never `disabled`, a durable status, or local filtering.
+- [Launcher icon geometry](launcher-icon-geometry.md) — size icon artwork by its enclosing circle, not its bbox; adaptive foreground carries the mark only, never a coloured disc.
+- [Privileged session inactivity](privileged-session-idle.md) — only super_admin sessions expire after 30 idle days, enforced at read time; idle deletes must re-check the cutoff in SQL.
+- [Request validation conventions](request-validation-conventions.md) — bodies parse via generated api-zod schemas + shared helpers; per-router UUID guards (some `:id` accept `me`); re-verify uploads at attach.

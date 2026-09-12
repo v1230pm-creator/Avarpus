@@ -3,6 +3,8 @@ import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db, notificationsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
+import { NotificationsMarkReadBody } from "@workspace/api-zod";
+import { parseBody } from "../lib/validate";
 
 const router: IRouter = Router();
 
@@ -44,10 +46,9 @@ router.post(
   requireAuth,
   asyncHandler(async (req, res) => {
     const me = req.user!;
-    const b = req.body ?? {};
-    const ids: string[] = Array.isArray(b.ids)
-      ? b.ids.filter((x: unknown): x is string => typeof x === "string").slice(0, 200)
-      : [];
+    const body = parseBody(NotificationsMarkReadBody, req, res);
+    if (!body) return;
+    const ids = (body.ids ?? []).slice(0, 200);
     const conds = [eq(notificationsTable.userId, me.id), isNull(notificationsTable.readAt)];
     if (ids.length > 0) conds.push(inArray(notificationsTable.id, ids));
     await db

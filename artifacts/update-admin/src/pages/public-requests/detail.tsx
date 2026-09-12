@@ -13,11 +13,12 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SectionLoader, Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { 
-  ArrowLeft, Loader2, User, Phone, Mail, FileText, 
+  ArrowLeft, User, Phone, Mail, FileText,
   ShieldAlert, Clock, CheckCircle2, XCircle, AlertTriangle,
   Send, History, ShieldCheck
 } from "lucide-react";
@@ -40,11 +41,7 @@ export default function PublicRequestDetail() {
   const [verificationNote, setVerificationNote] = useState("");
 
   if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <SectionLoader className="flex-1" />;
   }
 
   if (error || !data) {
@@ -66,7 +63,7 @@ export default function PublicRequestDetail() {
   const getStatusDisplay = (status: string) => {
     switch (status) {
       case "received": return { label: "Received", icon: Clock, color: "text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900" };
-      case "in_review": return { label: "In Review", icon: Loader2, color: "text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900" };
+      case "in_review": return { label: "In Review", icon: Clock, color: "text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900" };
       case "resolved": return { label: "Resolved", icon: CheckCircle2, color: "text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900" };
       case "rejected": return { label: "Rejected", icon: XCircle, color: "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950/30 border-red-200 dark:border-red-900" };
       default: return { label: status, icon: Clock, color: "text-slate-600 bg-slate-50 border-slate-200" };
@@ -146,7 +143,7 @@ export default function PublicRequestDetail() {
               <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
                 Request Details
                 <Badge variant="outline" className={`ml-2 text-sm px-2.5 py-0.5 ${currentStatusDisplay.color}`}>
-                  <StatusIcon className={`h-3.5 w-3.5 mr-1.5 ${request.status === 'in_review' ? 'animate-spin' : ''}`} />
+                  <StatusIcon className="h-3.5 w-3.5 mr-1.5" />
                   {currentStatusDisplay.label}
                 </Badge>
               </h1>
@@ -454,7 +451,7 @@ export default function PublicRequestDetail() {
               variant={updateAction === 'rejected' ? 'destructive' : 'default'}
               className={updateAction === 'resolved' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
             >
-              {statusUpdate.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {statusUpdate.isPending && <Spinner className="mr-2" size={16} label={null} />}
               {updateAction === 'in_review' ? 'Start Review' : 
                updateAction === 'resolved' ? 'Resolve' : 'Reject'}
             </Button>
@@ -505,7 +502,7 @@ export default function PublicRequestDetail() {
               onClick={handleIdentityVerification}
               disabled={identityVerificationCreate.isPending || !verificationMethod.trim() || !verificationNote.trim()}
             >
-              {identityVerificationCreate.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {identityVerificationCreate.isPending && <Spinner className="mr-2" size={16} label={null} />}
               Record verification
             </Button>
           </DialogFooter>

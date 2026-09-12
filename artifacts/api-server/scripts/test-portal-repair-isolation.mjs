@@ -1,5 +1,5 @@
 // API integration checks for customer/dealer portal isolation.
-// Usage: pnpm run build && node scripts/test-portal-repair-isolation.mjs
+// Usage: node scripts/run-isolated.mjs scripts/test-portal-repair-isolation.mjs
 import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
@@ -8,6 +8,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dealerPortalContract from "../src/lib/dealerPortalContract.json" with { type: "json" };
 import customerPortalContract from "../src/lib/customerPortalContract.json" with { type: "json" };
+
+// Built server entry. scripts/run-isolated.mjs builds into a private per-run
+// directory and passes it here so a concurrent `pnpm run build` rewriting
+// ./dist cannot pull the bundle out from under this run.
+const SERVER_ENTRY = process.env.API_SERVER_ENTRY ?? "./dist/index.mjs";
 import {
   customerPortalProfile,
   dealerPortalProfile,
@@ -285,7 +290,7 @@ function dealerPortalEndpointFamilies() {
     if (family.inactiveDealerExempt === true) {
       return null;
     }
-    return [family.label, family.inactiveProbe.method, family.inactiveProbe.path];
+    return [family.label, family.inactiveProbe.method, family.inactiveProbe.path, family.inactiveProbe.body];
   }).filter(Boolean);
 }
 
@@ -413,6 +418,90 @@ async function verifyMessagingIsolation({ A, B, customerA1, customerA2, customer
       );
     }
   }
+
+  // Read access is only half the gate: customer rooms carry the same private
+  // conversations as dealer rooms, so the write actions get the same proof.
+  const customerNonMembers = [
+    ["same-shop non-member customer", sameShopOutsider],
+    ["cross-shop non-member customer", customerB],
+  ];
+  const customerRoomMemberIds = [customerA1.userId, customerA2.userId];
+  const customerChatUserIds = [
+    customerA1.userId,
+    customerA2.userId,
+    sameShopOutsider.userId,
+    customerB.userId,
+  ];
+
+  // A reporter can read back the abuse reports they filed. That list is scoped
+  // to its author and nothing else: another member of the very room that was
+  // reported must not find it, and neither must an outsider.
+  const filedReport = await api(
+    "POST",
+    `/chat/rooms/${globalContactRoom.roomId}/reports`,
+    customerA1.token,
+    { clientRequestId: randomUUID(), reason: "harassment" },
+  );
+  const ownReports = await api("GET", "/chat/reports/mine", customerA1.token);
+  check(
+    "a reporter reads back the report they filed",
+    filedReport.status === 200
+      && ownReports.status === 200
+      && (ownReports.json.reports ?? []).some(
+        (report) => report.id === filedReport.json.report?.id,
+      ),
+    { filedReport, ownReports },
+  );
+  for (const [scope, portal] of [
+    ["the reported member of the same room", customerA2],
+    ["a same-shop outsider", sameShopOutsider],
+    ["a cross-shop outsider", customerB],
+  ]) {
+    const foreign = await api("GET", "/chat/reports/mine", portal.token);
+    check(
+      `${scope} cannot read another user's report`,
+      foreign.status === 200
+        && !JSON.stringify(foreign.json).includes(filedReport.json.report?.id ?? "missing-id"),
+      foreign,
+    );
+  }
+
+  try {
+    await verifyRoomActions({
+      portalKind: "customer",
+      label: "shop",
+      room: contactRoom,
+      member: customerA2,
+      roomMemberIds: customerRoomMemberIds,
+      nonMembers: customerNonMembers,
+      isDirect: false,
+    });
+    await verifyRoomActions({
+      portalKind: "customer",
+      label: "global-direct",
+      room: globalContactRoom,
+      member: customerA2,
+      roomMemberIds: customerRoomMemberIds,
+      nonMembers: customerNonMembers,
+      isDirect: true,
+    });
+  } finally {
+    // Drop the global direct room even if a request or query above threw: it
+    // has no shop, and the cascade takes its members, message, preferences,
+    // read state and reports with it. Blocks are not room-scoped, so the
+    // sentinel and member-created rows are swept separately — and
+    // independently, so a failure in one deletion cannot skip the other.
+    await pool
+      .query(`DELETE FROM chat_rooms WHERE id = $1`, [globalContactRoom.roomId])
+      .catch((error) => console.error("customer direct room cleanup failed:", error));
+    await pool
+      .query(
+        `DELETE FROM chat_blocks
+         WHERE blocker_user_id = ANY($1::uuid[]) OR blocked_user_id = ANY($1::uuid[])`,
+        [customerChatUserIds],
+      )
+      .catch((error) => console.error("customer chat block cleanup failed:", error));
+  }
 }
 
 // Membership-scoped write actions on an existing room, ordered so a member's
@@ -423,7 +512,9 @@ async function verifyMessagingIsolation({ A, B, customerA1, customerA2, customer
 // get in this environment: the seeded rooms have no provider room id, and no
 // call service is configured. Every other action must genuinely succeed, so a
 // member wrongly denied a database-only action still fails the check.
-function dealerRoomActions(roomId, messageId) {
+// Shared by the customer and dealer probes: both portals reach the same
+// membership gate, so both must be proven against the same action set.
+function roomWriteActions(roomId, messageId) {
   return [
     {
       action: "change preferences on",
@@ -498,19 +589,19 @@ async function chatWriteState(roomId, userId) {
   return state;
 }
 
-async function verifyDealerRoomActions({ label, room, member, roomMemberIds, nonMembers, isDirect }) {
-  for (const spec of dealerRoomActions(room.roomId, room.messageId)) {
+async function verifyRoomActions({ portalKind, label, room, member, roomMemberIds, nonMembers, isDirect }) {
+  for (const spec of roomWriteActions(room.roomId, room.messageId)) {
     if (spec.directOnly && !isDirect) continue;
     const result = await api(spec.method, spec.path, member.token, spec.body);
     check(
-      `an exact dealer ${label} room member can ${spec.action} the room`,
+      `an exact ${portalKind} ${label} room member can ${spec.action} the room`,
       memberReachedRoom(result, spec),
       result,
     );
   }
 
   for (const [scope, portal] of nonMembers) {
-    for (const spec of dealerRoomActions(room.roomId, room.messageId)) {
+    for (const spec of roomWriteActions(room.roomId, room.messageId)) {
       if (spec.directOnly && !isDirect) continue;
       const isUnblock = spec.method === "DELETE";
       // Rejecting an unblock only means something when there is a block to
@@ -530,7 +621,7 @@ async function verifyDealerRoomActions({ label, room, member, roomMemberIds, non
 
       const result = await api(spec.method, spec.path, portal.token, spec.body);
       check(
-        `${scope} cannot ${spec.action} a foreign dealer ${label} room`,
+        `${scope} cannot ${spec.action} a foreign ${portalKind} ${label} room`,
         result.status === 404,
         result,
       );
@@ -540,7 +631,7 @@ async function verifyDealerRoomActions({ label, room, member, roomMemberIds, non
       const state = await chatWriteState(room.roomId, portal.userId);
       const blockedIds = [...state.blocked_ids].sort();
       check(
-        `${scope} changed no chat rows by trying to ${spec.action} a foreign dealer ${label} room`,
+        `${scope} changed no chat rows by trying to ${spec.action} a foreign ${portalKind} ${label} room`,
         Number(state.messages) === 0
           && Number(state.read_state) === 0
           && Number(state.preferences) === 0
@@ -688,7 +779,8 @@ async function verifyDealerMessagingIsolation({
   ];
 
   try {
-    await verifyDealerRoomActions({
+    await verifyRoomActions({
+      portalKind: "dealer",
       label: "shop",
       room: dealerRoom,
       member: dealerStaffA1,
@@ -696,7 +788,8 @@ async function verifyDealerMessagingIsolation({
       nonMembers: dealerNonMembers,
       isDirect: false,
     });
-    await verifyDealerRoomActions({
+    await verifyRoomActions({
+      portalKind: "dealer",
       label: "global-direct",
       room: dealerDirectRoom,
       member: dealerStaffA1,
@@ -725,8 +818,8 @@ async function verifyDealerMessagingIsolation({
 }
 
 async function verifyInactiveDealerPortal(label, portal) {
-  for (const [family, method, pathname] of dealerPortalEndpointFamilies()) {
-    const result = await api(method, pathname, portal.token);
+  for (const [family, method, pathname, body] of dealerPortalEndpointFamilies()) {
+    const result = await api(method, pathname, portal.token, body);
     check(
       `${label} cannot use ${family} while dealer is inactive`,
       result.status === 403 && result.json.code === "DEALER_INACTIVE",
@@ -755,8 +848,8 @@ async function verifyInactiveDealerPortal(label, portal) {
 }
 
 async function verifyReactivatedDealerPortal(label, portal, repairId) {
-  for (const [family, method, pathname] of dealerPortalEndpointFamilies()) {
-    const result = await api(method, pathname, portal.token);
+  for (const [family, method, pathname, body] of dealerPortalEndpointFamilies()) {
+    const result = await api(method, pathname, portal.token, body);
     const expectedRepair = family !== "repair history"
       || result.json.repairs?.some((repair) => repair.id === repairId);
     check(
@@ -920,7 +1013,7 @@ async function main() {
   let child;
   try {
     const [A, B] = await Promise.all([seedShop("A"), seedShop("B")]);
-    child = spawn("node", ["--enable-source-maps", "./dist/index.mjs"], {
+    child = spawn("node", ["--enable-source-maps", SERVER_ENTRY], {
       env: { ...process.env, PORT: String(PORT), NODE_ENV: "test" },
       stdio: ["ignore", "ignore", "inherit"],
     });

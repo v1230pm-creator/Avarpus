@@ -7,5 +7,6 @@
  */
 
 export interface ApprovalRejectInput {
+  /** @minLength 1 */
   reason: string;
 }

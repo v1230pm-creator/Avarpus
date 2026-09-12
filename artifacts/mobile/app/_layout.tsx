@@ -16,13 +16,26 @@ import {
 } from '@expo-google-fonts/inter';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { setAuthTokenGetter, setBaseUrl } from '@workspace/api-client-react';
+import {
+  setAuthTokenGetter,
+  setBaseUrl,
+  setBaseUrlFallbacks,
+} from '@workspace/api-client-react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { DataProvider } from '@/context/DataContext';
 import { storage, KEYS } from '@/utils/storage';
 import { AVARPUS_BLUE } from '@/constants/brand';
 
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+// An installed build cannot be re-pointed at a new server. If the primary
+// domain ever stops resolving, the app falls back to the deployment's own
+// address instead of failing every sign-in until users reinstall.
+const fallbackDomain = process.env.EXPO_PUBLIC_FALLBACK_DOMAIN;
+setBaseUrlFallbacks(
+  fallbackDomain && fallbackDomain !== process.env.EXPO_PUBLIC_DOMAIN
+    ? [`https://${fallbackDomain}`]
+    : [],
+);
 setAuthTokenGetter(() => storage.get<string>(KEYS.AUTH_TOKEN));
 
 SplashScreen.preventAutoHideAsync();

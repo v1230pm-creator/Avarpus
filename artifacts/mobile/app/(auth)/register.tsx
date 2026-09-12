@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
@@ -10,7 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { authRegisterStart, authRegisterVerify } from '@workspace/api-client-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { useColors } from '@/hooks/useColors';
+import { onBlue } from '@/constants/brand';
 
 type Step = 'form' | 'email_otp' | 'success';
 
@@ -65,23 +65,19 @@ const otpStyles = StyleSheet.create({
 export default function RegisterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-
   const theme = {
-    bg: isDark ? '#040914' : colors.background,
-    card: isDark ? '#0A1221' : colors.card,
-    border: isDark ? '#1E293B' : colors.border,
-    primary: isDark ? '#2563EB' : colors.primary,
-    text: isDark ? '#FFFFFF' : colors.foreground,
-    textMuted: isDark ? '#94A3B8' : colors.textMuted,
-    inputBg: isDark ? '#0F172A' : colors.input,
-    danger: isDark ? '#EF4444' : colors.destructive,
-    dangerBg: isDark ? 'rgba(239, 68, 68, 0.1)' : colors.destructive + '15',
-    info: isDark ? '#3B82F6' : colors.info,
-    infoBg: isDark ? 'rgba(59, 130, 246, 0.1)' : colors.infoLight,
-    success: isDark ? '#10B981' : colors.success,
+    bg: onBlue.background,
+    card: onBlue.surface,
+    border: onBlue.surfaceBorder,
+    primary: onBlue.text,
+    text: onBlue.text,
+    textMuted: onBlue.textMuted,
+    inputBg: onBlue.inputBackground,
+    danger: onBlue.danger,
+    dangerBg: onBlue.noticeBackground,
+    info: onBlue.info,
+    infoBg: onBlue.noticeBackground,
+    success: onBlue.success,
   };
 
   const [step, setStep] = useState<Step>('form');
@@ -241,13 +237,13 @@ export default function RegisterScreen() {
 
         {step === 'form' && (
           <View style={[gs.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Input label="Business Name" value={businessName} onChangeText={setBusinessName} placeholder="Your shop / business name" leftIcon="briefcase" error={errors.businessName} />
-            <Input label="Owner Name" value={name} onChangeText={setName} placeholder="Owner full name" leftIcon="user" error={errors.name} />
-            <Input label="Email Address" value={email} onChangeText={setEmail} placeholder="name@company.com" keyboardType="email-address" autoCapitalize="none" leftIcon="mail" error={errors.email} />
-            <Input label="Mobile Number" value={mobile} onChangeText={(t) => setMobile(t.replace(/\D/g, '').slice(0, 10))} placeholder="10-digit mobile" keyboardType="phone-pad" leftIcon="phone" error={errors.mobile} />
+            <Input onBlue label="Business Name" value={businessName} onChangeText={setBusinessName} placeholder="Your shop / business name" leftIcon="briefcase" error={errors.businessName} />
+            <Input onBlue label="Owner Name" value={name} onChangeText={setName} placeholder="Owner full name" leftIcon="user" error={errors.name} />
+            <Input onBlue label="Email Address" value={email} onChangeText={setEmail} placeholder="name@company.com" keyboardType="email-address" autoCapitalize="none" leftIcon="mail" error={errors.email} />
+            <Input onBlue label="Mobile Number" value={mobile} onChangeText={(t) => setMobile(t.replace(/\D/g, '').slice(0, 10))} placeholder="10-digit mobile" keyboardType="phone-pad" leftIcon="phone" error={errors.mobile} />
 
-            <Input label="GST Number (Optional)" value={gstNumber} onChangeText={(t) => setGstNumber(t.toUpperCase().slice(0, 15))} placeholder="15-character GSTIN" autoCapitalize="characters" leftIcon="file-text" error={errors.gstNumber} />
-            <Input label="Shop Address" value={shopAddress} onChangeText={setShopAddress} placeholder="Full shop address" leftIcon="map-pin" multiline error={errors.shopAddress} />
+            <Input onBlue label="GST Number (Optional)" value={gstNumber} onChangeText={(t) => setGstNumber(t.toUpperCase().slice(0, 15))} placeholder="15-character GSTIN" autoCapitalize="characters" leftIcon="file-text" error={errors.gstNumber} />
+            <Input onBlue label="Shop Address" value={shopAddress} onChangeText={setShopAddress} placeholder="Full shop address" leftIcon="map-pin" multiline error={errors.shopAddress} />
 
             <View style={gs.photoRow}>
               <TouchableOpacity style={[gs.photoBox, { borderColor: theme.border, backgroundColor: theme.inputBg }]} onPress={() => pickImage(setProfilePhoto)} activeOpacity={0.8}>
@@ -267,7 +263,7 @@ export default function RegisterScreen() {
               </Text>
             </View>
 
-            <Button title="Send OTP & Continue" onPress={handleFormNext} loading={formLoading} fullWidth size="lg" />
+            <Button title="Send OTP & Continue" onPress={handleFormNext} loading={formLoading} variant="onBlue" fullWidth size="lg" />
           </View>
         )}
 
@@ -298,7 +294,7 @@ export default function RegisterScreen() {
               </Text>
             </TouchableOpacity>
 
-            <Button title="Verify & Create Dealer Account" onPress={handleEmailVerify} loading={emailLoading} disabled={emailOtp.join('').length < 6} fullWidth size="lg" />
+            <Button title="Verify & Create Dealer Account" onPress={handleEmailVerify} loading={emailLoading} disabled={emailOtp.join('').length < 6} variant="onBlue" fullWidth size="lg" />
           </View>
         )}
 
@@ -306,7 +302,7 @@ export default function RegisterScreen() {
           <View style={[gs.successCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <View style={gs.successIcon}>
               <View style={[gs.successIconGrad, { backgroundColor: theme.success }]}>
-                <Feather name="check" size={32} color="#FFFFFF" />
+                <Feather name="check" size={32} color={onBlue.controlText} />
               </View>
             </View>
             <Text style={[gs.successTitle, { color: theme.text, fontFamily: 'Inter_700Bold' }]}>
@@ -331,7 +327,7 @@ export default function RegisterScreen() {
               ))}
             </View>
 
-            <Button title="Sign in with mobile OTP" onPress={() => router.replace('/(auth)/phone')} fullWidth size="lg" />
+            <Button title="Sign in with mobile OTP" onPress={() => router.replace('/(auth)/phone')} variant="onBlue" fullWidth size="lg" />
           </View>
         )}
 

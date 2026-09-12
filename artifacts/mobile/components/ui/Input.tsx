@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleProp, StyleSheet, Text, TextInput, TextInputProps, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
+import { onBlue } from '@/constants/brand';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -15,6 +16,7 @@ interface InputProps extends TextInputProps {
   inputContainerStyle?: StyleProp<ViewStyle>;
   isPassword?: boolean;
   dark?: boolean;
+  onBlue?: boolean;
 }
 
 // Forced-dark palette (auth screens) — mirrors the premium glass tokens.
@@ -31,12 +33,23 @@ const DARK = {
 
 export function Input({
   label, error, leftIcon, leftText, rightIcon, onRightIconPress, rightIconAccessibilityLabel,
-  containerStyle, inputContainerStyle, isPassword = false, dark = false, ...props
+  containerStyle, inputContainerStyle, isPassword = false, dark = false, onBlue: useOnBlue = false, ...props
 }: InputProps) {
   const themeColors = useColors();
-  const colors = dark
-    ? { ...themeColors, ...DARK }
-    : { ...themeColors, text: themeColors.foreground };
+  const colors = useOnBlue
+    ? {
+        ...themeColors,
+        foreground: onBlue.text,
+        input: onBlue.inputBackground,
+        border: onBlue.lineStrong,
+        primary: onBlue.text,
+        mutedForeground: onBlue.textMuted,
+        destructive: onBlue.danger,
+        text: onBlue.text,
+      }
+    : dark
+      ? { ...themeColors, ...DARK }
+      : { ...themeColors, text: themeColors.foreground };
   const [showPassword, setShowPassword] = useState(false);
   const [focused, setFocused] = useState(false);
 

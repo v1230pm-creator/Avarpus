@@ -1,5 +1,6 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -15,6 +16,16 @@ app.set("trust proxy", 1);
 // caching; HTTP validators can make React Native surface a bare 304 as a failed
 // fetch with no response body.
 app.disable("etag");
+
+// Baseline security headers. This is a JSON API, so the defaults (nosniff,
+// HSTS, no framing, strict referrer, restrictive CSP) apply to every response.
+// Stored files (photos, signatures) are fetched cross-origin by the web apps
+// and the mobile app, so resources must stay embeddable from other origins.
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  }),
+);
 
 app.use(
   pinoHttp({

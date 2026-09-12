@@ -1,6 +1,5 @@
 import React, { useCallback } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Linking,
   Modal,
@@ -15,6 +14,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import * as WebBrowser from 'expo-web-browser';
@@ -445,7 +445,7 @@ export default function ChatBackupScreen() {
         </Text>
 
         {statusQuery.isLoading ? (
-          <ActivityIndicator style={styles.loader} color={colors.success} />
+          <AvarpusSpinner size={20} style={styles.loader} color={colors.success} />
         ) : statusQuery.isError ? (
           <TouchableOpacity style={styles.retryBlock} onPress={() => void statusQuery.refetch()}>
             <Text style={[styles.errorText, { color: colors.destructive }]}>
@@ -475,7 +475,7 @@ export default function ChatBackupScreen() {
               accessibilityLabel={status.connected ? 'Back up chats now' : 'Add Google account'}
             >
               {backupMutation.isPending ? (
-                <ActivityIndicator color={colors.background} />
+                <AvarpusSpinner size={20} color={colors.background} />
               ) : (
                 <Text style={[styles.backupButtonText, { color: colors.background }]}>
                   {status.connected ? 'Back up' : 'Add account'}
@@ -677,7 +677,7 @@ export default function ChatBackupScreen() {
               >
                 {recoveryPending ||
                 backupMutation.isPending ? (
-                  <ActivityIndicator color={colors.background} />
+                  <AvarpusSpinner size={20} color={colors.background} />
                 ) : (
                   <Text style={[styles.modalSubmitText, { color: colors.background }]}>
                     {encryptionDialog === 'setup'

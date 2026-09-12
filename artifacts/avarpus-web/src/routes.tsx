@@ -20,6 +20,7 @@ import { ChatsPage } from "@/pages/chats";
 import { ComponentType, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LockKeyhole } from "lucide-react";
+import { FullPageLoader } from "@/components/ui/spinner";
 
 function ProtectedRoute({ component: Component, feature }: { component: ComponentType<any>, feature?: string }) {
   const { canAccess } = useAuth();
@@ -103,11 +104,7 @@ export function ProtectedRoutes() {
   const [location] = useLocation();
 
   if (isLoading) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <FullPageLoader />;
   }
 
   if (!isAuthenticated) {

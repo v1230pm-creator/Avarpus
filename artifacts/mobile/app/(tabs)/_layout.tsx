@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Redirect, useRouter, useSegments } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { isDealerPortalRole, isCustomerRole, isLinkedCustomerPortalUser } from '@/types';
@@ -15,6 +15,7 @@ import {
   type PrimaryTabName,
 } from '@/utils/tabVisibility';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AvarpusLoadingScreen, AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 
 const MAIN_TABS: Array<{
   name: PrimaryTabName;
@@ -223,7 +224,7 @@ function DealerInactiveScreen() {
         disabled={retrying}
         style={[styles.inactivePrimary, { backgroundColor: colors.primary, opacity: retrying ? 0.7 : 1 }]}
       >
-        {retrying ? <ActivityIndicator color={colors.primaryForeground} /> : (
+        {retrying ? <AvarpusSpinner size={20} color={colors.primaryForeground} /> : (
           <Text style={[styles.inactivePrimaryText, { color: colors.primaryForeground }]}>Retry access</Text>
         )}
       </TouchableOpacity>
@@ -308,11 +309,7 @@ export default function TabLayout() {
   }
 
   if (lockCheck === 'pending') {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator color={colors.primary} size="large" />
-      </View>
-    );
+    return <AvarpusLoadingScreen background={colors.background} size={40} />;
   }
 
   if (lockCheck === 'locked') {

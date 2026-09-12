@@ -650,6 +650,8 @@ describe('Inbox — no fake data', () => {
     });
 
     render(<HomeScreen />);
+    // Archived now lives in the header overflow menu, not a filter chip row.
+    fireEvent.press(screen.getByTestId('account-menu-control'));
     fireEvent.press(screen.getByText('Archived'));
 
     expect(screen.getByTestId('room-item-r-archived-a')).toBeTruthy();

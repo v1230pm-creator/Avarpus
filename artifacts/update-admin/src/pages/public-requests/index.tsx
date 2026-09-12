@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Loader2, Inbox, User, Calendar, ShieldAlert, FileText, ArrowRight, AlertCircle } from "lucide-react";
+import { SectionLoader, Spinner } from "@/components/ui/spinner";
+import { Search, Inbox, Calendar, ShieldAlert, FileText, ArrowRight, AlertCircle } from "lucide-react";
 
 export default function PublicRequests() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -18,12 +19,13 @@ export default function PublicRequests() {
   const [cursor, setCursor] = useState<string | undefined>();
   const [previousCursors, setPreviousCursors] = useState<Array<string | undefined>>([]);
 
-  const { data, isLoading, error } = usePublicRequestAdminList({
+  const { data, isLoading, isFetching, error } = usePublicRequestAdminList({
     status: statusFilter !== "all" ? statusFilter as any : undefined,
     kind: kindFilter !== "all" ? kindFilter as any : undefined,
     search: searchQuery || undefined,
     cursor,
   });
+  const searchBusy = isFetching && searchQuery.trim().length > 0;
 
   const resetPagination = () => {
     setCursor(undefined);
@@ -69,7 +71,10 @@ export default function PublicRequests() {
           <CardHeader className="pb-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <span className="pointer-events-none absolute left-8 top-2.5 flex size-4 items-center justify-center">
+                  {searchBusy ? <Spinner size={14} label={null} /> : null}
+                </span>
                 <Input
                   placeholder="Search by name, email, or mobile..."
                   value={searchQuery}
@@ -77,7 +82,7 @@ export default function PublicRequests() {
                     setSearchQuery(e.target.value);
                     resetPagination();
                   }}
-                  className="pl-9 bg-card"
+                  className="pl-14 bg-card"
                 />
               </div>
               <div className="flex items-center gap-2">
@@ -114,10 +119,7 @@ export default function PublicRequests() {
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
-              <div className="flex flex-col items-center justify-center p-12 text-muted-foreground">
-                <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-                <p>Loading queue...</p>
-              </div>
+              <SectionLoader message="Loading queue..." />
             ) : error ? (
               <div className="flex flex-col items-center justify-center p-12 text-destructive">
                 <AlertCircle className="h-10 w-10 mb-4 opacity-50" />

@@ -26,7 +26,9 @@ vi.mock("../lib/mailer", () => ({
   warnIfMailFromUnset: () => {},
 }));
 
-type HanuOtpResult = { ok: true } | { ok: false; reason: string };
+type HanuOtpResult =
+  | { ok: true }
+  | { ok: false; reason: string; invalidNumber?: boolean };
 
 // Mock Hanu OTP delivery — default to success so individual tests can override.
 // Typed as vi.Mock to allow mockResolvedValueOnce calls without type errors.
@@ -34,26 +36,23 @@ const mockHanuSend = vi.fn(
   async (_mobile: string, _code: string): Promise<HanuOtpResult> => ({ ok: true }),
 );
 let mockHanuConfigured = true;
-const mockNormalise = vi.fn((raw: string): string | null => {
-  // Keep real normalisation logic so format tests work correctly.
-  const s = raw.trim();
-  if (/^\+91\d{10}$/.test(s)) return s.slice(3);
-  if (/^91\d{10}$/.test(s)) return s.slice(2);
-  if (/^\d{10}$/.test(s)) return s;
-  return null;
+// Only delivery and configuration are faked. Number normalisation keeps the
+// real implementation: a copy of it here once drifted from the provider's
+// rules, and these tests kept passing while live sign-ins failed.
+vi.mock("../lib/hanuOtp", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/hanuOtp")>();
+  return {
+    ...actual,
+    hanuSendOtp: (mobile: string, code: string) => mockHanuSend(mobile, code),
+    getHanuOtpStatus: () => ({
+      provider: "Hanu OTP",
+      configured: mockHanuConfigured,
+      endpoint: "https://api.hanuotp.in/sms-otp.php",
+      templateId: "default",
+      apiKeyConfigured: true,
+    }),
+  };
 });
-
-vi.mock("../lib/hanuOtp", () => ({
-  hanuSendOtp: (mobile: string, code: string) => mockHanuSend(mobile, code),
-  getHanuOtpStatus: () => ({
-    provider: "Hanu OTP",
-    configured: mockHanuConfigured,
-    endpoint: "https://api.hanuotp.in/sms-otp.php",
-    templateId: "default",
-    apiKeyConfigured: true,
-  }),
-  normaliseIndianMobile: (raw: string) => mockNormalise(raw),
-}));
 
 const { default: app } = await import("../app");
 const {
@@ -79,6 +78,10 @@ let userId: string;
 let inactiveUserId: string;
 let providerFailureUserId: string;
 const PROVIDER_FAILURE_MOBILE = `7${RUN}`;
+const UNKNOWN_MOBILE = `6${RUN}`;
+// Extra distinct fixtures. Real Indian mobiles start with 6-9, so vary the
+// second digit rather than the first to keep each number deliverable.
+const altMobile = (tag: string) => `9${tag}${RUN.slice(0, 8)}`;
 
 beforeAll(async () => {
   const [u] = await db
@@ -219,6 +222,7 @@ describe("OTP-only authentication contract", () => {
 // ── OTP request ───────────────────────────────────────────────────────────
 describe("POST /api/auth/otp/request", () => {
   it("returns service unavailable instead of opening a dead verify flow when Hanu is not configured", async () => {
+    mockHanuSend.mockClear();
     mockHanuConfigured = false;
     try {
       const res = await request(app)
@@ -254,12 +258,12 @@ describe("POST /api/auth/otp/request", () => {
     mockHanuSend.mockResolvedValueOnce({ ok: true });
     const res = await request(app)
       .post("/api/auth/otp/request")
-      .send({ mobile: "1234567890" }); // not in DB
+      .send({ mobile: UNKNOWN_MOBILE }); // not in DB
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/if this mobile/i);
     await vi.waitFor(() =>
       expect(mockHanuSend).toHaveBeenCalledWith(
-        "1234567890",
+        UNKNOWN_MOBILE,
         expect.stringMatching(/^\d{6}$/),
       ),
     );
@@ -303,7 +307,50 @@ describe("POST /api/auth/otp/request", () => {
       .post("/api/auth/otp/request")
       .send({ mobile: "not-a-number" });
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/valid Indian mobile/i);
+    expect(res.body.message).toMatch(/10-digit Indian mobile number starting with 6, 7, 8 or 9/i);
+  });
+
+  it("rejects a 10-digit number the SMS network cannot deliver to", async () => {
+    mockHanuSend.mockClear();
+    const res = await request(app)
+      .post("/api/auth/otp/request")
+      .send({ mobile: `5${RUN}` });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/starting with 6, 7, 8 or 9/i);
+    // The provider would refuse it anyway; don't spend a send to find out.
+    expect(mockHanuSend).not.toHaveBeenCalled();
+  });
+
+  it("accepts a number typed with a leading zero and spacing", async () => {
+    // Fresh number: the per-mobile throttle would otherwise mask the result.
+    const typedMobile = altMobile("8");
+    mockHanuSend.mockClear();
+    mockHanuSend.mockResolvedValueOnce({ ok: true });
+    const res = await request(app)
+      .post("/api/auth/otp/request")
+      .send({ mobile: `0${typedMobile.slice(0, 5)} ${typedMobile.slice(5)}` });
+    expect(res.status).toBe(200);
+    await vi.waitFor(() =>
+      expect(mockHanuSend).toHaveBeenCalledWith(typedMobile, expect.stringMatching(/^\d{6}$/)),
+    );
+  });
+
+  it("tells the caller to fix the number when the provider rejects it", async () => {
+    mockHanuSend.mockResolvedValueOnce({
+      ok: false,
+      reason: "Hanu OTP error: Invalid mobile number.",
+      invalidNumber: true,
+    });
+    const res = await request(app)
+      .post("/api/auth/otp/request")
+      .send({ mobile: PROVIDER_FAILURE_MOBILE });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/starting with 6, 7, 8 or 9/i);
+    const rows = await db
+      .select({ id: otpCodesTable.id })
+      .from(otpCodesTable)
+      .where(eq(otpCodesTable.identifier, PROVIDER_FAILURE_MOBILE));
+    expect(rows).toHaveLength(0);
   });
 
   it("returns a delivery error and invalidates the local code when Hanu send fails", async () => {
@@ -342,7 +389,7 @@ describe("POST /api/auth/otp/resend", () => {
   it("returns generic 200 and sends a fresh OTP for an unknown mobile", async () => {
     mockHanuSend.mockClear();
     mockHanuSend.mockResolvedValueOnce({ ok: true });
-    const unknownMobile = "0987654321";
+    const unknownMobile = altMobile("7");
     const res = await request(app)
       .post("/api/auth/otp/resend")
       .send({ mobile: unknownMobile }); // not in DB
@@ -374,12 +421,12 @@ describe("POST /api/auth/otp/resend", () => {
       .post("/api/auth/otp/resend")
       .send({ mobile: "bad" });
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/valid Indian mobile/i);
+    expect(res.body.message).toMatch(/10-digit Indian mobile number starting with 6, 7, 8 or 9/i);
   });
 
   it("returns 429 after exceeding resend rate limit", async () => {
     // Unique mobile to avoid polluting state from other tests.
-    const throttleMobile = `5${RUN}`;
+    const throttleMobile = altMobile("5");
     // Insert the user so it proceeds past the DB check to rate-limiting
     const [tUser] = await db
       .insert(usersTable)
@@ -448,7 +495,7 @@ describe("POST /api/auth/otp/verify", () => {
   });
 
   it("creates an active standalone customer for an unknown mobile after OTP verification", async () => {
-    const standaloneMobile = `5${RUN}`;
+    const standaloneMobile = altMobile("6");
     const code = await createOtp(standaloneMobile, "login");
     const res = await request(app)
       .post("/api/auth/otp/verify")
@@ -552,7 +599,7 @@ describe("POST /api/auth/otp/verify", () => {
   });
 
   it("links a uniquely matching active dealer mobile as that dealer's owner", async () => {
-    const mobile = `4${RUN}`;
+    const mobile = altMobile("4");
     let ownerId: string | undefined;
     let shopId: string | undefined;
     let portalUserId: string | undefined;
@@ -592,14 +639,14 @@ describe("POST /api/auth/otp/verify", () => {
   });
 
   it("links a uniquely matching customer mobile and creates customer_users", async () => {
-    const mobile = `3${RUN}`;
+    const mobile = altMobile("3");
     let ownerId: string | undefined;
     let shopId: string | undefined;
     let portalUserId: string | undefined;
     try {
       const [owner] = await db.insert(usersTable).values({
         name: "Customer Link Shop Owner", email: `customer-link-owner-${RUN}@example.test`,
-        mobile: `0${RUN}`, role: "dealer", isActive: true,
+        mobile: altMobile("0"), role: "dealer", isActive: true,
       }).returning();
       ownerId = owner.id;
       const [shop] = await db.insert(shopsTable).values({
@@ -632,13 +679,13 @@ describe("POST /api/auth/otp/verify", () => {
   });
 
   it("fails closed without creating an identity when dealer and customer matches are ambiguous", async () => {
-    const mobile = `2${RUN}`;
+    const mobile = altMobile("2");
     let ownerId: string | undefined;
     let shopId: string | undefined;
     try {
       const [owner] = await db.insert(usersTable).values({
         name: "Ambiguous Link Shop Owner", email: `ambiguous-link-owner-${RUN}@example.test`,
-        mobile: `1${RUN}`, role: "dealer", isActive: true,
+        mobile: altMobile("1"), role: "dealer", isActive: true,
       }).returning();
       ownerId = owner.id;
       const [shop] = await db.insert(shopsTable).values({
@@ -670,7 +717,7 @@ describe("POST /api/auth/otp/verify", () => {
   });
 
   it("uses the mobile unique index as a concurrency-safe standalone provisioning mutex", async () => {
-    const raceMobile = `1${RUN}`;
+    const raceMobile = altMobile("1");
     const inserts = await Promise.all(
       Array.from({ length: 6 }, (_, index) =>
         db.insert(usersTable).values({
@@ -739,7 +786,7 @@ describe("POST /api/auth/otp/verify", () => {
   });
 
   it("honours a lockout written before this API process handled the request", async () => {
-    const restartSafeMobile = `4${RUN}`;
+    const restartSafeMobile = altMobile("4");
     const now = Date.now();
     await db.insert(otpVerificationRateLimitsTable).values({
       keyHash: otpVerificationRateLimitKeyHash(`otpverify:${restartSafeMobile}`),
@@ -766,7 +813,7 @@ describe("POST /api/auth/otp/verify", () => {
   });
 
   it("allows only one concurrent request to consume a correct OTP", async () => {
-    const concurrentMobile = `3${RUN}`;
+    const concurrentMobile = altMobile("3");
     const [concurrentUser] = await db
       .insert(usersTable)
       .values({
@@ -806,7 +853,7 @@ describe("POST /api/auth/otp/verify", () => {
   });
 
   it("does not allow a consumed Hanu OTP to be reused", async () => {
-    const delayedMobile = `2${RUN}`;
+    const delayedMobile = altMobile("2");
     const [delayedUser] = await db
       .insert(usersTable)
       .values({
@@ -861,7 +908,7 @@ describe("POST /api/auth/otp/verify", () => {
       .post("/api/auth/otp/verify")
       .send({ mobile: "not-a-number", code: "123456" });
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/valid Indian mobile/i);
+    expect(res.body.message).toMatch(/10-digit Indian mobile number starting with 6, 7, 8 or 9/i);
   });
 });
 
@@ -970,7 +1017,7 @@ describe("trusted Android device recovery", () => {
     const [other] = await db.insert(usersTable).values({
       name: "Ambiguous device user",
       email: `ambiguous-${RUN}@example.test`,
-      mobile: `1${RUN}`,
+      mobile: altMobile("1"),
       passwordHash: hashPassword(PASSWORD),
       role: "dealer",
       isActive: true,
@@ -1137,7 +1184,7 @@ describe("trusted Android device recovery", () => {
     const [secondUser] = await db.insert(usersTable).values({
       name: "Concurrent ambiguous device user",
       email: `concurrent-ambiguous-${RUN}@example.test`,
-      mobile: `0${RUN}`,
+      mobile: altMobile("0"),
       passwordHash: hashPassword(PASSWORD),
       role: "dealer",
       isActive: true,

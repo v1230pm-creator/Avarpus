@@ -10,8 +10,30 @@ globalThis.require = createRequire(import.meta.url);
 
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
 
+// Where the bundle lands. Defaults to ./dist (what `pnpm start` and the
+// deployment run). Validation scripts set API_SERVER_OUT_DIR so each run gets
+// a private copy: a parallel `pnpm run build` (dev workflow, workspace-build)
+// empties ./dist, and a test that had just built there would otherwise start
+// against a missing dist/index.mjs. The directory must stay inside this
+// artifact so externalized packages still resolve from its node_modules.
+function resolveOutDir() {
+  const override = process.env.API_SERVER_OUT_DIR;
+  if (!override) return path.resolve(artifactDir, "dist");
+  const outDir = path.resolve(artifactDir, override);
+  const relative = path.relative(artifactDir, outDir);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error(
+      `API_SERVER_OUT_DIR must point inside ${artifactDir} (got ${override})`,
+    );
+  }
+  if (relative === "src" || relative === "scripts" || relative === "node_modules") {
+    throw new Error(`API_SERVER_OUT_DIR must not be ${relative}/`);
+  }
+  return outDir;
+}
+
 async function buildAll() {
-  const distDir = path.resolve(artifactDir, "dist");
+  const distDir = resolveOutDir();
   await rm(distDir, { recursive: true, force: true });
 
   // Copy DB migrations so they are available at runtime from dist/migrations/

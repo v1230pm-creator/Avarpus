@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { isLockEnabled, isUnlocked } from '@/utils/appLock';
 import { SPLASH_BACKGROUND, SplashIntro } from '@/components/ui/SplashIntro';
 import { onBlue } from '@/constants/brand';
+import { AvarpusLoadingScreen, AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 
 // Only a safety net: the splash normally hands off as soon as auth and lock
 // state resolve, so this cap just prevents a stalled check from trapping the
@@ -69,7 +70,7 @@ export default function Index() {
   if (isLoading && trustedDeviceStatus === 'checking') {
     return (
       <View style={[styles.statusRoot, { backgroundColor: onBlue.background }]}>
-        <ActivityIndicator color={onBlue.text} size="large" />
+        <AvarpusSpinner color={onBlue.text} size={40} />
         <Text style={[styles.statusTitle, { color: onBlue.text }]}>Checking trusted device</Text>
         <Text style={[styles.statusBody, { color: onBlue.textMuted }]}>
           Securely checking whether this Android device was recently verified.
@@ -99,11 +100,7 @@ export default function Index() {
   // It reuses the splash surface so the app never flashes a bare white screen
   // between opening and the first real screen.
   if (isLoading || lockCheck === 'pending') {
-    return (
-      <View style={[styles.continuityRoot, { backgroundColor: SPLASH_BACKGROUND }]}>
-        <ActivityIndicator color={onBlue.text} size="large" />
-      </View>
-    );
+    return <AvarpusLoadingScreen background={SPLASH_BACKGROUND} color={onBlue.text} size={40} />;
   }
 
   if (!isAuthenticated) {
@@ -122,11 +119,6 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  continuityRoot: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   statusRoot: {
     flex: 1,
     alignItems: 'center',

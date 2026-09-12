@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   ScrollView,
   StyleSheet,
@@ -16,6 +15,7 @@ import * as Haptics from 'expo-haptics';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useColors } from '@/hooks/useColors';
 import { Card } from '@/components/ui/Card';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import {
   clearLegacyMpinData,
@@ -151,7 +151,7 @@ export default function SecurityScreen() {
         )}
 
         {loading ? (
-          <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />
+          <AvarpusSpinner size={20} style={{ marginTop: 40 }} />
         ) : (
           <>
             <FadeInView animValue={anims[0]}>

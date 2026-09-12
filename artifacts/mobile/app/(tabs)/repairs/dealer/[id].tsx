@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Platform,
   RefreshControl,
@@ -14,6 +13,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { FlatCard } from '@/components/ui/Glass';
@@ -91,6 +91,7 @@ export default function DealerProfileScreen() {
   } = useRepairsList(repairsParams, {
     query: { queryKey: getRepairsListQueryKey(repairsParams) },
   });
+  const searchBusy = repairsFetching && search.trim().length > 0;
 
   React.useEffect(() => {
     if (repairsData?.repairs) {
@@ -186,6 +187,9 @@ export default function DealerProfileScreen() {
 
       <FlatCard style={styles.searchBar}>
         <Feather name="search" size={16} color={colors.mutedForeground} />
+        <View style={{ width: 16, alignItems: 'center' }}>
+          {searchBusy ? <AvarpusSpinner size={14} /> : null}
+        </View>
         <TextInput
           value={search}
           onChangeText={setSearch}
@@ -273,7 +277,7 @@ export default function DealerProfileScreen() {
         }
         ListFooterComponent={
           repairsFetching && accumulated.length > 0 ? (
-            <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} />
+            <AvarpusSpinner size={20} style={{ marginVertical: 20 }} />
           ) : null
         }
         onEndReached={() => {

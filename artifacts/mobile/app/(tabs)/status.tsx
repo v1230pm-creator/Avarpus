@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Modal,
   Platform,
@@ -32,6 +31,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { StatusViewer } from '@/components/status/StatusViewer';
 import { KEYS, storage } from '@/utils/storage';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 
 type PendingMedia = {
   uri: string;
@@ -318,7 +318,7 @@ export default function StatusScreen() {
 
         {statusQuery.isLoading ? (
           <View style={styles.stateBox}>
-            <ActivityIndicator color={colors.primary} />
+            <AvarpusSpinner size={20} />
             <Text style={[styles.stateText, { color: colors.mutedForeground }]}>Loading updates…</Text>
           </View>
         ) : statusQuery.isError ? (
@@ -396,7 +396,7 @@ export default function StatusScreen() {
                 ]}
               >
                 {publishing
-                  ? <ActivityIndicator size="small" color="#FFFFFF" />
+                  ? <AvarpusSpinner size={20} color="#FFFFFF" />
                   : <Feather name="send" size={19} color="#FFFFFF" />}
               </TouchableOpacity>
             </View>

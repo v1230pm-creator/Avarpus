@@ -1,5 +1,6 @@
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { db, notificationsTable, usersTable } from "@workspace/db";
+import { dispatchPushToUsers } from "./push";
 
 // Owner roles that get shop-wide notifications.
 const OWNER_ROLES = ["dealer", "super_admin"];
@@ -46,16 +47,26 @@ export async function notifyShop(input: NotifyInput): Promise<void> {
       if (id && id !== input.actorId) ids.add(id);
     }
     if (ids.size === 0) return;
-    await db.insert(notificationsTable).values(
-      [...ids].map((userId) => ({
-        shopId: input.shopId,
-        userId,
-        type: input.type,
-        title: input.title,
-        body: input.body,
-        data: input.data ?? {},
-      })),
-    );
+    const inserted = await db
+      .insert(notificationsTable)
+      .values(
+        [...ids].map((userId) => ({
+          shopId: input.shopId,
+          userId,
+          type: input.type,
+          title: input.title,
+          body: input.body,
+          data: input.data ?? {},
+        })),
+      )
+      .returning({ userId: notificationsTable.userId });
+    // Push carries the row's own wording — never a second copy written here.
+    dispatchPushToUsers(inserted.map((row) => row.userId), {
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      data: input.data,
+    });
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error("notifyShop failed:", err);
@@ -66,7 +77,7 @@ export async function notifyShop(input: NotifyInput): Promise<void> {
 // direct chat. Unlike notifyShop this never fans out to shop owners.
 export async function notifyUser(input: NotifyUserInput): Promise<void> {
   try {
-    await db
+    const inserted = await db
       .insert(notificationsTable)
       .values({
         shopId: input.shopId ?? null,
@@ -77,7 +88,16 @@ export async function notifyUser(input: NotifyUserInput): Promise<void> {
         data: input.data ?? {},
         dedupeKey: input.dedupeKey,
       })
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .returning({ userId: notificationsTable.userId });
+    // A retry that dedupes away its row must not buzz the device again, so
+    // push follows the insert rather than the call.
+    dispatchPushToUsers(inserted.map((row) => row.userId), {
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      data: input.data,
+    });
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error("notifyUser failed:", err);
@@ -103,26 +123,36 @@ export async function notifyActiveSuperAdminsOfPublicRequest(input: {
     if (recipients.length === 0) return;
 
     const isDeletion = input.kind === "account_deletion";
-    await db
+    const title = isDeletion ? "Account deletion request received" : "Support request received";
+    const body = isDeletion
+      ? "A new account deletion request needs secure review."
+      : "A new support request needs review.";
+    const data = {
+      publicRequestId: input.requestId,
+      kind: input.kind,
+      href: `/public-requests/${input.requestId}`,
+    };
+    const inserted = await db
       .insert(notificationsTable)
       .values(
         recipients.map(({ id: userId }) => ({
           shopId: null,
           userId,
           type: "public_request_received",
-          title: isDeletion ? "Account deletion request received" : "Support request received",
-          body: isDeletion
-            ? "A new account deletion request needs secure review."
-            : "A new support request needs review.",
-          data: {
-            publicRequestId: input.requestId,
-            kind: input.kind,
-            href: `/public-requests/${input.requestId}`,
-          },
+          title,
+          body,
+          data,
           dedupeKey: `public-request:${input.requestId}:${userId}`,
         })),
       )
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .returning({ userId: notificationsTable.userId });
+    dispatchPushToUsers(inserted.map((row) => row.userId), {
+      type: "public_request_received",
+      title,
+      body,
+      data,
+    });
   } catch (err) {
     // Public intake is already committed before this best-effort alert runs.
     // eslint-disable-next-line no-console

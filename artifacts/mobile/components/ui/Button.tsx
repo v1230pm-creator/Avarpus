@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  ActivityIndicator,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -10,6 +9,7 @@ import {
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { onBlue } from '@/constants/brand';
 
 interface ButtonProps {
@@ -122,6 +122,9 @@ export function Button({
         onPress={handlePress}
         disabled={disabled || loading}
         activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ disabled: disabled || loading, busy: loading }}
         style={[
           styles.btn,
           {
@@ -141,7 +144,7 @@ export function Button({
         ]}
       >
         {loading ? (
-          <ActivityIndicator color={txtColor} size="small" />
+          <AvarpusSpinner color={txtColor} size={Math.max(16, fontSize + 2)} accessibilityLabel={null} />
         ) : (
           <Text numberOfLines={1} style={[styles.text, { color: txtColor, fontSize, fontFamily: 'Inter_600SemiBold' }, textStyle]}>
             {title}

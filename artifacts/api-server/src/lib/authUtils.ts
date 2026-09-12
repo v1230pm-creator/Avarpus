@@ -18,6 +18,13 @@ import { desc } from "drizzle-orm";
 // database keeps a non-null expiry for efficient active-session queries.
 const PERSISTENT_SESSION_EXPIRES_AT = new Date("9999-12-31T23:59:59.999Z");
 const SESSION_TTL_DEFAULT_MS = 24 * 60 * 60 * 1000; // 1 day
+// Privileged (super_admin) sessions are additionally cut off after this much
+// inactivity. Regular shop accounts keep the persist-until-revoked model.
+export const PRIVILEGED_SESSION_IDLE_TIMEOUT_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+// last_seen_at is refreshed at most this often per session so that authenticated
+// traffic does not turn into one write per request.
+const SESSION_TOUCH_INTERVAL_MS = 5 * 60 * 1000;
+const PRIVILEGED_ROLE = "super_admin";
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_OTP_ATTEMPTS = 5;
 export const TRUSTED_DEVICE_SESSION_MAX_MS = 48 * 60 * 60 * 1000;
@@ -279,16 +286,45 @@ export async function getLoginHistory(userId: string, limit = 20) {
     .limit(limit);
 }
 
+function idleCutoff(now: Date): Date {
+  return new Date(now.getTime() - PRIVILEGED_SESSION_IDLE_TIMEOUT_MS);
+}
+
+export function isPrivilegedSessionIdle(role: string, lastSeenAt: Date, now: Date = new Date()): boolean {
+  return role === PRIVILEGED_ROLE &&
+    now.getTime() - lastSeenAt.getTime() > PRIVILEGED_SESSION_IDLE_TIMEOUT_MS;
+}
+
 export async function getSessionUser(token: string): Promise<DbUser | null> {
+  const now = new Date();
   const rows = await db
-    .select({ user: usersTable })
+    .select({ user: usersTable, lastSeenAt: sessionsTable.lastSeenAt })
     .from(sessionsTable)
     .innerJoin(usersTable, eq(sessionsTable.userId, usersTable.id))
     .where(
-      and(eq(sessionsTable.token, token), gt(sessionsTable.expiresAt, new Date())),
+      and(eq(sessionsTable.token, token), gt(sessionsTable.expiresAt, now)),
     )
     .limit(1);
-  return rows[0]?.user ?? null;
+  const row = rows[0];
+  if (!row) return null;
+  if (isPrivilegedSessionIdle(row.user.role, row.lastSeenAt, now)) {
+    // The idle cutoff is enforced at read time so it also applies to sessions
+    // issued before the rule existed. Removing the row keeps the device list
+    // honest and makes the expiry permanent rather than a transient 401.
+    await db.delete(sessionsTable).where(
+      and(eq(sessionsTable.token, token), lt(sessionsTable.lastSeenAt, idleCutoff(now))),
+    );
+    return null;
+  }
+  if (now.getTime() - row.lastSeenAt.getTime() > SESSION_TOUCH_INTERVAL_MS) {
+    // Best-effort activity stamp. A failed touch must never fail the request;
+    // the next request simply retries it.
+    db.update(sessionsTable)
+      .set({ lastSeenAt: now })
+      .where(eq(sessionsTable.token, token))
+      .catch(() => undefined);
+  }
+  return row.user;
 }
 
 export async function deleteSession(token: string): Promise<void> {
@@ -296,7 +332,8 @@ export async function deleteSession(token: string): Promise<void> {
 }
 
 // Active (non-expired) sessions for a user, newest first. Never returns tokens.
-export async function listActiveSessions(userId: string, currentToken: string) {
+export async function listActiveSessions(userId: string, currentToken: string, role: string) {
+  const now = new Date();
   const rows = await db
     .select({
       id: sessionsTable.id,
@@ -304,17 +341,31 @@ export async function listActiveSessions(userId: string, currentToken: string) {
       deviceInfo: sessionsTable.deviceInfo,
       createdAt: sessionsTable.createdAt,
       expiresAt: sessionsTable.expiresAt,
+      lastSeenAt: sessionsTable.lastSeenAt,
     })
     .from(sessionsTable)
-    .where(and(eq(sessionsTable.userId, userId), gt(sessionsTable.expiresAt, new Date())))
-    .orderBy(desc(sessionsTable.createdAt));
-  return rows.map((r) => ({
-    id: r.id,
-    deviceInfo: r.deviceInfo,
-    createdAt: r.createdAt,
-    expiresAt: r.expiresAt,
-    current: r.token === currentToken,
-  }));
+    .where(and(eq(sessionsTable.userId, userId), gt(sessionsTable.expiresAt, now)))
+    .orderBy(desc(sessionsTable.lastSeenAt), desc(sessionsTable.createdAt));
+  const idle = rows.filter((r) => isPrivilegedSessionIdle(role, r.lastSeenAt, now));
+  if (idle.length) {
+    // Idle privileged sessions can no longer authenticate; drop them so the
+    // device list never advertises a session that would be rejected.
+    // The cutoff is re-checked in SQL so a session that was touched between
+    // our read and this delete survives.
+    await db.delete(sessionsTable).where(
+      and(inArray(sessionsTable.token, idle.map((r) => r.token)), lt(sessionsTable.lastSeenAt, idleCutoff(now))),
+    );
+  }
+  return rows
+    .filter((r) => !isPrivilegedSessionIdle(role, r.lastSeenAt, now))
+    .map((r) => ({
+      id: r.id,
+      deviceInfo: r.deviceInfo,
+      createdAt: r.createdAt,
+      expiresAt: r.expiresAt,
+      lastSeenAt: r.lastSeenAt,
+      current: r.token === currentToken,
+    }));
 }
 
 // Revoke one of the user's own sessions by its public id.

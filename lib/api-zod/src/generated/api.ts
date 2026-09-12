@@ -787,6 +787,32 @@ export const NotificationsMarkReadResponse = zod.object({
 
 
 /**
+ * @summary Register this device's push token against the signed-in session
+ */
+export const PushTokenRegisterBody = zod.object({
+  "token": zod.string(),
+  "platform": zod.enum(['ios', 'android']),
+  "deviceInfo": zod.string().optional()
+})
+
+export const PushTokenRegisterResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Stop push delivery to this device (idempotent)
+ */
+export const PushTokenUnregisterBody = zod.object({
+  "token": zod.string()
+})
+
+export const PushTokenUnregisterResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
  * @summary List staff of the current dealer's shop (dealer/super_admin only)
  */
 export const StaffListResponse = zod.object({
@@ -817,10 +843,15 @@ export const StaffListResponse = zod.object({
 /**
  * @summary Create a staff account in the current dealer's shop (dealer/super_admin only)
  */
+
+export const staffCreateBodyEmailRegExp = new RegExp('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$');
+export const staffCreateBodyMobileRegExp = new RegExp('^\\d{10}$');
+
+
 export const StaffCreateBody = zod.object({
-  "name": zod.string(),
-  "email": zod.string(),
-  "mobile": zod.string(),
+  "name": zod.string().min(1),
+  "email": zod.string().regex(staffCreateBodyEmailRegExp),
+  "mobile": zod.string().regex(staffCreateBodyMobileRegExp),
   "role": zod.enum(['reception', 'technician', 'store_manager', 'accountant', 'dealer_owner', 'dealer_staff']),
   "designation": zod.string().optional(),
   "dealerId": zod.string().optional()
@@ -984,9 +1015,13 @@ export const StaffUpdateParams = zod.object({
   "id": zod.coerce.string()
 })
 
+
+export const staffUpdateBodyMobileRegExp = new RegExp('^\\d{10}$');
+
+
 export const StaffUpdateBody = zod.object({
-  "name": zod.string().optional(),
-  "mobile": zod.string().optional(),
+  "name": zod.string().min(1).optional(),
+  "mobile": zod.string().regex(staffUpdateBodyMobileRegExp).optional(),
   "role": zod.enum(['reception', 'technician', 'store_manager', 'accountant', 'dealer_owner', 'dealer_staff']).optional(),
   "designation": zod.string().optional()
 })
@@ -1051,6 +1086,7 @@ export const AuthSessionsResponse = zod.object({
   "deviceInfo": zod.string().optional(),
   "createdAt": zod.string(),
   "expiresAt": zod.string(),
+  "lastSeenAt": zod.string().describe('Time of the most recent authenticated request on this session.'),
   "current": zod.boolean()
 }))
 })
@@ -1116,10 +1152,14 @@ export const DealersListResponse = zod.object({
 /**
  * @summary Create a B2B dealer in the caller's shop
  */
+
+export const dealersCreateBodyMobileRegExp = new RegExp('^\\d{10}$');
+
+
 export const DealersCreateBody = zod.object({
-  "name": zod.string().optional(),
+  "name": zod.string().min(1).optional(),
   "shopName": zod.string().optional(),
-  "mobile": zod.string().optional(),
+  "mobile": zod.string().regex(dealersCreateBodyMobileRegExp).optional(),
   "location": zod.string().optional(),
   "isActive": zod.boolean().optional()
 })
@@ -1255,10 +1295,14 @@ export const DealersUpdateParams = zod.object({
   "id": zod.coerce.string()
 })
 
+
+export const dealersUpdateBodyMobileRegExp = new RegExp('^\\d{10}$');
+
+
 export const DealersUpdateBody = zod.object({
-  "name": zod.string().optional(),
+  "name": zod.string().min(1).optional(),
   "shopName": zod.string().optional(),
-  "mobile": zod.string().optional(),
+  "mobile": zod.string().regex(dealersUpdateBodyMobileRegExp).optional(),
   "location": zod.string().optional(),
   "isActive": zod.boolean().optional()
 })
@@ -3069,13 +3113,17 @@ export const ApprovalsListResponse = zod.object({
 /**
  * @summary Request dealer approval for a backdated record
  */
+export const approvalsCreateBodyRequestedDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+
 export const ApprovalsCreateBody = zod.object({
   "recordType": zod.enum(['repair', 'purchase', 'finance']),
   "mode": zod.enum(['create', 'update']).optional(),
   "recordId": zod.string().optional(),
   "payload": zod.record(zod.string(), zod.unknown()),
-  "requestedDate": zod.string(),
-  "reason": zod.string()
+  "requestedDate": zod.string().regex(approvalsCreateBodyRequestedDateRegExp),
+  "reason": zod.string().min(1)
 })
 
 export const ApprovalsCreateResponse = zod.object({
@@ -3134,8 +3182,11 @@ export const ApprovalsRejectParams = zod.object({
   "id": zod.coerce.string()
 })
 
+
+
+
 export const ApprovalsRejectBody = zod.object({
-  "reason": zod.string()
+  "reason": zod.string().min(1)
 })
 
 export const ApprovalsRejectResponse = zod.object({
@@ -3162,19 +3213,31 @@ export const ApprovalsRejectResponse = zod.object({
 /**
  * @summary Request a presigned URL for file upload
  */
+export const requestUploadUrlBodyNameMax = 255;
+
+export const requestUploadUrlBodySizeMax = 15728640;
+
+
+
 export const RequestUploadUrlBody = zod.object({
-  "name": zod.string(),
-  "size": zod.number(),
-  "contentType": zod.string()
+  "name": zod.string().min(1).max(requestUploadUrlBodyNameMax),
+  "size": zod.number().min(1).max(requestUploadUrlBodySizeMax),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'])
 })
+
+export const requestUploadUrlResponseMetadataNameMax = 255;
+
+export const requestUploadUrlResponseMetadataSizeMax = 15728640;
+
+
 
 export const RequestUploadUrlResponse = zod.object({
   "uploadURL": zod.string(),
   "objectPath": zod.string(),
   "metadata": zod.object({
-  "name": zod.string(),
-  "size": zod.number(),
-  "contentType": zod.string()
+  "name": zod.string().min(1).max(requestUploadUrlResponseMetadataNameMax),
+  "size": zod.number().min(1).max(requestUploadUrlResponseMetadataSizeMax),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'])
 }).optional()
 })
 
@@ -3182,19 +3245,31 @@ export const RequestUploadUrlResponse = zod.object({
 /**
  * @summary Request a presigned URL for own profile photo upload
  */
+export const requestProfileUploadUrlBodyNameMax = 255;
+
+export const requestProfileUploadUrlBodySizeMax = 5242880;
+
+
+
 export const RequestProfileUploadUrlBody = zod.object({
-  "name": zod.string(),
-  "size": zod.number(),
-  "contentType": zod.string()
+  "name": zod.string().min(1).max(requestProfileUploadUrlBodyNameMax),
+  "size": zod.number().min(1).max(requestProfileUploadUrlBodySizeMax),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp'])
 })
+
+export const requestProfileUploadUrlResponseMetadataNameMax = 255;
+
+export const requestProfileUploadUrlResponseMetadataSizeMax = 15728640;
+
+
 
 export const RequestProfileUploadUrlResponse = zod.object({
   "uploadURL": zod.string(),
   "objectPath": zod.string(),
   "metadata": zod.object({
-  "name": zod.string(),
-  "size": zod.number(),
-  "contentType": zod.string()
+  "name": zod.string().min(1).max(requestProfileUploadUrlResponseMetadataNameMax),
+  "size": zod.number().min(1).max(requestProfileUploadUrlResponseMetadataSizeMax),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'])
 }).optional()
 })
 
@@ -4370,6 +4445,250 @@ export const ChatReportsCreateResponse = zod.object({
 
 
 /**
+ * The reporter's own record of what they reported, so they can check whether an older report was handled instead of filing it again. Scoped to the caller: it never returns another user's report, and it carries none of the operator-only queue data — no reviewer, no review note, and no indication of what happened to the reported account. Progress is a single flag: still with reviewers, or finished.
+ * @summary List the abuse reports the caller filed
+ */
+export const chatMyReportListQueryLimitMax = 50;
+
+
+
+export const ChatMyReportListQueryParams = zod.object({
+  "limit": zod.coerce.number().int().min(1).max(chatMyReportListQueryLimitMax).optional(),
+  "cursor": zod.coerce.string().optional()
+})
+
+export const ChatMyReportListResponse = zod.object({
+  "reports": zod.array(zod.object({
+  "id": zod.string(),
+  "reason": zod.enum(['spam', 'harassment', 'scam', 'inappropriate', 'other']),
+  "details": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "room": zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullable(),
+  "scope": zod.string().nullable()
+}),
+  "messageId": zod.string().nullable(),
+  "state": zod.enum(['in_review', 'closed']).describe('What the reporter is told about progress. `in_review` covers every report reviewers have not settled yet; `closed` means a human finished with it. Both terminal operator decisions collapse into `closed` on purpose — the reporter never learns which one landed.')
+}).describe('One report as its author sees it: the conversation, their own reason and note, when they filed it, and whether review has finished.')),
+  "nextCursor": zod.string().nullable()
+})
+
+
+/**
+ * @summary List chat abuse reports for platform operators
+ */
+export const chatAdminReportListQueryLimitMax = 100;
+
+export const chatAdminReportListQuerySearchMax = 64;
+
+export const chatAdminReportListQueryReportedUserIdRegExp = new RegExp('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+
+
+export const ChatAdminReportListQueryParams = zod.object({
+  "limit": zod.coerce.number().int().min(1).max(chatAdminReportListQueryLimitMax).optional(),
+  "cursor": zod.coerce.string().optional(),
+  "status": zod.enum(['open', 'reviewed', 'actioned', 'dismissed']).optional(),
+  "search": zod.coerce.string().max(chatAdminReportListQuerySearchMax).optional().describe('Free-text match against the reporter or the reported user. A term is read as one thing or the other, never both: a term containing any letter is matched against names only, and a term of digits and phone punctuation is matched against mobiles only, ignoring spacing and country-code formatting on either side. A term with neither a letter nor at least three digits matches nothing.'),
+  "reportedUserId": zod.coerce.string().regex(chatAdminReportListQueryReportedUserIdRegExp).optional().describe('Only reports naming this exact account as the reported user. This is what otherOpenReports counts, so it is the filter to use when drilling into an account\'s other open reports.')
+})
+
+export const ChatAdminReportListResponse = zod.object({
+  "reports": zod.array(zod.object({
+  "id": zod.string(),
+  "reason": zod.enum(['spam', 'harassment', 'scam', 'inappropriate', 'other']),
+  "details": zod.string().nullable(),
+  "status": zod.enum(['open', 'reviewed', 'actioned', 'dismissed']),
+  "createdAt": zod.coerce.date(),
+  "reporter": zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullable(),
+  "mobile": zod.string().nullable()
+}),
+  "reportedUser": zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullable(),
+  "mobile": zod.string().nullable()
+}),
+  "room": zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullable(),
+  "scope": zod.string().nullable()
+}),
+  "messageId": zod.string().nullable(),
+  "reviewerUserId": zod.string().nullable(),
+  "reviewerName": zod.string().nullable(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "otherOpenReports": zod.number()
+})),
+  "nextCursor": zod.string().nullable(),
+  "openCount": zod.number()
+})
+
+
+/**
+ * Operator-only, read-only view of the reported room. The operator is not joined to the room and nothing is marked as read. Each call is recorded as a transcript access.
+ * @summary Read the reported conversation around a chat abuse report
+ */
+export const ChatAdminReportTranscriptParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const chatAdminReportTranscriptQueryLimitMax = 200;
+
+
+
+export const ChatAdminReportTranscriptQueryParams = zod.object({
+  "limit": zod.coerce.number().int().min(1).max(chatAdminReportTranscriptQueryLimitMax).optional()
+})
+
+export const ChatAdminReportTranscriptResponse = zod.object({
+  "reportId": zod.string(),
+  "room": zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullable(),
+  "scope": zod.string().nullable()
+}),
+  "reportedMessageId": zod.string().nullable(),
+  "reportedMessageFound": zod.boolean(),
+  "messages": zod.array(zod.object({
+  "id": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.string(),
+  "body": zod.string(),
+  "hasAttachment": zod.boolean(),
+  "deletedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "isReportedMessage": zod.boolean(),
+  "isFromReportedUser": zod.boolean()
+})),
+  "hasMoreBefore": zod.boolean(),
+  "hasMoreAfter": zod.boolean()
+})
+
+
+/**
+ * @summary Record an operator decision on a chat abuse report
+ */
+export const ChatAdminReportStatusUpdateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const chatAdminReportStatusUpdateBodyNoteMax = 2000;
+
+
+
+export const ChatAdminReportStatusUpdateBody = zod.object({
+  "status": zod.enum(['reviewed', 'actioned', 'dismissed']),
+  "note": zod.string().min(1).max(chatAdminReportStatusUpdateBodyNoteMax).optional()
+})
+
+export const ChatAdminReportStatusUpdateResponse = zod.object({
+  "report": zod.object({
+  "id": zod.string(),
+  "reason": zod.enum(['spam', 'harassment', 'scam', 'inappropriate', 'other']),
+  "details": zod.string().nullable(),
+  "status": zod.enum(['open', 'reviewed', 'actioned', 'dismissed']),
+  "createdAt": zod.coerce.date(),
+  "reporter": zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullable(),
+  "mobile": zod.string().nullable()
+}),
+  "reportedUser": zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullable(),
+  "mobile": zod.string().nullable()
+}),
+  "room": zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullable(),
+  "scope": zod.string().nullable()
+}),
+  "messageId": zod.string().nullable(),
+  "reviewerUserId": zod.string().nullable(),
+  "reviewerName": zod.string().nullable(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "otherOpenReports": zod.number()
+})
+})
+
+
+/**
+ * Applies the decision to this report and to every other report that is still open against the same reported user, as one transaction. Each report keeps its own row, deciding operator, decision time and note, so the audit trail stays per-report. Reports about that account which are no longer open — already settled, or already moved by another operator — are skipped, never overwritten, and a report filed after the batch started is untouched. Each reporter receives at most one alert for the batch, with the same wording a single decision sends.
+ * @summary Record one decision across every open report about the same account
+ */
+export const ChatAdminReportStatusBatchParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const chatAdminReportStatusBatchBodyNoteMax = 2000;
+
+
+
+export const ChatAdminReportStatusBatchBody = zod.object({
+  "status": zod.enum(['reviewed', 'actioned', 'dismissed']),
+  "note": zod.string().min(1).max(chatAdminReportStatusBatchBodyNoteMax).optional()
+})
+
+export const ChatAdminReportStatusBatchResponse = zod.object({
+  "report": zod.object({
+  "id": zod.string(),
+  "reason": zod.enum(['spam', 'harassment', 'scam', 'inappropriate', 'other']),
+  "details": zod.string().nullable(),
+  "status": zod.enum(['open', 'reviewed', 'actioned', 'dismissed']),
+  "createdAt": zod.coerce.date(),
+  "reporter": zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullable(),
+  "mobile": zod.string().nullable()
+}),
+  "reportedUser": zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullable(),
+  "mobile": zod.string().nullable()
+}),
+  "room": zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullable(),
+  "scope": zod.string().nullable()
+}),
+  "messageId": zod.string().nullable(),
+  "reviewerUserId": zod.string().nullable(),
+  "reviewerName": zod.string().nullable(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "otherOpenReports": zod.number()
+}),
+  "appliedCount": zod.number(),
+  "skippedCount": zod.number(),
+  "notifiedReporterCount": zod.number(),
+  "batchId": zod.string(),
+  "withdrawableUntil": zod.coerce.date()
+})
+
+
+/**
+ * Puts every report this batch moved back to the exact state it was in beforehand — its own earlier status, deciding operator and note — and records who withdrew it and when. Only the operator who recorded the batch may withdraw it, and only within a short window of recording it; anyone else, a second withdrawal, or a lapsed window is refused. A report another operator has decided since the batch is left with their decision and counted as skipped. Nothing is sent to the reporters: the alerts the batch already sent stand, and a withdrawal is not announced to the people the operator queue is kept from.
+ * @summary Withdraw a bulk decision within its short recovery window
+ */
+export const ChatAdminReportBatchWithdrawParams = zod.object({
+  "batchId": zod.coerce.string()
+})
+
+export const ChatAdminReportBatchWithdrawResponse = zod.object({
+  "batchId": zod.string(),
+  "withdrawnAt": zod.coerce.date(),
+  "restoredReportIds": zod.array(zod.string()),
+  "restoredCount": zod.number(),
+  "skippedCount": zod.number()
+})
+
+
+/**
  * @summary List messages in a room (newest-first, paginated)
  */
 export const ChatMessagesListParams = zod.object({
@@ -4502,9 +4821,14 @@ export const ChatMessageMediaResponse = zod.unknown()
 /**
  * @summary Request a private upload URL for a personal status image or video
  */
+
+export const statusesUploadUrlBodySizeMax = 67108864;
+
+
+
 export const StatusesUploadUrlBody = zod.object({
-  "name": zod.string(),
-  "size": zod.number(),
+  "name": zod.string().min(1),
+  "size": zod.number().min(1).max(statusesUploadUrlBodySizeMax),
   "contentType": zod.string()
 })
 
@@ -4551,6 +4875,8 @@ export const StatusesListResponse = zod.object({
  */
 export const statusesCreateBodyBodyMax = 7000;
 
+export const statusesCreateBodySizeBytesMax = 67108864;
+
 export const statusesCreateBodyAudienceDefault = `contacts`;
 
 export const StatusesCreateBody = zod.object({
@@ -4558,7 +4884,7 @@ export const StatusesCreateBody = zod.object({
   "body": zod.string().max(statusesCreateBodyBodyMax).nullish(),
   "objectPath": zod.string().nullish(),
   "mimeType": zod.string().nullish(),
-  "sizeBytes": zod.number().nullish(),
+  "sizeBytes": zod.number().min(1).max(statusesCreateBodySizeBytesMax).nullish(),
   "audience": zod.enum(['contacts', 'nobody']).default(statusesCreateBodyAudienceDefault)
 })
 

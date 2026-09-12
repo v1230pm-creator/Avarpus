@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   AppState,
   Image,
@@ -23,6 +22,7 @@ import { sha256 } from 'js-sha256';
 import { useColors } from '@/hooks/useColors';
 import { getAvarpusLogo } from '@/constants/branding';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { storage, KEYS } from '@/utils/storage';
 import { getAppVersion, getAppBuildNumber, formatBytes } from '@/utils/appVersion';
 import {
@@ -794,7 +794,7 @@ export default function AppUpdateScreen() {
             style={[styles.primaryBtn, { backgroundColor: colors.primary, opacity: checking || busyDownloading ? 0.6 : 1 }]}
           >
             {checking ? (
-              <ActivityIndicator color="#FFF" size="small" />
+              <AvarpusSpinner color="#FFF" size={20} />
             ) : (
               <Feather name="refresh-cw" size={16} color="#FFF" />
             )}
@@ -924,7 +924,7 @@ export default function AppUpdateScreen() {
                   ]}
                 >
                   {downloadActionInFlight ? (
-                    <ActivityIndicator size="small" color="#FFF" />
+                    <AvarpusSpinner size={20} color="#FFF" />
                   ) : (
                     <Feather name="download" size={16} color="#FFF" />
                   )}
@@ -998,7 +998,7 @@ export default function AppUpdateScreen() {
 
             {phase === 'verifying' && (
               <View style={styles.verifyRow}>
-                <ActivityIndicator color={colors.primary} size="small" />
+                <AvarpusSpinner size={20} />
                 <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
                   Verifying update security (SHA-256)…
                 </Text>
@@ -1067,7 +1067,7 @@ export default function AppUpdateScreen() {
             {changelogOpen && (
               <View style={{ gap: 8, marginTop: 6 }}>
                 {changelog === null ? (
-                  <ActivityIndicator color={colors.primary} size="small" />
+                  <AvarpusSpinner size={20} />
                 ) : changelog.length === 0 ? (
                   <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
                     No previous releases.

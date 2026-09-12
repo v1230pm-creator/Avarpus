@@ -1,5 +1,10 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo } from "react";
-import { setBaseUrl, setAuthTokenGetter, setUnauthorizedHandler } from "@workspace/api-client-react";
+import {
+  setBaseUrl,
+  setBaseUrlFallbacks,
+  setAuthTokenGetter,
+  setUnauthorizedHandler,
+} from "@workspace/api-client-react";
 import { useAuthMe, getAuthMeQueryKey, useRoleFeaturesGet } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -15,6 +20,13 @@ const apiConfigurationError =
 // client at module initialization so a restored browser session never makes an
 // unauthenticated request to the static Hostinger origin.
 setBaseUrl(API_BASE_URL);
+// The static build is uploaded to Hostinger and cannot be re-pointed without a
+// re-upload, so give it a second origin to reach if the primary API domain
+// stops resolving.
+const API_FALLBACK_URL = import.meta.env.VITE_API_FALLBACK_URL?.trim() || null;
+setBaseUrlFallbacks(
+  API_FALLBACK_URL && API_FALLBACK_URL !== API_BASE_URL ? [API_FALLBACK_URL] : [],
+);
 setAuthTokenGetter(() => localStorage.getItem(AUTH_KEY));
 
 interface User {

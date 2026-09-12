@@ -34,6 +34,7 @@ import {
 } from "../lib/rateLimit";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireRole } from "../middlewares/requireRole";
+import { z } from "zod";
 import { asyncHandler } from "../lib/asyncHandler";
 import {
   getHanuOtpStatus,
@@ -48,20 +49,40 @@ import {
   releasePendingUpload,
 } from "../lib/pendingUploads";
 import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
+import {
+  AuthMeUpdateBody,
+  AuthOtpRequestBody,
+  AuthOtpResendBody,
+  AuthOtpVerifyBody,
+  AuthRegisterStartBody,
+  AuthRegisterVerifyBody,
+  AuthTrustedDeviceRecoverBody,
+} from "@workspace/api-zod";
+import { parseBody, uuidParam } from "../lib/validate";
+import {
+  MAX_PROFILE_UPLOAD_BYTES,
+  PROFILE_UPLOAD_CONTENT_TYPES,
+  bytesMatchContentType,
+} from "../lib/uploadPolicy";
 
 const router: IRouter = Router();
+router.param("id", uuidParam);
 const objectStorageService = new ObjectStorageService();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Says what is actually wrong: the SMS provider only delivers to 10-digit
+// Indian numbers starting with 6-9, so "invalid" alone leaves people guessing.
+const INVALID_MOBILE_MESSAGE =
+  "Enter a 10-digit Indian mobile number starting with 6, 7, 8 or 9.";
 
 // Roles a public STAFF registration may request. Dealer/admin/super_admin
 // can never be requested here.
 const STAFF_ROLES = ["reception", "technician", "store_manager", "accountant"] as const;
 
-// Best-effort device description captured at sign-in: prefer the client-sent
-// `device` field, fall back to the User-Agent header.
-function deviceInfoFrom(req: Request): string | null {
-  const device = (req.body ?? {}).deviceInfo ?? (req.body ?? {}).device;
+// Best-effort device description captured at sign-in: prefer the validated
+// client-sent `deviceInfo` field, then fall back to the User-Agent header.
+function deviceInfoFrom(req: Request, parsedDeviceInfo?: string): string | null {
+  const device = parsedDeviceInfo;
   if (typeof device === "string" && device.trim()) {
     return device.trim().slice(0, 120);
   }
@@ -71,15 +92,13 @@ function deviceInfoFrom(req: Request): string | null {
 
 // ── Mobile OTP login ──────────────────────────────────────────────────────
 router.post("/auth/otp/request", asyncHandler(async (req, res) => {
-  const { mobile: rawMobile } = req.body ?? {};
-  if (typeof rawMobile !== "string") {
-    res.status(400).json({ message: "A valid Indian mobile number is required" });
-    return;
-  }
+  const body = parseBody(AuthOtpRequestBody, req, res);
+  if (!body) return;
+  const rawMobile = body.mobile;
   // Accept 10-digit local, +91XXXXXXXXXX, or 91XXXXXXXXXX; normalise to 10-digit.
   const mobile = normaliseIndianMobile(rawMobile);
   if (!mobile) {
-    res.status(400).json({ message: "A valid Indian mobile number is required" });
+    res.status(400).json({ message: INVALID_MOBILE_MESSAGE });
     return;
   }
   if (!getHanuOtpStatus().configured) {
@@ -103,6 +122,10 @@ router.post("/auth/otp/request", asyncHandler(async (req, res) => {
   if (!result.ok) {
     await invalidateOtp(mobile, "login");
     req.log.warn({ providerReason: result.reason }, "Hanu OTP send failed");
+    if (result.invalidNumber) {
+      res.status(400).json({ message: INVALID_MOBILE_MESSAGE });
+      return;
+    }
     res.status(502).json({
       message: "Could not send the SMS verification code. Please try again shortly.",
     });
@@ -122,14 +145,12 @@ router.post("/auth/otp/request", asyncHandler(async (req, res) => {
 
 // ── Mobile OTP resend ─────────────────────────────────────────────────────
 router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
-  const { mobile: rawMobile } = req.body ?? {};
-  if (typeof rawMobile !== "string") {
-    res.status(400).json({ message: "A valid Indian mobile number is required" });
-    return;
-  }
+  const body = parseBody(AuthOtpResendBody, req, res);
+  if (!body) return;
+  const rawMobile = body.mobile;
   const mobile = normaliseIndianMobile(rawMobile);
   if (!mobile) {
-    res.status(400).json({ message: "A valid Indian mobile number is required" });
+    res.status(400).json({ message: INVALID_MOBILE_MESSAGE });
     return;
   }
   if (!getHanuOtpStatus().configured) {
@@ -153,6 +174,10 @@ router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
   if (!result.ok) {
     await invalidateOtp(mobile, "login");
     req.log.warn({ providerReason: result.reason }, "Hanu OTP resend failed");
+    if (result.invalidNumber) {
+      res.status(400).json({ message: INVALID_MOBILE_MESSAGE });
+      return;
+    }
     res.status(502).json({
       message: "Could not resend the SMS verification code. Please try again shortly.",
     });
@@ -171,15 +196,13 @@ router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
 }));
 
 router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
-  const { mobile: rawMobile, code, androidDeviceId } = req.body ?? {};
-  if (typeof rawMobile !== "string" || typeof code !== "string") {
-    res.status(400).json({ message: "Mobile and code are required" });
-    return;
-  }
+  const body = parseBody(AuthOtpVerifyBody, req, res);
+  if (!body) return;
+  const { mobile: rawMobile, code, androidDeviceId } = body;
   // Accept 10-digit, +91 or 91-prefixed; normalise to local 10-digit for DB lookup.
   const mobile = normaliseIndianMobile(rawMobile);
   if (!mobile) {
-    res.status(400).json({ message: "A valid Indian mobile number is required" });
+    res.status(400).json({ message: INVALID_MOBILE_MESSAGE });
     return;
   }
   if (androidDeviceId !== undefined && !isValidAndroidDeviceIdentifier(androidDeviceId)) {
@@ -347,7 +370,7 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
   // A verified mobile login stays active until the user explicitly signs out
   // or revokes the session from Active Sessions.
   const remember = true;
-  const deviceInfo = deviceInfoFrom(req);
+  const deviceInfo = deviceInfoFrom(req, body.deviceInfo);
   let trustedDeviceId: string | null = null;
   // Device enrollment is opt-in: legacy OTP clients retain their existing
   // session behavior. The raw Android ID is only held in this request scope.
@@ -370,7 +393,9 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
 // Public but intentionally non-enumerating recovery. A valid Android ID maps
 // to exactly one active, unrevoked trust or the request fails generically.
 router.post("/auth/trusted-device/recover", asyncHandler(async (req, res) => {
-  const androidDeviceId = req.body?.androidDeviceId;
+  const body = parseBody(AuthTrustedDeviceRecoverBody, req, res);
+  if (!body) return;
+  const androidDeviceId = body.androidDeviceId;
   if (!isValidAndroidDeviceIdentifier(androidDeviceId)) {
     res.status(400).json({ message: "A valid Android device identifier is required" });
     return;
@@ -409,6 +434,8 @@ router.get(
 // Public registration creates dealer (shop owner) accounts only. Staff must
 // be provisioned by an authenticated dealer through the staff endpoints.
 router.post("/auth/register/start", asyncHandler(async (req, res) => {
+  const body = parseBody(AuthRegisterStartBody, req, res);
+  if (!body) return;
   const {
     name,
     businessName,
@@ -416,7 +443,7 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
     mobile,
     gstNumber,
     shopAddress,
-  } = req.body ?? {};
+  } = body;
   if (req.body?.role !== undefined && req.body.role !== "dealer") {
     res.status(403).json({ message: "Public registration is limited to dealer accounts." });
     return;
@@ -479,10 +506,10 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
     }
   } catch (err) {
     await invalidateOtp(normEmail, "register");
-    // Surface the exact Resend error in server logs
-    console.error(
-      "Registration OTP email delivery failed:",
-      err instanceof Error ? err.message : err,
+    // Keep the provider error in server logs, but never the recipient address.
+    req.log.error(
+      { err: err instanceof Error ? err.message : String(err) },
+      "Registration OTP email delivery failed",
     );
     res.status(502).json({
       message: "Could not send the verification email. Please try again shortly.",
@@ -493,11 +520,9 @@ router.post("/auth/register/start", asyncHandler(async (req, res) => {
 }));
 
 router.post("/auth/register/verify", asyncHandler(async (req, res) => {
-  const { email, code } = req.body ?? {};
-  if (typeof email !== "string" || typeof code !== "string") {
-    res.status(400).json({ message: "Email and code are required" });
-    return;
-  }
+  const body = parseBody(AuthRegisterVerifyBody, req, res);
+  if (!body) return;
+  const { email, code } = body;
   const normEmail = email.trim().toLowerCase();
   const result = await consumeOtp(normEmail, "register", code);
   if (!result.ok) {
@@ -631,6 +656,9 @@ function validateProfileLinks(value: unknown): { links: string[] | null } | { me
   return { links };
 }
 
+const PROFILE_PHOTO_REQUIREMENTS =
+  `Profile photo must be a valid JPEG, PNG, or WebP image no larger than ${Math.floor(MAX_PROFILE_UPLOAD_BYTES / (1024 * 1024))} MB`;
+
 async function validateStoredProfilePhoto(
   objectPath: string,
   userId: string,
@@ -640,34 +668,17 @@ async function validateStoredProfilePhoto(
     const [metadata] = await objectFile.getMetadata();
     const size = Number(metadata.size ?? 0);
     const contentType = String(metadata.contentType ?? "").toLowerCase();
-    if (size <= 0 || size > 10 * 1024 * 1024) {
+    if (size <= 0 || size > MAX_PROFILE_UPLOAD_BYTES) {
       await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
-      return {
-        valid: false,
-        message: "Profile photo must be a valid JPEG, PNG, or WebP image no larger than 10 MB",
-      };
+      return { valid: false, message: PROFILE_PHOTO_REQUIREMENTS };
     }
     const [contents] = await objectFile.download();
-    const head = contents.subarray(0, 12);
-    const isJpeg =
-      head.length >= 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
-    const isPng =
-      head.length >= 8 &&
-      head.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-    const isWebp =
-      head.length >= 12 &&
-      head.subarray(0, 4).toString("ascii") === "RIFF" &&
-      head.subarray(8, 12).toString("ascii") === "WEBP";
     const signatureMatches =
-      (contentType === "image/jpeg" && isJpeg) ||
-      (contentType === "image/png" && isPng) ||
-      (contentType === "image/webp" && isWebp);
-    if (contents.length !== size || contents.length > 10 * 1024 * 1024 || !signatureMatches) {
+      PROFILE_UPLOAD_CONTENT_TYPES.has(contentType)
+      && bytesMatchContentType(contents.subarray(0, 12), contentType);
+    if (contents.length !== size || contents.length > MAX_PROFILE_UPLOAD_BYTES || !signatureMatches) {
       await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
-      return {
-        valid: false,
-        message: "Profile photo must be a valid JPEG, PNG, or WebP image no larger than 10 MB",
-      };
+      return { valid: false, message: PROFILE_PHOTO_REQUIREMENTS };
     }
     const finalPath = await objectStorageService.saveObjectEntityWithPrefix(
       `profiles/${userId}/final`,
@@ -681,9 +692,19 @@ async function validateStoredProfilePhoto(
   }
 }
 
+// The contract's username pattern is the *stored* form (lowercase). Clients
+// may send mixed case or surrounding whitespace; validateProfileUsername
+// normalises (NFKC, trim, lowercase) before applying the same pattern, so the
+// raw field is accepted here as any string and validated after normalisation.
+const AuthMeUpdateRequest = AuthMeUpdateBody.extend({
+  profileUsername: z.string().nullish(),
+});
+
 router.patch("/auth/me", requireAuth, asyncHandler(async (req, res) => {
   const me = req.user!;
-  const { name, mobile, profilePhoto, profileAbout, profileUsername, profileLinks } = req.body ?? {};
+  const body = parseBody(AuthMeUpdateRequest, req, res);
+  if (!body) return;
+  const { name, mobile, profilePhoto, profileAbout, profileUsername, profileLinks } = body;
   const set: Partial<{
     name: string; mobile: string; profilePhoto: string | null; profileAbout: string | null;
     profileUsername: string | null; profileLinks: string[] | null; displayNameCompletedAt: Date;
@@ -861,13 +882,14 @@ router.get("/auth/login-history", requireAuth, asyncHandler(async (req, res) => 
 
 // ── Active sessions ───────────────────────────────────────────────────────
 router.get("/auth/sessions", requireAuth, asyncHandler(async (req, res) => {
-  const sessions = await listActiveSessions(req.user!.id, req.sessionToken!);
+  const sessions = await listActiveSessions(req.user!.id, req.sessionToken!, req.user!.role);
   res.json({
     sessions: sessions.map((s) => ({
       id: s.id,
       deviceInfo: s.deviceInfo ?? undefined,
       createdAt: s.createdAt.toISOString(),
       expiresAt: s.expiresAt.toISOString(),
+      lastSeenAt: s.lastSeenAt.toISOString(),
       current: s.current,
     })),
   });

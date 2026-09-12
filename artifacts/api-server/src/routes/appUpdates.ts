@@ -5,6 +5,7 @@ import { db, appUpdatesTable, usersTable, type DbUser } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireRole } from "../middlewares/requireRole";
 import { asyncHandler } from "../lib/asyncHandler";
+import { uuidParam } from "../lib/validate";
 import {
   ObjectNotFoundError,
   ObjectStorageService,
@@ -22,6 +23,7 @@ import {
 // install manually.
 
 const router: IRouter = Router();
+router.param("id", uuidParam);
 const objectStorage = new ObjectStorageService();
 
 const APK_PREFIX = "/objects/uploads/app-updates/";

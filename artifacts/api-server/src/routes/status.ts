@@ -19,13 +19,16 @@ import {
   usersTable,
   type DbUser,
 } from "@workspace/db";
+import { StatusesCreateBody, StatusesUploadUrlBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { logger } from "../lib/logger";
 import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
 import { isPersonalContact, statusVisibilityCondition } from "../lib/statusAccess";
+import { parseBody, uuidParam } from "../lib/validate";
 
 const router: IRouter = Router();
+router.param("id", uuidParam);
 const objectStorageService = new ObjectStorageService();
 const STATUS_TTL_MS = 24 * 60 * 60 * 1000;
 const STATUS_MAX_TEXT = 7_000;
@@ -49,10 +52,6 @@ class StatusMediaValidationError extends Error {}
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Invalid status";
-}
-
-function statusKindValid(kind: unknown): kind is "text" | "image" | "video" {
-  return kind === "text" || kind === "image" || kind === "video";
 }
 
 function mediaTypeValid(kind: "image" | "video", contentType: string): boolean {
@@ -277,13 +276,12 @@ router.post(
   requireAuth,
   asyncHandler(async (req, res) => {
     const me = (req as AuthedRequest).user;
-    const { name, size, contentType } = req.body ?? {};
-    const normalizedType = typeof contentType === "string"
-      ? contentType.trim().toLowerCase()
-      : "";
+    const body = parseBody(StatusesUploadUrlBody, req, res);
+    if (!body) return;
+    const { name, size, contentType } = body;
+    const normalizedType = contentType.trim().toLowerCase();
     if (
-      typeof name !== "string" || !name.trim() ||
-      typeof size !== "number" || !Number.isFinite(size) || size <= 0 ||
+      !name.trim() ||
       (!STATUS_IMAGE_TYPES.has(normalizedType) && !STATUS_VIDEO_TYPES.has(normalizedType))
     ) {
       res.status(400).json({
@@ -395,31 +393,24 @@ router.post(
   requireAuth,
   asyncHandler(async (req, res) => {
     const me = (req as AuthedRequest).user;
-    const { kind, body, objectPath, mimeType, sizeBytes, audience } = req.body ?? {};
-    if (!statusKindValid(kind)) {
-      res.status(400).json({ message: "Status kind must be text, image, or video." });
-      return;
-    }
-    const visibility = audience === undefined ? "contacts" : audience;
-    if (visibility !== "contacts" && visibility !== "nobody") {
-      res.status(400).json({ message: "Unsupported status audience." });
-      return;
-    }
+    const body = parseBody(StatusesCreateBody, req, res);
+    if (!body) return;
+    const { kind, objectPath, mimeType, sizeBytes } = body;
+    const visibility = body.audience;
     let normalizedBody: string | null = null;
     if (kind === "text") {
-      if (typeof body !== "string" || !body.trim()) {
+      if (typeof body.body !== "string" || !body.body.trim()) {
         res.status(400).json({ message: "Text status cannot be empty." });
         return;
       }
-      normalizedBody = body.trim().slice(0, STATUS_MAX_TEXT);
+      normalizedBody = body.body.trim().slice(0, STATUS_MAX_TEXT);
     } else {
       if (
-        typeof objectPath !== "string" ||
+        !objectPath ||
         !objectPath.startsWith(`/objects/uploads/status/${me.id}/`) ||
-        typeof mimeType !== "string" ||
-        typeof sizeBytes !== "number" ||
+        !mimeType ||
+        sizeBytes == null ||
         !Number.isInteger(sizeBytes) ||
-        sizeBytes <= 0 ||
         !mediaTypeValid(kind, mimeType.trim().toLowerCase()) ||
         sizeBytes > mediaMaxSize(kind)
       ) {
@@ -433,8 +424,8 @@ router.post(
       authorId: me.id,
       kind,
       body: normalizedBody,
-      objectPath: kind === "text" ? null : objectPath.trim(),
-      mimeType: kind === "text" ? null : mimeType.trim().toLowerCase(),
+      objectPath: kind === "text" ? null : objectPath!.trim(),
+      mimeType: kind === "text" ? null : mimeType!.trim().toLowerCase(),
       sizeBytes: kind === "text" ? null : sizeBytes,
       audience: visibility,
       createdAt: now,
@@ -446,7 +437,7 @@ router.post(
     } else {
       try {
         created = await db.transaction(async (tx) => {
-          const normalizedPath = objectPath.trim();
+          const normalizedPath = objectPath!.trim();
           await tx.execute(sql`
             SELECT pg_advisory_xact_lock(hashtextextended(${normalizedPath}, 0))
           `);
@@ -469,7 +460,7 @@ router.post(
           const storedType = String(metadata.contentType ?? "").toLowerCase();
           const storedSize = Number(metadata.size ?? 0);
           if (
-            storedType !== mimeType.trim().toLowerCase() ||
+            storedType !== mimeType!.trim().toLowerCase() ||
             storedSize <= 0 ||
             storedSize !== sizeBytes ||
             storedSize > mediaMaxSize(kind)

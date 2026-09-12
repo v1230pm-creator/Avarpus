@@ -12,12 +12,19 @@ export type UnauthorizedHandler = (error: ApiError) => void;
 
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
+const DEFAULT_HEALTH_PATH = "/api/healthz";
+const HEALTH_PROBE_TIMEOUT_MS = 5000;
 
 // ---------------------------------------------------------------------------
 // Module-level configuration
 // ---------------------------------------------------------------------------
 
 let _baseUrl: string | null = null;
+let _baseUrlFallbacks: string[] = [];
+let _healthPath = DEFAULT_HEALTH_PATH;
+// Set once a fallback has been proven reachable, so the rest of the session
+// goes straight there instead of re-timing-out on the dead primary host.
+let _failedOverBaseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
 let _unauthorizedHandler: UnauthorizedHandler | null = null;
 
@@ -42,7 +49,79 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): voi
  * Pass `null` to clear the base URL.
  */
 export function setBaseUrl(url: string | null): void {
-  _baseUrl = url ? url.replace(/\/+$/, "") : null;
+  _baseUrl = normalizeBaseUrl(url);
+  _failedOverBaseUrl = null;
+}
+
+/**
+ * Register alternative origins to use when the configured base URL cannot be
+ * reached at all — a missing DNS record, a dropped custom domain, a blocked
+ * host. Installed mobile builds cannot be re-pointed after release, so without
+ * this a broken domain takes the whole app down until users reinstall.
+ *
+ * Failover is deliberately conservative: it only happens after a request fails
+ * at the transport layer AND a health probe confirms the current origin is
+ * unreachable, so a request that merely dropped mid-flight is never replayed
+ * against a second server. Once a fallback answers, it is used for the rest of
+ * the session; calling `setBaseUrl` again resets that choice.
+ *
+ * Pass an empty array (or null) to disable failover.
+ */
+export function setBaseUrlFallbacks(
+  urls: string[] | null,
+  options: { healthPath?: string } = {},
+): void {
+  _baseUrlFallbacks = (urls ?? [])
+    .map(normalizeBaseUrl)
+    .filter((url): url is string => url !== null);
+  _healthPath = options.healthPath ?? DEFAULT_HEALTH_PATH;
+  _failedOverBaseUrl = null;
+}
+
+function normalizeBaseUrl(url: string | null): string | null {
+  const trimmed = url?.trim().replace(/\/+$/, "");
+  return trimmed ? trimmed : null;
+}
+
+function activeBaseUrl(): string | null {
+  return _failedOverBaseUrl ?? _baseUrl;
+}
+
+async function originIsReachable(base: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${base}${_healthPath}`, {
+      method: "GET",
+      signal: AbortSignal.timeout(HEALTH_PROBE_TIMEOUT_MS),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Returns a reachable alternative origin, or null when the caller should
+ * surface the original transport error.
+ */
+async function findReachableFallback(failedBase: string): Promise<string | null> {
+  const candidates = [_baseUrl, ..._baseUrlFallbacks].filter(
+    (base): base is string => base !== null && base !== failedBase,
+  );
+  if (candidates.length === 0) return null;
+
+  // If the origin we just used answers its health check, the failure was
+  // transient. Retrying elsewhere could duplicate a mutation the server may
+  // already have applied, so don't.
+  if (await originIsReachable(failedBase)) return null;
+
+  for (const candidate of candidates) {
+    if (await originIsReachable(candidate)) {
+      _failedOverBaseUrl = candidate;
+      return candidate;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -76,13 +155,13 @@ function isUrl(input: RequestInfo | URL): input is URL {
   return typeof URL !== "undefined" && input instanceof URL;
 }
 
-function applyBaseUrl(input: RequestInfo | URL): RequestInfo | URL {
-  if (!_baseUrl) return input;
+function applyBaseUrl(input: RequestInfo | URL, base: string | null): RequestInfo | URL {
+  if (!base) return input;
   const url = resolveUrl(input);
   // Only prepend to relative paths (starting with /)
   if (!url.startsWith("/")) return input;
 
-  const absolute = `${_baseUrl}${url}`;
+  const absolute = `${base}${url}`;
   if (typeof input === "string") return absolute;
   if (isUrl(input)) return new URL(absolute);
   return new Request(absolute, input as Request);
@@ -342,7 +421,9 @@ export async function customFetch<T = unknown>(
   input: RequestInfo | URL,
   options: CustomFetchOptions = {},
 ): Promise<T> {
-  input = applyBaseUrl(input);
+  const originalInput = input;
+  const usedBaseUrl = resolveUrl(originalInput).startsWith("/") ? activeBaseUrl() : null;
+  input = applyBaseUrl(originalInput, usedBaseUrl);
   const { responseType = "auto", headers: headersInit, ...init } = options;
 
   const method = resolveMethod(input, init.method);
@@ -378,7 +459,20 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  let response: Response;
+  try {
+    response = await fetch(input, { ...init, method, headers });
+  } catch (transportError) {
+    // The request never produced a response. If the origin itself is gone
+    // (dead DNS record, retired domain), try a configured fallback origin
+    // once; otherwise surface the original failure untouched.
+    const fallbackBase = usedBaseUrl ? await findReachableFallback(usedBaseUrl) : null;
+    if (!fallbackBase) throw transportError;
+
+    const retryInput = applyBaseUrl(originalInput, fallbackBase);
+    requestInfo.url = resolveUrl(retryInput);
+    response = await fetch(retryInput, { ...init, method, headers });
+  }
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

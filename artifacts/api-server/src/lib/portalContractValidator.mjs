@@ -59,6 +59,7 @@ export const customerPortalProfile = {
           "notification-recipient",
           "status-audience",
           "chat-membership",
+          "chat-report-author",
         ]);
         if (!supported.has(family.isolationProbe)) {
           fail(portal, `unsupported probe for family ${family.id}: ${family.isolationProbe}`);
@@ -88,6 +89,7 @@ export const dealerPortalProfile = {
           || !HTTP_METHODS.has(probe.method)
           || !nonEmptyString(probe.path)
           || !probe.path.startsWith("/")
+          || (probe.body !== undefined && (typeof probe.body !== "object" || probe.body === null || Array.isArray(probe.body)))
         ) {
           fail(portal, `unsupported probe for family: ${family.id}`);
         }

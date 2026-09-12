@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { Loader2, ImageOff } from 'lucide-react';
+import { ImageOff } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 
 interface AuthedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   objectPath: string;
@@ -73,7 +74,7 @@ export function AuthedImage({ objectPath, className, fallback, alt, ...props }: 
   if (loading) {
     return (
       <div className={cn("flex items-center justify-center bg-muted/50", className)}>
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground/50" />
+        <Spinner size={24} className="text-muted-foreground/50" />
       </div>
     );
   }

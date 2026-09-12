@@ -6,6 +6,7 @@
     { "id": "auth-self-service", "label": "auth self-service", "inactiveDealerExempt": true },
     { "id": "drive-backup", "label": "Drive backup", "inactiveProbe": { "method": "GET", "path": "/drive-backup" } },
     { "id": "notifications", "label": "notifications", "inactiveProbe": { "method": "GET", "path": "/notifications" } },
+    { "id": "push-registration", "label": "push registration", "inactiveProbe": { "method": "POST", "path": "/push/tokens/unregister", "body": { "token": "ExponentPushToken[portal-contract-probe]" } } },
     { "id": "chat", "label": "chat", "inactiveProbe": { "method": "GET", "path": "/chat/capabilities" } }
   ],
   "rules": [
@@ -23,6 +24,8 @@
     { "family": "drive-backup", "method": "DELETE", "pattern": "^/drive-backup(?:/.*)?$" },
     { "family": "notifications", "method": "GET", "pattern": "^/notifications$" },
     { "family": "notifications", "method": "POST", "pattern": "^/notifications/read$" },
+    { "family": "push-registration", "method": "POST", "pattern": "^/push/tokens$" },
+    { "family": "push-registration", "method": "POST", "pattern": "^/push/tokens/unregister$" },
     { "family": "chat", "method": "GET", "pattern": "^/chat/capabilities$" },
     { "family": "chat", "method": "POST", "pattern": "^/chat/contacts/match$" },
     { "family": "chat", "method": "POST", "pattern": "^/chat/rooms$" },

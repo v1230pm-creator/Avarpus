@@ -22,6 +22,7 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { ReactNode, useState } from "react";
 import { Button } from "./ui/button";
+import { FullPageLoader } from "@/components/ui/spinner";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: Activity },
@@ -48,11 +49,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const isCustomer = user?.role === "customer";
 
   if (isLoading) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <FullPageLoader />;
   }
 
   if (!isAuthenticated) {

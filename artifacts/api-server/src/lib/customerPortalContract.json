@@ -36,6 +36,11 @@
       "isolationProbe": "notification-recipient"
     },
     {
+      "id": "push-registration",
+      "label": "push registration",
+      "isolationExempt": "These routes only write or delete the caller's own session-bound device token; they accept no customer, shop, or other account identifier and return no record data."
+    },
+    {
       "id": "personal-status",
       "label": "personal status",
       "isolationProbe": "status-audience"
@@ -44,6 +49,11 @@
       "id": "chat",
       "label": "chat",
       "isolationProbe": "chat-membership"
+    },
+    {
+      "id": "chat-reports",
+      "label": "own abuse reports",
+      "isolationProbe": "chat-report-author"
     }
   ],
   "rules": [
@@ -62,6 +72,8 @@
     { "family": "business-workspace", "method": "*", "pattern": "^/shop(?:/.*)?$" },
     { "family": "notifications", "method": "GET", "pattern": "^/notifications$" },
     { "family": "notifications", "method": "POST", "pattern": "^/notifications/read$" },
+    { "family": "push-registration", "method": "POST", "pattern": "^/push/tokens$" },
+    { "family": "push-registration", "method": "POST", "pattern": "^/push/tokens/unregister$" },
     { "family": "personal-status", "method": "GET", "pattern": "^/statuses$" },
     { "family": "personal-status", "method": "POST", "pattern": "^/statuses$" },
     { "family": "personal-status", "method": "POST", "pattern": "^/statuses/upload-url$" },
@@ -85,6 +97,7 @@
     { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/read$" },
     { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/upload-url$" },
     { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/call-token$" },
-    { "family": "chat", "method": "GET", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/messages/[0-9a-fA-F-]{36}/media$" }
+    { "family": "chat", "method": "GET", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/messages/[0-9a-fA-F-]{36}/media$" },
+    { "family": "chat-reports", "method": "GET", "pattern": "^/chat/reports/mine$" }
   ]
 }

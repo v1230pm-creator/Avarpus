@@ -40,7 +40,7 @@ import {
   PRIORITIES,
   PRIORITY_LABELS,
 } from '@/utils/helpers';
-import { requestUploadUrl, repairPhotosAdd, approvalsCreate, repairPaymentsCreate, useDealersList, useDealersDetect } from '@workspace/api-client-react';
+import { requestUploadUrl, repairPhotosAdd, approvalsCreate, repairPaymentsCreate, useDealersList, useDealersDetect, type UploadUrlRequestContentType } from '@workspace/api-client-react';
 import { fetch as expoFetch } from 'expo/fetch';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { File as ExpoFile } from 'expo-file-system';
@@ -280,7 +280,7 @@ export default function NewRepairScreen() {
     }
   };
 
-  const uploadToGcs = async (fileUri: string, mimeType: string) => {
+  const uploadToGcs = async (fileUri: string, mimeType: UploadUrlRequestContentType) => {
     try {
       const fileInfo = await FileSystem.getInfoAsync(fileUri);
       const size = fileInfo.exists ? fileInfo.size : 0;

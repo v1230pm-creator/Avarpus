@@ -7,13 +7,18 @@
 //     authorized rewind is testing -> repairing when the stored checklist
 //     has a failed item. Other rewinds -> 409 INVALID_STATUS_TRANSITION.
 //   - Testing items saved as Pass stay immutable -> 409 TESTING_ITEM_LOCKED.
-// Usage: pnpm run build && node scripts/test-stage-locks.mjs
+// Usage: node scripts/run-isolated.mjs scripts/test-stage-locks.mjs
 import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { createRequire } from "node:module";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+// Built server entry. scripts/run-isolated.mjs builds into a private per-run
+// directory and passes it here so a concurrent `pnpm run build` rewriting
+// ./dist cannot pull the bundle out from under this run.
+const SERVER_ENTRY = process.env.API_SERVER_ENTRY ?? "./dist/index.mjs";
 
 const dbPkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../lib/db");
 const require = createRequire(path.join(dbPkgDir, "package.json"));
@@ -429,7 +434,7 @@ async function run(A) {
 
 async function main() {
   const A = await seedTestShop("A");
-  const child = spawn("node", ["--enable-source-maps", "./dist/index.mjs"], {
+  const child = spawn("node", ["--enable-source-maps", SERVER_ENTRY], {
     env: { ...process.env, PORT: String(PORT), NODE_ENV: "test" },
     stdio: ["ignore", "ignore", "inherit"],
   });

@@ -14,6 +14,8 @@ export interface ApprovalRequestInput {
   mode?: ApprovalRequestInputMode;
   recordId?: string;
   payload: ApprovalRequestInputPayload;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
   requestedDate: string;
+  /** @minLength 1 */
   reason: string;
 }

@@ -24,7 +24,12 @@ const mockServerRepairs: Record<string, unknown>[] = [];
 
 jest.mock('@workspace/api-client-react', () => {
   const { useQuery } = require('@tanstack/react-query');
-  return {
+  // Hooks this suite deliberately controls: auth, the repairs list itself and
+  // the create call the queue flushes into. Everything else the screen happens
+  // to call is irrelevant here, so unknown exports fall through to an inert
+  // stub below instead of crashing the render (see the Proxy at the end).
+  const controlled: Record<string, unknown> = {
+    __esModule: true,
     authMe: jest.fn(async () => ({
       user: { id: 'u1', name: 'Owner', email: 'o@x.y', mobile: '9876543210', role: 'dealer', isActive: true },
     })),
@@ -47,7 +52,30 @@ jest.mock('@workspace/api-client-react', () => {
     useDealersDetect: jest.fn(() => ({ data: { dealers: [] }, isLoading: false, refetch: jest.fn() })),
     useDealersMe: jest.fn(() => ({ data: undefined })),
     useDealersOverview: jest.fn(() => ({ data: undefined })),
+    useCustomersKhataGet: jest.fn(() => ({ data: undefined })),
   };
+
+  // Any other export the screen (or a component it renders) starts importing
+  // later resolves to an idle query / no-op call instead of `undefined`, so a
+  // new unrelated hook cannot take this suite down again. The hooks that carry
+  // the behaviour under test are all listed above, so a regression in THEM
+  // still fails loudly.
+  const idleQuery = Object.freeze({
+    data: undefined,
+    isLoading: false,
+    isFetching: false,
+    isPending: false,
+    isError: false,
+    error: null,
+    refetch: jest.fn(async () => ({ data: undefined })),
+  });
+  return new Proxy(controlled, {
+    get(target, prop) {
+      if (prop in target) return target[prop as string];
+      if (typeof prop !== 'string' || prop === 'default' || prop === 'then') return undefined;
+      return prop.startsWith('use') ? () => idleQuery : jest.fn();
+    },
+  });
 });
 
 // In-memory storage backing BOTH the real offlineQueue and the auth token.

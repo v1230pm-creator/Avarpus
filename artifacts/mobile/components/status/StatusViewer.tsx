@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Modal,
   Platform,
   Pressable,
@@ -15,6 +14,7 @@ import type { StatusGroup, StatusViewer as Viewer } from '@workspace/api-client-
 import { statusesViewersList } from '@workspace/api-client-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { StatusMedia } from './StatusMedia';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 
 const IMAGE_DURATION_MS = 7_000;
 const VIDEO_DURATION_MS = 15_000;
@@ -160,7 +160,7 @@ export function StatusViewer({
                 accessibilityLabel="Delete status"
               >
                 {deleting
-                  ? <ActivityIndicator size="small" color="#FFFFFF" />
+                  ? <AvarpusSpinner size={20} color="#FFFFFF" />
                   : <Feather name="trash-2" size={20} color="#FFFFFF" />}
               </TouchableOpacity>
             )}
@@ -188,7 +188,7 @@ export function StatusViewer({
               <View style={styles.sheetHandle} />
               <Text style={styles.sheetTitle}>Viewed by {item.viewerCount}</Text>
               {viewerLoading ? (
-                <ActivityIndicator color="#0F62FE" style={{ marginTop: 28 }} />
+                <AvarpusSpinner size={20} color="#0F62FE" style={{ marginTop: 28 }} />
               ) : viewers?.length ? (
                 <ScrollView>
                   {viewers.map((viewer) => (

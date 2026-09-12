@@ -12,12 +12,14 @@ import {
   type DbUser,
   type DbApprovalRequest,
 } from "@workspace/db";
+import { ApprovalsCreateBody, ApprovalsRejectBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireFeature } from "../lib/roleFeatures";
 import { notifyShop } from "../lib/notify";
 import { asyncHandler } from "../lib/asyncHandler";
 import { recordPayment } from "../lib/repairPayments";
 import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
+import { parseBody, uuidParam } from "../lib/validate";
 import type { Request, Response } from "express";
 
 // Backdated-entry approval workflow.
@@ -27,6 +29,7 @@ import type { Request, Response } from "express";
 // nothing is saved. Requests are never deleted — they are the audit trail.
 
 const router: IRouter = Router();
+router.param("id", uuidParam);
 
 type AuthedRequest = Request & { user: DbUser };
 
@@ -107,13 +110,14 @@ router.post(
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
     const me = (req as AuthedRequest).user;
-    const b = req.body ?? {};
-    const recordType = RECORD_TYPES.includes(b.recordType) ? b.recordType : null;
-    const requestedDate = str(b.requestedDate);
-    const reason = str(b.reason);
-    const mode = b.mode === "update" ? "update" : "create";
-    const recordId = str(b.recordId);
-    const payload = b.payload && typeof b.payload === "object" && !Array.isArray(b.payload) ? b.payload : null;
+    const body = parseBody(ApprovalsCreateBody, req, res);
+    if (!body) return;
+    const recordType = RECORD_TYPES.includes(body.recordType) ? body.recordType : null;
+    const requestedDate = str(body.requestedDate);
+    const reason = str(body.reason);
+    const mode = body.mode === "update" ? "update" : "create";
+    const recordId = str(body.recordId);
+    const payload = body.payload;
     if (!recordType || !requestedDate || !reason || !payload) {
       res.status(400).json({ message: "recordType, payload, requestedDate and reason are required" });
       return;
@@ -505,7 +509,9 @@ router.post(
     if (!shopId) return;
     const me = deciderOr403(req, res);
     if (!me) return;
-    const reason = str((req.body ?? {}).reason);
+    const body = parseBody(ApprovalsRejectBody, req, res);
+    if (!body) return;
+    const reason = str(body.reason);
     if (!reason) {
       res.status(400).json({ message: "A rejection reason is required" });
       return;

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Platform,
   ScrollView,
@@ -26,6 +25,7 @@ import {
 } from '@workspace/api-client-react';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { AvarpusLoadingScreen, AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 
 type Mode = 'overview' | 'setup' | 'claim' | 'recovery';
 
@@ -213,7 +213,7 @@ export default function ShopScreen() {
   );
 
   if (loading) {
-    return <View style={[styles.container, { backgroundColor: colors.background }]}>{header}<View style={styles.center}><ActivityIndicator color={colors.primary} size="large" /></View></View>;
+    return <View style={[styles.container, { backgroundColor: colors.background }]}>{header}<AvarpusLoadingScreen background={colors.background} size={40} /></View>;
   }
 
   return (
@@ -239,7 +239,7 @@ export default function ShopScreen() {
                 <Field label="Business email" value={businessEmail} onChangeText={setBusinessEmail} colors={colors} keyboardType="email-address" autoCapitalize="none" />
                 <Field label="Shop address" value={address} onChangeText={setAddress} colors={colors} multiline />
                 <Field label="GST number (optional)" value={gstNumber} onChangeText={setGstNumber} colors={colors} autoCapitalize="characters" />
-                <PrimaryButton label="Send verification code" onPress={requestVerification} disabled={saving} colors={colors} />
+                <PrimaryButton label="Send verification code" onPress={requestVerification} busy={saving} colors={colors} />
               </>
             ) : (
               <>
@@ -248,7 +248,7 @@ export default function ShopScreen() {
                   <Text style={{ color: colors.foreground, flex: 1 }}>{businessEmail}</Text>
                 </View>
                 <Field label="6-digit verification code" value={verificationCode} onChangeText={setVerificationCode} colors={colors} keyboardType="number-pad" maxLength={6} />
-                <PrimaryButton label="Verify and create Shop" onPress={verifyAndCreate} disabled={saving || verificationCode.trim().length !== 6} colors={colors} />
+                <PrimaryButton label="Verify and create Shop" onPress={verifyAndCreate} busy={saving} disabled={verificationCode.trim().length !== 6} colors={colors} />
                 <TouchableOpacity onPress={() => setVerificationSent(false)}><Text style={[styles.link, { color: colors.primary }]}>Change details or resend</Text></TouchableOpacity>
               </>
             )}
@@ -263,7 +263,7 @@ export default function ShopScreen() {
             </Text>
             <Field label="Staff ID" value={staffId} onChangeText={setStaffId} colors={colors} autoCapitalize="characters" />
             <Field label="Claim code" value={claimCode} onChangeText={setClaimCode} colors={colors} autoCapitalize="characters" />
-            <PrimaryButton label="Join workspace" onPress={claimWorkspace} disabled={saving || !staffId.trim() || !claimCode.trim()} colors={colors} />
+            <PrimaryButton label="Join workspace" onPress={claimWorkspace} busy={saving} disabled={!staffId.trim() || !claimCode.trim()} colors={colors} />
           </View>
         )}
 
@@ -279,7 +279,8 @@ export default function ShopScreen() {
             <PrimaryButton
               label="Verify and restore"
               onPress={verifyRecovery}
-              disabled={saving || !recoveryShopId || !recoveryEmail.trim() || recoveryCode.trim().length !== 6}
+              busy={saving}
+              disabled={!recoveryShopId || !recoveryEmail.trim() || recoveryCode.trim().length !== 6}
               colors={colors}
             />
           </View>
@@ -300,7 +301,7 @@ export default function ShopScreen() {
                   : 'Repairs, Khata, customers, staff and reports stay protected inside a separate business workspace.'}
               </Text>
               {workspace?.backupDetected ? (
-                <PrimaryButton label="Recover Shop backup" onPress={beginRecovery} disabled={saving} colors={colors} />
+                <PrimaryButton label="Recover Shop backup" onPress={beginRecovery} busy={saving} colors={colors} />
               ) : (
                 <>
                   <PrimaryButton label="Set up your Shop" onPress={() => setMode('setup')} colors={colors} />
@@ -374,9 +375,18 @@ function Field({ label, colors, ...props }: React.ComponentProps<typeof TextInpu
   </View>;
 }
 
-function PrimaryButton({ label, onPress, disabled, colors }: { label: string; onPress: () => void; disabled?: boolean; colors: any }) {
-  return <TouchableOpacity onPress={onPress} disabled={disabled} style={[styles.primaryButton, { backgroundColor: colors.primary, opacity: disabled ? 0.55 : 1 }]}>
-    {disabled ? <ActivityIndicator color={colors.primaryForeground} /> : <Text style={{ color: colors.primaryForeground, fontFamily: 'Inter_600SemiBold' }}>{label}</Text>}
+function PrimaryButton({ label, onPress, disabled, busy, colors }: { label: string; onPress: () => void; disabled?: boolean; busy?: boolean; colors: any }) {
+  // `disabled` covers incomplete input as well, so only a real in-flight save
+  // may replace the label — otherwise the button spins before anything starts.
+  return <TouchableOpacity
+    onPress={onPress}
+    disabled={disabled || busy}
+    accessibilityRole="button"
+    accessibilityLabel={label}
+    accessibilityState={{ disabled: !!(disabled || busy), busy: !!busy }}
+    style={[styles.primaryButton, { backgroundColor: colors.primary, opacity: disabled || busy ? 0.55 : 1 }]}
+  >
+    {busy ? <AvarpusSpinner size={20} color={colors.primaryForeground} accessibilityLabel={null} /> : <Text style={{ color: colors.primaryForeground, fontFamily: 'Inter_600SemiBold' }}>{label}</Text>}
   </TouchableOpacity>;
 }
 

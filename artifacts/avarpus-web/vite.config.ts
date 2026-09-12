@@ -47,7 +47,10 @@ export default defineConfig({
         'attached_assets',
       ),
     },
-    dedupe: ['react', 'react-dom'],
+    // @workspace/api-client-react depends on @tanstack/react-query itself, so
+    // without deduping the app and the generated hooks can load two React
+    // Query runtimes and lose the shared QueryClient context.
+    dedupe: ['react', 'react-dom', '@tanstack/react-query'],
   },
   root: path.resolve(import.meta.dirname),
   build: {

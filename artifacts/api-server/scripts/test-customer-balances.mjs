@@ -1,5 +1,5 @@
 // API-level tests for customer balance derivation (syncCustomerStats).
-// Usage: pnpm run build && node scripts/test-customer-balances.mjs
+// Usage: node scripts/run-isolated.mjs scripts/test-customer-balances.mjs
 //
 // Seeds a throwaway dealer + shop + session directly in the database,
 // spawns the built server, drives the repairs API over HTTP and asserts on
@@ -12,6 +12,11 @@ import { createRequire } from "node:module";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+// Built server entry. scripts/run-isolated.mjs builds into a private per-run
+// directory and passes it here so a concurrent `pnpm run build` rewriting
+// ./dist cannot pull the bundle out from under this run.
+const SERVER_ENTRY = process.env.API_SERVER_ENTRY ?? "./dist/index.mjs";
 
 // Resolve `pg` through the db workspace package (pnpm keeps deps local).
 const dbPkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../lib/db");
@@ -226,7 +231,7 @@ async function run(token) {
 
 async function main() {
   const seeded = await seedTestShop();
-  const child = spawn("node", ["--enable-source-maps", "./dist/index.mjs"], {
+  const child = spawn("node", ["--enable-source-maps", SERVER_ENTRY], {
     env: { ...process.env, PORT: String(PORT), NODE_ENV: "test" },
     stdio: ["ignore", "ignore", "inherit"],
   });

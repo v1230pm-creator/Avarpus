@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { SectionLoader, Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { UploadArea } from "@/components/upload-area";
 import { AuthedImage } from "@/components/authed-image";
@@ -37,7 +38,6 @@ import {
   Plus, 
   Trash2,
   GripVertical,
-  Loader2,
   FileCheck,
   AlertTriangle,
   X
@@ -272,11 +272,7 @@ export default function ReleaseEditor() {
   };
 
   if (!isNew && listLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <SectionLoader className="flex-1" />;
   }
 
   const screenshots = form.watch("screenshots");
@@ -305,7 +301,7 @@ export default function ReleaseEditor() {
         <div className="flex items-center gap-2">
           {!isNew && isPublished && (
             <Button variant="outline" onClick={handleUnpublish} disabled={unpublishUpdate.isPending}>
-              {unpublishUpdate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo className="mr-2 h-4 w-4" />}
+              {unpublishUpdate.isPending ? <Spinner size={16} label={null} /> : <Undo className="mr-2 h-4 w-4" />}
               Unpublish
             </Button>
           )}
@@ -319,7 +315,7 @@ export default function ReleaseEditor() {
           
           {!isPublished && existingUpdate?.status !== "archived" && (
             <Button onClick={form.handleSubmit(onSubmit, onInvalid)} disabled={createUpdate.isPending || updateUpdate.isPending}>
-              {(createUpdate.isPending || updateUpdate.isPending) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              {(createUpdate.isPending || updateUpdate.isPending) ? <Spinner className="mr-2" size={16} label={null} /> : <Save className="mr-2 h-4 w-4" />}
               Save Draft
             </Button>
           )}
@@ -552,7 +548,7 @@ export default function ReleaseEditor() {
               onClick={() => handlePublish(rollbackWarning)}
               disabled={publishUpdate.isPending}
             >
-              {publishUpdate.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {publishUpdate.isPending && <Spinner className="mr-2" size={16} label={null} />}
               {rollbackWarning ? "Force Rollback" : "Confirm Publish"}
             </Button>
           </DialogFooter>

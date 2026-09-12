@@ -220,6 +220,24 @@ export interface AppNotification {
   createdAt: string;
 }
 
+export type PushTokenInputPlatform = typeof PushTokenInputPlatform[keyof typeof PushTokenInputPlatform];
+
+
+export const PushTokenInputPlatform = {
+  ios: 'ios',
+  android: 'android',
+} as const;
+
+export interface PushTokenInput {
+  token: string;
+  platform: PushTokenInputPlatform;
+  deviceInfo?: string;
+}
+
+export interface PushTokenUnregisterInput {
+  token: string;
+}
+
 export interface FeatureMap {[key: string]: boolean}
 
 export interface RoleFeaturesInput {
@@ -472,6 +490,8 @@ export interface SessionInfo {
   deviceInfo?: string;
   createdAt: string;
   expiresAt: string;
+  /** Time of the most recent authenticated request on this session. */
+  lastSeenAt: string;
   current: boolean;
 }
 
@@ -492,8 +512,11 @@ export const StaffCreateInputRole = {
 } as const;
 
 export interface StaffCreateInput {
+  /** @minLength 1 */
   name: string;
+  /** @pattern ^[^\s@]+@[^\s@]+\.[^\s@]+$ */
   email: string;
+  /** @pattern ^\d{10}$ */
   mobile: string;
   role: StaffCreateInputRole;
   designation?: string;
@@ -513,7 +536,9 @@ export const StaffUpdateInputRole = {
 } as const;
 
 export interface StaffUpdateInput {
+  /** @minLength 1 */
   name?: string;
+  /** @pattern ^\d{10}$ */
   mobile?: string;
   role?: StaffUpdateInputRole;
   designation?: string;
@@ -688,8 +713,10 @@ export type DealerWithCounts = Dealer & {
 };
 
 export interface DealerInput {
+  /** @minLength 1 */
   name?: string;
   shopName?: string;
+  /** @pattern ^\d{10}$ */
   mobile?: string;
   location?: string;
   isActive?: boolean;
@@ -1229,10 +1256,53 @@ export interface RepairEvent {
   createdAt: string;
 }
 
+export type UploadUrlRequestContentType = typeof UploadUrlRequestContentType[keyof typeof UploadUrlRequestContentType];
+
+
+export const UploadUrlRequestContentType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+  'image/heic': 'image/heic',
+  'image/heif': 'image/heif',
+  'application/pdf': 'application/pdf',
+} as const;
+
 export interface UploadUrlRequest {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
   name: string;
+  /**
+     * @minimum 1
+     * @maximum 15728640
+     */
   size: number;
-  contentType: string;
+  contentType: UploadUrlRequestContentType;
+}
+
+export type ProfileUploadUrlRequestContentType = typeof ProfileUploadUrlRequestContentType[keyof typeof ProfileUploadUrlRequestContentType];
+
+
+export const ProfileUploadUrlRequestContentType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+} as const;
+
+export interface ProfileUploadUrlRequest {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  name: string;
+  /**
+     * @minimum 1
+     * @maximum 5242880
+     */
+  size: number;
+  contentType: ProfileUploadUrlRequestContentType;
 }
 
 export interface UploadUrlResponse {
@@ -1458,11 +1528,14 @@ export interface ApprovalRequestInput {
   mode?: ApprovalRequestInputMode;
   recordId?: string;
   payload: ApprovalRequestInputPayload;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
   requestedDate: string;
+  /** @minLength 1 */
   reason: string;
 }
 
 export interface ApprovalRejectInput {
+  /** @minLength 1 */
   reason: string;
 }
 
@@ -1806,6 +1879,158 @@ export interface ChatReport {
   createdAt: string;
 }
 
+export type ChatReportStatus = typeof ChatReportStatus[keyof typeof ChatReportStatus];
+
+
+export const ChatReportStatus = {
+  open: 'open',
+  reviewed: 'reviewed',
+  actioned: 'actioned',
+  dismissed: 'dismissed',
+} as const;
+
+/**
+ * What the reporter is told about progress. `in_review` covers every report reviewers have not settled yet; `closed` means a human finished with it. Both terminal operator decisions collapse into `closed` on purpose — the reporter never learns which one landed.
+ */
+export type ChatMyReportState = typeof ChatMyReportState[keyof typeof ChatMyReportState];
+
+
+export const ChatMyReportState = {
+  in_review: 'in_review',
+  closed: 'closed',
+} as const;
+
+export interface ChatReportRoom {
+  id: string;
+  /** @nullable */
+  name: string | null;
+  /** @nullable */
+  scope: string | null;
+}
+
+/**
+ * One report as its author sees it: the conversation, their own reason and note, when they filed it, and whether review has finished.
+ */
+export interface ChatMyReport {
+  id: string;
+  reason: ChatReportReason;
+  /** @nullable */
+  details: string | null;
+  createdAt: string;
+  room: ChatReportRoom;
+  /** @nullable */
+  messageId: string | null;
+  state: ChatMyReportState;
+}
+
+export interface ChatMyReportList {
+  reports: ChatMyReport[];
+  /** @nullable */
+  nextCursor: string | null;
+}
+
+export interface ChatReportParty {
+  id: string;
+  /** @nullable */
+  name: string | null;
+  /** @nullable */
+  mobile: string | null;
+}
+
+export interface ChatReportQueueItem {
+  id: string;
+  reason: ChatReportReason;
+  /** @nullable */
+  details: string | null;
+  status: ChatReportStatus;
+  createdAt: string;
+  reporter: ChatReportParty;
+  reportedUser: ChatReportParty;
+  room: ChatReportRoom;
+  /** @nullable */
+  messageId: string | null;
+  /** @nullable */
+  reviewerUserId: string | null;
+  /** @nullable */
+  reviewerName: string | null;
+  /** @nullable */
+  reviewedAt: string | null;
+  /** @nullable */
+  reviewNote: string | null;
+  otherOpenReports: number;
+}
+
+export interface ChatReportQueueItemResponse {
+  report: ChatReportQueueItem;
+}
+
+export interface ChatReportBatchDecision {
+  report: ChatReportQueueItem;
+  appliedCount: number;
+  skippedCount: number;
+  notifiedReporterCount: number;
+  batchId: string;
+  withdrawableUntil: string;
+}
+
+export interface ChatReportBatchWithdrawal {
+  batchId: string;
+  withdrawnAt: string;
+  restoredReportIds: string[];
+  restoredCount: number;
+  skippedCount: number;
+}
+
+export interface ChatReportList {
+  reports: ChatReportQueueItem[];
+  /** @nullable */
+  nextCursor: string | null;
+  openCount: number;
+}
+
+export interface ChatReportTranscriptMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  kind: string;
+  body: string;
+  hasAttachment: boolean;
+  /** @nullable */
+  deletedAt: string | null;
+  createdAt: string;
+  isReportedMessage: boolean;
+  isFromReportedUser: boolean;
+}
+
+export interface ChatReportTranscript {
+  reportId: string;
+  room: ChatReportRoom;
+  /** @nullable */
+  reportedMessageId: string | null;
+  reportedMessageFound: boolean;
+  messages: ChatReportTranscriptMessage[];
+  hasMoreBefore: boolean;
+  hasMoreAfter: boolean;
+}
+
+export type ChatReportReviewInputStatus = typeof ChatReportReviewInputStatus[keyof typeof ChatReportReviewInputStatus];
+
+
+export const ChatReportReviewInputStatus = {
+  reviewed: 'reviewed',
+  actioned: 'actioned',
+  dismissed: 'dismissed',
+} as const;
+
+export interface ChatReportReviewInput {
+  status: ChatReportReviewInputStatus;
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  note?: string;
+}
+
 export type ChatRoomCreateInputKind = typeof ChatRoomCreateInputKind[keyof typeof ChatRoomCreateInputKind];
 
 
@@ -1878,7 +2103,12 @@ export interface ChatCallTokenResult {
 }
 
 export interface StatusUploadInput {
+  /** @minLength 1 */
   name: string;
+  /**
+     * @minimum 1
+     * @maximum 67108864
+     */
   size: number;
   contentType: string;
 }
@@ -1926,7 +2156,11 @@ export interface StatusCreateInput {
   objectPath?: string | null;
   /** @nullable */
   mimeType?: string | null;
-  /** @nullable */
+  /**
+     * @minimum 1
+     * @maximum 67108864
+     * @nullable
+     */
   sizeBytes?: number | null;
   audience?: StatusCreateInputAudience;
 }
@@ -2062,6 +2296,14 @@ export type NotificationsList200 = {
 };
 
 export type NotificationsMarkRead200 = {
+  message: string;
+};
+
+export type PushTokenRegister200 = {
+  message: string;
+};
+
+export type PushTokenUnregister200 = {
   message: string;
 };
 
@@ -2512,6 +2754,43 @@ export type ChatRoomsPreferencesUpdate200 = {
 
 export type ChatReportsCreate200 = {
   report: ChatReport;
+};
+
+export type ChatMyReportListParams = {
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+limit?: number;
+cursor?: string;
+};
+
+export type ChatAdminReportListParams = {
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+cursor?: string;
+status?: ChatReportStatus;
+/**
+ * Free-text match against the reporter or the reported user. A term is read as one thing or the other, never both: a term containing any letter is matched against names only, and a term of digits and phone punctuation is matched against mobiles only, ignoring spacing and country-code formatting on either side. A term with neither a letter nor at least three digits matches nothing.
+ * @maxLength 64
+ */
+search?: string;
+/**
+ * Only reports naming this exact account as the reported user. This is what otherOpenReports counts, so it is the filter to use when drilling into an account's other open reports.
+ * @pattern ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+ */
+reportedUserId?: string;
+};
+
+export type ChatAdminReportTranscriptParams = {
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
 };
 
 export type ChatMessagesListParams = {

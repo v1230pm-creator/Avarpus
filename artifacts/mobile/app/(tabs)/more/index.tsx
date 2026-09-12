@@ -27,6 +27,7 @@ interface MenuItem {
 const MENU_ITEMS: MenuItem[] = [
   { id: 'my-profile', label: 'Personal Profile', icon: 'user', route: '/(tabs)/more/profile', color: '#0866FF', description: 'Name and mobile number', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'], section: 'personal' },
   { id: 'notifications', label: 'Personal Notifications', icon: 'bell', route: '/(tabs)/more/notifications', color: '#F2B84B', description: 'Chats, repairs and approvals', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'], section: 'personal' },
+  { id: 'my-reports', label: 'Safety Reports', icon: 'flag', route: '/(tabs)/more/my-reports', color: '#FB7185', description: 'Chats you reported and their progress', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'], section: 'personal' },
   { id: 'account', label: 'Account & Security', icon: 'shield', route: '/(tabs)/more/account', color: '#718096', description: 'Sessions, app lock and account access', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'], section: 'personal' },
   { id: 'settings', label: 'Personal Settings', icon: 'settings', route: '/(tabs)/more/settings', color: '#718096', description: 'Chats, notifications and appearance', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician', 'dealer_owner', 'dealer_staff', 'customer'], section: 'personal' },
   { id: 'activity', label: 'Activity Log', icon: 'activity', route: '/(tabs)/more/activity', color: '#20C878', description: 'View system events', roles: ['super_admin', 'dealer'], section: 'business' },
@@ -38,7 +39,6 @@ const MENU_ITEMS: MenuItem[] = [
   { id: 'reports', label: 'Reports', icon: 'file-text', route: '/(tabs)/more/reports', color: '#F2B84B', description: 'Generate and export reports', roles: ['super_admin', 'dealer'], feature: 'reports', section: 'business' },
   { id: 'inventory', label: 'Inventory', icon: 'package', route: '/(tabs)/inventory', color: '#F2B84B', description: 'Manage stock and parts', roles: ['super_admin', 'dealer'], feature: 'inventory', section: 'business' },
   { id: 'app-update', label: 'App Update', icon: 'download-cloud', route: '/(tabs)/more/app-update', color: '#0866FF', description: 'Check for new app versions', roles: ['super_admin', 'dealer', 'accountant', 'store_manager', 'reception', 'technician'], section: 'business' },
-  { id: 'update-manager', label: 'App Update Manager', icon: 'upload-cloud', route: '/(tabs)/more/update-manager', color: '#8B5CF6', description: 'Publish new app releases', roles: ['super_admin'], section: 'business' },
 ];
 
 export default function MoreScreen() {

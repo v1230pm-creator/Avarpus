@@ -43,6 +43,8 @@ import type {
   AuthOtpResend200,
   AuthSession,
   AuthSessions200,
+  ChatAdminReportListParams,
+  ChatAdminReportTranscriptParams,
   ChatBlockResult,
   ChatCallTokenResult,
   ChatCapabilities,
@@ -53,7 +55,15 @@ import type {
   ChatMessagesList200,
   ChatMessagesListParams,
   ChatMessagesSend200,
+  ChatMyReportList,
+  ChatMyReportListParams,
+  ChatReportBatchDecision,
+  ChatReportBatchWithdrawal,
   ChatReportInput,
+  ChatReportList,
+  ChatReportQueueItemResponse,
+  ChatReportReviewInput,
+  ChatReportTranscript,
   ChatReportsCreate200,
   ChatRoomCreateInput,
   ChatRoomPreferencesInput,
@@ -123,6 +133,7 @@ import type {
   PaymentsList200,
   PaymentsListParams,
   ProfileUpdateInput,
+  ProfileUploadUrlRequest,
   PublicContact,
   PublicRequestAdminListParams,
   PublicRequestDetail,
@@ -135,6 +146,10 @@ import type {
   PurchasesCreate200,
   PurchasesList200,
   PurchasesUpdate200,
+  PushTokenInput,
+  PushTokenRegister200,
+  PushTokenUnregister200,
+  PushTokenUnregisterInput,
   RefundApproveInput,
   RefundCreateInput,
   RefundMarkPaidInput,
@@ -2220,6 +2235,148 @@ export const useNotificationsMarkRead = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getNotificationsMarkReadMutationOptions(options));
+    }
+
+export const getPushTokenRegisterUrl = () => {
+
+
+
+
+  return `/api/push/tokens`
+}
+
+/**
+ * @summary Register this device's push token against the signed-in session
+ */
+export const pushTokenRegister = async (pushTokenInput: PushTokenInput, options?: Parameters<typeof customFetch>[1]): Promise<PushTokenRegister200> => {
+
+  return customFetch<PushTokenRegister200>(getPushTokenRegisterUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(pushTokenInput)
+  }
+);}
+
+
+
+
+
+export const getPushTokenRegisterMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pushTokenRegister>>, TError,{data: BodyType<PushTokenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof pushTokenRegister>>, TError,{data: BodyType<PushTokenInput>}, TContext> => {
+
+const mutationKey = ['pushTokenRegister'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof pushTokenRegister>>, {data: BodyType<PushTokenInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  pushTokenRegister(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PushTokenRegisterMutationResult = NonNullable<Awaited<ReturnType<typeof pushTokenRegister>>>
+    export type PushTokenRegisterMutationBody = BodyType<PushTokenInput>
+    export type PushTokenRegisterMutationError = ErrorType<void>
+
+    /**
+ * @summary Register this device's push token against the signed-in session
+ */
+export const usePushTokenRegister = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pushTokenRegister>>, TError,{data: BodyType<PushTokenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof pushTokenRegister>>,
+        TError,
+        {data: BodyType<PushTokenInput>},
+        TContext
+      > => {
+      return useMutation(getPushTokenRegisterMutationOptions(options));
+    }
+
+export const getPushTokenUnregisterUrl = () => {
+
+
+
+
+  return `/api/push/tokens/unregister`
+}
+
+/**
+ * @summary Stop push delivery to this device (idempotent)
+ */
+export const pushTokenUnregister = async (pushTokenUnregisterInput: PushTokenUnregisterInput, options?: Parameters<typeof customFetch>[1]): Promise<PushTokenUnregister200> => {
+
+  return customFetch<PushTokenUnregister200>(getPushTokenUnregisterUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(pushTokenUnregisterInput)
+  }
+);}
+
+
+
+
+
+export const getPushTokenUnregisterMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pushTokenUnregister>>, TError,{data: BodyType<PushTokenUnregisterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof pushTokenUnregister>>, TError,{data: BodyType<PushTokenUnregisterInput>}, TContext> => {
+
+const mutationKey = ['pushTokenUnregister'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof pushTokenUnregister>>, {data: BodyType<PushTokenUnregisterInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  pushTokenUnregister(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PushTokenUnregisterMutationResult = NonNullable<Awaited<ReturnType<typeof pushTokenUnregister>>>
+    export type PushTokenUnregisterMutationBody = BodyType<PushTokenUnregisterInput>
+    export type PushTokenUnregisterMutationError = ErrorType<void>
+
+    /**
+ * @summary Stop push delivery to this device (idempotent)
+ */
+export const usePushTokenUnregister = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pushTokenUnregister>>, TError,{data: BodyType<PushTokenUnregisterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof pushTokenUnregister>>,
+        TError,
+        {data: BodyType<PushTokenUnregisterInput>},
+        TContext
+      > => {
+      return useMutation(getPushTokenUnregisterMutationOptions(options));
     }
 
 export const getStaffListUrl = () => {
@@ -6984,14 +7141,14 @@ export const getRequestProfileUploadUrlUrl = () => {
 /**
  * @summary Request a presigned URL for own profile photo upload
  */
-export const requestProfileUploadUrl = async (uploadUrlRequest: UploadUrlRequest, options?: Parameters<typeof customFetch>[1]): Promise<UploadUrlResponse> => {
+export const requestProfileUploadUrl = async (profileUploadUrlRequest: ProfileUploadUrlRequest, options?: Parameters<typeof customFetch>[1]): Promise<UploadUrlResponse> => {
 
   return customFetch<UploadUrlResponse>(getRequestProfileUploadUrlUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(uploadUrlRequest)
+    body: JSON.stringify(profileUploadUrlRequest)
   }
 );}
 
@@ -7000,8 +7157,8 @@ export const requestProfileUploadUrl = async (uploadUrlRequest: UploadUrlRequest
 
 
 export const getRequestProfileUploadUrlMutationOptions = <TError = ErrorType<ErrorEnvelope>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestProfileUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof requestProfileUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestProfileUploadUrl>>, TError,{data: BodyType<ProfileUploadUrlRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestProfileUploadUrl>>, TError,{data: BodyType<ProfileUploadUrlRequest>}, TContext> => {
 
 const mutationKey = ['requestProfileUploadUrl'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -7013,7 +7170,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestProfileUploadUrl>>, {data: BodyType<UploadUrlRequest>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestProfileUploadUrl>>, {data: BodyType<ProfileUploadUrlRequest>}> = (props) => {
           const {data} = props ?? {};
 
           return  requestProfileUploadUrl(data,requestOptions)
@@ -7027,18 +7184,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type RequestProfileUploadUrlMutationResult = NonNullable<Awaited<ReturnType<typeof requestProfileUploadUrl>>>
-    export type RequestProfileUploadUrlMutationBody = BodyType<UploadUrlRequest>
+    export type RequestProfileUploadUrlMutationBody = BodyType<ProfileUploadUrlRequest>
     export type RequestProfileUploadUrlMutationError = ErrorType<ErrorEnvelope>
 
     /**
  * @summary Request a presigned URL for own profile photo upload
  */
 export const useRequestProfileUploadUrl = <TError = ErrorType<ErrorEnvelope>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestProfileUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestProfileUploadUrl>>, TError,{data: BodyType<ProfileUploadUrlRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof requestProfileUploadUrl>>,
         TError,
-        {data: BodyType<UploadUrlRequest>},
+        {data: BodyType<ProfileUploadUrlRequest>},
         TContext
       > => {
       return useMutation(getRequestProfileUploadUrlMutationOptions(options));
@@ -10681,6 +10838,482 @@ export const useChatReportsCreate = <TError = ErrorType<Message>,
         TContext
       > => {
       return useMutation(getChatReportsCreateMutationOptions(options));
+    }
+
+export const getChatMyReportListUrl = (params?: ChatMyReportListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/chat/reports/mine?${stringifiedParams}` : `/api/chat/reports/mine`
+}
+
+/**
+ * The reporter's own record of what they reported, so they can check whether an older report was handled instead of filing it again. Scoped to the caller: it never returns another user's report, and it carries none of the operator-only queue data — no reviewer, no review note, and no indication of what happened to the reported account. Progress is a single flag: still with reviewers, or finished.
+ * @summary List the abuse reports the caller filed
+ */
+export const chatMyReportList = async (params?: ChatMyReportListParams, options?: Parameters<typeof customFetch>[1]): Promise<ChatMyReportList> => {
+
+  return customFetch<ChatMyReportList>(getChatMyReportListUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatMyReportListQueryKey = (params?: ChatMyReportListParams,) => {
+    return [
+    `/api/chat/reports/mine`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getChatMyReportListQueryOptions = <TData = Awaited<ReturnType<typeof chatMyReportList>>, TError = ErrorType<Message | void>>(params?: ChatMyReportListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatMyReportList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getChatMyReportListQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof chatMyReportList>>> = ({ signal }) => chatMyReportList(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof chatMyReportList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ChatMyReportListQueryResult = NonNullable<Awaited<ReturnType<typeof chatMyReportList>>>
+export type ChatMyReportListQueryError = ErrorType<Message | void>
+
+
+/**
+ * @summary List the abuse reports the caller filed
+ */
+
+export function useChatMyReportList<TData = Awaited<ReturnType<typeof chatMyReportList>>, TError = ErrorType<Message | void>>(
+ params?: ChatMyReportListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatMyReportList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getChatMyReportListQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getChatAdminReportListUrl = (params?: ChatAdminReportListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/chat/admin/reports?${stringifiedParams}` : `/api/chat/admin/reports`
+}
+
+/**
+ * @summary List chat abuse reports for platform operators
+ */
+export const chatAdminReportList = async (params?: ChatAdminReportListParams, options?: Parameters<typeof customFetch>[1]): Promise<ChatReportList> => {
+
+  return customFetch<ChatReportList>(getChatAdminReportListUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatAdminReportListQueryKey = (params?: ChatAdminReportListParams,) => {
+    return [
+    `/api/chat/admin/reports`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getChatAdminReportListQueryOptions = <TData = Awaited<ReturnType<typeof chatAdminReportList>>, TError = ErrorType<Message | void>>(params?: ChatAdminReportListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatAdminReportList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getChatAdminReportListQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof chatAdminReportList>>> = ({ signal }) => chatAdminReportList(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof chatAdminReportList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ChatAdminReportListQueryResult = NonNullable<Awaited<ReturnType<typeof chatAdminReportList>>>
+export type ChatAdminReportListQueryError = ErrorType<Message | void>
+
+
+/**
+ * @summary List chat abuse reports for platform operators
+ */
+
+export function useChatAdminReportList<TData = Awaited<ReturnType<typeof chatAdminReportList>>, TError = ErrorType<Message | void>>(
+ params?: ChatAdminReportListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatAdminReportList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getChatAdminReportListQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getChatAdminReportTranscriptUrl = (id: string,
+    params?: ChatAdminReportTranscriptParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/chat/admin/reports/${id}/transcript?${stringifiedParams}` : `/api/chat/admin/reports/${id}/transcript`
+}
+
+/**
+ * Operator-only, read-only view of the reported room. The operator is not joined to the room and nothing is marked as read. Each call is recorded as a transcript access.
+ * @summary Read the reported conversation around a chat abuse report
+ */
+export const chatAdminReportTranscript = async (id: string,
+    params?: ChatAdminReportTranscriptParams, options?: Parameters<typeof customFetch>[1]): Promise<ChatReportTranscript> => {
+
+  return customFetch<ChatReportTranscript>(getChatAdminReportTranscriptUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatAdminReportTranscriptQueryKey = (id: string,
+    params?: ChatAdminReportTranscriptParams,) => {
+    return [
+    `/api/chat/admin/reports/${id}/transcript`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getChatAdminReportTranscriptQueryOptions = <TData = Awaited<ReturnType<typeof chatAdminReportTranscript>>, TError = ErrorType<Message | void>>(id: string,
+    params?: ChatAdminReportTranscriptParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatAdminReportTranscript>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getChatAdminReportTranscriptQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof chatAdminReportTranscript>>> = ({ signal }) => chatAdminReportTranscript(id,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof chatAdminReportTranscript>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ChatAdminReportTranscriptQueryResult = NonNullable<Awaited<ReturnType<typeof chatAdminReportTranscript>>>
+export type ChatAdminReportTranscriptQueryError = ErrorType<Message | void>
+
+
+/**
+ * @summary Read the reported conversation around a chat abuse report
+ */
+
+export function useChatAdminReportTranscript<TData = Awaited<ReturnType<typeof chatAdminReportTranscript>>, TError = ErrorType<Message | void>>(
+ id: string,
+    params?: ChatAdminReportTranscriptParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatAdminReportTranscript>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getChatAdminReportTranscriptQueryOptions(id,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getChatAdminReportStatusUpdateUrl = (id: string,) => {
+
+
+
+
+  return `/api/chat/admin/reports/${id}/status`
+}
+
+/**
+ * @summary Record an operator decision on a chat abuse report
+ */
+export const chatAdminReportStatusUpdate = async (id: string,
+    chatReportReviewInput: ChatReportReviewInput, options?: Parameters<typeof customFetch>[1]): Promise<ChatReportQueueItemResponse> => {
+
+  return customFetch<ChatReportQueueItemResponse>(getChatAdminReportStatusUpdateUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chatReportReviewInput)
+  }
+);}
+
+
+
+
+
+export const getChatAdminReportStatusUpdateMutationOptions = <TError = ErrorType<Message | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatAdminReportStatusUpdate>>, TError,{id: string;data: BodyType<ChatReportReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatAdminReportStatusUpdate>>, TError,{id: string;data: BodyType<ChatReportReviewInput>}, TContext> => {
+
+const mutationKey = ['chatAdminReportStatusUpdate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatAdminReportStatusUpdate>>, {id: string;data: BodyType<ChatReportReviewInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  chatAdminReportStatusUpdate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatAdminReportStatusUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof chatAdminReportStatusUpdate>>>
+    export type ChatAdminReportStatusUpdateMutationBody = BodyType<ChatReportReviewInput>
+    export type ChatAdminReportStatusUpdateMutationError = ErrorType<Message | void>
+
+    /**
+ * @summary Record an operator decision on a chat abuse report
+ */
+export const useChatAdminReportStatusUpdate = <TError = ErrorType<Message | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatAdminReportStatusUpdate>>, TError,{id: string;data: BodyType<ChatReportReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatAdminReportStatusUpdate>>,
+        TError,
+        {id: string;data: BodyType<ChatReportReviewInput>},
+        TContext
+      > => {
+      return useMutation(getChatAdminReportStatusUpdateMutationOptions(options));
+    }
+
+export const getChatAdminReportStatusBatchUrl = (id: string,) => {
+
+
+
+
+  return `/api/chat/admin/reports/${id}/status/batch`
+}
+
+/**
+ * Applies the decision to this report and to every other report that is still open against the same reported user, as one transaction. Each report keeps its own row, deciding operator, decision time and note, so the audit trail stays per-report. Reports about that account which are no longer open — already settled, or already moved by another operator — are skipped, never overwritten, and a report filed after the batch started is untouched. Each reporter receives at most one alert for the batch, with the same wording a single decision sends.
+ * @summary Record one decision across every open report about the same account
+ */
+export const chatAdminReportStatusBatch = async (id: string,
+    chatReportReviewInput: ChatReportReviewInput, options?: Parameters<typeof customFetch>[1]): Promise<ChatReportBatchDecision> => {
+
+  return customFetch<ChatReportBatchDecision>(getChatAdminReportStatusBatchUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chatReportReviewInput)
+  }
+);}
+
+
+
+
+
+export const getChatAdminReportStatusBatchMutationOptions = <TError = ErrorType<Message | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatAdminReportStatusBatch>>, TError,{id: string;data: BodyType<ChatReportReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatAdminReportStatusBatch>>, TError,{id: string;data: BodyType<ChatReportReviewInput>}, TContext> => {
+
+const mutationKey = ['chatAdminReportStatusBatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatAdminReportStatusBatch>>, {id: string;data: BodyType<ChatReportReviewInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  chatAdminReportStatusBatch(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatAdminReportStatusBatchMutationResult = NonNullable<Awaited<ReturnType<typeof chatAdminReportStatusBatch>>>
+    export type ChatAdminReportStatusBatchMutationBody = BodyType<ChatReportReviewInput>
+    export type ChatAdminReportStatusBatchMutationError = ErrorType<Message | void>
+
+    /**
+ * @summary Record one decision across every open report about the same account
+ */
+export const useChatAdminReportStatusBatch = <TError = ErrorType<Message | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatAdminReportStatusBatch>>, TError,{id: string;data: BodyType<ChatReportReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatAdminReportStatusBatch>>,
+        TError,
+        {id: string;data: BodyType<ChatReportReviewInput>},
+        TContext
+      > => {
+      return useMutation(getChatAdminReportStatusBatchMutationOptions(options));
+    }
+
+export const getChatAdminReportBatchWithdrawUrl = (batchId: string,) => {
+
+
+
+
+  return `/api/chat/admin/reports/batches/${batchId}/withdraw`
+}
+
+/**
+ * Puts every report this batch moved back to the exact state it was in beforehand — its own earlier status, deciding operator and note — and records who withdrew it and when. Only the operator who recorded the batch may withdraw it, and only within a short window of recording it; anyone else, a second withdrawal, or a lapsed window is refused. A report another operator has decided since the batch is left with their decision and counted as skipped. Nothing is sent to the reporters: the alerts the batch already sent stand, and a withdrawal is not announced to the people the operator queue is kept from.
+ * @summary Withdraw a bulk decision within its short recovery window
+ */
+export const chatAdminReportBatchWithdraw = async (batchId: string, options?: Parameters<typeof customFetch>[1]): Promise<ChatReportBatchWithdrawal> => {
+
+  return customFetch<ChatReportBatchWithdrawal>(getChatAdminReportBatchWithdrawUrl(batchId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatAdminReportBatchWithdrawMutationOptions = <TError = ErrorType<void | Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatAdminReportBatchWithdraw>>, TError,{batchId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatAdminReportBatchWithdraw>>, TError,{batchId: string}, TContext> => {
+
+const mutationKey = ['chatAdminReportBatchWithdraw'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatAdminReportBatchWithdraw>>, {batchId: string}> = (props) => {
+          const {batchId} = props ?? {};
+
+          return  chatAdminReportBatchWithdraw(batchId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatAdminReportBatchWithdrawMutationResult = NonNullable<Awaited<ReturnType<typeof chatAdminReportBatchWithdraw>>>
+
+    export type ChatAdminReportBatchWithdrawMutationError = ErrorType<void | Message>
+
+    /**
+ * @summary Withdraw a bulk decision within its short recovery window
+ */
+export const useChatAdminReportBatchWithdraw = <TError = ErrorType<void | Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatAdminReportBatchWithdraw>>, TError,{batchId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatAdminReportBatchWithdraw>>,
+        TError,
+        {batchId: string},
+        TContext
+      > => {
+      return useMutation(getChatAdminReportBatchWithdrawMutationOptions(options));
     }
 
 export const getChatMessagesListUrl = (roomId: string,

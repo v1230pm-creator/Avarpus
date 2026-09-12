@@ -20,6 +20,7 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { SectionLoader } from "@/components/ui/spinner";
 
 export function ChatsPage() {
   const { data, isLoading } = useChatRoomsList();
@@ -213,7 +214,7 @@ export function ChatsPage() {
       
       <div className="border rounded-md bg-card flex-1 overflow-hidden flex flex-col">
         {isLoading ? (
-          <div className="p-8 text-center text-muted-foreground">Loading chats...</div>
+          <SectionLoader message="Loading chats..." />
         ) : rooms.length === 0 ? (
           <div className="flex flex-col items-center justify-center flex-1 p-8 text-center border-dashed border-2 m-4 rounded-xl">
             <h3 className="text-lg font-semibold mb-1">No active conversations</h3>
@@ -370,7 +371,7 @@ export function ChatsPage() {
 
                   <div className="flex-1 overflow-y-auto p-5 space-y-3">
                     {messagesLoading ? (
-                      <p className="text-sm text-muted-foreground">Loading messages...</p>
+                      <SectionLoader message="Loading messages..." className="py-8" />
                     ) : messages.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No messages yet.</p>
                     ) : (

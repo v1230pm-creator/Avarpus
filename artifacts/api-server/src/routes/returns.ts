@@ -21,6 +21,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { requireFeature, userHasFeature } from "../lib/roleFeatures";
 import type { Request, Response } from "express";
+import { uuidParam } from "../lib/validate";
 
 // Return / Rework / Refund workflow.
 // The original repair is NEVER edited or deleted — a return case links to it
@@ -30,6 +31,7 @@ import type { Request, Response } from "express";
 // server-side).
 
 const router: IRouter = Router();
+router.param("id", uuidParam);
 
 type AuthedRequest = Request & { user: DbUser };
 

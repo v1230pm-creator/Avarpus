@@ -8,7 +8,9 @@
 import type { StaffUpdateInputRole } from './staffUpdateInputRole';
 
 export interface StaffUpdateInput {
+  /** @minLength 1 */
   name?: string;
+  /** @pattern ^\d{10}$ */
   mobile?: string;
   role?: StaffUpdateInputRole;
   designation?: string;

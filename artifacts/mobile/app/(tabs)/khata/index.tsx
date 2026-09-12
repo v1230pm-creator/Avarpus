@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   RefreshControl,
   ScrollView,
@@ -15,6 +14,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatCurrency } from '@/utils/helpers';
 import { Avatar } from '@/components/ui/Avatar';
+import { AvarpusLoadingScreen } from '@/components/ui/AvarpusSpinner';
 import { DataErrorBanner, DataErrorState } from '@/components/ui/DataStates';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
@@ -170,11 +170,7 @@ function FullKhataOverviewScreen() {
   };
 
   if (isLoading && ledger.length === 0) {
-    return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} size="large" />
-      </View>
-    );
+    return <AvarpusLoadingScreen background={colors.background} size={40} />;
   }
 
   if (error && ledger.length === 0) {

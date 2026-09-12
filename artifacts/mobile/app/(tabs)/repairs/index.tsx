@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +21,7 @@ import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/
 import { FlatCard } from '@/components/ui/FlatCard';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { Avatar } from '@/components/ui/Avatar';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { Repair, isDealerPortalRole, isLinkedCustomerPortalUser } from '@/types';
 import { formatDate, formatCurrency, getReturnStatusColor } from '@/utils/helpers';
 import * as Network from 'expo-network';
@@ -148,7 +148,7 @@ export default function RepairsScreen() {
 
   // Dealer directory (staff view) — live counts per dealer.
   const dealersParams: any = { q: debouncedSearch || undefined };
-  const { data: dealersData, isLoading: dealersLoading, error: dealersError, refetch: dealersRefetch } =
+  const { data: dealersData, isLoading: dealersLoading, error: dealersError, refetch: dealersRefetch, isFetching: dealersFetching } =
     useDealersList(dealersParams, { query: { enabled: !isPortal && filter === 'Dealers' } } as any);
 
   // Admin overview stats across all dealer repairs (owner only).
@@ -196,6 +196,8 @@ export default function RepairsScreen() {
       queryKey: getRepairsListQueryKey(repairsParams)
     }
   });
+  const searchBusy =
+    (filter === 'Dealers' ? dealersFetching : repairsFetching) && search.trim().length > 0;
 
   React.useEffect(() => {
     if (repairsData?.repairs) {
@@ -330,6 +332,9 @@ export default function RepairsScreen() {
         {/* Search */}
         <FlatCard style={styles.searchBar}>
           <Feather name="search" size={16} color={colors.mutedForeground} />
+          <View style={{ width: 16, alignItems: 'center' }}>
+            {searchBusy ? <AvarpusSpinner size={14} /> : null}
+          </View>
           <TextInput
             value={search}
             onChangeText={setSearch}
@@ -367,7 +372,7 @@ export default function RepairsScreen() {
               style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: (isSyncing || !isConnected) ? colors.muted : colors.warning, borderRadius: 6 }}
             >
               {isSyncing ? (
-                <ActivityIndicator size="small" color="#FFF" />
+                <AvarpusSpinner size={20} color="#FFF" />
               ) : (
                 <Text style={{ color: '#FFF', fontSize: 12, fontFamily: 'Inter_600SemiBold' }}>
                   {isConnected ? 'Sync Now' : 'Offline'}
@@ -601,7 +606,7 @@ export default function RepairsScreen() {
           }
           ListFooterComponent={
              repairsFetching && (repairsData?.repairs?.length || 0) > 0 ? (
-               <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} />
+               <AvarpusSpinner size={20} style={{ marginVertical: 20 }} />
              ) : null
           }
           onEndReached={() => {

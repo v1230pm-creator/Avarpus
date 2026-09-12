@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { FadeInView, FlatCard } from '@/components/ui/Glass';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { formatDate } from '@/utils/helpers';
 import { useActivityFeed, ActivityFeedType } from '@workspace/api-client-react';
 
@@ -89,7 +90,7 @@ export default function ActivityFeedScreen() {
       </View>
 
       {isLoading ? (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+        <AvarpusSpinner size={20} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={activities}

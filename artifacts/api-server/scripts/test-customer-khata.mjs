@@ -1,11 +1,16 @@
 // Focused API-level checks for the append-only customer khata ledger.
-// Usage: pnpm run build && node scripts/test-customer-khata.mjs
+// Usage: node scripts/run-isolated.mjs scripts/test-customer-khata.mjs
 import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { createRequire } from "node:module";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+// Built server entry. scripts/run-isolated.mjs builds into a private per-run
+// directory and passes it here so a concurrent `pnpm run build` rewriting
+// ./dist cannot pull the bundle out from under this run.
+const SERVER_ENTRY = process.env.API_SERVER_ENTRY ?? "./dist/index.mjs";
 
 const dbPkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../lib/db");
 const require = createRequire(path.join(dbPkgDir, "package.json"));
@@ -66,7 +71,7 @@ async function run(token) {
 }
 async function main() {
   const seeded = await seed();
-  const child = spawn("node", ["--enable-source-maps", "./dist/index.mjs"], { env: { ...process.env, PORT: String(port), NODE_ENV: "test" }, stdio: ["ignore", "ignore", "inherit"] });
+  const child = spawn("node", ["--enable-source-maps", SERVER_ENTRY], { env: { ...process.env, PORT: String(port), NODE_ENV: "test" }, stdio: ["ignore", "ignore", "inherit"] });
   try {
     for (let i = 0; i < 30; i++) {
       if (await fetch(`${base}/healthz`).then((r) => r.ok).catch(() => false)) break;

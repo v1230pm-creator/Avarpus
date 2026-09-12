@@ -1,11 +1,16 @@
 // API-level regression checks for the public support/deletion intake flow.
-// Usage: pnpm run build && node scripts/test-public-requests.mjs
+// Usage: node scripts/run-isolated.mjs scripts/test-public-requests.mjs
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+
+// Built server entry. scripts/run-isolated.mjs builds into a private per-run
+// directory and passes it here so a concurrent `pnpm run build` rewriting
+// ./dist cannot pull the bundle out from under this run.
+const SERVER_ENTRY = process.env.API_SERVER_ENTRY ?? "./dist/index.mjs";
 
 const dbPkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../lib/db");
 const require = createRequire(path.join(dbPkgDir, "package.json"));
@@ -230,7 +235,7 @@ async function run() {
 }
 
 async function main() {
-  const child = spawn("node", ["--enable-source-maps", "./dist/index.mjs"], {
+  const child = spawn("node", ["--enable-source-maps", SERVER_ENTRY], {
     env: {
       ...process.env,
       PORT: String(PORT),

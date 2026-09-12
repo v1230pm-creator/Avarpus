@@ -101,6 +101,7 @@ export function requireAuth(
         path.startsWith("/auth") ||
         path.startsWith("/chat") ||
         path.startsWith("/notifications") ||
+        path.startsWith("/push") ||
         path.startsWith("/statuses") ||
         path.startsWith("/drive-backup") ||
         path.startsWith("/storage") ||

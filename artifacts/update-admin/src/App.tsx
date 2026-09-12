@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { FullPageLoader } from '@/components/ui/spinner';
 import NotFound from '@/pages/not-found';
 import { Layout } from '@/components/layout';
 import Login from '@/pages/login';
@@ -11,6 +12,7 @@ import Releases from '@/pages/releases';
 import ReleaseEditor from '@/pages/releases/edit';
 import PublicRequests from '@/pages/public-requests/index';
 import PublicRequestDetail from '@/pages/public-requests/detail';
+import ChatReports from '@/pages/chat-reports/index';
 import Settings from '@/pages/settings';
 import { setAuthTokenGetter, setUnauthorizedHandler, useAuthMe, getAuthMeQueryKey } from '@workspace/api-client-react';
 import {
@@ -44,7 +46,7 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
   }, [me, isLoading, error, setLocation]);
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center"><div className="animate-pulse flex flex-col items-center gap-4"><div className="h-8 w-8 bg-primary rounded-full animate-bounce" /><div className="text-muted-foreground text-sm font-medium">Verifying session...</div></div></div>;
+    return <FullPageLoader message="Verifying session..." />;
   }
 
   if (!me || me.user.role !== 'super_admin') {
@@ -92,6 +94,10 @@ function Router() {
         </Route>
         <Route path="/public-requests/:id">
           {(params: Record<string, string | undefined>) => <ProtectedRoute component={PublicRequestDetail} params={params} />}
+        </Route>
+
+        <Route path="/chat-reports">
+          {(params: Record<string, string | undefined>) => <ProtectedRoute component={ChatReports} params={params} />}
         </Route>
 
         <Route path="/settings">

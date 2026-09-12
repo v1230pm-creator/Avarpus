@@ -41,5 +41,6 @@ export const KEYS = {
   ATTENDANCE: 'vmc_attendance',
   SETTINGS: 'vmc_settings',
   APP_UPDATE_DOWNLOAD: 'vmc_app_update_download',
+  PUSH_TOKEN: 'vmc_push_token',
   SEEDED: 'vmc_seeded',
 };

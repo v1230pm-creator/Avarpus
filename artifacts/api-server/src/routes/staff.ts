@@ -8,12 +8,18 @@ import {
   userFeatureSettingsTable,
   type DbUser,
 } from "@workspace/db";
+import {
+  StaffCreateBody,
+  StaffPermissionsUpdateBody,
+  StaffUpdateBody,
+} from "@workspace/api-zod";
 import { generateToken, hashPassword, publicUser } from "../lib/authUtils";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireRole } from "../middlewares/requireRole";
 import { asyncHandler } from "../lib/asyncHandler";
 import { sendStaffApprovedEmail, sendStaffRejectedEmail } from "../lib/mailer";
 import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
+import { parseBody, uuidParam } from "../lib/validate";
 import type { Request } from "express";
 import {
   CONFIGURABLE_ROLES,
@@ -26,6 +32,7 @@ import {
 } from "../lib/roleFeatures";
 
 const router: IRouter = Router();
+router.param("id", uuidParam);
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -95,7 +102,9 @@ router.post(
       });
       return;
     }
-    const { name, email, mobile, role, designation, dealerId } = req.body ?? {};
+    const body = parseBody(StaffCreateBody, req, res);
+    if (!body) return;
+    const { name, email, mobile, role, designation, dealerId } = body;
     if (
       typeof role !== "string" ||
       !(MANAGEABLE_ROLES as readonly string[]).includes(role)
@@ -306,11 +315,8 @@ router.put(
       return;
     }
 
-    const body = (req.body ?? {}) as { features?: Record<string, unknown> };
-    if (!body.features || typeof body.features !== "object" || Array.isArray(body.features)) {
-      res.status(400).json({ message: "features object is required." });
-      return;
-    }
+    const body = parseBody(StaffPermissionsUpdateBody, req, res);
+    if (!body) return;
     const allowedKeys = featureKeysForRole(target.role);
     for (const [key, value] of Object.entries(body.features)) {
       if (!allowedKeys.includes(key)) {
@@ -422,7 +428,9 @@ router.patch(
       res.status(403).json({ message: "This account cannot be edited here" });
       return;
     }
-    const { name, mobile, role, designation } = req.body ?? {};
+    const body = parseBody(StaffUpdateBody, req, res);
+    if (!body) return;
+    const { name, mobile, role, designation } = body;
     const set: Partial<{
       name: string;
       mobile: string;

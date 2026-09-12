@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import * as Haptics from 'expo-haptics';
 import {
   authLoginHistory,
@@ -42,6 +43,7 @@ export default function AccountScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const isOwner = user?.role === 'dealer' || user?.role === 'super_admin';
   const currentVersion = getAppVersion();
   const currentBuild = getAppBuildNumber();
 
@@ -302,7 +304,7 @@ export default function AccountScreen() {
             Devices currently signed in to your account.
           </Text>
           {sessions === null && !sessionsError && (
-            <ActivityIndicator style={{ marginTop: 14 }} color={colors.primary} />
+            <AvarpusSpinner size={20} style={{ marginTop: 14 }} />
           )}
           {sessionsError && (
             <Text style={[styles.historyEmpty, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
@@ -323,7 +325,9 @@ export default function AccountScreen() {
                   {s.current ? '  ·  This device' : ''}
                 </Text>
                 <Text style={[styles.historyTime, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-                  Signed in {formatLoginTime(s.createdAt)}
+                  {s.current
+                    ? `Signed in ${formatLoginTime(s.createdAt)}`
+                    : `Last active ${formatLoginTime(s.lastSeenAt)}  ·  Signed in ${formatLoginTime(s.createdAt)}`}
                 </Text>
               </View>
               {!s.current && (
@@ -333,7 +337,7 @@ export default function AccountScreen() {
                   style={[styles.revokeBtn, { borderColor: colors.destructive + '33', backgroundColor: colors.destructive + '11' }]}
                 >
                   {revokingId === s.id ? (
-                    <ActivityIndicator size="small" color={colors.destructive} />
+                    <AvarpusSpinner size={20} color={colors.destructive} />
                   ) : (
                     <Text style={[styles.revokeBtnText, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>
                       Sign out
@@ -350,7 +354,7 @@ export default function AccountScreen() {
               style={[styles.revokeAllBtn, { borderColor: colors.destructive + '55', backgroundColor: colors.destructive + '11' }]}
             >
               {revokingOthers ? (
-                <ActivityIndicator size="small" color={colors.destructive} />
+                <AvarpusSpinner size={20} color={colors.destructive} />
               ) : (
                 <>
                   <Feather name="log-out" size={15} color={colors.destructive} />
@@ -369,7 +373,7 @@ export default function AccountScreen() {
             Recent sign-ins to your account.
           </Text>
           {history === null && !historyError && (
-            <ActivityIndicator style={{ marginTop: 14 }} color={colors.primary} />
+            <AvarpusSpinner size={20} style={{ marginTop: 14 }} />
           )}
           {historyError && (
             <Text style={[styles.historyEmpty, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
@@ -404,6 +408,7 @@ export default function AccountScreen() {
         </Card>
         </FadeInView>
 
+        {isOwner && (
         <FadeInView animValue={anims[3]} style={styles.section}>
         {/* Sample data */}
         <View style={[styles.sectionHeader, { borderLeftColor: colors.primary }]}>
@@ -427,7 +432,7 @@ export default function AccountScreen() {
                 style={[styles.dangerBtn, { backgroundColor: colors.destructive + '11', borderColor: colors.destructive + '33', opacity: sampleBusy ? 0.6 : 1 }]}
               >
                 {sampleBusy ? (
-                  <ActivityIndicator size="small" color={colors.destructive} />
+                  <AvarpusSpinner size={20} color={colors.destructive} />
                 ) : (
                   <>
                     <Feather name="trash-2" size={16} color={colors.destructive} />
@@ -442,7 +447,7 @@ export default function AccountScreen() {
                 style={[styles.dangerBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '22', opacity: sampleBusy ? 0.6 : 1 }]}
               >
                 {sampleBusy ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
+                  <AvarpusSpinner size={20} />
                 ) : (
                   <>
                     <Feather name="database" size={16} color={colors.primary} />
@@ -459,6 +464,7 @@ export default function AccountScreen() {
           )}
         </Card>
         </FadeInView>
+        )}
 
         <FadeInView animValue={anims[4]} style={styles.section}>
         {/* Danger Zone */}

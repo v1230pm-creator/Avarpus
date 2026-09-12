@@ -13,6 +13,7 @@ import {
 import { User, UserRole, isCustomerRole, isDealerPortalRole } from '@/types';
 import { storage, KEYS } from '@/utils/storage';
 import { seedIfNeeded } from '@/utils/seedData';
+import { forgetPushRegistration, syncPushRegistration } from '@/utils/pushNotifications';
 import {
   canAttemptTrustedDeviceRecovery,
   getTrustedAndroidDeviceId,
@@ -170,9 +171,12 @@ export function AuthProvider({
       setFeatures(null);
       setDealerPortalInactive(false);
       setIsLoading(false);
-      // Fire-and-forget: local state is already cleared for the UI.
+      // Fire-and-forget: local state is already cleared for the UI. The server
+      // dropped the push token when it revoked the session; this clears the
+      // device's copy so the next sign-in registers afresh.
       storage.remove(KEYS.AUTH_TOKEN).catch(() => {});
       storage.remove(KEYS.CURRENT_USER).catch(() => {});
+      forgetPushRegistration().catch(() => {});
       setTrustedDeviceStatus('idle');
     });
     return () => setUnauthorizedHandler(null);
@@ -191,6 +195,9 @@ export function AuthProvider({
           if (attempt !== recoveryAttemptRef.current) return;
           setUser(toUser(res.user));
           restoredSession = true;
+          // Push tokens rotate and OS permission can change between launches,
+          // so a restored session re-registers rather than trusting the last one.
+          void syncPushRegistration(deviceDescription());
         } catch (error) {
           const status = (error as { status?: number })?.status;
           if (status === 401) {
@@ -319,6 +326,10 @@ export function AuthProvider({
     setFeatures(null);
     setDealerPortalInactive(false);
     setUser(u);
+    // Bind this device to the new session so alerts arrive with the app
+    // closed. Fire-and-forget: sign-in must not wait on a permission prompt
+    // or the push service.
+    void syncPushRegistration(deviceDescription());
     return true;
   };
 
@@ -361,6 +372,9 @@ export function AuthProvider({
     setIsLoading(false);
     await storage.remove(KEYS.AUTH_TOKEN);
     await storage.remove(KEYS.CURRENT_USER);
+    // Signing out deletes the session server-side, which drops the device's
+    // push token with it. Only the local record needs clearing here.
+    await forgetPushRegistration();
     await logoutRequest;
   };
 

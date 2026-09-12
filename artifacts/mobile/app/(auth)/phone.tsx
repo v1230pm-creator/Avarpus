@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { authOtpRequest } from '@workspace/api-client-react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { onBlue } from '@/constants/brand';
+import { AvarpusLoadingScreen } from '@/components/ui/AvarpusSpinner';
 
 export default function PhoneScreen() {
   const { signedOutNotice, clearSignedOutNotice } = useAuth();
@@ -75,11 +76,7 @@ export default function PhoneScreen() {
   };
 
   if (!termsReady) {
-    return (
-      <View style={[styles.loadingRoot, { backgroundColor: theme.bg }]}>
-        <ActivityIndicator color={theme.text} />
-      </View>
-    );
+    return <AvarpusLoadingScreen background={theme.bg} color={theme.text} size={20} />;
   }
 
   return (

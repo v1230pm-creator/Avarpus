@@ -1,4 +1,5 @@
-import { Router, type IRouter, json } from "express";
+import { timingSafeEqual } from "node:crypto";
+import { Router, type IRouter, json, type Request } from "express";
 import { pool } from "@workspace/db";
 import { asyncHandler } from "../lib/asyncHandler";
 
@@ -10,6 +11,7 @@ import { asyncHandler } from "../lib/asyncHandler";
 //   (it is only set temporarily, in production, while the migration runs, and
 //   removed right after).
 // - The caller must present that exact token in the x-import-token header.
+//   The token must be at least 32 characters and is compared in constant time.
 // - Rows may only target a shop that already exists here, every row must
 //   carry that shop_id (child tables are verified through their repair), and
 //   only allowlisted tables/columns are touched.
@@ -47,14 +49,29 @@ async function tableColumns(table: string): Promise<Set<string>> {
   return new Set(r.rows.map((row: any) => String(row.column_name)));
 }
 
+// Tokens shorter than this are refused even if they match: a short value in
+// the environment would otherwise turn these routes into a brute-forceable
+// super_admin promotion endpoint.
+const MIN_IMPORT_TOKEN_LENGTH = 32;
+
+function importTokenAuthorized(req: Request): boolean {
+  const expected = process.env.IMPORT_BUNDLE_TOKEN ?? "";
+  const presented = req.header("x-import-token") ?? "";
+  if (expected.length < MIN_IMPORT_TOKEN_LENGTH) return false;
+  const a = Buffer.from(expected);
+  const b = Buffer.from(presented);
+  // Constant-time compare so response timing does not leak how many leading
+  // bytes of the token were right.
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 const router: IRouter = Router();
 
 router.post(
   "/sync/import-bundle",
   json({ limit: "20mb" }),
   asyncHandler(async (req, res) => {
-    const token = process.env.IMPORT_BUNDLE_TOKEN;
-    if (!token || req.header("x-import-token") !== token) {
+    if (!importTokenAuthorized(req)) {
       res.status(404).json({ message: "Not found" });
       return;
     }
@@ -141,8 +158,7 @@ router.post(
   "/sync/promote-user",
   json({ limit: "10kb" }),
   asyncHandler(async (req, res) => {
-    const token = process.env.IMPORT_BUNDLE_TOKEN;
-    if (!token || req.header("x-import-token") !== token) {
+    if (!importTokenAuthorized(req)) {
       res.status(404).json({ message: "Not found" });
       return;
     }

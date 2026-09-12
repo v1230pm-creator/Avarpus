@@ -3,6 +3,7 @@
 //
 // Usage:
 //   IMPORT_BUNDLE_TOKEN=<token> node scripts/sync-to-prod.mjs <shopId> [targetBaseUrl]
+//   (the token must be at least 32 characters; the server refuses shorter ones)
 //
 // Reads dev rows via DATABASE_URL (snake_case, exactly as stored) and POSTs
 // them; the endpoint inserts with ON CONFLICT DO NOTHING, so reruns are safe

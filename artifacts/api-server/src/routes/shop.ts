@@ -13,6 +13,16 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { createOtp, consumeOtp, generateToken, publicUser, sha256 } from "../lib/authUtils";
 import { sendOtpEmail } from "../lib/mailer";
 import { checkWindowLimit, retryAfterText } from "../lib/rateLimit";
+import {
+  ShopInvitationClaimBody,
+  ShopInvitationCreateBody,
+  ShopRecoveryCodeRequestBody,
+  ShopRecoveryVerificationCreateBody,
+  ShopSetupRequestCreateBody,
+  ShopSetupVerificationCreateBody,
+  ShopWorkspaceSwitchBody,
+} from "@workspace/api-zod";
+import { parseBody } from "../lib/validate";
 
 const router: IRouter = Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -78,11 +88,9 @@ router.get("/shop/me", requireAuth, asyncHandler(async (req, res) => {
 
 router.post("/shop/recovery/request", requireAuth, asyncHandler(async (req, res) => {
   const user = me(req);
-  const shopId = req.body?.shopId;
-  if (typeof shopId !== "string") {
-    res.status(400).json({ message: "shopId is required." });
-    return;
-  }
+  const body = parseBody(ShopRecoveryCodeRequestBody, req, res);
+  if (!body) return;
+  const shopId = body.shopId;
   const membership = await membershipFor(user.id, shopId);
   if (!membership) {
     res.status(404).json({ message: "No recoverable business workspace was found." });
@@ -115,11 +123,9 @@ router.post("/shop/recovery/request", requireAuth, asyncHandler(async (req, res)
 
 router.post("/shop/recovery/verify", requireAuth, asyncHandler(async (req, res) => {
   const user = me(req);
-  const { shopId, email, code } = req.body ?? {};
-  if (typeof shopId !== "string" || typeof email !== "string" || typeof code !== "string") {
-    res.status(400).json({ message: "Shop, business email, and recovery code are required." });
-    return;
-  }
+  const body = parseBody(ShopRecoveryVerificationCreateBody, req, res);
+  if (!body) return;
+  const { shopId, email, code } = body;
   const [shop] = await db.select().from(shopsTable).where(eq(shopsTable.id, shopId)).limit(1);
   if (!shop?.businessEmail || shop.businessEmail !== email.trim().toLowerCase()) {
     res.status(403).json({ message: "Recovery details are invalid." });
@@ -164,7 +170,9 @@ router.post("/shop/setup/request", requireAuth, asyncHandler(async (req, res) =>
     res.status(409).json({ message: "A business backup already exists for this account. Recover it instead." });
     return;
   }
-  const { businessName, email, address, gstNumber } = req.body ?? {};
+  const body = parseBody(ShopSetupRequestCreateBody, req, res);
+  if (!body) return;
+  const { businessName, email, address, gstNumber } = body;
   if (
     typeof businessName !== "string" || businessName.trim().length < 2 ||
     typeof email !== "string" || !EMAIL_RE.test(email.trim()) ||
@@ -201,11 +209,9 @@ router.post("/shop/setup/request", requireAuth, asyncHandler(async (req, res) =>
 
 router.post("/shop/setup/verify", requireAuth, asyncHandler(async (req, res) => {
   const user = me(req);
-  const { email, code } = req.body ?? {};
-  if (typeof email !== "string" || typeof code !== "string") {
-    res.status(400).json({ message: "Email and verification code are required." });
-    return;
-  }
+  const body = parseBody(ShopSetupVerificationCreateBody, req, res);
+  if (!body) return;
+  const { email, code } = body;
   const result = await consumeOtp(email.trim().toLowerCase(), "business_setup", code);
   if (!result.ok) {
     res.status(401).json({ message: result.error });
@@ -283,7 +289,9 @@ router.post("/shop/invitations", requireAuth, asyncHandler(async (req, res) => {
     res.status(403).json({ message: "Only an active shop owner can invite staff." });
     return;
   }
-  const { mobile, role } = req.body ?? {};
+  const body = parseBody(ShopInvitationCreateBody, req, res);
+  if (!body) return;
+  const { mobile, role } = body;
   if (typeof mobile !== "string" || !/^\d{10}$/.test(mobile) ||
       typeof role !== "string" || !(STAFF_ROLES as readonly string[]).includes(role)) {
     res.status(400).json({ message: "A 10-digit mobile number and valid staff role are required." });
@@ -329,11 +337,9 @@ router.post("/shop/invitations", requireAuth, asyncHandler(async (req, res) => {
 
 router.post("/shop/claim", requireAuth, asyncHandler(async (req, res) => {
   const user = me(req);
-  const { staffId, claimCode } = req.body ?? {};
-  if (typeof staffId !== "string" || typeof claimCode !== "string") {
-    res.status(400).json({ message: "Staff ID and claim code are required." });
-    return;
-  }
+  const body = parseBody(ShopInvitationClaimBody, req, res);
+  if (!body) return;
+  const { staffId, claimCode } = body;
   const [membership] = await db.select().from(shopMembershipsTable)
     .where(and(
       eq(shopMembershipsTable.userId, user.id),
@@ -369,11 +375,9 @@ router.post("/shop/claim", requireAuth, asyncHandler(async (req, res) => {
 
 router.post("/shop/switch", requireAuth, asyncHandler(async (req, res) => {
   const user = me(req);
-  const shopId = req.body?.shopId;
-  if (typeof shopId !== "string") {
-    res.status(400).json({ message: "shopId is required." });
-    return;
-  }
+  const body = parseBody(ShopWorkspaceSwitchBody, req, res);
+  if (!body) return;
+  const shopId = body.shopId;
   const membership = await membershipFor(user.id, shopId);
   if (!membership) {
     res.status(403).json({ message: "You are not an active member of this workspace." });

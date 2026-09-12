@@ -1,6 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   Linking,
@@ -23,7 +22,9 @@ import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { buildInviteSmsUrl } from '@/constants/install';
+import { AVARPUS_BLUE } from '@/constants/brand';
 import { Avatar } from '@/components/ui/Avatar';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import {
   useChatCapabilities,
   chatMarkRead,
@@ -188,11 +189,6 @@ function CustomerInboxScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
-  const [searchVisible, setSearchVisible] = useState(false);
-  // Selection mode has its own always-visible search field, so text can survive
-  // into the normal header. Keep the field (and its clear control) reachable
-  // whenever a filter is actually applied.
-  const searchOpen = searchVisible || !!search;
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [roomFilter, setRoomFilter] = useState<'all' | 'unread' | 'archived'>('all');
   const [selectedRoomIds, setSelectedRoomIds] = useState<Set<string>>(new Set());
@@ -221,6 +217,7 @@ function CustomerInboxScreen() {
   const {
     data: roomsData,
     isLoading: roomsLoading,
+    isRefetching: roomsRefetching,
     isError: roomsError,
     refetch: roomsRefetch,
   } = useChatRoomsList({
@@ -235,6 +232,7 @@ function CustomerInboxScreen() {
   const {
     data: archivedRoomsData,
     isLoading: archivedRoomsLoading,
+    isRefetching: archivedRoomsRefetching,
     isError: archivedRoomsError,
     refetch: archivedRoomsRefetch,
   } = useChatRoomsArchivedList({
@@ -261,6 +259,7 @@ function CustomerInboxScreen() {
   const isLoading = capLoading || (providerConfigured && (roomFilter === 'archived' ? archivedRoomsLoading : roomsLoading));
   const roomsQueryError = roomFilter === 'archived' ? archivedRoomsError : roomsError;
   const refetchRooms = roomFilter === 'archived' ? archivedRoomsRefetch : roomsRefetch;
+  const roomsAreRefetching = roomFilter === 'archived' ? archivedRoomsRefetching : roomsRefetching;
 
   const invalidateRoomLists = useCallback(async () => {
     await Promise.all([
@@ -560,22 +559,10 @@ function CustomerInboxScreen() {
       <View style={styles.topAppBar}>
         <Text style={[styles.appTitle, { color: colors.foreground }]}>Avarpus</Text>
         <View style={styles.appBarActions}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => {
-              if (searchOpen) {
-                setSearch('');
-                setSearchVisible(false);
-              } else {
-                setSearchVisible(true);
-              }
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={searchOpen ? 'Close chat search' : 'Search conversations'}
-            testID="chat-search-control"
-          >
-            <Feather name={searchOpen ? 'x' : 'search'} size={22} color={colors.foreground} />
-          </TouchableOpacity>
+          {/* Refresh activity reads as its own indicator; the menu stays a menu. */}
+          <View style={styles.headerBusySlot}>
+            {roomsAreRefetching ? <AvarpusSpinner size={18} /> : null}
+          </View>
           <TouchableOpacity
             style={styles.iconButton}
             onPress={() => setShowOverflowMenu(true)}
@@ -587,29 +574,27 @@ function CustomerInboxScreen() {
         </View>
       </View>
 
-      {searchOpen && (
-        <View style={styles.searchContainer}>
-          <View style={[styles.searchBar, { backgroundColor: colors.backgroundSecondary }]}>
-            <View style={styles.searchBarLeft}>
-              <Feather name="search" size={18} color={colors.mutedForeground} />
-            </View>
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search conversations"
-              placeholderTextColor={colors.mutedForeground}
-              style={[styles.searchInput, { color: colors.foreground }]}
-              returnKeyType="search"
-              autoFocus={searchVisible}
-            />
-            {!!search && (
-              <TouchableOpacity onPress={() => setSearch('')} accessibilityLabel="Clear chat search">
-                <Feather name="x" size={18} color={colors.mutedForeground} />
-              </TouchableOpacity>
-            )}
+      <View style={styles.searchContainer}>
+        <View style={[styles.searchBar, { backgroundColor: colors.backgroundSecondary }]}>
+          <View style={styles.searchBarLeft}>
+            <Feather name="search" size={18} color={colors.mutedForeground} />
           </View>
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search conversations"
+            placeholderTextColor={colors.mutedForeground}
+            style={[styles.searchInput, { color: colors.foreground }]}
+            returnKeyType="search"
+            testID="chat-search-input"
+          />
+          {!!search && (
+            <TouchableOpacity onPress={() => setSearch('')} accessibilityLabel="Clear chat search">
+              <Feather name="x" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          )}
         </View>
-      )}
+      </View>
     </View>
   );
 
@@ -679,7 +664,7 @@ function CustomerInboxScreen() {
       {/* States Overlays (Loading, Errors) */}
       {isLoading && (
         <View style={styles.centeredState}>
-          <ActivityIndicator color={colors.primary} size="large" />
+          <AvarpusSpinner size={40} />
           <Text style={[styles.stateText, { color: colors.mutedForeground }]}>Loading conversations…</Text>
         </View>
       )}
@@ -704,16 +689,18 @@ function CustomerInboxScreen() {
       {/* Floating Action Button */}
       {providerConfigured && roomFilter !== 'archived' && selectedRoomIds.size === 0 && (
         <TouchableOpacity
-          style={[styles.fab, { bottom: 76 + Math.max(insets.bottom, 8) }]}
+          // Sit 5 above the tab bar, which is a fixed 84 on web and
+          // 62 plus the safe-area inset on native.
+          style={[styles.fab, { bottom: (Platform.OS === 'web' ? 84 : 62 + Math.max(insets.bottom, 8)) + 5 }]}
           activeOpacity={0.8}
           onPress={() => setShowContactDiscovery(true)}
           accessibilityRole="button"
           accessibilityLabel="Start a new chat"
           testID="new-chat-control"
         >
-          <Feather name="message-square" size={24} color="#0B141A" />
-          <View style={styles.fabPlusBadge}>
-            <Feather name="plus" size={12} color="#0B141A" />
+          <Feather name="message-square" size={24} color="#FFFFFF" />
+          <View style={[styles.fabPlusBadge, { backgroundColor: AVARPUS_BLUE }]}>
+            <Feather name="plus" size={12} color="#FFFFFF" />
           </View>
         </TouchableOpacity>
       )}
@@ -805,7 +792,7 @@ function CustomerInboxScreen() {
 
           {contactStatus === 'loading' ? (
             <View style={styles.contactLoading}>
-              <ActivityIndicator color={colors.primary} />
+              <AvarpusSpinner size={20} />
               <Text style={{ color: colors.mutedForeground }}>Checking your contacts on Avarpus…</Text>
             </View>
           ) : contactStatus === 'denied' ? (
@@ -905,6 +892,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontFamily: 'Inter_700Bold',
   },
+  headerBusySlot: { width: 18, alignItems: 'center', justifyContent: 'center' },
   appBarActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1050,7 +1038,8 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 16,
-    backgroundColor: '#21C063',
+    // Matches the sign-in screen's brand blue.
+    backgroundColor: AVARPUS_BLUE,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 4,
@@ -1059,11 +1048,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
   },
+  // Sits on the message icon's top-right corner instead of floating loose.
   fabPlusBadge: {
     position: 'absolute',
-    bottom: 14,
-    right: 14,
-    backgroundColor: '#21C063',
+    top: 12,
+    right: 12,
+    width: 14,
+    height: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   centeredState: {
     position: 'absolute',

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -10,8 +10,9 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
-import { authMeUpdate, requestProfileUploadUrl, getChatRoomsListQueryKey } from '@workspace/api-client-react';
+import { authMeUpdate, requestProfileUploadUrl, getChatRoomsListQueryKey, type ProfileUploadUrlRequestContentType } from '@workspace/api-client-react';
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -83,7 +84,11 @@ export default function ProfileScreen() {
 
       setUploadingPhoto(true);
 
-      const contentType = asset.mimeType || 'image/jpeg';
+      // The picker always crops/re-encodes, so the result is JPEG or PNG; the
+      // server only issues profile upload URLs for these types and verifies
+      // the bytes afterwards.
+      const contentType: ProfileUploadUrlRequestContentType =
+        asset.mimeType === 'image/png' || asset.mimeType === 'image/webp' ? asset.mimeType : 'image/jpeg';
       const fileInfo = await FileSystem.getInfoAsync(asset.uri);
       const size = asset.fileSize ?? (fileInfo.exists ? fileInfo.size ?? 0 : 0);
       const fileName = asset.fileName || `profile-photo-${Date.now()}.jpg`;
@@ -187,7 +192,7 @@ export default function ProfileScreen() {
           <View style={styles.avatarWrapper}>
             {uploadingPhoto ? (
               <View style={[styles.avatarPlaceholder, { backgroundColor: colors.backgroundSecondary }]}>
-                <ActivityIndicator color={colors.primary} size="large" />
+                <AvarpusSpinner size={40} />
               </View>
             ) : (
               <Avatar name={user?.name ?? 'User'} url={profilePhoto} size={150} />
@@ -298,7 +303,7 @@ export default function ProfileScreen() {
             style={[styles.saveBtn, { backgroundColor: colors.primary, opacity: savingProfile ? 0.6 : 1 }]}
           >
             {savingProfile ? (
-              <ActivityIndicator color="#FFF" size="small" />
+              <AvarpusSpinner color="#FFF" size={20} />
             ) : (
               <Text style={styles.saveBtnText}>Save Profile</Text>
             )}

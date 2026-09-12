@@ -44,8 +44,7 @@ import {
   useStaffList, getStaffListQueryKey, repairAssignTechnician,
   useRepairTesting, repairTesting, useEstimateApprovalsList, getEstimateApprovalsListQueryKey, estimateApprovalsCreate,
   estimateApprovalsDecide, repairNotifyReady, estimateApprovalsSendOtp,
-  repairsUpdate
-} from '@workspace/api-client-react';
+  repairsUpdate, type UploadUrlRequestContentType } from '@workspace/api-client-react';
 import { fetch as expoFetch } from 'expo/fetch';
 import { File as ExpoFile } from 'expo-file-system';
 
@@ -555,7 +554,7 @@ export default function RepairDetailScreen() {
     }
   };
 
-  const uploadToGcs = async (fileUri: string, mimeType: string) => {
+  const uploadToGcs = async (fileUri: string, mimeType: UploadUrlRequestContentType) => {
     try {
       const fileInfo = await FileSystem.getInfoAsync(fileUri);
       const size = fileInfo.exists ? fileInfo.size : 0;

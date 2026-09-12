@@ -23,6 +23,7 @@ import {
   type DbUser,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { requireRole } from "../middlewares/requireRole";
 import { requireAnyFeature, requireFeature, userHasFeature } from "../lib/roleFeatures";
 import { asyncHandler } from "../lib/asyncHandler";
 import { sha256, generateOtpCode } from "../lib/authUtils";
@@ -31,7 +32,14 @@ import { recordPayment, voidPayment, PAYMENT_KINDS } from "../lib/repairPayments
 import { isDealerPortalRole } from "../lib/dealerPortal";
 import { notifyShop } from "../lib/notify";
 import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
+import { ObjectStorageService } from "../lib/objectStorage";
+import {
+  GENERAL_UPLOAD_CONTENT_TYPES,
+  MAX_GENERAL_UPLOAD_BYTES,
+  verifyStoredUpload,
+} from "../lib/uploadPolicy";
 import type { Request, Response } from "express";
+import { uuidOrSelfParam, uuidParam } from "../lib/validate";
 
 // Shop-scoped business data: repairs, customers, inventory, purchases and
 // finance entries. Every route requires an authenticated user with a shop —
@@ -39,6 +47,10 @@ import type { Request, Response } from "express";
 // other's data.
 
 const router: IRouter = Router();
+// `:id` may be the literal "me" on the customer-portal khata routes.
+router.param("id", uuidOrSelfParam);
+router.param("paymentId", uuidParam);
+const objectStorageService = new ObjectStorageService();
 
 type AuthedRequest = Request & { user: DbUser };
 
@@ -1852,6 +1864,18 @@ router.post(
       res.status(400).json({ message: "kind and a valid objectPath from your own shop's uploads are required" });
       return;
     }
+    // The upload URL only validated the client's *claimed* size/type; the
+    // signed PUT enforces neither, so check the stored object before it
+    // becomes part of the repair record.
+    const stored = await verifyStoredUpload(objectStorageService, objectPath, {
+      maxBytes: MAX_GENERAL_UPLOAD_BYTES,
+      contentTypes: GENERAL_UPLOAD_CONTENT_TYPES,
+      label: "Photo",
+    });
+    if (!stored.ok) {
+      res.status(400).json({ message: stored.message });
+      return;
+    }
     const user = (req as AuthedRequest).user;
     const created = await db.transaction(async (tx) => {
       const [row] = await tx
@@ -3594,9 +3618,12 @@ const ts = (daysAgo: number, hour = 10) => {
   return d;
 };
 
+// Sample data inserts and deletes repairs, customers, stock and finance rows
+// across the whole shop, so only the owner may load or clear it.
 router.post(
   "/sample-data",
   requireAuth,
+  requireRole(...PRIVILEGED_ROLES),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
@@ -3756,6 +3783,7 @@ router.post(
 router.delete(
   "/sample-data",
   requireAuth,
+  requireRole(...PRIVILEGED_ROLES),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;

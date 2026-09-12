@@ -565,6 +565,51 @@ paths:
                 properties:
                   message: { type: string }
                 required: [message]
+  /push/tokens:
+    post:
+      operationId: pushTokenRegister
+      tags: [business]
+      summary: Register this device's push token against the signed-in session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushTokenInput"
+      responses:
+        "200":
+          description: Device registered for push
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                required: [message]
+        "400": { description: Invalid push token or platform }
+        "401": { description: Authentication required }
+  /push/tokens/unregister:
+    post:
+      operationId: pushTokenUnregister
+      tags: [business]
+      summary: Stop push delivery to this device (idempotent)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushTokenUnregisterInput"
+      responses:
+        "200":
+          description: Push disabled for this device
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                required: [message]
+        "401": { description: Authentication required }
   /staff:
     get:
       operationId: staffList
@@ -1969,7 +2014,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UploadUrlRequest'
+              $ref: '#/components/schemas/ProfileUploadUrlRequest'
       responses:
         '200':
           description: Presigned profile photo upload URL generated.
@@ -3031,6 +3076,277 @@ paths:
               schema:
                 $ref: "#/components/schemas/Message"
 
+  /chat/reports/mine:
+    get:
+      operationId: chatMyReportList
+      tags: [chat]
+      security:
+        - bearerAuth: []
+      summary: List the abuse reports the caller filed
+      description: >-
+        The reporter's own record of what they reported, so they can check
+        whether an older report was handled instead of filing it again. Scoped
+        to the caller: it never returns another user's report, and it carries
+        none of the operator-only queue data — no reviewer, no review note, and
+        no indication of what happened to the reported account. Progress is a
+        single flag: still with reviewers, or finished.
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 50 } }
+        - { name: cursor, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: The caller's own reports, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMyReportList"
+        "400":
+          description: Invalid limit or cursor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "401": { description: Authentication required }
+
+  # ── Chat abuse report moderation (platform operators only) ───────────────────
+  /chat/admin/reports:
+    get:
+      operationId: chatAdminReportList
+      tags: [chat]
+      security:
+        - bearerAuth: []
+      summary: List chat abuse reports for platform operators
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: cursor, in: query, required: false, schema: { type: string } }
+        - name: status
+          in: query
+          required: false
+          schema: { $ref: "#/components/schemas/ChatReportStatus" }
+        - name: search
+          in: query
+          required: false
+          description: >-
+            Free-text match against the reporter or the reported user. A term is
+            read as one thing or the other, never both: a term containing any
+            letter is matched against names only, and a term of digits and phone
+            punctuation is matched against mobiles only, ignoring spacing and
+            country-code formatting on either side. A term with neither a letter
+            nor at least three digits matches nothing.
+          schema: { type: string, maxLength: 64 }
+        - name: reportedUserId
+          in: query
+          required: false
+          description: >-
+            Only reports naming this exact account as the reported user. This is
+            what otherOpenReports counts, so it is the filter to use when
+            drilling into an account's other open reports.
+          # A pattern rather than `format: uuid`: Orval turns the format into a
+          # Zod 4-only validator while api-zod is still on Zod 3.
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+      responses:
+        "200":
+          description: Abuse report queue, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatReportList"
+        "400":
+          description: Invalid queue filters or cursor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "401": { description: Authentication required }
+        "403": { description: Platform operator required }
+  /chat/admin/reports/{id}/transcript:
+    get:
+      operationId: chatAdminReportTranscript
+      tags: [chat]
+      security:
+        - bearerAuth: []
+      summary: Read the reported conversation around a chat abuse report
+      description: >-
+        Operator-only, read-only view of the reported room. The operator is not
+        joined to the room and nothing is marked as read. Each call is recorded
+        as a transcript access.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200 } }
+      responses:
+        "200":
+          description: Messages surrounding the reported message, oldest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatReportTranscript"
+        "400":
+          description: Invalid transcript window
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "401": { description: Authentication required }
+        "403": { description: Platform operator required }
+        "404":
+          description: Report not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /chat/admin/reports/{id}/status:
+    patch:
+      operationId: chatAdminReportStatusUpdate
+      tags: [chat]
+      security:
+        - bearerAuth: []
+      summary: Record an operator decision on a chat abuse report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatReportReviewInput"
+      responses:
+        "200":
+          description: Updated report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatReportQueueItemResponse"
+        "400":
+          description: Invalid review decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "401": { description: Authentication required }
+        "403": { description: Platform operator required }
+        "404":
+          description: Report not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "409":
+          description: Illegal review transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /chat/admin/reports/{id}/status/batch:
+    post:
+      operationId: chatAdminReportStatusBatch
+      tags: [chat]
+      security:
+        - bearerAuth: []
+      summary: Record one decision across every open report about the same account
+      description: >-
+        Applies the decision to this report and to every other report that is
+        still open against the same reported user, as one transaction. Each
+        report keeps its own row, deciding operator, decision time and note, so
+        the audit trail stays per-report. Reports about that account which are
+        no longer open — already settled, or already moved by another operator —
+        are skipped, never overwritten, and a report filed after the batch
+        started is untouched. Each reporter receives at most one alert for the
+        batch, with the same wording a single decision sends.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatReportReviewInput"
+      responses:
+        "200":
+          description: The decided report, with how far the batch reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatReportBatchDecision"
+        "400":
+          description: Invalid review decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "401": { description: Authentication required }
+        "403": { description: Platform operator required }
+        "404":
+          description: Report not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "409":
+          description: Illegal review transition on this report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /chat/admin/reports/batches/{batchId}/withdraw:
+    post:
+      operationId: chatAdminReportBatchWithdraw
+      tags: [chat]
+      security:
+        - bearerAuth: []
+      summary: Withdraw a bulk decision within its short recovery window
+      description: >-
+        Puts every report this batch moved back to the exact state it was in
+        beforehand — its own earlier status, deciding operator and note — and
+        records who withdrew it and when. Only the operator who recorded the
+        batch may withdraw it, and only within a short window of recording it;
+        anyone else, a second withdrawal, or a lapsed window is refused. A
+        report another operator has decided since the batch is left with their
+        decision and counted as skipped. Nothing is sent to the reporters: the
+        alerts the batch already sent stand, and a withdrawal is not announced
+        to the people the operator queue is kept from.
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The batch was withdrawn and its reports restored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatReportBatchWithdrawal"
+        "401": { description: Authentication required }
+        "403":
+          description: Recorded by a different operator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "404":
+          description: Batch decision not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "409":
+          description: Already withdrawn, or the withdrawal window has passed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
   # ── Chat messages ────────────────────────────────────────────────────────────
   /chat/rooms/{roomId}/messages:
     get:
@@ -3523,6 +3839,18 @@ components:
         read: { type: boolean }
         createdAt: { type: string }
       required: [id, type, title, body, read, createdAt]
+    PushTokenInput:
+      type: object
+      properties:
+        token: { type: string }
+        platform: { type: string, enum: [ios, android] }
+        deviceInfo: { type: string }
+      required: [token, platform]
+    PushTokenUnregisterInput:
+      type: object
+      properties:
+        token: { type: string }
+      required: [token]
     RoleFeaturesInput:
       type: object
       properties:
@@ -3751,8 +4079,11 @@ components:
         deviceInfo: { type: string }
         createdAt: { type: string }
         expiresAt: { type: string }
+        lastSeenAt:
+          type: string
+          description: Time of the most recent authenticated request on this session.
         current: { type: boolean }
-      required: [id, createdAt, expiresAt, current]
+      required: [id, createdAt, expiresAt, lastSeenAt, current]
     Message:
       type: object
       properties:
@@ -3786,9 +4117,9 @@ components:
     StaffCreateInput:
       type: object
       properties:
-        name: { type: string }
-        email: { type: string }
-        mobile: { type: string }
+        name: { type: string, minLength: 1 }
+        email: { type: string, pattern: '^[^\s@]+@[^\s@]+\.[^\s@]+$' }
+        mobile: { type: string, pattern: '^\d{10}$' }
         role: { type: string, enum: [reception, technician, store_manager, accountant, dealer_owner, dealer_staff] }
         designation: { type: string }
         dealerId: { type: string }
@@ -3796,8 +4127,8 @@ components:
     StaffUpdateInput:
       type: object
       properties:
-        name: { type: string }
-        mobile: { type: string }
+        name: { type: string, minLength: 1 }
+        mobile: { type: string, pattern: '^\d{10}$' }
         role: { type: string, enum: [reception, technician, store_manager, accountant, dealer_owner, dealer_staff] }
         designation: { type: string }
     RegisterVerifyResult:
@@ -3967,9 +4298,9 @@ components:
     DealerInput:
       type: object
       properties:
-        name: { type: string }
+        name: { type: string, minLength: 1 }
         shopName: { type: string }
-        mobile: { type: string }
+        mobile: { type: string, pattern: '^\d{10}$' }
         location: { type: string }
         isActive: { type: boolean }
     DealerStats:
@@ -4395,9 +4726,20 @@ components:
       type: object
       required: [name, size, contentType]
       properties:
-        name: { type: string }
-        size: { type: number }
-        contentType: { type: string }
+        name: { type: string, minLength: 1, maxLength: 255 }
+        size: { type: number, minimum: 1, maximum: 15728640 }
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, image/heic, image/heif, application/pdf]
+    ProfileUploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        size: { type: number, minimum: 1, maximum: 5242880 }
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp]
     UploadUrlResponse:
       type: object
       required: [uploadURL, objectPath]
@@ -4557,13 +4899,13 @@ components:
         mode: { type: string, enum: [create, update] }
         recordId: { type: string }
         payload: { type: object, additionalProperties: true }
-        requestedDate: { type: string }
-        reason: { type: string }
+        requestedDate: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        reason: { type: string, minLength: 1 }
       required: [recordType, payload, requestedDate, reason]
     ApprovalRejectInput:
       type: object
       properties:
-        reason: { type: string }
+        reason: { type: string, minLength: 1 }
       required: [reason]
     ErrorEnvelope:
       type: object
@@ -4885,6 +5227,219 @@ components:
           $ref: "#/components/schemas/ChatReportReason"
         createdAt: { type: string, format: date-time }
       required: [id, roomId, reason, createdAt]
+    ChatReportStatus:
+      type: string
+      enum: [open, reviewed, actioned, dismissed]
+    ChatMyReportState:
+      type: string
+      description: >-
+        What the reporter is told about progress. `in_review` covers every
+        report reviewers have not settled yet; `closed` means a human finished
+        with it. Both terminal operator decisions collapse into `closed` on
+        purpose — the reporter never learns which one landed.
+      enum: [in_review, closed]
+    ChatMyReport:
+      type: object
+      description: >-
+        One report as its author sees it: the conversation, their own reason and
+        note, when they filed it, and whether review has finished.
+      properties:
+        id: { type: string }
+        reason:
+          $ref: "#/components/schemas/ChatReportReason"
+        # The reporter's own words, echoed back to them.
+        details: { type: [string, "null"] }
+        createdAt: { type: string, format: date-time }
+        room:
+          $ref: "#/components/schemas/ChatReportRoom"
+        messageId: { type: [string, "null"] }
+        state:
+          $ref: "#/components/schemas/ChatMyReportState"
+      required: [id, reason, details, createdAt, room, messageId, state]
+    ChatMyReportList:
+      type: object
+      properties:
+        reports:
+          type: array
+          items: { $ref: "#/components/schemas/ChatMyReport" }
+        nextCursor: { type: [string, "null"] }
+      required: [reports, nextCursor]
+    ChatReportParty:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: [string, "null"] }
+        mobile: { type: [string, "null"] }
+      required: [id, name, mobile]
+    ChatReportRoom:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: [string, "null"] }
+        scope: { type: [string, "null"] }
+      required: [id, name, scope]
+    ChatReportQueueItem:
+      type: object
+      properties:
+        id: { type: string }
+        reason:
+          $ref: "#/components/schemas/ChatReportReason"
+        details: { type: [string, "null"] }
+        status:
+          $ref: "#/components/schemas/ChatReportStatus"
+        createdAt: { type: string, format: date-time }
+        reporter:
+          $ref: "#/components/schemas/ChatReportParty"
+        reportedUser:
+          $ref: "#/components/schemas/ChatReportParty"
+        room:
+          $ref: "#/components/schemas/ChatReportRoom"
+        messageId: { type: [string, "null"] }
+        reviewerUserId: { type: [string, "null"] }
+        reviewerName: { type: [string, "null"] }
+        reviewedAt: { type: [string, "null"], format: date-time }
+        reviewNote: { type: [string, "null"] }
+        # How many OTHER reports naming this same reported user are still open,
+        # excluding this report. Lets an operator spot one account attracting
+        # complaints from several different people.
+        # type: integer makes Orval emit z.int(), which is Zod 4-only while
+        # lib/api-zod is still on Zod 3.
+        otherOpenReports: { type: number }
+      required:
+        - id
+        - reason
+        - details
+        - status
+        - createdAt
+        - reporter
+        - reportedUser
+        - room
+        - messageId
+        - reviewerUserId
+        - reviewerName
+        - reviewedAt
+        - reviewNote
+        - otherOpenReports
+    ChatReportQueueItemResponse:
+      type: object
+      properties:
+        report:
+          $ref: "#/components/schemas/ChatReportQueueItem"
+      required: [report]
+    ChatReportBatchDecision:
+      type: object
+      properties:
+        report:
+          $ref: "#/components/schemas/ChatReportQueueItem"
+        # Reports this decision actually moved, counting the one it was recorded
+        # from. type: integer makes Orval emit z.int(), which is Zod 4-only
+        # while lib/api-zod is still on Zod 3.
+        appliedCount: { type: number }
+        # Other reports about the same account that were left exactly as they
+        # were, because they were no longer open.
+        skippedCount: { type: number }
+        # Distinct reporters alerted. A reporter who filed several of the
+        # batched reports is told once, not once per report.
+        notifiedReporterCount: { type: number }
+        # The handle this bulk decision is withdrawn by, and the moment the
+        # offer lapses. Present on every batch, including one that reached a
+        # single report: the caller cannot know its reach in advance.
+        batchId: { type: string }
+        withdrawableUntil: { type: string, format: date-time }
+      required:
+        - report
+        - appliedCount
+        - skippedCount
+        - notifiedReporterCount
+        - batchId
+        - withdrawableUntil
+    ChatReportBatchWithdrawal:
+      type: object
+      properties:
+        batchId: { type: string }
+        withdrawnAt: { type: string, format: date-time }
+        # The reports actually put back, in id order.
+        restoredReportIds:
+          type: array
+          items: { type: string }
+        # type: integer makes Orval emit z.int(), which is Zod 4-only while
+        # lib/api-zod is still on Zod 3.
+        restoredCount: { type: number }
+        # Reports the batch had moved that this withdrawal left alone, because
+        # another operator has decided them since.
+        skippedCount: { type: number }
+      required:
+        - batchId
+        - withdrawnAt
+        - restoredReportIds
+        - restoredCount
+        - skippedCount
+    ChatReportList:
+      type: object
+      properties:
+        reports:
+          type: array
+          items: { $ref: "#/components/schemas/ChatReportQueueItem" }
+        nextCursor: { type: [string, "null"] }
+        # type: integer makes Orval emit z.int(), which is Zod 4-only while
+        # lib/api-zod is still on Zod 3.
+        openCount: { type: number }
+      required: [reports, nextCursor, openCount]
+    ChatReportTranscriptMessage:
+      type: object
+      properties:
+        id: { type: string }
+        senderId: { type: string }
+        senderName: { type: string }
+        kind: { type: string }
+        body: { type: string }
+        hasAttachment: { type: boolean }
+        deletedAt: { type: [string, "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        isReportedMessage: { type: boolean }
+        isFromReportedUser: { type: boolean }
+      required:
+        - id
+        - senderId
+        - senderName
+        - kind
+        - body
+        - hasAttachment
+        - deletedAt
+        - createdAt
+        - isReportedMessage
+        - isFromReportedUser
+    ChatReportTranscript:
+      type: object
+      properties:
+        reportId: { type: string }
+        room:
+          $ref: "#/components/schemas/ChatReportRoom"
+        reportedMessageId: { type: [string, "null"] }
+        # False when the report named a message that no longer exists, in which
+        # case the window is the tail of the conversation instead.
+        reportedMessageFound: { type: boolean }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/ChatReportTranscriptMessage" }
+        hasMoreBefore: { type: boolean }
+        hasMoreAfter: { type: boolean }
+      required:
+        - reportId
+        - room
+        - reportedMessageId
+        - reportedMessageFound
+        - messages
+        - hasMoreBefore
+        - hasMoreAfter
+    ChatReportReviewInput:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [reviewed, actioned, dismissed]
+        note: { type: string, minLength: 1, maxLength: 2000 }
+      required: [status]
     ChatRoomCreateInput:
       type: object
       description: >
@@ -4975,8 +5530,8 @@ components:
     StatusUploadInput:
       type: object
       properties:
-        name: { type: string }
-        size: { type: number }
+        name: { type: string, minLength: 1 }
+        size: { type: number, minimum: 1, maximum: 67108864 }
         contentType: { type: string }
       required: [name, size, contentType]
     StatusUploadResult:
@@ -4994,7 +5549,7 @@ components:
         body: { type: [string, "null"], maxLength: 7000 }
         objectPath: { type: [string, "null"] }
         mimeType: { type: [string, "null"] }
-        sizeBytes: { type: [number, "null"] }
+        sizeBytes: { type: [number, "null"], minimum: 1, maximum: 67108864 }
         audience: { type: string, enum: [contacts, nobody], default: contacts }
       required: [kind]
     StatusItem:

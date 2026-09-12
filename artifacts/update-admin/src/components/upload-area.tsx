@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useAppUpdateUploadUrl } from '@workspace/api-client-react';
-import { Upload, X, File as FileIcon, Loader2, AlertCircle } from 'lucide-react';
+import { Upload, AlertCircle } from 'lucide-react';
 import { cn, formatBytes, apiErrorMessage } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Spinner } from '@/components/ui/spinner';
 
 interface FileUploadProgress {
   progress: number;
@@ -152,7 +153,7 @@ export function UploadArea({ onUploadSuccess, accept, maxSizeMB = 50, title, des
     return (
       <div className="border border-border rounded-lg p-6 flex flex-col items-center justify-center bg-card">
         <div className="flex items-center gap-3 mb-4">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <Spinner size={24} label={null} />
           <div className="text-sm font-medium">Uploading {file?.name}...</div>
         </div>
         <Progress value={uploadState.progress} className="w-full max-w-sm h-2 mb-2" />

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
-import { authOtpRequest, authOtpVerify } from '@workspace/api-client-react';
+import { authLogout, authOtpRequest, authOtpVerify, setAuthTokenGetter } from '@workspace/api-client-react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
+import { AlertCircle } from 'lucide-react';
 import { AvarpusLogo } from '@/components/AvarpusLogo';
 
 const mobileSchema = z.object({
@@ -62,6 +63,17 @@ export default function Login() {
         deviceInfo: 'Avarpus Admin Console',
       });
       if (session.user.role !== 'super_admin') {
+        // The server already issued a session for this OTP. Revoke it instead
+        // of leaving a live token behind for an account that cannot use this
+        // console. Best-effort: a failed logout must not change the outcome.
+        setAuthTokenGetter(() => session.token);
+        try {
+          await authLogout();
+        } catch {
+          // ignore — the token is discarded either way
+        } finally {
+          setAuthTokenGetter(() => localStorage.getItem('auth_token'));
+        }
         setErrorMsg('Access denied. Only super administrators can access the admin console.');
         return;
       }
@@ -78,7 +90,7 @@ export default function Login() {
     <div className="min-h-screen bg-background flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8 text-center">
-          <AvarpusLogo className="h-28 w-28 rounded-[1.75rem] shadow-lg mb-4" />
+          <AvarpusLogo className="h-28 w-28 rounded-full mb-4" />
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Avarpus Admin Console</h1>
           <p className="text-muted-foreground mt-2">Sign in to manage releases and public requests</p>
         </div>
@@ -123,7 +135,7 @@ export default function Login() {
                     )}
                   />
                   <Button type="submit" className="w-full mt-6" size="lg" disabled={pending}>
-                    {pending ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Sending code</> : 'Send verification code'}
+                    {pending ? <><Spinner className="mr-2" size={16} label={null} />Sending code</> : 'Send verification code'}
                   </Button>
                 </form>
               </Form>
@@ -143,7 +155,7 @@ export default function Login() {
                   />
                 </div>
                 <Button type="submit" className="w-full mt-6" size="lg" disabled={pending}>
-                  {pending ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Verifying</> : 'Enter console'}
+                  {pending ? <><Spinner className="mr-2" size={16} label={null} />Verifying</> : 'Enter console'}
                 </Button>
                 <Button type="button" variant="outline" className="w-full" disabled={pending} onClick={() => setStep('mobile')}>
                   Use a different mobile number

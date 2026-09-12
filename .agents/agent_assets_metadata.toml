@@ -78,3 +78,17 @@ mtime_ms = 1789014623485
 storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:3c2b05f7-3c61-425c-9ed4-67462616b38f/26b766b0-a7b6-4203-be26-d0b2591eb22e/446c42fd-58bc-4240-a482-2489c226663b"
 storage_version_token = "1789014632241859"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "uIVtA2pw0vRJuP46xoOcs"
+uri = "file://attached_assets/avarpus-icon-mask-preview.png"
+type = "image"
+title = "Avarpus icon under every launcher mask"
+description = "Left to right: circle mask, squircle, rounded square (all from the Android adaptive icon), then the iOS icon circle- and squircle-masked. One flat blue, full logo, no ring and no cut."
+logical_id = "8f6cb565-967b-4f65-a509-d1510381a5ae"
+content_hash = "sha256:b0f5c29c7a64a7cab9f07f9310b13bba63dae511900f06e334b3b088aaf95b6b"
+size = 276490
+mtime_ms = 1789161715898
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:3c2b05f7-3c61-425c-9ed4-67462616b38f/8f6cb565-967b-4f65-a509-d1510381a5ae/8d92eaec-2954-41cb-a6a2-08132b32fec9"
+storage_version_token = "1789161756333441"
+content_type = "image/png"

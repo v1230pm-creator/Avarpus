@@ -19,8 +19,10 @@ import { sha256 } from "../lib/authUtils";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireRole } from "../middlewares/requireRole";
 import { notifyActiveSuperAdminsOfPublicRequest } from "../lib/notify";
+import { uuidParam } from "../lib/validate";
 
 const router: IRouter = Router();
+router.param("id", uuidParam);
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const RATE_LIMIT_MAX = 5;
 const ADMIN = requireRole("super_admin");

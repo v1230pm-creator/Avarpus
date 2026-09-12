@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuth } from '@/context/AuthContext';
 import { completeUnlockSuccess, isBiometricLockEnabled, setUnlocked } from '@/utils/appLock';
 import { onBlue } from '@/constants/brand';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 
 export default function BiometricScreen() {
   const router = useRouter();
@@ -133,7 +134,7 @@ export default function BiometricScreen() {
           activeOpacity={0.8}
         >
           {checking || authenticating ? (
-            <ActivityIndicator color={onBlue.controlText} />
+            <AvarpusSpinner size={20} color={onBlue.controlText} />
           ) : (
             <>
               <Feather name="unlock" size={18} color={onBlue.controlText} />

@@ -45,7 +45,9 @@ function json(route, body, statusCode = 200) {
 }
 
 async function waitForServer(child) {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
+  // Validation runs this suite alongside other builds, so the preview can take
+  // far longer to answer here than in an idle workspace.
+  for (let attempt = 0; attempt < 240; attempt += 1) {
     if (child.exitCode !== null) {
       throw new Error(`Admin preview exited early with code ${child.exitCode}`);
     }

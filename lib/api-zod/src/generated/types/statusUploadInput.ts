@@ -7,7 +7,12 @@
  */
 
 export interface StatusUploadInput {
+  /** @minLength 1 */
   name: string;
+  /**
+     * @minimum 1
+     * @maximum 67108864
+     */
   size: number;
   contentType: string;
 }

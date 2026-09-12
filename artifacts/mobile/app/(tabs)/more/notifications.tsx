@@ -1,10 +1,11 @@
 import React from 'react';
-import { ActivityIndicator, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { FlatCard } from '@/components/ui/Glass';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { useNotificationsList, notificationsMarkRead, getNotificationsListQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getNotificationRoute } from '@/utils/notificationNavigation';
@@ -21,6 +22,7 @@ const TYPE_ICON: Record<string, { icon: any; color: string }> = {
   approval_requested: { icon: 'clock', color: '#FB7185' },
   approval_decided: { icon: 'check-circle', color: '#34D399' },
   chat_message: { icon: 'message-circle', color: '#4DA3FF' },
+  chat_report_reviewed: { icon: 'shield', color: '#94A3B8' },
 };
 
 function timeAgo(iso: string): string {
@@ -85,7 +87,7 @@ export default function NotificationsScreen() {
         refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={() => refetch()} tintColor={colors.primary} />}
       >
         {isLoading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+          <AvarpusSpinner size={20} style={{ marginTop: 40 }} />
         ) : notifications.length === 0 ? (
           <View style={{ alignItems: 'center', marginTop: 60 }}>
             <Feather name="bell-off" size={32} color={colors.mutedForeground} />

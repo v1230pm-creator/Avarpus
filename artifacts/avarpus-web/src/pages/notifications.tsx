@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Check } from "lucide-react";
+import { SectionLoader } from "@/components/ui/spinner";
 
 export function NotificationsPage() {
   const { data, isLoading, refetch } = useNotificationsList();
@@ -29,11 +30,7 @@ export function NotificationsPage() {
 
       <div className="space-y-4">
         {isLoading ? (
-          Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-4 h-24 bg-muted/50" />
-            </Card>
-          ))
+          <SectionLoader />
         ) : data?.notifications.length === 0 ? (
           <div className="h-32 flex items-center justify-center border border-dashed rounded-lg text-muted-foreground">
             No notifications.

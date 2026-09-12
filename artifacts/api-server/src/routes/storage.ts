@@ -11,6 +11,14 @@ import {
 } from "../lib/objectStorage";
 import { isPersonalContact } from "../lib/statusAccess";
 import { registerPendingUpload } from "../lib/pendingUploads";
+import { RequestProfileUploadUrlBody, RequestUploadUrlBody } from "@workspace/api-zod";
+import { parseBody } from "../lib/validate";
+import {
+  GENERAL_UPLOAD_CONTENT_TYPES,
+  MAX_GENERAL_UPLOAD_BYTES,
+  MAX_PROFILE_UPLOAD_BYTES,
+  PROFILE_UPLOAD_CONTENT_TYPES,
+} from "../lib/uploadPolicy";
 
 // Object storage (App Storage) routes. Objects hold customer device photos,
 // documents and signatures, so both upload and serving are auth-protected AND
@@ -36,11 +44,13 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
-    const { name, size, contentType } = req.body ?? {};
+    const body = parseBody(RequestUploadUrlBody, req, res);
+    if (!body) return;
+    const { name, size, contentType } = body;
     if (
-      typeof name !== "string" || !name ||
-      typeof contentType !== "string" || !contentType ||
-      typeof size !== "number" || size <= 0
+      !name ||
+      !Number.isFinite(size) || size < 1 || size > MAX_GENERAL_UPLOAD_BYTES ||
+      !GENERAL_UPLOAD_CONTENT_TYPES.has(contentType)
     ) {
       res.status(400).json({ error: "Missing or invalid required fields" });
       return;
@@ -55,13 +65,15 @@ router.post(
   "/storage/profiles/upload-url",
   requireAuth,
   asyncHandler(async (req: Request, res: Response) => {
-    const { name, size, contentType } = req.body ?? {};
+    const body = parseBody(RequestProfileUploadUrlBody, req, res);
+    if (!body) return;
+    const { name, size, contentType } = body;
     if (
-      typeof name !== "string" || !name ||
-      typeof size !== "number" || !Number.isFinite(size) || size <= 0 || size > 10 * 1024 * 1024 ||
-      typeof contentType !== "string" || !["image/jpeg", "image/png", "image/webp"].includes(contentType)
+      !name ||
+      !Number.isFinite(size) || size < 1 || size > MAX_PROFILE_UPLOAD_BYTES ||
+      !PROFILE_UPLOAD_CONTENT_TYPES.has(contentType)
     ) {
-      res.status(400).json({ error: "Profile photo must be a JPEG, PNG, or WebP image no larger than 10 MB" });
+      res.status(400).json({ error: "Profile photo must be a JPEG, PNG, or WebP image no larger than 5 MB" });
       return;
     }
     const me = (req as Request & { user: DbUser }).user;
