@@ -1704,6 +1704,30 @@ export const ChatMessageKind = {
   system: 'system',
 } as const;
 
+export type ChatMessageQuoteKind = typeof ChatMessageQuoteKind[keyof typeof ChatMessageQuoteKind];
+
+
+export const ChatMessageQuoteKind = {
+  text: 'text',
+  image: 'image',
+  file: 'file',
+  audio: 'audio',
+  system: 'system',
+} as const;
+
+/**
+ * Snapshot of the message being replied to. Media for a quoted image/file/ audio is served from the quoted message's own media endpoint.
+ */
+export interface ChatMessageQuote {
+  id: string;
+  senderId: string;
+  senderName: string;
+  kind: ChatMessageQuoteKind;
+  body: string;
+  /** True when the quoted message is no longer available. */
+  deleted: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   roomId: string;
@@ -1717,6 +1741,10 @@ export interface ChatMessage {
   /** Integer duration in milliseconds. Only set for kind=audio (voice notes). */
   durationMs?: number;
   clientRequestId?: string;
+  replyTo?: ChatMessageQuote;
+  /** True when this message was forwarded from another message. */
+  forwarded?: boolean;
+  /** Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable. */
   deletedAt?: string;
   createdAt: string;
 }
@@ -2054,6 +2082,14 @@ export interface ChatRoomCreateInput {
   clientRequestId?: string;
 }
 
+/**
+ * Message to copy when forwarding. The caller must be a member of roomId.
+ */
+export interface ChatMessageForwardSource {
+  roomId: string;
+  messageId: string;
+}
+
 export type ChatMessageSendInputKind = typeof ChatMessageSendInputKind[keyof typeof ChatMessageSendInputKind];
 
 
@@ -2065,7 +2101,7 @@ export const ChatMessageSendInputKind = {
 } as const;
 
 /**
- * Send a message. clientRequestId is REQUIRED and must be stable across retries; the server dedupes on (roomId, senderId, clientRequestId) and derives the Matrix transaction id deterministically so retries never create a second row nor a second provider event. For kind=audio a room-scoped objectPath and an integer durationMs (1..600000) are REQUIRED; durationMs must be omitted for non-audio kinds.
+ * Send a message. clientRequestId is REQUIRED and must be stable across retries; the server dedupes on (roomId, senderId, clientRequestId) and derives the Matrix transaction id deterministically so retries never create a second row nor a second provider event. For kind=audio a room-scoped objectPath and an integer durationMs (1..600000) are REQUIRED; durationMs must be omitted for non-audio kinds. With forwardOf the kind, body, media and duration are copied from the source message (media is duplicated into the target room's storage scope); the supplied kind must match the source kind and objectPath / durationMs must be omitted. replyToMessageId must name a visible message in the same room; it cannot be combined with forwardOf.
  */
 export interface ChatMessageSendInput {
   kind: ChatMessageSendInputKind;
@@ -2078,6 +2114,26 @@ export interface ChatMessageSendInput {
      */
   durationMs?: number;
   clientRequestId: string;
+  /** ID of a message in the same room this message replies to. */
+  replyToMessageId?: string;
+  forwardOf?: ChatMessageForwardSource;
+}
+
+export type ChatMessagesDeleteInputScope = typeof ChatMessagesDeleteInputScope[keyof typeof ChatMessagesDeleteInputScope];
+
+
+export const ChatMessagesDeleteInputScope = {
+  me: 'me',
+  everyone: 'everyone',
+} as const;
+
+export interface ChatMessagesDeleteInput {
+  /**
+     * @minItems 1
+     * @maxItems 50
+     */
+  messageIds: string[];
+  scope: ChatMessagesDeleteInputScope;
 }
 
 export interface ChatMarkReadInput {
@@ -2808,5 +2864,9 @@ export type ChatMessagesList200 = {
 
 export type ChatMessagesSend200 = {
   message: ChatMessage;
+};
+
+export type ChatMessagesDelete200 = {
+  deletedIds: string[];
 };
 

@@ -33,7 +33,7 @@
 import { Readable } from "stream";
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter, type Request } from "express";
-import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, notExists, or, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -45,6 +45,7 @@ import {
   chatRoomMembersTable,
   chatRoomPreferencesTable,
   chatMessagesTable,
+  chatMessageHiddenTable,
   chatBlocksTable,
   chatReportsTable,
   chatReadStateTable,
@@ -65,6 +66,7 @@ import {
   matrixProvisionDirectRoom,
   matrixProvisionTimeoutMs,
   matrixSendMessage,
+  matrixRedactEvent,
   describeProviderError,
   matrixUserIdForApp,
   matrixTxnId,
@@ -73,6 +75,7 @@ import {
   AuthActivateInviteBody,
   ChatContactsMatchBody,
   ChatMarkReadBody,
+  ChatMessagesDeleteBody,
   ChatMessagesSendBody,
   ChatMyReportListQueryParams,
   ChatReportsCreateBody,
@@ -1860,9 +1863,11 @@ router.get(
     );
     const before = typeof req.query.before === "string" ? req.query.before : undefined;
 
+    // Tombstones (deleted for everyone) stay in the transcript so every member
+    // sees "Message deleted"; rows the caller hid ("delete for me") are dropped.
     let whereClause = and(
       eq(chatMessagesTable.roomId, roomId),
-      isNull(chatMessagesTable.deletedAt),
+      notHiddenForUser(me.id),
     );
 
     if (before) {
@@ -1884,7 +1889,7 @@ router.get(
     const messages = rows.slice(0, limit);
 
     res.json({
-      messages: messages.map(formatMessage),
+      messages: await formatMessagesWithQuotes(messages, me.id),
       hasMore,
     });
   }),
@@ -1940,6 +1945,8 @@ router.post(
       objectPath,
       durationMs,
       clientRequestId,
+      replyToMessageId,
+      forwardOf,
     } = parsedBody;
 
     // clientRequestId is required and must be a stable non-empty string.
@@ -1962,8 +1969,85 @@ router.post(
       )
       .limit(1);
     if (existingMsg) {
-      res.json({ message: formatMessage(existingMsg) });
+      const [formatted] = await formatMessagesWithQuotes([existingMsg], me.id);
+      res.json({ message: formatted });
       return;
+    }
+
+    // ── Forward source (copied content) ─────────────────────────────────────
+    // The caller must be a member of the source room and must still be able
+    // to see the source message. Nothing about the source row is trusted
+    // from the client beyond its identity.
+    let forwardSource: { room: typeof chatRoomsTable.$inferSelect; message: ChatMessageRow } | null = null;
+    if (forwardOf) {
+      if (replyToMessageId) {
+        res.status(400).json({ message: "replyToMessageId cannot be combined with forwardOf" });
+        return;
+      }
+      if (objectPath !== undefined || durationMs !== undefined) {
+        res.status(400).json({ message: "objectPath and durationMs are derived from the source when forwarding" });
+        return;
+      }
+      if (!UUID_RE.test(forwardOf.roomId) || !UUID_RE.test(forwardOf.messageId)) {
+        res.status(404).json({ message: "Source message not found" });
+        return;
+      }
+      const sourceRoom = await authorizeRoom(me, forwardOf.roomId);
+      if (!sourceRoom) {
+        res.status(404).json({ message: "Source message not found" });
+        return;
+      }
+      const [sourceMessage] = await db
+        .select()
+        .from(chatMessagesTable)
+        .where(
+          and(
+            eq(chatMessagesTable.id, forwardOf.messageId),
+            eq(chatMessagesTable.roomId, sourceRoom.id),
+            isNull(chatMessagesTable.deletedAt),
+            notHiddenForUser(me.id),
+          ),
+        )
+        .limit(1);
+      if (!sourceMessage) {
+        res.status(404).json({ message: "Source message not found" });
+        return;
+      }
+      if (!["text", "image", "file", "audio"].includes(sourceMessage.kind)) {
+        res.status(400).json({ message: "This message cannot be forwarded" });
+        return;
+      }
+      if (sourceMessage.kind !== kind) {
+        res.status(400).json({ message: "kind must match the source message" });
+        return;
+      }
+      forwardSource = { room: sourceRoom, message: sourceMessage };
+    }
+
+    // ── Reply target (same room, still visible to the caller) ───────────────
+    let replyTarget: ChatMessageRow | null = null;
+    if (replyToMessageId) {
+      if (!UUID_RE.test(replyToMessageId)) {
+        res.status(404).json({ message: "Replied message not found" });
+        return;
+      }
+      const [target] = await db
+        .select()
+        .from(chatMessagesTable)
+        .where(
+          and(
+            eq(chatMessagesTable.id, replyToMessageId),
+            eq(chatMessagesTable.roomId, roomId),
+            isNull(chatMessagesTable.deletedAt),
+            notHiddenForUser(me.id),
+          ),
+        )
+        .limit(1);
+      if (!target) {
+        res.status(404).json({ message: "Replied message not found" });
+        return;
+      }
+      replyTarget = target;
     }
 
     // ── Provider readiness check ────────────────────────────────────────────
@@ -1982,7 +2066,11 @@ router.post(
       return;
     }
 
-    if (!messageBody.trim()) {
+    // Forwarded content comes from the source row, never from the request.
+    const effectiveBody = forwardSource
+      ? forwardSource.message.body
+      : messageBody.trim().slice(0, 4000);
+    if (!effectiveBody.trim()) {
       res.status(400).json({ message: "body is required" });
       return;
     }
@@ -1996,7 +2084,36 @@ router.post(
 
     // Validate objectPath for media messages (image/file/audio).
     let resolvedObjectPath: string | null = null;
-    if (kind === "image" || kind === "file" || kind === "audio") {
+    /** Server-owned copy created for a forward; deleted again if delivery fails. */
+    let forwardedCopyPath: string | null = null;
+    if (forwardSource) {
+      const { room: sourceRoom, message: sourceMessage } = forwardSource;
+      if (sourceMessage.objectPath) {
+        const sourcePrefix = `/objects/uploads/${chatStorageScope(sourceRoom)}/chat/${sourceRoom.id}/`;
+        if (!sourceMessage.objectPath.startsWith(sourcePrefix)) {
+          res.status(404).json({ message: "Source message not found" });
+          return;
+        }
+        try {
+          const sourceFile = await objectStorageService.getObjectEntityFile(sourceMessage.objectPath);
+          const [metadata] = await sourceFile.getMetadata();
+          const [bytes] = await sourceFile.download();
+          forwardedCopyPath = await objectStorageService.saveObjectEntityWithPrefix(
+            `${chatStorageScope(room)}/chat/${roomId}`,
+            bytes,
+            (metadata.contentType as string | undefined) || "application/octet-stream",
+          );
+        } catch (error) {
+          req.log.warn({ err: error }, "Forward source attachment unavailable");
+          res.status(400).json({
+            message: "The original attachment is no longer available.",
+            code: "CHAT_MEDIA_EXPIRED",
+          });
+          return;
+        }
+        resolvedObjectPath = forwardedCopyPath;
+      }
+    } else if (kind === "image" || kind === "file" || kind === "audio") {
       if (typeof objectPath !== "string" || !objectPath.trim()) {
         res.status(400).json({ message: "objectPath is required for image/file/audio messages" });
         return;
@@ -2012,7 +2129,9 @@ router.post(
 
     // Validate durationMs for audio (voice note): integer in [1, 600000].
     let resolvedDurationMs: number | null = null;
-    if (kind === "audio") {
+    if (forwardSource) {
+      resolvedDurationMs = forwardSource.message.durationMs ?? null;
+    } else if (kind === "audio") {
       if (
         typeof durationMs !== "number" ||
         !Number.isInteger(durationMs) ||
@@ -2028,7 +2147,7 @@ router.post(
     }
 
     let mediaClaimToken: string | null = null;
-    if (resolvedObjectPath) {
+    if (resolvedObjectPath && !forwardedCopyPath) {
       const claim = await claimPendingUpload({
         objectPath: resolvedObjectPath,
         ownerUserId: me.id,
@@ -2092,10 +2211,11 @@ router.post(
         matrixRoomId: room.providerRoomId,
         senderUserId: senderMatrixUserId,
         msgtype,
-        body: messageBody.trim().slice(0, 4000),
+        body: effectiveBody,
         url: resolvedObjectPath ?? undefined,
         // For voice notes, include Matrix content info.duration (milliseconds).
         info: resolvedDurationMs !== null ? { duration: resolvedDurationMs } : undefined,
+        inReplyToEventId: replyTarget?.providerEventId ?? undefined,
         txnId,
         signal: AbortSignal.timeout(CHAT_PROVIDER_SEND_TIMEOUT_MS),
       });
@@ -2107,6 +2227,12 @@ router.post(
           purpose: "chat",
           token: mediaClaimToken,
         }).catch(() => undefined);
+      }
+      if (forwardedCopyPath) {
+        await objectStorageService
+          .getObjectEntityFile(forwardedCopyPath)
+          .then((file) => file.delete())
+          .catch(() => undefined);
       }
       const code = (err as NodeJS.ErrnoException).code ?? "";
       if (code === "PROVIDER_UNAVAILABLE") {
@@ -2149,11 +2275,13 @@ router.post(
         senderId: me.id,
         senderName: me.name,
         kind,
-        body: messageBody.trim().slice(0, 4000),
+        body: effectiveBody,
         objectPath: resolvedObjectPath,
         durationMs: resolvedDurationMs,
         providerEventId,
         clientRequestId: reqId,
+        replyToMessageId: replyTarget?.id ?? null,
+        forwarded: forwardSource !== null,
       })
       .onConflictDoNothing({
         target: [
@@ -2196,7 +2324,8 @@ router.post(
         senderName: me.name,
         preview,
       });
-      res.json({ message: formatMessage(inserted[0]) });
+      const [formatted] = await formatMessagesWithQuotes([message], me.id);
+      res.json({ message: formatted });
       return;
     }
 
@@ -2225,7 +2354,132 @@ router.post(
         req.log.warn({ err: error }, "Raced chat upload claim cleanup failed");
       });
     }
-    res.json({ message: formatMessage(raced) });
+    if (forwardedCopyPath && raced?.objectPath !== forwardedCopyPath) {
+      await objectStorageService
+        .getObjectEntityFile(forwardedCopyPath)
+        .then((file) => file.delete())
+        .catch(() => undefined);
+    }
+    const [formattedRaced] = await formatMessagesWithQuotes([raced], me.id);
+    res.json({ message: formattedRaced });
+  }),
+);
+
+/**
+ * Delete messages.
+ *
+ *  scope=me       — caller-specific hide. Any visible message in the room
+ *                   qualifies; nothing shared changes.
+ *  scope=everyone — only the sender may do this. The Matrix event is redacted
+ *                   first (fail-closed, like sends); the row then becomes a
+ *                   tombstone that stays in every member's transcript with no
+ *                   body and unreachable media.
+ */
+router.post(
+  "/chat/rooms/:roomId/messages/delete",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const me = (req as AuthedRequest).user;
+    const roomId = String(req.params.roomId ?? "");
+    if (!UUID_RE.test(roomId)) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
+    const room = await authorizeRoom(me, roomId);
+    if (!room) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
+    const parsedBody = parseBody(ChatMessagesDeleteBody, req, res);
+    if (!parsedBody) return;
+    const { scope } = parsedBody;
+    const messageIds = [...new Set(parsedBody.messageIds.map((id) => id.trim()))];
+    if (messageIds.some((id) => !UUID_RE.test(id))) {
+      res.status(404).json({ message: "Message not found" });
+      return;
+    }
+
+    const rows = await db
+      .select()
+      .from(chatMessagesTable)
+      .where(
+        and(
+          inArray(chatMessagesTable.id, messageIds),
+          eq(chatMessagesTable.roomId, roomId),
+          notHiddenForUser(me.id),
+        ),
+      );
+    if (rows.length !== messageIds.length) {
+      res.status(404).json({ message: "Message not found" });
+      return;
+    }
+
+    if (scope === "me") {
+      await db
+        .insert(chatMessageHiddenTable)
+        .values(rows.map((row) => ({ messageId: row.id, userId: me.id })))
+        .onConflictDoNothing();
+      res.json({ deletedIds: rows.map((row) => row.id) });
+      return;
+    }
+
+    // scope=everyone
+    if (rows.some((row) => row.senderId !== me.id)) {
+      res.status(403).json({
+        message: "You can only delete your own messages for everyone.",
+        code: "CHAT_DELETE_NOT_SENDER",
+      });
+      return;
+    }
+    const live = rows.filter((row) => row.deletedAt === null);
+    const needsRedaction = live.filter((row) => !!row.providerEventId);
+    if (needsRedaction.length > 0) {
+      if (!room.providerRoomId || !matrixConfigured()) {
+        res.status(503).json({
+          message: "Chat provider not available. Messages cannot be deleted at this time.",
+          code: "MATRIX_UNAVAILABLE",
+        });
+        return;
+      }
+      const senderMatrixUserId = matrixUserIdForApp(me.id);
+      for (const row of needsRedaction) {
+        try {
+          await matrixRedactEvent({
+            matrixRoomId: room.providerRoomId,
+            senderUserId: senderMatrixUserId,
+            eventId: row.providerEventId!,
+            txnId: matrixTxnId(roomId, me.id, `redact:${row.id}`),
+            signal: AbortSignal.timeout(CHAT_PROVIDER_SEND_TIMEOUT_MS),
+          });
+        } catch (err) {
+          console.error("[chat] Matrix redact failed:", describeProviderError(err));
+          res.status(503).json({
+            message: "Failed to delete the message on the chat provider. Please try again.",
+            code: "MATRIX_REDACT_FAILED",
+          });
+          return;
+        }
+        // Tombstone each event as soon as its redaction succeeds so a later
+        // failure in the batch never leaves a redacted event looking live.
+        await db
+          .update(chatMessagesTable)
+          .set({ deletedAt: new Date() })
+          .where(and(eq(chatMessagesTable.id, row.id), isNull(chatMessagesTable.deletedAt)));
+      }
+    }
+    const withoutEvent = live.filter((row) => !row.providerEventId);
+    if (withoutEvent.length > 0) {
+      await db
+        .update(chatMessagesTable)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(
+            inArray(chatMessagesTable.id, withoutEvent.map((row) => row.id)),
+            isNull(chatMessagesTable.deletedAt),
+          ),
+        );
+    }
+    res.json({ deletedIds: rows.map((row) => row.id) });
   }),
 );
 
@@ -2472,7 +2726,8 @@ router.get(
       return;
     }
 
-    // Load the message — must belong to this room + shop, not deleted
+    // Load the message — must belong to this room + shop, not deleted, and
+    // not hidden by the caller ("delete for me" also removes media access).
     const [msg] = await db
       .select()
       .from(chatMessagesTable)
@@ -2481,6 +2736,7 @@ router.get(
           eq(chatMessagesTable.id, messageId),
           eq(chatMessagesTable.roomId, roomId),
           isNull(chatMessagesTable.deletedAt),
+          notHiddenForUser(me.id),
         ),
       )
       .limit(1);
@@ -2623,7 +2879,39 @@ function formatRoomPreference(preference: typeof chatRoomPreferencesTable.$infer
   };
 }
 
-function formatMessage(msg: typeof chatMessagesTable.$inferSelect) {
+type ChatMessageRow = typeof chatMessagesTable.$inferSelect;
+
+type ChatMessageQuote = {
+  id: string;
+  senderId: string;
+  senderName: string;
+  kind: string;
+  body: string;
+  deleted: boolean;
+};
+
+/** SQL predicate: the message row is not hidden ("deleted for me") by userId. */
+function notHiddenForUser(userId: string) {
+  return notExists(
+    db
+      .select({ one: sql`1` })
+      .from(chatMessageHiddenTable)
+      .where(
+        and(
+          eq(chatMessageHiddenTable.messageId, chatMessagesTable.id),
+          eq(chatMessageHiddenTable.userId, userId),
+        ),
+      ),
+  );
+}
+
+/**
+ * Format a message row for API responses. A tombstone ("deleted for everyone")
+ * keeps its kind and timestamps but never exposes its body or media: the
+ * original text stays in the row for moderation only.
+ */
+function formatMessage(msg: ChatMessageRow, replyTo?: ChatMessageQuote | null) {
+  const deleted = msg.deletedAt !== null && msg.deletedAt !== undefined;
   return {
     id: msg.id,
     roomId: msg.roomId,
@@ -2631,13 +2919,70 @@ function formatMessage(msg: typeof chatMessagesTable.$inferSelect) {
     senderId: msg.senderId,
     senderName: msg.senderName,
     kind: msg.kind,
-    body: msg.body,
-    objectPath: msg.objectPath ?? undefined,
-    durationMs: msg.durationMs ?? undefined,
+    body: deleted ? "" : msg.body,
+    objectPath: deleted ? undefined : msg.objectPath ?? undefined,
+    durationMs: deleted ? undefined : msg.durationMs ?? undefined,
     clientRequestId: msg.clientRequestId ?? undefined,
+    replyTo: deleted ? undefined : replyTo ?? undefined,
+    forwarded: msg.forwarded ? true : undefined,
     deletedAt: msg.deletedAt?.toISOString() ?? undefined,
     createdAt: msg.createdAt.toISOString(),
   };
+}
+
+/**
+ * Build reply snapshots for a batch of rows. A quoted message the viewer can no
+ * longer see (deleted for everyone, or hidden by the viewer) is reported as
+ * deleted so the client renders a neutral placeholder rather than the text.
+ */
+async function formatMessagesWithQuotes(rows: ChatMessageRow[], viewerUserId: string) {
+  const quotedIds = [...new Set(rows.map((r) => r.replyToMessageId).filter((id): id is string => !!id))];
+  const quotes = new Map<string, ChatMessageQuote>();
+  if (quotedIds.length > 0) {
+    const quotedRows = await db
+      .select({
+        id: chatMessagesTable.id,
+        senderId: chatMessagesTable.senderId,
+        senderName: chatMessagesTable.senderName,
+        kind: chatMessagesTable.kind,
+        body: chatMessagesTable.body,
+        deletedAt: chatMessagesTable.deletedAt,
+        hidden: sql<boolean>`EXISTS (
+          SELECT 1 FROM ${chatMessageHiddenTable}
+          WHERE ${chatMessageHiddenTable.messageId} = ${chatMessagesTable.id}
+            AND ${chatMessageHiddenTable.userId} = ${viewerUserId}
+        )`,
+      })
+      .from(chatMessagesTable)
+      .where(inArray(chatMessagesTable.id, quotedIds));
+    for (const q of quotedRows) {
+      const gone = q.deletedAt !== null || q.hidden === true;
+      quotes.set(q.id, {
+        id: q.id,
+        senderId: q.senderId,
+        senderName: q.senderName,
+        kind: q.kind,
+        body: gone ? "" : q.body,
+        deleted: gone,
+      });
+    }
+  }
+  return rows.map((row) => {
+    const quote = row.replyToMessageId ? quotes.get(row.replyToMessageId) : undefined;
+    return formatMessage(
+      row,
+      row.replyToMessageId
+        ? quote ?? {
+            id: row.replyToMessageId,
+            senderId: "",
+            senderName: "",
+            kind: "text",
+            body: "",
+            deleted: true,
+          }
+        : undefined,
+    );
+  });
 }
 
 async function formatRoomSummaryForUser(
@@ -2661,6 +3006,7 @@ async function formatRoomSummaryForUser(
         and(
           eq(chatMessagesTable.roomId, room.id),
           isNull(chatMessagesTable.deletedAt),
+          notHiddenForUser(viewerUserId),
         ),
       )
       .orderBy(desc(chatMessagesTable.createdAt))

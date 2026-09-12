@@ -52,6 +52,8 @@ import type {
   ChatContactsMatch200,
   ChatMarkReadInput,
   ChatMessageSendInput,
+  ChatMessagesDelete200,
+  ChatMessagesDeleteInput,
   ChatMessagesList200,
   ChatMessagesListParams,
   ChatMessagesSend200,
@@ -11475,6 +11477,79 @@ export const useChatMessagesSend = <TError = ErrorType<Message | ServiceUnavaila
         TContext
       > => {
       return useMutation(getChatMessagesSendMutationOptions(options));
+    }
+
+export const getChatMessagesDeleteUrl = (roomId: string,) => {
+
+
+
+
+  return `/api/chat/rooms/${roomId}/messages/delete`
+}
+
+/**
+ * scope=me hides the messages from the caller's transcript only; the shared message and the other member's copy are untouched. scope=everyone is allowed only when every listed message was sent by the caller; the provider event is redacted first, then the row becomes a tombstone that every member sees as "Message deleted" and whose media is unreachable.
+ * @summary Delete messages for the caller only, or for everyone (own messages)
+ */
+export const chatMessagesDelete = async (roomId: string,
+    chatMessagesDeleteInput: ChatMessagesDeleteInput, options?: Parameters<typeof customFetch>[1]): Promise<ChatMessagesDelete200> => {
+
+  return customFetch<ChatMessagesDelete200>(getChatMessagesDeleteUrl(roomId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chatMessagesDeleteInput)
+  }
+);}
+
+
+
+
+
+export const getChatMessagesDeleteMutationOptions = <TError = ErrorType<Message | ServiceUnavailable>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatMessagesDelete>>, TError,{roomId: string;data: BodyType<ChatMessagesDeleteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatMessagesDelete>>, TError,{roomId: string;data: BodyType<ChatMessagesDeleteInput>}, TContext> => {
+
+const mutationKey = ['chatMessagesDelete'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatMessagesDelete>>, {roomId: string;data: BodyType<ChatMessagesDeleteInput>}> = (props) => {
+          const {roomId,data} = props ?? {};
+
+          return  chatMessagesDelete(roomId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatMessagesDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof chatMessagesDelete>>>
+    export type ChatMessagesDeleteMutationBody = BodyType<ChatMessagesDeleteInput>
+    export type ChatMessagesDeleteMutationError = ErrorType<Message | ServiceUnavailable>
+
+    /**
+ * @summary Delete messages for the caller only, or for everyone (own messages)
+ */
+export const useChatMessagesDelete = <TError = ErrorType<Message | ServiceUnavailable>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatMessagesDelete>>, TError,{roomId: string;data: BodyType<ChatMessagesDeleteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatMessagesDelete>>,
+        TError,
+        {roomId: string;data: BodyType<ChatMessagesDeleteInput>},
+        TContext
+      > => {
+      return useMutation(getChatMessagesDeleteMutationOptions(options));
     }
 
 export const getChatMarkReadUrl = (roomId: string,) => {

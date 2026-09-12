@@ -666,6 +666,11 @@ export async function matrixSendMessage(opts: {
    */
   info?: Record<string, unknown>;
   /**
+   * Matrix event id of the message being replied to. Emitted as the spec's
+   * rich-reply relation (`m.relates_to.m.in_reply_to.event_id`).
+   */
+  inReplyToEventId?: string;
+  /**
    * Deterministic transaction id. Matrix treats a repeated (txnId) from the
    * same sender as the same event, so retries never create a second event.
    * REQUIRED — callers derive it from roomId+senderId+clientRequestId.
@@ -692,6 +697,11 @@ export async function matrixSendMessage(opts: {
   }
   if (opts.info && Object.keys(opts.info).length > 0) {
     content.info = opts.info;
+  }
+  if (opts.inReplyToEventId) {
+    content["m.relates_to"] = {
+      "m.in_reply_to": { event_id: opts.inReplyToEventId },
+    };
   }
   const resp = await fetch(url, {
     method: "PUT",
@@ -724,6 +734,43 @@ export function matrixTxnId(
     .update(`${roomId}|${senderId}|${clientRequestId}`)
     .digest("hex");
   return `app-${hash.slice(0, 40)}`;
+}
+
+/**
+ * Redact (delete for everyone) a message event AS its original sender. Matrix
+ * strips the content from the event for every member; the local tombstone is
+ * written only after this succeeds. Redaction PUTs are idempotent on txnId.
+ *
+ * Throws (PROVIDER_UNAVAILABLE) when credentials are absent.
+ * Throws (MATRIX_REDACT_FAILED) on any HTTP error from Matrix.
+ */
+export async function matrixRedactEvent(opts: {
+  matrixRoomId: string;
+  senderUserId: string;
+  eventId: string;
+  txnId: string;
+  reason?: string;
+  signal?: AbortSignal;
+}): Promise<void> {
+  requireMatrixConfigured();
+  const url = matrixUrl(
+    withUserId(
+      `/_matrix/client/v3/rooms/${encodeURIComponent(opts.matrixRoomId)}/redact/${encodeURIComponent(opts.eventId)}/${encodeURIComponent(opts.txnId)}`,
+      opts.senderUserId,
+    ),
+  );
+  const resp = await fetch(url, {
+    method: "PUT",
+    headers: matrixHeaders(),
+    body: JSON.stringify(opts.reason ? { reason: opts.reason } : {}),
+    signal: opts.signal,
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    const err = new Error(`Matrix redact failed: ${resp.status} ${text}`);
+    (err as NodeJS.ErrnoException).code = "MATRIX_REDACT_FAILED";
+    throw err;
+  }
 }
 
 // ── LiveKit call token ────────────────────────────────────────────────────────

@@ -27,7 +27,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
@@ -38,6 +38,14 @@ import {
 } from 'expo-audio';
 import { useVoiceRecorder, deleteVoiceTempFile } from '@/hooks/useVoiceRecorder';
 import { VoiceRecorderPanel } from '@/components/chat/VoiceRecorderPanel';
+import { ImageViewer } from '@/components/chat/ImageViewer';
+import {
+  MessageSelectionHeader,
+  QuotedMessage,
+  ReplyComposerStrip,
+  SELECTION_OVERLAY_COLOR,
+  chatMediaUri,
+} from '@/components/chat/messageActions';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
@@ -62,6 +70,7 @@ import {
   useChatMessagesList,
   getChatMessagesListQueryKey,
   useChatMessagesSend,
+  useChatMessagesDelete,
   useChatMarkRead,
   useChatUploadUrl,
   getChatMessageMediaUrl,
@@ -115,6 +124,13 @@ const EXT_TO_CONTENT_TYPE: Record<string, string> = {
   m4a: 'audio/mp4',
   aac: 'audio/mp4',
 };
+
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'bmp']);
+/** Keep the original image extension when saving so the gallery classifies it correctly. */
+function imageExtensionFor(filename: string | null | undefined): string {
+  const ext = (filename ?? '').split('?')[0].split('.').pop()?.toLowerCase() ?? '';
+  return IMAGE_EXTENSIONS.has(ext) ? ext : 'jpg';
+}
 
 function resolveContentType(mimeType: string | null | undefined, filename: string): string | null {
   if (mimeType) {
@@ -428,17 +444,48 @@ function MessageBubble({
   colors,
   token,
   onDownload,
+  selectable = true,
+  selected = false,
+  selectionMode = false,
+  onSelectStart,
+  onToggleSelect,
+  onOpenImage,
+  onOpenQuote,
+  quoteSenderLabel,
 }: {
   msg: ChatMessage;
   isMine: boolean;
   colors: any;
   token: string | null;
   onDownload: (roomId: string, messageId: string, filename: string, token: string | null) => void;
+  /** Optimistic (not yet persisted) rows cannot be selected. */
+  selectable?: boolean;
+  selected?: boolean;
+  selectionMode?: boolean;
+  /** Long-press entry into selection mode. */
+  onSelectStart?: (msg: ChatMessage) => void;
+  onToggleSelect?: (msg: ChatMessage) => void;
+  onOpenImage?: (msg: ChatMessage) => void;
+  onOpenQuote?: (quoteId: string) => void;
+  quoteSenderLabel?: string;
 }) {
   if (msg.deletedAt) {
     return (
       <View style={[styles.bubbleRow, isMine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
-        <Text style={[styles.deletedMsg, { color: colors.mutedForeground }]}>Message deleted</Text>
+        <View
+          style={[
+            styles.bubble,
+            styles.deletedBubble,
+            isMine
+              ? [styles.bubbleMine, { backgroundColor: colors.card, borderColor: colors.border }]
+              : [styles.bubbleTheirs, { backgroundColor: colors.card, borderColor: colors.border }],
+          ]}
+        >
+          <Feather name="slash" size={12} color={colors.mutedForeground} />
+          <Text style={[styles.deletedMsg, { color: colors.mutedForeground }]} testID={`deleted-message-${msg.id}`}>
+            {isMine ? 'You deleted this message' : 'This message was deleted'}
+          </Text>
+        </View>
       </View>
     );
   }
@@ -446,66 +493,122 @@ function MessageBubble({
   const isImage = msg.kind === 'image';
   const isFile = msg.kind === 'file';
   const isAudio = msg.kind === 'audio';
+  const canSelect = selectable && !!onSelectStart;
+
+  const handlePress = () => {
+    if (selectionMode) {
+      if (canSelect) onToggleSelect?.(msg);
+      return;
+    }
+    if (isImage) onOpenImage?.(msg);
+  };
 
   return (
-    <View style={[styles.bubbleRow, isMine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
-      <View
-        style={[
-          styles.bubble,
-          isMine
-            ? [styles.bubbleMine, { backgroundColor: colors.primary }]
-            : [styles.bubbleTheirs, { backgroundColor: colors.card, borderColor: colors.border }],
-          (isImage || isFile || isAudio) && styles.bubbleMedia,
-        ]}
-      >
-        {isImage ? (
-          <ImageAttachment roomId={msg.roomId} messageId={msg.id} token={token} />
-        ) : isFile ? (
-          <FileAttachment
-            roomId={msg.roomId}
-            messageId={msg.id}
-            body={msg.body}
-            token={token}
-            colors={colors}
-            onDownload={onDownload}
-          />
-        ) : isAudio ? (
-          <AudioAttachment
-            roomId={msg.roomId}
-            messageId={msg.id}
-            durationMs={msg.durationMs}
-            token={token}
-            colors={colors}
-            isMine={isMine}
-          />
-        ) : (
-          <Text
-            style={[
-              styles.bubbleText,
-              { color: isMine ? colors.primaryForeground : colors.foreground, fontFamily: 'Inter_400Regular' },
-            ]}
-          >
-            {msg.body}
-          </Text>
-        )}
-
-        <View style={styles.bubbleFooter}>
-          <Text
-            style={[
-              styles.bubbleTime,
-              { color: isMine ? 'rgba(255,255,255,0.72)' : colors.mutedForeground },
-            ]}
-          >
-            {formatMsgTime(msg.createdAt)}
-          </Text>
-          {isMine && (
-            <Text style={[styles.deliveryTicks, { color: colors.success }]}>
-              ✓✓
+    <Pressable
+      onLongPress={canSelect ? () => onSelectStart?.(msg) : undefined}
+      onPress={selectionMode || isImage ? handlePress : undefined}
+      delayLongPress={450}
+      style={styles.selectableRow}
+      accessibilityLabel={selected ? 'Selected message' : undefined}
+      accessibilityState={selectionMode ? { selected } : undefined}
+      testID={`message-row-${msg.id}`}
+    >
+      <View style={[styles.bubbleRow, isMine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
+        <View
+          style={[
+            styles.bubble,
+            isMine
+              ? [styles.bubbleMine, { backgroundColor: colors.primary }]
+              : [styles.bubbleTheirs, { backgroundColor: colors.card, borderColor: colors.border }],
+            (isImage || isFile || isAudio) && styles.bubbleMedia,
+          ]}
+        >
+          {msg.forwarded && (
+            <View style={styles.forwardedRow} testID={`forwarded-label-${msg.id}`}>
+              <MaterialCommunityIcons
+                name="share"
+                size={12}
+                color={isMine ? 'rgba(255,255,255,0.72)' : colors.mutedForeground}
+              />
+              <Text style={[styles.forwardedText, { color: isMine ? 'rgba(255,255,255,0.72)' : colors.mutedForeground }]}>
+                Forwarded
+              </Text>
+            </View>
+          )}
+          {msg.replyTo && (
+            <View style={styles.quoteInBubble}>
+              <QuotedMessage
+                quote={msg.replyTo}
+                roomId={msg.roomId}
+                token={token}
+                colors={colors}
+                senderLabel={quoteSenderLabel ?? msg.replyTo.senderName}
+                onDark={isMine}
+                onPress={
+                  !selectionMode && onOpenQuote && !msg.replyTo.deleted
+                    ? () => onOpenQuote(msg.replyTo!.id)
+                    : undefined
+                }
+                testID={`quote-${msg.id}`}
+              />
+            </View>
+          )}
+          {isImage ? (
+            <ImageAttachment roomId={msg.roomId} messageId={msg.id} token={token} />
+          ) : isFile ? (
+            <FileAttachment
+              roomId={msg.roomId}
+              messageId={msg.id}
+              body={msg.body}
+              token={token}
+              colors={colors}
+              onDownload={onDownload}
+            />
+          ) : isAudio ? (
+            <AudioAttachment
+              roomId={msg.roomId}
+              messageId={msg.id}
+              durationMs={msg.durationMs}
+              token={token}
+              colors={colors}
+              isMine={isMine}
+            />
+          ) : (
+            <Text
+              style={[
+                styles.bubbleText,
+                { color: isMine ? colors.primaryForeground : colors.foreground, fontFamily: 'Inter_400Regular' },
+              ]}
+            >
+              {msg.body}
             </Text>
           )}
+
+          <View style={styles.bubbleFooter}>
+            <Text
+              style={[
+                styles.bubbleTime,
+                { color: isMine ? 'rgba(255,255,255,0.72)' : colors.mutedForeground },
+              ]}
+            >
+              {formatMsgTime(msg.createdAt)}
+            </Text>
+            {isMine && (
+              <Text style={[styles.deliveryTicks, { color: colors.success }]}>
+                ✓✓
+              </Text>
+            )}
+          </View>
         </View>
       </View>
-    </View>
+      {selected && (
+        <View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { backgroundColor: SELECTION_OVERLAY_COLOR }]}
+          testID={`message-selected-${msg.id}`}
+        />
+      )}
+    </Pressable>
   );
 }
 
@@ -1028,8 +1131,14 @@ export default function ChatScreen() {
 
   const [sendError, setSendError] = useState<string | null>(null);
   const [optimisticMsgs, setOptimisticMsgs] = useState<ChatMessage[]>([]);
+
+  // ── Message actions (select / reply / forward / delete / view) ──────────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [viewerMessage, setViewerMessage] = useState<ChatMessage | null>(null);
+  const composerInputRef = useRef<TextInput>(null);
   const clientRequestIdRef = useRef(makeClientRequestId('room'));
-  const pendingSendRef = useRef<{ body: string; clientRequestId: string } | null>(null);
+  const pendingSendRef = useRef<{ body: string; replyToId: string | null; clientRequestId: string } | null>(null);
 
   // ── Shared upload/send state (file attachments + voice notes) ──────────
   const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
@@ -1362,16 +1471,20 @@ export default function ChatScreen() {
   // ── Send text message ───────────────────────────────────────────────────
   const sendMutation = useChatMessagesSend();
 
-  const sendTextValue = useCallback((value: string) => {
+  const sendTextValue = useCallback((value: string, quoted: ChatMessage | null = replyTo) => {
     const trimmed = value.trim();
     if (!trimmed || !resolvedRoomId || isBlocked) return;
+    const replyToId = quoted?.id ?? null;
+    // Retry of the *same* payload (text + quote) reuses its idempotency key so
+    // the server dedupes it; any change to the quote is a new message.
     const clientRequestId =
-      pendingSendRef.current?.body === trimmed
+      pendingSendRef.current?.body === trimmed && pendingSendRef.current.replyToId === replyToId
         ? pendingSendRef.current.clientRequestId
         : makeClientRequestId('message');
-    pendingSendRef.current = { body: trimmed, clientRequestId };
+    pendingSendRef.current = { body: trimmed, replyToId, clientRequestId };
     setSendError(null);
     setText('');
+    setReplyTo(null);
 
     const optimistic: ChatMessage = {
       id: `opt-${clientRequestId}`,
@@ -1382,11 +1495,29 @@ export default function ChatScreen() {
       kind: 'text',
       body: trimmed,
       createdAt: new Date().toISOString(),
+      replyTo: quoted
+        ? {
+            id: quoted.id,
+            senderId: quoted.senderId,
+            senderName: quoted.senderName,
+            kind: quoted.kind,
+            body: quoted.body,
+            deleted: !!quoted.deletedAt,
+          }
+        : undefined,
     };
     setOptimisticMsgs((prev) => [optimistic, ...prev]);
 
     sendMutation.mutate(
-      { roomId: resolvedRoomId, data: { kind: 'text', body: trimmed, clientRequestId } },
+      {
+        roomId: resolvedRoomId,
+        data: {
+          kind: 'text',
+          body: trimmed,
+          clientRequestId,
+          ...(quoted ? { replyToMessageId: quoted.id } : {}),
+        },
+      },
       {
         onSuccess: () => {
           setOptimisticMsgs((prev) => prev.filter((m) => m.id !== optimistic.id));
@@ -1401,10 +1532,11 @@ export default function ChatScreen() {
           setOptimisticMsgs((prev) => prev.filter((m) => m.id !== optimistic.id));
           setSendError(err?.data?.message ?? err?.message ?? 'Message failed to send.');
           setText(trimmed);
+          if (quoted) setReplyTo(quoted);
         },
       },
     );
-  }, [resolvedRoomId, isBlocked, user, sendMutation, msgsRefetch, queryClient]);
+  }, [resolvedRoomId, isBlocked, user, sendMutation, msgsRefetch, queryClient, replyTo]);
 
   const handleSend = useCallback(() => {
     sendTextValue(text);
@@ -1957,6 +2089,196 @@ export default function ChatScreen() {
     [],
   );
 
+  // ── Save a photo to the device gallery (image viewer download) ──────────
+  const handleSaveToGallery = useCallback(async (message: ChatMessage) => {
+    const extension = imageExtensionFor(message.body);
+    if (Platform.OS === 'web') {
+      await handleDownloadAttachment(message.roomId, message.id, `photo-${message.id}.${extension}`, token);
+      return;
+    }
+    const current = await MediaLibrary.getPermissionsAsync(true);
+    const permission = current.granted || !current.canAskAgain
+      ? current
+      : await MediaLibrary.requestPermissionsAsync(true);
+    if (!permission.granted) {
+      throw new Error('Allow photo access to save this image.');
+    }
+    const dest = `${FileSystem.cacheDirectory}chat_photo_${message.id}.${extension}`;
+    const result = await FileSystem.downloadAsync(chatMediaUri(message.roomId, message.id), dest, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (result.status && result.status !== 200) {
+      throw new Error(`Download failed (HTTP ${result.status})`);
+    }
+    try {
+      await MediaLibrary.saveToLibraryAsync(result.uri);
+    } finally {
+      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+    }
+  }, [handleDownloadAttachment, token]);
+
+  // ── Selection / reply / forward / delete ────────────────────────────────
+  const selectionMode = selectedIds.size > 0;
+  const serverMessageById = useMemo(
+    () => new Map(serverMessages.map((m) => [m.id, m])),
+    [serverMessages],
+  );
+  const selectedMessages = useMemo(
+    () => [...selectedIds].map((id) => serverMessageById.get(id)).filter((m): m is ChatMessage => !!m),
+    [selectedIds, serverMessageById],
+  );
+
+  // Drop selections for rows that disappeared (deleted elsewhere / hidden).
+  useEffect(() => {
+    if (selectedIds.size === 0) return;
+    const alive = [...selectedIds].filter((id) => {
+      const row = serverMessageById.get(id);
+      return !!row && !row.deletedAt;
+    });
+    if (alive.length !== selectedIds.size) setSelectedIds(new Set(alive));
+  }, [selectedIds, serverMessageById]);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const handleLongPressMessage = useCallback((msg: ChatMessage) => {
+    if (msg.id.startsWith('opt-') || msg.deletedAt) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.add(msg.id);
+      return next;
+    });
+  }, []);
+
+  const handleToggleSelect = useCallback((msg: ChatMessage) => {
+    if (msg.id.startsWith('opt-') || msg.deletedAt) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(msg.id)) next.delete(msg.id);
+      else next.add(msg.id);
+      return next;
+    });
+  }, []);
+
+  const senderLabelFor = useCallback(
+    (senderId: string, senderName: string) => (senderId === user?.id ? 'You' : senderName),
+    [user?.id],
+  );
+
+  const startReply = useCallback((msg: ChatMessage) => {
+    if (msg.deletedAt) return;
+    setReplyTo(msg);
+    clearSelection();
+    setViewerMessage(null);
+    setTimeout(() => composerInputRef.current?.focus(), 50);
+  }, [clearSelection]);
+
+  const openForward = useCallback((messages: ChatMessage[]) => {
+    const ids = messages.filter((m) => !m.deletedAt && !m.id.startsWith('opt-')).map((m) => m.id);
+    if (!resolvedRoomId || ids.length === 0) return;
+    clearSelection();
+    setViewerMessage(null);
+    router.push(
+      `/(tabs)/customers/chat/forward?roomId=${encodeURIComponent(resolvedRoomId)}&messageIds=${encodeURIComponent(ids.join(','))}`,
+    );
+  }, [clearSelection, resolvedRoomId, router]);
+
+  const deleteMutation = useChatMessagesDelete();
+
+  const performDelete = useCallback(async (messages: ChatMessage[], scope: 'me' | 'everyone') => {
+    if (!resolvedRoomId || messages.length === 0) return;
+    const messageIds = messages.map((m) => m.id);
+    try {
+      const result = await deleteMutation.mutateAsync({
+        roomId: resolvedRoomId,
+        data: { messageIds, scope },
+      });
+      const deletedIds = new Set(result.deletedIds);
+      const nowIso = new Date().toISOString();
+      queryClient.setQueryData(
+        getChatMessagesListQueryKey(resolvedRoomId),
+        (previous: { messages: ChatMessage[] } | undefined) => {
+          if (!previous) return previous;
+          const messagesNext =
+            scope === 'me'
+              ? previous.messages.filter((m) => !deletedIds.has(m.id))
+              : previous.messages.map((m) =>
+                  deletedIds.has(m.id)
+                    ? { ...m, deletedAt: nowIso, body: '', objectPath: undefined, durationMs: undefined, replyTo: undefined }
+                    : m,
+                );
+          return { ...previous, messages: messagesNext };
+        },
+      );
+      if (replyTo && deletedIds.has(replyTo.id)) setReplyTo(null);
+      if (viewerMessage && deletedIds.has(viewerMessage.id)) setViewerMessage(null);
+      clearSelection();
+      void msgsRefetch();
+      void queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
+    } catch (err: any) {
+      const code = err?.data?.code ?? err?.data?.error;
+      const message =
+        code === 'MATRIX_UNAVAILABLE' || code === 'MATRIX_REDACT_FAILED'
+          ? 'Could not delete for everyone right now. Please try again.'
+          : err?.data?.message ?? err?.message ?? 'Could not delete these messages.';
+      // A batch can fail part-way (items redacted before the failure stay
+      // deleted), so always resync rather than trusting the local rows.
+      void msgsRefetch();
+      Alert.alert('Delete failed', message);
+    }
+  }, [clearSelection, deleteMutation, msgsRefetch, queryClient, replyTo, resolvedRoomId, viewerMessage]);
+
+  const confirmDelete = useCallback((messages: ChatMessage[]) => {
+    const live = messages.filter((m) => !m.deletedAt && !m.id.startsWith('opt-'));
+    if (live.length === 0) return;
+    const allMine = live.every((m) => m.senderId === user?.id);
+    const count = live.length;
+    const title = count === 1 ? 'Delete message?' : `Delete ${count} messages?`;
+    const options: Parameters<typeof Alert.alert>[2] = [];
+    if (allMine) {
+      options.push({
+        text: 'Delete for everyone',
+        style: 'destructive',
+        onPress: () => void performDelete(live, 'everyone'),
+      });
+    }
+    options.push({ text: 'Delete for me', style: 'destructive', onPress: () => void performDelete(live, 'me') });
+    options.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert(title, undefined, options);
+  }, [performDelete, user?.id]);
+
+  const openSelectionMenu = useCallback(() => {
+    const options: Parameters<typeof Alert.alert>[2] = [];
+    if (selectedMessages.length === 1 && selectedMessages[0].kind === 'image') {
+      options.push({ text: 'Open photo', onPress: () => {
+        setViewerMessage(selectedMessages[0]);
+        clearSelection();
+      } });
+    }
+    options.push({ text: 'Clear selection', onPress: clearSelection });
+    options.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert(`${selectedMessages.length} selected`, undefined, options);
+  }, [clearSelection, selectedMessages]);
+
+  const openQuotedMessage = useCallback((quoteId: string) => {
+    const original = serverMessageById.get(quoteId);
+    if (!original || original.deletedAt) return;
+    if (original.kind === 'image') setViewerMessage(original);
+  }, [serverMessageById]);
+
+  // Keep the viewer and reply target pointed at the freshest server row.
+  // A row that vanished (deleted for me elsewhere) or was tombstoned closes
+  // the viewer and drops the quote instead of lingering on stale data.
+  const liveViewerMessage = viewerMessage ? serverMessageById.get(viewerMessage.id) ?? null : null;
+  const viewerGone = !!viewerMessage && (!liveViewerMessage || !!liveViewerMessage.deletedAt);
+  useEffect(() => {
+    if (viewerGone) setViewerMessage(null);
+  }, [viewerGone]);
+  const replyTarget = replyTo ? serverMessageById.get(replyTo.id) : undefined;
+  const replyGone = !!replyTo && (!replyTarget || !!replyTarget.deletedAt);
+  useEffect(() => {
+    if (replyGone) setReplyTo(null);
+  }, [replyGone]);
+
   // ── Derived flags ───────────────────────────────────────────────────────
   const micEnabled =
     providerAvailable &&
@@ -1974,7 +2296,20 @@ export default function ChatScreen() {
       behavior="padding"
       keyboardVerticalOffset={0}
     >
-      {/* Header */}
+      {/* Header (selection mode swaps in the action bar) */}
+      {selectionMode ? (
+        <MessageSelectionHeader
+          count={selectedIds.size}
+          canReply={selectedMessages.length === 1}
+          colors={colors}
+          topPadding={topPadding}
+          onClose={clearSelection}
+          onReply={() => selectedMessages[0] && startReply(selectedMessages[0])}
+          onDelete={() => confirmDelete(selectedMessages)}
+          onForward={() => openForward(selectedMessages)}
+          onMore={openSelectionMenu}
+        />
+      ) : (
       <View
         style={[
           styles.header,
@@ -2047,6 +2382,7 @@ export default function ChatScreen() {
           <Feather name="more-vertical" size={18} color={colors.foreground} />
         </TouchableOpacity>
       </View>
+      )}
 
       {/* Safety notice — chat never handles payments or ledger activity. */}
       <View
@@ -2188,6 +2524,7 @@ export default function ChatScreen() {
         ) : (
           <FlatList
             data={allMessages}
+            extraData={selectedIds}
             keyExtractor={(item) => item.id}
             inverted
             contentContainerStyle={styles.messageList}
@@ -2206,6 +2543,16 @@ export default function ChatScreen() {
                     colors={colors}
                     token={token}
                     onDownload={handleDownloadAttachment}
+                    selectable={!item.id.startsWith('opt-')}
+                    selected={selectedIds.has(item.id)}
+                    selectionMode={selectionMode}
+                    onSelectStart={handleLongPressMessage}
+                    onToggleSelect={handleToggleSelect}
+                    onOpenImage={setViewerMessage}
+                    onOpenQuote={openQuotedMessage}
+                    quoteSenderLabel={
+                      item.replyTo ? senderLabelFor(item.replyTo.senderId, item.replyTo.senderName) : undefined
+                    }
                   />
                   {showDateSeparator && <DateSeparator date={item.createdAt} colors={colors} />}
                 </View>
@@ -2244,6 +2591,19 @@ export default function ChatScreen() {
               : 'This contact blocked the conversation. Existing messages remain available.'}
           </Text>
         </View>
+      )}
+
+      {/* Reply strip (quoted message above the composer) */}
+      {!isRecording && replyTo && resolvedRoomId && (
+        <ReplyComposerStrip
+          message={replyTo}
+          roomId={resolvedRoomId}
+          token={token}
+          colors={colors}
+          senderLabel={senderLabelFor(replyTo.senderId, replyTo.senderName)}
+          onClose={() => setReplyTo(null)}
+          onPressQuote={replyTo.kind === 'image' ? () => setViewerMessage(replyTo) : undefined}
+        />
       )}
 
       {/* Pending upload preview (file attachments + voice notes after stop) */}
@@ -2418,6 +2778,7 @@ export default function ChatScreen() {
             ]}
           >
             <TextInput
+              ref={composerInputRef}
               style={[styles.input, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
               placeholder={providerAvailable ? 'Message…' : 'Messaging is not available yet'}
               placeholderTextColor={colors.mutedForeground}
@@ -2645,6 +3006,22 @@ export default function ChatScreen() {
         onSelectRecent={handleSelectRecent}
         onSelectContact={handleSelectContact}
       />
+
+      {/* Full-screen photo viewer */}
+      {resolvedRoomId && (
+        <ImageViewer
+          visible={!!liveViewerMessage}
+          message={liveViewerMessage}
+          roomId={resolvedRoomId}
+          token={token}
+          senderLabel={liveViewerMessage ? senderLabelFor(liveViewerMessage.senderId, liveViewerMessage.senderName) : ''}
+          onClose={() => setViewerMessage(null)}
+          onReply={(message, replyText) => sendTextValue(replyText, message)}
+          onForward={(message) => openForward([message])}
+          onDelete={(message) => confirmDelete([message])}
+          onDownload={handleSaveToGallery}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -2761,7 +3138,18 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   dateSeparatorText: { fontSize: 10, fontFamily: 'Inter_500Medium' },
-  deletedMsg: { fontSize: 12, fontStyle: 'italic', paddingVertical: 4 },
+  deletedMsg: { fontSize: 12, fontStyle: 'italic', fontFamily: 'Inter_400Regular' },
+  deletedBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingBottom: 8,
+  },
+  selectableRow: { position: 'relative' },
+  forwardedRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2, paddingHorizontal: 2 },
+  forwardedText: { fontSize: 11, fontStyle: 'italic', fontFamily: 'Inter_400Regular' },
+  quoteInBubble: { marginBottom: 4, minWidth: 160 },
   imageAttachment: {
     width: 200,
     height: 200,

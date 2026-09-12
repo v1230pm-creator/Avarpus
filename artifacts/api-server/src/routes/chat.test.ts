@@ -3166,3 +3166,287 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
     }
   });
 });
+
+// ── Reply / forward / delete (Matrix-mocked) ─────────────────────────────────
+describe("Message actions: reply, forward, delete (Matrix-mocked)", () => {
+  const SERVER_NAME = "example.com";
+  const ROOM_ONE = "!actions-one:example.com";
+  const ROOM_TWO = "!actions-two:example.com";
+  let fetchSpy: ReturnType<typeof vi.spyOn> | null = null;
+  let peerUser: { id: string };
+  let peerToken: string;
+  let roomOne: { id: string };
+  let roomTwo: { id: string };
+  let sendCount = 0;
+  let lastSendContent: Record<string, unknown> | null = null;
+  const redactCalls: { url: string; userId: string | null }[] = [];
+  let redactFailStatus: number | null = null;
+  let getFileSpy: ReturnType<typeof vi.spyOn> | null = null;
+  let saveSpy: ReturnType<typeof vi.spyOn> | null = null;
+  let savedPrefixes: string[] = [];
+
+  const parseUserId = (url: string): string | null => {
+    const m = url.match(/[?&]user_id=([^&]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  };
+  const vId = (appUserId: string) => `@appuser-${appUserId.replace(/-/g, "")}:${SERVER_NAME}`;
+
+  const sendAs = (token: string, roomId: string, body: Record<string, unknown>) =>
+    request(app)
+      .post(`/api/chat/rooms/${roomId}/messages`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ clientRequestId: `crid-actions-${RUN}-${randomUUID()}`, ...body });
+  const listAs = (token: string, roomId: string) =>
+    request(app).get(`/api/chat/rooms/${roomId}/messages`).set("Authorization", `Bearer ${token}`);
+  const deleteAs = (token: string, roomId: string, body: Record<string, unknown>) =>
+    request(app)
+      .post(`/api/chat/rooms/${roomId}/messages/delete`)
+      .set("Authorization", `Bearer ${token}`)
+      .send(body);
+
+  beforeAll(async () => {
+    process.env.MATRIX_BASE_URL = "https://matrix.example.com";
+    process.env.MATRIX_SERVER_NAME = SERVER_NAME;
+    process.env.MATRIX_APP_SERVICE_TOKEN = "test-as-token";
+    process.env.MATRIX_HOMESERVER_TOKEN = "test-hs-token";
+    process.env.MATRIX_APP_SERVICE_URL = "https://api.example.com/api/matrix/appservice";
+
+    const [u] = await db.insert(usersTable).values({
+      name: "Actions Peer",
+      email: email("actionspeer"),
+      mobile: uniqMob(),
+      passwordHash: hashPassword(PASSWORD),
+      role: "reception",
+      shopId: shopA.id,
+      isActive: true,
+    }).returning();
+    peerUser = u;
+    peerToken = await signIn(email("actionspeer"), PASSWORD);
+
+    const [r1] = await db.insert(chatRoomsTable).values({
+      shopId: shopA.id, kind: "support", name: "Actions Room One",
+      providerRoomId: ROOM_ONE, createdById: dealerA.id, createdByName: "Dealer A",
+    }).returning();
+    roomOne = r1;
+    const [r2] = await db.insert(chatRoomsTable).values({
+      shopId: shopA.id, kind: "support", name: "Actions Room Two",
+      providerRoomId: ROOM_TWO, createdById: dealerA.id, createdByName: "Dealer A",
+    }).returning();
+    roomTwo = r2;
+    await db.insert(chatRoomMembersTable).values([
+      { roomId: roomOne.id, shopId: shopA.id, userId: dealerA.id, role: "moderator" },
+      { roomId: roomOne.id, shopId: shopA.id, userId: peerUser.id, role: "member" },
+      // roomTwo: dealerA only — the peer must not be able to forward into it.
+      { roomId: roomTwo.id, shopId: shopA.id, userId: dealerA.id, role: "moderator" },
+    ]);
+
+    fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/send/m.room.message/")) {
+        sendCount++;
+        try {
+          lastSendContent = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+        } catch { lastSendContent = null; }
+        return new Response(JSON.stringify({ event_id: `$actions-evt-${sendCount}` }), { status: 200 });
+      }
+      if (url.includes("/redact/")) {
+        redactCalls.push({ url, userId: parseUserId(url) });
+        if (redactFailStatus !== null) {
+          return new Response(JSON.stringify({ errcode: "M_FORBIDDEN" }), { status: redactFailStatus });
+        }
+        return new Response(JSON.stringify({ event_id: "$redaction" }), { status: 200 });
+      }
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch);
+
+    // Object storage: the forward copies bytes from the source object into the
+    // target room's prefix. Stub both halves so no bucket is touched.
+    getFileSpy = vi.spyOn(ObjectStorageService.prototype, "getObjectEntityFile").mockImplementation(
+      async () =>
+        ({
+          getMetadata: async () => [{ contentType: "image/jpeg", size: 3 }],
+          download: async () => [Buffer.from("jpg")],
+          delete: async () => undefined,
+        }) as never,
+    );
+    saveSpy = vi.spyOn(ObjectStorageService.prototype, "saveObjectEntityWithPrefix").mockImplementation(
+      async (prefix: string) => {
+        savedPrefixes.push(prefix);
+        return `/objects/uploads/${prefix}/${randomUUID()}`;
+      },
+    );
+  });
+
+  afterAll(async () => {
+    fetchSpy?.mockRestore();
+    getFileSpy?.mockRestore();
+    saveSpy?.mockRestore();
+    delete process.env.MATRIX_BASE_URL;
+    delete process.env.MATRIX_SERVER_NAME;
+    delete process.env.MATRIX_APP_SERVICE_TOKEN;
+    delete process.env.MATRIX_HOMESERVER_TOKEN;
+    delete process.env.MATRIX_APP_SERVICE_URL;
+    if (peerUser?.id) {
+      await db.delete(chatRoomMembersTable).where(eq(chatRoomMembersTable.userId, peerUser.id));
+      await db.delete(chatMessagesTable).where(eq(chatMessagesTable.senderId, peerUser.id));
+      await db.delete(usersTable).where(eq(usersTable.id, peerUser.id));
+    }
+  });
+
+  let original: { id: string };
+  let photo: { id: string };
+
+  it("reply: stores the quote and emits the Matrix in_reply_to relation", async () => {
+    const first = await sendAs(peerToken, roomOne.id, { kind: "text", body: "original text" });
+    expect(first.status).toBe(200);
+    original = first.body.message;
+
+    const reply = await sendAs(dealerTokenA, roomOne.id, {
+      kind: "text", body: "replying", replyToMessageId: original.id,
+    });
+    expect(reply.status).toBe(200);
+    expect(reply.body.message.replyTo).toMatchObject({
+      id: original.id, senderId: peerUser.id, kind: "text", body: "original text", deleted: false,
+    });
+    expect(lastSendContent?.["m.relates_to"]).toEqual({
+      "m.in_reply_to": { event_id: "$actions-evt-1" },
+    });
+
+    const listed = await listAs(peerToken, roomOne.id);
+    expect(listed.status).toBe(200);
+    const row = listed.body.messages.find((m: { id: string }) => m.id === reply.body.message.id);
+    expect(row.replyTo.body).toBe("original text");
+  });
+
+  it("reply: rejects a quoted message from another room", async () => {
+    const other = await sendAs(dealerTokenA, roomTwo.id, { kind: "text", body: "elsewhere" });
+    expect(other.status).toBe(200);
+    const res = await sendAs(dealerTokenA, roomOne.id, {
+      kind: "text", body: "cross-room quote", replyToMessageId: other.body.message.id,
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("forward: copies media into the target room's scope and flags the row", async () => {
+    // Seed a photo in roomOne directly (the upload claim flow is covered elsewhere).
+    const [seeded] = await db.insert(chatMessagesTable).values({
+      roomId: roomOne.id, shopId: shopA.id, senderId: peerUser.id, senderName: "Actions Peer",
+      kind: "image", body: "photo.jpg",
+      objectPath: `/objects/uploads/${shopA.id}/chat/${roomOne.id}/${randomUUID()}`,
+      providerEventId: "$seeded-photo", clientRequestId: `crid-seed-${RUN}-${randomUUID()}`,
+    }).returning();
+    photo = seeded;
+
+    savedPrefixes = [];
+    const res = await sendAs(dealerTokenA, roomTwo.id, {
+      kind: "image", body: "photo.jpg", forwardOf: { roomId: roomOne.id, messageId: photo.id },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.message.forwarded).toBe(true);
+    expect(res.body.message.kind).toBe("image");
+    expect(savedPrefixes).toEqual([`${shopA.id}/chat/${roomTwo.id}`]);
+    expect(res.body.message.objectPath.startsWith(`/objects/uploads/${shopA.id}/chat/${roomTwo.id}/`)).toBe(true);
+    // The Matrix event carries the copied object, not the source path.
+    expect(lastSendContent?.url).toBe(res.body.message.objectPath);
+  });
+
+  it("forward: source must be readable by the caller (404 for non-members)", async () => {
+    const own = await sendAs(dealerTokenA, roomTwo.id, { kind: "text", body: "private" });
+    expect(own.status).toBe(200);
+    const res = await sendAs(peerToken, roomOne.id, {
+      kind: "text", body: "private", forwardOf: { roomId: roomTwo.id, messageId: own.body.message.id },
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("forward: kind mismatch and client-supplied media are rejected", async () => {
+    const mismatch = await sendAs(dealerTokenA, roomTwo.id, {
+      kind: "text", body: "x", forwardOf: { roomId: roomOne.id, messageId: photo.id },
+    });
+    expect(mismatch.status).toBe(400);
+    const withPath = await sendAs(dealerTokenA, roomTwo.id, {
+      kind: "image", body: "x", objectPath: "/objects/uploads/evil",
+      forwardOf: { roomId: roomOne.id, messageId: photo.id },
+    });
+    expect(withPath.status).toBe(400);
+  });
+
+  it("delete for me: hides only the caller's copy and blocks its media", async () => {
+    const res = await deleteAs(dealerTokenA, roomOne.id, { messageIds: [photo.id], scope: "me" });
+    expect(res.status).toBe(200);
+    expect(res.body.deletedIds).toEqual([photo.id]);
+
+    const mine = await listAs(dealerTokenA, roomOne.id);
+    expect(mine.body.messages.some((m: { id: string }) => m.id === photo.id)).toBe(false);
+    const theirs = await listAs(peerToken, roomOne.id);
+    const stillThere = theirs.body.messages.find((m: { id: string }) => m.id === photo.id);
+    expect(stillThere).toBeTruthy();
+    expect(stillThere.deletedAt).toBeUndefined();
+
+    const media = await request(app)
+      .get(`/api/chat/rooms/${roomOne.id}/messages/${photo.id}/media`)
+      .set("Authorization", `Bearer ${dealerTokenA}`);
+    expect(media.status).toBe(404);
+
+    // Hidden messages cannot be forwarded or quoted by the hider either.
+    const fwd = await sendAs(dealerTokenA, roomTwo.id, {
+      kind: "image", body: "photo.jpg", forwardOf: { roomId: roomOne.id, messageId: photo.id },
+    });
+    expect(fwd.status).toBe(404);
+    // No Matrix redaction for a caller-specific hide.
+    expect(redactCalls.length).toBe(0);
+  });
+
+  it("delete for everyone: sender-only (403 otherwise)", async () => {
+    const res = await deleteAs(dealerTokenA, roomOne.id, { messageIds: [original.id], scope: "everyone" });
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe("CHAT_DELETE_NOT_SENDER");
+    expect(redactCalls.length).toBe(0);
+  });
+
+  it("delete for everyone: redacts as the sender, then tombstones for every member", async () => {
+    const own = await sendAs(dealerTokenA, roomOne.id, { kind: "text", body: "take it back" });
+    expect(own.status).toBe(200);
+    const ownEventId = `$actions-evt-${sendCount}`;
+
+    redactFailStatus = 403;
+    const failed = await deleteAs(dealerTokenA, roomOne.id, { messageIds: [own.body.message.id], scope: "everyone" });
+    expect(failed.status).toBe(503);
+    const afterFail = await listAs(peerToken, roomOne.id);
+    const liveRow = afterFail.body.messages.find((m: { id: string }) => m.id === own.body.message.id);
+    expect(liveRow.body).toBe("take it back");
+    expect(liveRow.deletedAt).toBeUndefined();
+
+    redactFailStatus = null;
+    const res = await deleteAs(dealerTokenA, roomOne.id, { messageIds: [own.body.message.id], scope: "everyone" });
+    expect(res.status).toBe(200);
+    const last = redactCalls[redactCalls.length - 1];
+    expect(last.userId).toBe(vId(dealerA.id));
+    expect(last.url).toContain(`/redact/${encodeURIComponent(ownEventId)}/`);
+
+    for (const token of [dealerTokenA, peerToken]) {
+      const listed = await listAs(token, roomOne.id);
+      const tomb = listed.body.messages.find((m: { id: string }) => m.id === own.body.message.id);
+      expect(tomb).toBeTruthy();
+      expect(tomb.deletedAt).toBeTruthy();
+      expect(tomb.body).toBe("");
+    }
+    // A reply to a deleted message reports the quote as gone.
+    const reply = await sendAs(peerToken, roomOne.id, {
+      kind: "text", body: "quote gone?", replyToMessageId: own.body.message.id,
+    });
+    expect(reply.status).toBe(404);
+  });
+
+  it("delete: unknown or foreign message ids are 404, never partially applied", async () => {
+    const res = await deleteAs(peerToken, roomOne.id, {
+      messageIds: [original.id, randomUUID()], scope: "me",
+    });
+    expect(res.status).toBe(404);
+    const listed = await listAs(peerToken, roomOne.id);
+    expect(listed.body.messages.some((m: { id: string }) => m.id === original.id)).toBe(true);
+  });
+});

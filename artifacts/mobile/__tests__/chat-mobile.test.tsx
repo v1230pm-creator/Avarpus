@@ -9,7 +9,7 @@
  */
 import React from 'react';
 import { Alert, Linking, Platform, Text, View } from 'react-native';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { FeatureRouteGuard } from '../components/navigation/FeatureRouteGuard';
@@ -85,6 +85,7 @@ jest.mock('@expo/vector-icons', () => {
   const { Text } = require('react-native');
   return {
     Feather: ({ name }: { name: string }) => React.createElement(Text, null, `icon:${name}`),
+    MaterialCommunityIcons: ({ name }: { name: string }) => React.createElement(Text, null, `icon:${name}`),
   };
 });
 
@@ -105,6 +106,7 @@ const mockUseChatRoomsDelete = jest.fn();
 const mockUseChatRoomsGet = jest.fn();
 const mockUseChatMessagesList = jest.fn();
 const mockUseChatMessagesSend = jest.fn();
+const mockUseChatMessagesDelete = jest.fn();
 const mockUseChatMarkRead = jest.fn();
 const mockUseChatUploadUrl = jest.fn();
 const mockUseChatRoomsBlock = jest.fn();
@@ -112,6 +114,7 @@ const mockUseChatRoomsUnblock = jest.fn();
 const mockUseChatReportsCreate = jest.fn();
 const mockUseRepairsList = jest.fn();
 const mockInvalidateQueries = jest.fn().mockResolvedValue(undefined);
+const mockSetQueryData = jest.fn();
 
 jest.mock('@workspace/api-client-react', () => ({
   useChatCapabilities: (...args: any[]) => mockUseChatCapabilities(...args),
@@ -124,6 +127,7 @@ jest.mock('@workspace/api-client-react', () => ({
   useChatRoomsGet: (...args: any[]) => mockUseChatRoomsGet(...args),
   useChatMessagesList: (...args: any[]) => mockUseChatMessagesList(...args),
   useChatMessagesSend: (...args: any[]) => mockUseChatMessagesSend(...args),
+  useChatMessagesDelete: (...args: any[]) => mockUseChatMessagesDelete(...args),
   useChatMarkRead: (...args: any[]) => mockUseChatMarkRead(...args),
   useChatUploadUrl: (...args: any[]) => mockUseChatUploadUrl(...args),
   useChatRoomsBlock: (...args: any[]) => mockUseChatRoomsBlock(...args),
@@ -145,6 +149,7 @@ jest.mock('@tanstack/react-query', () => ({
   ...jest.requireActual('@tanstack/react-query'),
   useQueryClient: () => ({
     invalidateQueries: mockInvalidateQueries,
+    setQueryData: mockSetQueryData,
   }),
 }));
 
@@ -169,11 +174,13 @@ const mockGetMediaPermissionsAsync = jest.fn();
 const mockRequestMediaPermissionsAsync = jest.fn();
 const mockGetAssetsAsync = jest.fn();
 const mockGetAssetInfoAsync = jest.fn();
+const mockSaveToLibraryAsync = jest.fn();
 jest.mock('expo-media-library/legacy', () => ({
   getPermissionsAsync: (...args: any[]) => mockGetMediaPermissionsAsync(...args),
   requestPermissionsAsync: (...args: any[]) => mockRequestMediaPermissionsAsync(...args),
   getAssetsAsync: (...args: any[]) => mockGetAssetsAsync(...args),
   getAssetInfoAsync: (...args: any[]) => mockGetAssetInfoAsync(...args),
+  saveToLibraryAsync: (...args: any[]) => mockSaveToLibraryAsync(...args),
 }));
 
 const mockRequestLocationPermissionsAsync = jest.fn();
@@ -389,6 +396,7 @@ beforeEach(() => {
   mockUseChatRoomsGet.mockReturnValue({ data: undefined });
   mockUseChatMessagesList.mockReturnValue({ data: undefined, isLoading: false, isError: false, refetch: jest.fn() });
   mockUseChatMessagesSend.mockReturnValue({ mutate: jest.fn(), isPending: false });
+  mockUseChatMessagesDelete.mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
   mockUseChatMarkRead.mockReturnValue({ mutate: jest.fn() });
   mockUseChatUploadUrl.mockReturnValue({ mutate: jest.fn(), isPending: false });
   mockUseChatRoomsBlock.mockReturnValue({ mutate: jest.fn(), isPending: false });
@@ -420,6 +428,7 @@ beforeEach(() => {
   mockDownloadAsync.mockResolvedValue({ uri: 'file:///cache/test.jpg', status: 200 });
   mockIsAvailableAsync.mockResolvedValue(true);
   mockShareAsync.mockResolvedValue(undefined);
+  mockSaveToLibraryAsync.mockResolvedValue(undefined);
 
   // expo-audio defaults
   mockRequestRecordingPermissionsAsync.mockResolvedValue({ granted: true, status: 'granted' });
@@ -3077,5 +3086,291 @@ describe('Chat screen — voice notes', () => {
     render(<ChatRoomScreen />);
     await startRecording();
     expect(screen.getByLabelText('Recording elapsed time').props.children).toBe('1:15');
+  });
+});
+
+// ── Message actions: select / reply / forward / delete / photo viewer ───────
+
+describe('Chat screen — message actions', () => {
+  const photoMine = {
+    id: 'msg-photo-mine', body: 'IMG_1.jpg', senderId: 'staff-1', senderName: 'Staff',
+    roomId: 'room-1', shopId: 's1', kind: 'image', createdAt: '2026-01-01T10:02:00Z',
+  };
+  const photoTheirs = {
+    id: 'msg-photo-theirs', body: 'IMG_2.jpg', senderId: 'other-user', senderName: 'Alice',
+    roomId: 'room-1', shopId: 's1', kind: 'image', createdAt: '2026-01-01T10:01:30Z',
+  };
+  const textTheirs = {
+    id: 'msg-text', body: 'How is it?', senderId: 'other-user', senderName: 'Alice',
+    roomId: 'room-1', shopId: 's1', kind: 'text', createdAt: '2026-01-01T10:01:00Z',
+  };
+
+  beforeEach(() => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'room-1', name: 'Alice' });
+    mockUseChatCapabilities.mockReturnValue({
+      data: { matrixAvailable: true, livekitAvailable: false, e2eeEnabled: false },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseChatRoomsGet.mockReturnValue({
+      data: { room: { id: 'room-1', name: 'Alice', kind: 'customer', shopId: 's1', isArchived: false, createdAt: '2026-01-01T10:00:00Z' } },
+    });
+    mockUseChatMessagesList.mockReturnValue({
+      data: { messages: [photoMine, photoTheirs, textTheirs], hasMore: false },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+  });
+
+  it('long-press enters selection mode with a brand-blue overlay and count; tap toggles more rows', () => {
+    render(<ChatRoomScreen />);
+    expect(screen.queryByTestId('message-selection-header')).toBeNull();
+
+    fireEvent(screen.getByTestId('message-row-msg-photo-theirs'), 'longPress');
+    expect(screen.getByTestId('message-selection-header')).toBeTruthy();
+    expect(screen.getByTestId('message-selection-count').props.children).toBe(1);
+    expect(screen.getByTestId('message-selected-msg-photo-theirs').props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ backgroundColor: 'rgba(0, 109, 168, 0.28)' })]),
+    );
+    // Single selection exposes Reply; multi-selection hides it.
+    expect(screen.getByTestId('selection-reply')).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('message-row-msg-text'));
+    expect(screen.getByTestId('message-selection-count').props.children).toBe(2);
+    expect(screen.queryByTestId('selection-reply')).toBeNull();
+    expect(screen.getByTestId('selection-forward')).toBeTruthy();
+    expect(screen.getByTestId('selection-delete')).toBeTruthy();
+
+    // Tapping a selected row again deselects it; the composer stays put.
+    fireEvent.press(screen.getByTestId('message-row-msg-text'));
+    expect(screen.getByTestId('message-selection-count').props.children).toBe(1);
+    expect(screen.getByPlaceholderText('Message…')).toBeTruthy();
+
+    fireEvent.press(screen.getByLabelText('Clear selection'));
+    expect(screen.queryByTestId('message-selection-header')).toBeNull();
+  });
+
+  it('Reply from selection shows a quoted strip and sends replyToMessageId', () => {
+    const sendMutate = jest.fn();
+    mockUseChatMessagesSend.mockReturnValue({ mutate: sendMutate, isPending: false });
+    render(<ChatRoomScreen />);
+
+    fireEvent(screen.getByTestId('message-row-msg-photo-theirs'), 'longPress');
+    fireEvent.press(screen.getByTestId('selection-reply'));
+    expect(screen.queryByTestId('message-selection-header')).toBeNull();
+    const strip = within(screen.getByTestId('reply-composer-strip'));
+    expect(strip.getByText('Alice')).toBeTruthy();
+    expect(strip.getByText('Photo')).toBeTruthy();
+
+    fireEvent.changeText(screen.getByPlaceholderText('Message…'), 'Nice photo');
+    fireEvent.press(screen.getByLabelText('Send message'));
+    expect(sendMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roomId: 'room-1',
+        data: expect.objectContaining({ kind: 'text', body: 'Nice photo', replyToMessageId: 'msg-photo-theirs' }),
+      }),
+      expect.anything(),
+    );
+    // Strip clears once the reply is queued and the optimistic row carries the quote.
+    expect(screen.queryByTestId('reply-composer-strip')).toBeNull();
+    expect(screen.getByText('Nice photo')).toBeTruthy();
+  });
+
+  it('closing the reply strip sends a plain message without a quote', () => {
+    const sendMutate = jest.fn();
+    mockUseChatMessagesSend.mockReturnValue({ mutate: sendMutate, isPending: false });
+    render(<ChatRoomScreen />);
+    fireEvent(screen.getByTestId('message-row-msg-text'), 'longPress');
+    fireEvent.press(screen.getByTestId('selection-reply'));
+    fireEvent.press(screen.getByTestId('reply-strip-close'));
+    expect(screen.queryByTestId('reply-composer-strip')).toBeNull();
+    fireEvent.changeText(screen.getByPlaceholderText('Message…'), 'Plain');
+    fireEvent.press(screen.getByLabelText('Send message'));
+    expect(sendMutate.mock.calls[0][0].data.replyToMessageId).toBeUndefined();
+  });
+
+  it('renders quoted and forwarded markers on incoming messages', () => {
+    mockUseChatMessagesList.mockReturnValue({
+      data: {
+        messages: [
+          {
+            id: 'msg-reply', body: 'Looks good', senderId: 'other-user', senderName: 'Alice', roomId: 'room-1', shopId: 's1',
+            kind: 'text', createdAt: '2026-01-01T10:03:00Z',
+            replyTo: { id: 'msg-photo-mine', senderId: 'staff-1', senderName: 'Staff', kind: 'image', body: 'IMG_1.jpg', deleted: false },
+          },
+          { id: 'msg-fwd', body: 'Forwarded text', senderId: 'other-user', senderName: 'Alice', roomId: 'room-1', shopId: 's1', kind: 'text', createdAt: '2026-01-01T10:02:30Z', forwarded: true },
+          photoMine,
+        ],
+        hasMore: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+    render(<ChatRoomScreen />);
+    expect(screen.getByTestId('quote-msg-reply')).toBeTruthy();
+    expect(screen.getByText('You')).toBeTruthy(); // quoted sender is the viewer
+    expect(screen.getByTestId('forwarded-label-msg-fwd')).toBeTruthy();
+    expect(screen.getByText('Forwarded')).toBeTruthy();
+
+    // Tapping the quoted photo opens the full-screen viewer on the original.
+    fireEvent.press(screen.getByTestId('quote-msg-reply'));
+    expect(screen.getByTestId('image-viewer').props.visible).toBe(true);
+    expect(screen.getByTestId('image-viewer-photo').props.accessibilityLabel).toBe('Full-size photo');
+  });
+
+  it('Forward from selection navigates to the forward screen with the selected ids', () => {
+    const push = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ push, back: jest.fn(), replace: jest.fn() });
+    render(<ChatRoomScreen />);
+    fireEvent(screen.getByTestId('message-row-msg-photo-theirs'), 'longPress');
+    fireEvent.press(screen.getByTestId('message-row-msg-text'));
+    fireEvent.press(screen.getByTestId('selection-forward'));
+    expect(push).toHaveBeenCalledWith(
+      expect.stringContaining('/(tabs)/customers/chat/forward?roomId=room-1&messageIds='),
+    );
+    const url: string = push.mock.calls[0][0];
+    expect(decodeURIComponent(url.split('messageIds=')[1]).split(',').sort()).toEqual(['msg-photo-theirs', 'msg-text']);
+    expect(screen.queryByTestId('message-selection-header')).toBeNull();
+  });
+
+  it('Delete offers "for everyone" only when every selected message is mine and applies the chosen scope', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const deleteAsync = jest.fn().mockResolvedValue({ deletedIds: ['msg-photo-mine'] });
+    mockUseChatMessagesDelete.mockReturnValue({ mutateAsync: deleteAsync, isPending: false });
+    render(<ChatRoomScreen />);
+
+    // Mixed ownership → only "Delete for me".
+    fireEvent(screen.getByTestId('message-row-msg-photo-mine'), 'longPress');
+    fireEvent.press(screen.getByTestId('message-row-msg-photo-theirs'));
+    fireEvent.press(screen.getByTestId('selection-delete'));
+    let buttons = alertSpy.mock.calls.at(-1)?.[2] as any[];
+    expect(alertSpy.mock.calls.at(-1)?.[0]).toBe('Delete 2 messages?');
+    expect(buttons.map((b) => b.text)).toEqual(['Delete for me', 'Cancel']);
+    fireEvent.press(screen.getByLabelText('Clear selection'));
+
+    // Own-only → both options; choose everyone.
+    fireEvent(screen.getByTestId('message-row-msg-photo-mine'), 'longPress');
+    fireEvent.press(screen.getByTestId('selection-delete'));
+    buttons = alertSpy.mock.calls.at(-1)?.[2] as any[];
+    expect(buttons.map((b) => b.text)).toEqual(['Delete for everyone', 'Delete for me', 'Cancel']);
+    await act(async () => {
+      buttons[0].onPress();
+    });
+    expect(deleteAsync).toHaveBeenCalledWith({
+      roomId: 'room-1',
+      data: { messageIds: ['msg-photo-mine'], scope: 'everyone' },
+    });
+    expect(mockSetQueryData).toHaveBeenCalledWith(['/api/chat/rooms/room-1/messages'], expect.any(Function));
+    // The cache updater tombstones deleted-for-everyone rows in place.
+    const updater = mockSetQueryData.mock.calls.at(-1)?.[1];
+    const next = updater({ messages: [photoMine, textTheirs] });
+    expect(next.messages[0]).toEqual(expect.objectContaining({ id: 'msg-photo-mine', deletedAt: expect.any(String), body: '' }));
+    expect(next.messages[1]).toEqual(textTheirs);
+    await waitFor(() => expect(screen.queryByTestId('message-selection-header')).toBeNull());
+    alertSpy.mockRestore();
+  });
+
+  it('"Delete for me" removes the rows from the cache locally', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const deleteAsync = jest.fn().mockResolvedValue({ deletedIds: ['msg-photo-theirs'] });
+    mockUseChatMessagesDelete.mockReturnValue({ mutateAsync: deleteAsync, isPending: false });
+    render(<ChatRoomScreen />);
+    fireEvent(screen.getByTestId('message-row-msg-photo-theirs'), 'longPress');
+    fireEvent.press(screen.getByTestId('selection-delete'));
+    const buttons = alertSpy.mock.calls.at(-1)?.[2] as any[];
+    await act(async () => {
+      buttons.find((b) => b.text === 'Delete for me').onPress();
+    });
+    expect(deleteAsync).toHaveBeenCalledWith({ roomId: 'room-1', data: { messageIds: ['msg-photo-theirs'], scope: 'me' } });
+    const updater = mockSetQueryData.mock.calls.at(-1)?.[1];
+    expect(updater({ messages: [photoMine, photoTheirs] }).messages.map((m: any) => m.id)).toEqual(['msg-photo-mine']);
+    alertSpy.mockRestore();
+  });
+
+  it('renders deleted-for-everyone tombstones with sender-aware copy', () => {
+    mockUseChatMessagesList.mockReturnValue({
+      data: {
+        messages: [
+          { ...photoMine, deletedAt: '2026-01-01T10:05:00Z', body: '' },
+          { ...textTheirs, deletedAt: '2026-01-01T10:05:00Z', body: '' },
+        ],
+        hasMore: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+    render(<ChatRoomScreen />);
+    expect(screen.getByText('You deleted this message')).toBeTruthy();
+    expect(screen.getByText('This message was deleted')).toBeTruthy();
+    // Tombstones are not selectable rows.
+    expect(screen.queryByTestId('message-row-msg-text')).toBeNull();
+    expect(screen.queryByTestId('message-row-msg-photo-mine')).toBeNull();
+  });
+
+  it('tapping a photo opens the full-screen viewer with sender, save, forward and delete actions', async () => {
+    const push = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ push, back: jest.fn(), replace: jest.fn() });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const sendMutate = jest.fn();
+    mockUseChatMessagesSend.mockReturnValue({ mutate: sendMutate, isPending: false });
+    render(<ChatRoomScreen />);
+    await act(async () => {}); // let the stored bearer token load
+
+    fireEvent.press(screen.getByTestId('message-row-msg-photo-theirs'));
+    const viewer = screen.getByTestId('image-viewer');
+    expect(viewer.props.visible).toBe(true);
+    expect(screen.getByTestId('image-viewer-header')).toBeTruthy();
+    expect(screen.getAllByText('Alice').length).toBeGreaterThan(0);
+
+    // Save to gallery: permission → download with bearer → saveToLibrary → done state.
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('image-viewer-download'));
+    });
+    await waitFor(() => expect(mockSaveToLibraryAsync).toHaveBeenCalledWith('file:///cache/test.jpg'));
+    expect(mockDownloadAsync).toHaveBeenCalledWith(
+      expect.stringContaining('/api/chat/rooms/room-1/messages/msg-photo-theirs/media'),
+      expect.stringContaining('chat_photo_msg-photo-theirs'),
+      expect.objectContaining({ headers: { Authorization: 'Bearer test-bearer-token' } }),
+    );
+    await waitFor(() => expect(screen.getByText('Saved to gallery')).toBeTruthy());
+
+    // Reply from the viewer sends a quoted text message and closes the viewer.
+    fireEvent.changeText(screen.getByTestId('image-viewer-reply-input'), 'Great shot');
+    fireEvent.press(screen.getByTestId('image-viewer-reply-send'));
+    expect(sendMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ body: 'Great shot', replyToMessageId: 'msg-photo-theirs' }),
+      }),
+      expect.anything(),
+    );
+    expect(screen.queryByTestId('image-viewer-header')).toBeNull();
+
+    // Forward from the viewer.
+    fireEvent.press(screen.getByTestId('message-row-msg-photo-theirs'));
+    fireEvent.press(screen.getByTestId('image-viewer-forward'));
+    expect(push).toHaveBeenCalledWith(expect.stringContaining('messageIds=msg-photo-theirs'));
+
+    // Delete from the viewer menu → confirmation offers "for me" only (not mine).
+    fireEvent.press(screen.getByTestId('message-row-msg-photo-theirs'));
+    fireEvent.press(screen.getByTestId('image-viewer-more'));
+    fireEvent.press(screen.getByTestId('image-viewer-delete'));
+    const buttons = alertSpy.mock.calls.at(-1)?.[2] as any[];
+    expect(buttons.map((b) => b.text)).toEqual(['Delete for me', 'Cancel']);
+    alertSpy.mockRestore();
+  });
+
+  it('shows the error state when the gallery permission is refused', async () => {
+    mockGetMediaPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: false });
+    render(<ChatRoomScreen />);
+    fireEvent.press(screen.getByTestId('message-row-msg-photo-mine'));
+    expect(screen.getByText('You')).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('image-viewer-download'));
+    });
+    await waitFor(() => expect(screen.getByText('Could not save this photo')).toBeTruthy());
+    expect(mockSaveToLibraryAsync).not.toHaveBeenCalled();
   });
 });

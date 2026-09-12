@@ -1,0 +1,9 @@
+---
+name: Voice-note recording design
+description: Why chat voice notes record in AAC ADTS segments with stop-based pause, a native duration cap, and explicit temp-file ownership
+---
+**Rule:** Voice notes use *stop-based* pause: each segment is a finalised AAC ADTS file (`aac_adts` on Android, `.aac` path on iOS), resume starts a new segment, and segments are byte-concatenated into one cache file. The 10-minute cap is enforced natively with `record({ forDuration })`; the native `isFinished` status event seen while the phase is still `recording` is the only signal that the cap (or an interruption) fired, and the segment length then comes from a wall-clock segment start, never from the already-reset native status. Web records WebM and cannot resume.
+
+**Why:** expo-audio 57 cannot play back a merely paused recording (file unfinalised), so WhatsApp-style "pause → listen → resume" needs finalised segments; ADTS is the only container where concatenation is a plain byte join without a native muxer. A JS timer cap can slip while JS is suspended, and assigning the full remaining budget to any native finish mis-labels interrupted notes as 10 minutes long. Reviewers also flagged mic capture starting after unmount (permission prompt race) and orphaned cache files as privacy issues.
+
+**How to apply:** Keep the recorder state machine ref-based (own stops move phase to `busy` *before* calling `stop()` so the trailing native finish event is ignored); bump a generation token on discard/unmount and re-check it after every await in start/resume; a finished recording handed to the screen is an app-owned temp file (`ownedTempFile`) that must be deleted on send success, cancel, error dismiss, and unmount. Live recorder status (timer/waveform) must be subscribed inside the panel component, never in the screen-level hook, or the message list re-renders every 100 ms. The iOS `.aac → ADTS` assumption has not been verified on a device.

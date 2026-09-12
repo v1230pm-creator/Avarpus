@@ -38,6 +38,7 @@
     { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/reports$" },
     { "family": "chat", "method": "GET", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/messages$" },
     { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/messages$" },
+    { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/messages/delete$" },
     { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/read$" },
     { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/upload-url$" },
     { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/call-token$" },

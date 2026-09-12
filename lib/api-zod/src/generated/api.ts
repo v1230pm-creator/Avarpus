@@ -4191,7 +4191,16 @@ export const ChatRoomsListResponse = zod.object({
   "objectPath": zod.string().optional(),
   "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
   "clientRequestId": zod.string().optional(),
-  "deletedAt": zod.string().optional(),
+  "replyTo": zod.object({
+  "id": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "deleted": zod.boolean().describe('True when the quoted message is no longer available.')
+}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/file\/ audio is served from the quoted message\'s own media endpoint.\n'),
+  "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
+  "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
   "createdAt": zod.string()
 }).optional(),
   "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
@@ -4247,7 +4256,16 @@ export const ChatRoomsCreateResponse = zod.object({
   "objectPath": zod.string().optional(),
   "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
   "clientRequestId": zod.string().optional(),
-  "deletedAt": zod.string().optional(),
+  "replyTo": zod.object({
+  "id": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "deleted": zod.boolean().describe('True when the quoted message is no longer available.')
+}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/file\/ audio is served from the quoted message\'s own media endpoint.\n'),
+  "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
+  "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
   "createdAt": zod.string()
 }).optional(),
   "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
@@ -4294,7 +4312,16 @@ export const ChatRoomsArchivedListResponse = zod.object({
   "objectPath": zod.string().optional(),
   "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
   "clientRequestId": zod.string().optional(),
-  "deletedAt": zod.string().optional(),
+  "replyTo": zod.object({
+  "id": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "deleted": zod.boolean().describe('True when the quoted message is no longer available.')
+}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/file\/ audio is served from the quoted message\'s own media endpoint.\n'),
+  "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
+  "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
   "createdAt": zod.string()
 }).optional(),
   "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
@@ -4344,7 +4371,16 @@ export const ChatRoomsGetResponse = zod.object({
   "objectPath": zod.string().optional(),
   "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
   "clientRequestId": zod.string().optional(),
-  "deletedAt": zod.string().optional(),
+  "replyTo": zod.object({
+  "id": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "deleted": zod.boolean().describe('True when the quoted message is no longer available.')
+}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/file\/ audio is served from the quoted message\'s own media endpoint.\n'),
+  "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
+  "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
   "createdAt": zod.string()
 }).optional(),
   "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
@@ -4712,7 +4748,16 @@ export const ChatMessagesListResponse = zod.object({
   "objectPath": zod.string().optional(),
   "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
   "clientRequestId": zod.string().optional(),
-  "deletedAt": zod.string().optional(),
+  "replyTo": zod.object({
+  "id": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "deleted": zod.boolean().describe('True when the quoted message is no longer available.')
+}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/file\/ audio is served from the quoted message\'s own media endpoint.\n'),
+  "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
+  "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
   "createdAt": zod.string()
 })),
   "hasMore": zod.boolean()
@@ -4735,8 +4780,13 @@ export const ChatMessagesSendBody = zod.object({
   "body": zod.string(),
   "objectPath": zod.string().optional(),
   "durationMs": zod.number().min(1).max(chatMessagesSendBodyDurationMsMax).optional().describe('Integer voice-note duration in milliseconds. REQUIRED for kind=audio; must be omitted for other kinds.\n'),
-  "clientRequestId": zod.string()
-}).describe('Send a message. clientRequestId is REQUIRED and must be stable across retries; the server dedupes on (roomId, senderId, clientRequestId) and derives the Matrix transaction id deterministically so retries never create a second row nor a second provider event. For kind=audio a room-scoped objectPath and an integer durationMs (1..600000) are REQUIRED; durationMs must be omitted for non-audio kinds.\n')
+  "clientRequestId": zod.string(),
+  "replyToMessageId": zod.string().optional().describe('ID of a message in the same room this message replies to.'),
+  "forwardOf": zod.object({
+  "roomId": zod.string(),
+  "messageId": zod.string()
+}).optional().describe('Message to copy when forwarding. The caller must be a member of roomId.')
+}).describe('Send a message. clientRequestId is REQUIRED and must be stable across retries; the server dedupes on (roomId, senderId, clientRequestId) and derives the Matrix transaction id deterministically so retries never create a second row nor a second provider event. For kind=audio a room-scoped objectPath and an integer durationMs (1..600000) are REQUIRED; durationMs must be omitted for non-audio kinds. With forwardOf the kind, body, media and duration are copied from the source message (media is duplicated into the target room\'s storage scope); the supplied kind must match the source kind and objectPath \/ durationMs must be omitted. replyToMessageId must name a visible message in the same room; it cannot be combined with forwardOf.\n')
 
 export const ChatMessagesSendResponse = zod.object({
   "message": zod.object({
@@ -4750,9 +4800,40 @@ export const ChatMessagesSendResponse = zod.object({
   "objectPath": zod.string().optional(),
   "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
   "clientRequestId": zod.string().optional(),
-  "deletedAt": zod.string().optional(),
+  "replyTo": zod.object({
+  "id": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "deleted": zod.boolean().describe('True when the quoted message is no longer available.')
+}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/file\/ audio is served from the quoted message\'s own media endpoint.\n'),
+  "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
+  "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
   "createdAt": zod.string()
 })
+})
+
+
+/**
+ * scope=me hides the messages from the caller's transcript only; the shared message and the other member's copy are untouched. scope=everyone is allowed only when every listed message was sent by the caller; the provider event is redacted first, then the row becomes a tombstone that every member sees as "Message deleted" and whose media is unreachable.
+ * @summary Delete messages for the caller only, or for everyone (own messages)
+ */
+export const ChatMessagesDeleteParams = zod.object({
+  "roomId": zod.coerce.string()
+})
+
+export const chatMessagesDeleteBodyMessageIdsMax = 50;
+
+
+
+export const ChatMessagesDeleteBody = zod.object({
+  "messageIds": zod.array(zod.string()).min(1).max(chatMessagesDeleteBodyMessageIdsMax),
+  "scope": zod.enum(['me', 'everyone'])
+})
+
+export const ChatMessagesDeleteResponse = zod.object({
+  "deletedIds": zod.array(zod.string())
 })
 
 

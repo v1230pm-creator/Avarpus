@@ -68,7 +68,8 @@
       [
         "expo-media-library",
         {
-          "photosPermission": "Allow Avarpus to show recent photos you choose to share in chats."
+          "photosPermission": "Allow Avarpus to show recent photos you choose to share in chats.",
+          "savePhotosPermission": "Allow Avarpus to save chat photos you download to your gallery."
         }
       ],
       [

@@ -5,10 +5,11 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ChatMessageForwardSource } from './chatMessageForwardSource';
 import type { ChatMessageSendInputKind } from './chatMessageSendInputKind';
 
 /**
- * Send a message. clientRequestId is REQUIRED and must be stable across retries; the server dedupes on (roomId, senderId, clientRequestId) and derives the Matrix transaction id deterministically so retries never create a second row nor a second provider event. For kind=audio a room-scoped objectPath and an integer durationMs (1..600000) are REQUIRED; durationMs must be omitted for non-audio kinds.
+ * Send a message. clientRequestId is REQUIRED and must be stable across retries; the server dedupes on (roomId, senderId, clientRequestId) and derives the Matrix transaction id deterministically so retries never create a second row nor a second provider event. For kind=audio a room-scoped objectPath and an integer durationMs (1..600000) are REQUIRED; durationMs must be omitted for non-audio kinds. With forwardOf the kind, body, media and duration are copied from the source message (media is duplicated into the target room's storage scope); the supplied kind must match the source kind and objectPath / durationMs must be omitted. replyToMessageId must name a visible message in the same room; it cannot be combined with forwardOf.
  */
 export interface ChatMessageSendInput {
   kind: ChatMessageSendInputKind;
@@ -21,4 +22,7 @@ export interface ChatMessageSendInput {
      */
   durationMs?: number;
   clientRequestId: string;
+  /** ID of a message in the same room this message replies to. */
+  replyToMessageId?: string;
+  forwardOf?: ChatMessageForwardSource;
 }

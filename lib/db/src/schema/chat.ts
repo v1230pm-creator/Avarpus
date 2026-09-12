@@ -278,7 +278,16 @@ export const chatMessagesTable = pgTable(
     // Client-supplied idempotency key. Required on send. The (room, sender,
     // clientRequestId) triple is unique so retries never create duplicate rows.
     clientRequestId: text("client_request_id"),
-    // Soft-delete (messages are marked deleted, not removed)
+    // Quoted message (same room) when this message was sent as a reply.
+    replyToMessageId: uuid("reply_to_message_id").references(
+      (): AnyPgColumn => chatMessagesTable.id,
+      { onDelete: "set null" },
+    ),
+    // True when the content was copied from another message via Forward.
+    forwarded: boolean("forwarded").notNull().default(false),
+    // Soft-delete ("delete for everyone": the row stays as a tombstone, the
+    // media stays unreachable, and the original body is retained for
+    // moderation only — API responses blank it).
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -288,6 +297,29 @@ export const chatMessagesTable = pgTable(
     uniqueIndex("chat_messages_room_sender_client_req_unique")
       .on(t.roomId, t.senderId, t.clientRequestId)
       .where(sql`${t.clientRequestId} IS NOT NULL`),
+  ],
+);
+
+// ── Per-user hidden messages ("delete for me") ───────────────────────────────
+// Hiding is caller-specific: the row disappears from this user's transcript
+// only. The shared message, its media, and the other member's copy are never
+// touched.
+export const chatMessageHiddenTable = pgTable(
+  "chat_message_hidden",
+  {
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => chatMessagesTable.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("chat_message_hidden_message_user_unique").on(t.messageId, t.userId),
+    index("chat_message_hidden_user_idx").on(t.userId),
   ],
 );
 

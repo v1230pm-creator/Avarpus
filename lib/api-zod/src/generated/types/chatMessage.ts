@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ChatMessageKind } from './chatMessageKind';
+import type { ChatMessageQuote } from './chatMessageQuote';
 
 export interface ChatMessage {
   id: string;
@@ -20,6 +21,10 @@ export interface ChatMessage {
   /** Integer duration in milliseconds. Only set for kind=audio (voice notes). */
   durationMs?: number;
   clientRequestId?: string;
+  replyTo?: ChatMessageQuote;
+  /** True when this message was forwarded from another message. */
+  forwarded?: boolean;
+  /** Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable. */
   deletedAt?: string;
   createdAt: string;
 }
