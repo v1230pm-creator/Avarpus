@@ -85,6 +85,7 @@ import type {
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB
 const MAX_RECORDING_MS = 10 * 60 * 1000; // 10 minutes
+const DELETE_FOR_EVERYONE_WINDOW_MS = 24 * 60 * 60 * 1000; // sender may retract from everyone only within 24 hours
 
 /**
  * Server-allowlisted content types. Map raw picker MIME → normalised value.
@@ -2213,7 +2214,9 @@ export default function ChatScreen() {
       const message =
         code === 'MATRIX_UNAVAILABLE' || code === 'MATRIX_REDACT_FAILED'
           ? 'Could not delete for everyone right now. Please try again.'
-          : err?.data?.message ?? err?.message ?? 'Could not delete these messages.';
+          : code === 'CHAT_DELETE_WINDOW_EXPIRED'
+            ? 'Messages older than 24 hours can only be deleted for you.'
+            : err?.data?.message ?? err?.message ?? 'Could not delete these messages.';
       // A batch can fail part-way (items redacted before the failure stay
       // deleted), so always resync rather than trusting the local rows.
       void msgsRefetch();
@@ -2225,10 +2228,14 @@ export default function ChatScreen() {
     const live = messages.filter((m) => !m.deletedAt && !m.id.startsWith('opt-'));
     if (live.length === 0) return;
     const allMine = live.every((m) => m.senderId === user?.id);
+    // Mirrors the server rule: a sender can retract from everyone only within
+    // 24 hours of sending; after that the only option left is "for me".
+    const cutoff = Date.now() - DELETE_FOR_EVERYONE_WINDOW_MS;
+    const allWithinWindow = live.every((m) => new Date(m.createdAt).getTime() >= cutoff);
     const count = live.length;
     const title = count === 1 ? 'Delete message?' : `Delete ${count} messages?`;
     const options: Parameters<typeof Alert.alert>[2] = [];
-    if (allMine) {
+    if (allMine && allWithinWindow) {
       options.push({
         text: 'Delete for everyone',
         style: 'destructive',

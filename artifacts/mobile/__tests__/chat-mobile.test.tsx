@@ -1726,6 +1726,40 @@ describe('Chat screen — text send and read marker', () => {
     );
   });
 
+  it('offers "Delete for everyone" only for own messages sent within the last 24 hours', async () => {
+    const now = Date.now();
+    const fresh = { id: 'msg-fresh', body: 'fresh mine', senderId: 'staff-1', senderName: 'Staff', roomId: 'room-1', shopId: 's1', kind: 'text', createdAt: new Date(now - 60 * 60 * 1000).toISOString() };
+    const old = { id: 'msg-old', body: 'old mine', senderId: 'staff-1', senderName: 'Staff', roomId: 'room-1', shopId: 's1', kind: 'text', createdAt: new Date(now - 25 * 60 * 60 * 1000).toISOString() };
+    mockUseChatMessagesList.mockReturnValue({
+      data: { messages: [fresh, old], hasMore: false },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+    render(<ChatRoomScreen />);
+
+    const optionTexts = () => (alertSpy.mock.calls.at(-1)?.[2] as Array<{ text: string }>).map((b) => b.text);
+
+    fireEvent(screen.getByText('fresh mine'), 'longPress');
+    fireEvent.press(screen.getByTestId('selection-delete'));
+    expect(alertSpy).toHaveBeenLastCalledWith('Delete message?', undefined, expect.any(Array));
+    expect(optionTexts()).toEqual(['Delete for everyone', 'Delete for me', 'Cancel']);
+    fireEvent.press(screen.getByLabelText('Clear selection'));
+
+    fireEvent(screen.getByText('old mine'), 'longPress');
+    fireEvent.press(screen.getByTestId('selection-delete'));
+    expect(optionTexts()).toEqual(['Delete for me', 'Cancel']);
+    fireEvent.press(screen.getByLabelText('Clear selection'));
+
+    // A mixed selection is only ever deletable for me.
+    fireEvent(screen.getByText('fresh mine'), 'longPress');
+    fireEvent.press(screen.getByText('old mine'));
+    fireEvent.press(screen.getByTestId('selection-delete'));
+    expect(optionTexts()).toEqual(['Delete for me', 'Cancel']);
+    alertSpy.mockRestore();
+  });
+
   it('calls send mutation with correct roomId and text body', async () => {
     const sendMutate = jest.fn();
     mockUseChatMessagesSend.mockReturnValue({ mutate: sendMutate, isPending: false });
@@ -3092,17 +3126,20 @@ describe('Chat screen — voice notes', () => {
 // ── Message actions: select / reply / forward / delete / photo viewer ───────
 
 describe('Chat screen — message actions', () => {
+  // Recent send times: "delete for everyone" is only offered inside the
+  // 24-hour window, so fixtures must not age out of it.
+  const minutesAgo = (m: number) => new Date(Date.now() - m * 60 * 1000).toISOString();
   const photoMine = {
     id: 'msg-photo-mine', body: 'IMG_1.jpg', senderId: 'staff-1', senderName: 'Staff',
-    roomId: 'room-1', shopId: 's1', kind: 'image', createdAt: '2026-01-01T10:02:00Z',
+    roomId: 'room-1', shopId: 's1', kind: 'image', createdAt: minutesAgo(1),
   };
   const photoTheirs = {
     id: 'msg-photo-theirs', body: 'IMG_2.jpg', senderId: 'other-user', senderName: 'Alice',
-    roomId: 'room-1', shopId: 's1', kind: 'image', createdAt: '2026-01-01T10:01:30Z',
+    roomId: 'room-1', shopId: 's1', kind: 'image', createdAt: minutesAgo(2),
   };
   const textTheirs = {
     id: 'msg-text', body: 'How is it?', senderId: 'other-user', senderName: 'Alice',
-    roomId: 'room-1', shopId: 's1', kind: 'text', createdAt: '2026-01-01T10:01:00Z',
+    roomId: 'room-1', shopId: 's1', kind: 'text', createdAt: minutesAgo(3),
   };
 
   beforeEach(() => {

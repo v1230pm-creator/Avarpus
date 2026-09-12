@@ -3448,7 +3448,8 @@ paths:
       description: >
         scope=me hides the messages from the caller's transcript only; the shared
         message and the other member's copy are untouched. scope=everyone is
-        allowed only when every listed message was sent by the caller; the
+        allowed only when every listed message was sent by the caller AND is
+        less than 24 hours old (403 CHAT_DELETE_WINDOW_EXPIRED otherwise); the
         provider event is redacted first, then the row becomes a tombstone that
         every member sees as "Message deleted" and whose media is unreachable.
       parameters:
@@ -3481,7 +3482,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Message"
         "403":
-          description: scope=everyone requested for a message the caller did not send
+          description: scope=everyone requested for a message the caller did not send (CHAT_DELETE_NOT_SENDER) or one sent more than 24 hours ago (CHAT_DELETE_WINDOW_EXPIRED)
           content:
             application/json:
               schema:

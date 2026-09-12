@@ -3441,6 +3441,45 @@ describe("Message actions: reply, forward, delete (Matrix-mocked)", () => {
     expect(reply.status).toBe(404);
   });
 
+  it("delete for everyone: refused once the message is older than 24 hours; delete for me still works", async () => {
+    const own = await sendAs(dealerTokenA, roomOne.id, { kind: "text", body: "yesterday's news" });
+    expect(own.status).toBe(200);
+    const messageId: string = own.body.message.id;
+    // Age the stored send time past the window — the cutoff is decided by the
+    // server against the row, not by anything the client reports.
+    await db
+      .update(chatMessagesTable)
+      .set({ createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000 - 60 * 1000) })
+      .where(eq(chatMessagesTable.id, messageId));
+    const redactsBefore = redactCalls.length;
+
+    const everyone = await deleteAs(dealerTokenA, roomOne.id, { messageIds: [messageId], scope: "everyone" });
+    expect(everyone.status).toBe(403);
+    expect(everyone.body.code).toBe("CHAT_DELETE_WINDOW_EXPIRED");
+    expect(redactCalls.length).toBe(redactsBefore);
+    const peerView = await listAs(peerToken, roomOne.id);
+    const stillLive = peerView.body.messages.find((m: { id: string }) => m.id === messageId);
+    expect(stillLive.body).toBe("yesterday's news");
+    expect(stillLive.deletedAt).toBeUndefined();
+
+    // A batch mixing a fresh and an expired message is refused as a whole.
+    const fresh = await sendAs(dealerTokenA, roomOne.id, { kind: "text", body: "fresh" });
+    const mixed = await deleteAs(dealerTokenA, roomOne.id, {
+      messageIds: [messageId, fresh.body.message.id], scope: "everyone",
+    });
+    expect(mixed.status).toBe(403);
+    expect(mixed.body.code).toBe("CHAT_DELETE_WINDOW_EXPIRED");
+    const freshStill = (await listAs(peerToken, roomOne.id)).body.messages.find(
+      (m: { id: string }) => m.id === fresh.body.message.id,
+    );
+    expect(freshStill.deletedAt).toBeUndefined();
+
+    const mine = await deleteAs(dealerTokenA, roomOne.id, { messageIds: [messageId], scope: "me" });
+    expect(mine.status).toBe(200);
+    expect((await listAs(dealerTokenA, roomOne.id)).body.messages.some((m: { id: string }) => m.id === messageId)).toBe(false);
+    expect((await listAs(peerToken, roomOne.id)).body.messages.some((m: { id: string }) => m.id === messageId)).toBe(true);
+  });
+
   it("delete: unknown or foreign message ids are 404, never partially applied", async () => {
     const res = await deleteAs(peerToken, roomOne.id, {
       messageIds: [original.id, randomUUID()], scope: "me",

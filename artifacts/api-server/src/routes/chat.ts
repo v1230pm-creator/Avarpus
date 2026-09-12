@@ -2370,11 +2370,16 @@ router.post(
  *
  *  scope=me       — caller-specific hide. Any visible message in the room
  *                   qualifies; nothing shared changes.
- *  scope=everyone — only the sender may do this. The Matrix event is redacted
- *                   first (fail-closed, like sends); the row then becomes a
- *                   tombstone that stays in every member's transcript with no
- *                   body and unreachable media.
+ *  scope=everyone — only the sender may do this, and only within
+ *                   CHAT_DELETE_FOR_EVERYONE_WINDOW_MS of sending; older
+ *                   messages can only be deleted for me. The Matrix event is
+ *                   redacted first (fail-closed, like sends); the row then
+ *                   becomes a tombstone that stays in every member's transcript
+ *                   with no body and unreachable media.
  */
+/** Sender's window for retracting a message from every member's transcript. */
+export const CHAT_DELETE_FOR_EVERYONE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 router.post(
   "/chat/rooms/:roomId/messages/delete",
   requireAuth,
@@ -2432,6 +2437,16 @@ router.post(
       return;
     }
     const live = rows.filter((row) => row.deletedAt === null);
+    // Evaluated server-side against the stored send time — the client's clock
+    // and its cached copy of the message are never trusted for the cutoff.
+    const cutoff = Date.now() - CHAT_DELETE_FOR_EVERYONE_WINDOW_MS;
+    if (live.some((row) => row.createdAt.getTime() < cutoff)) {
+      res.status(403).json({
+        message: "Messages older than 24 hours can only be deleted for you.",
+        code: "CHAT_DELETE_WINDOW_EXPIRED",
+      });
+      return;
+    }
     const needsRedaction = live.filter((row) => !!row.providerEventId);
     if (needsRedaction.length > 0) {
       if (!room.providerRoomId || !matrixConfigured()) {

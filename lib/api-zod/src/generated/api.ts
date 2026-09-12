@@ -4909,7 +4909,7 @@ export const ChatMessagesSendResponse = zod.object({
 
 
 /**
- * scope=me hides the messages from the caller's transcript only; the shared message and the other member's copy are untouched. scope=everyone is allowed only when every listed message was sent by the caller; the provider event is redacted first, then the row becomes a tombstone that every member sees as "Message deleted" and whose media is unreachable.
+ * scope=me hides the messages from the caller's transcript only; the shared message and the other member's copy are untouched. scope=everyone is allowed only when every listed message was sent by the caller AND is less than 24 hours old (403 CHAT_DELETE_WINDOW_EXPIRED otherwise); the provider event is redacted first, then the row becomes a tombstone that every member sees as "Message deleted" and whose media is unreachable.
  * @summary Delete messages for the caller only, or for everyone (own messages)
  */
 export const ChatMessagesDeleteParams = zod.object({

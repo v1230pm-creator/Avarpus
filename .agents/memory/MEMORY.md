@@ -80,4 +80,5 @@
 - [Privileged session inactivity](privileged-session-idle.md) — only super_admin sessions expire after 30 idle days, enforced at read time; idle deletes must re-check the cutoff in SQL.
 - [Request validation conventions](request-validation-conventions.md) — bodies parse via generated api-zod schemas + shared helpers; per-router UUID guards (some `:id` accept `me`); re-verify uploads at attach.
 - [Matrix homeserver DNS](matrix-homeserver-dns.md) — "fetch failed" on chat sends with a healthy API = missing custom Matrix subdomain record; check an outside resolver before blaming the provider.
+- [Paginated shared lists](paginated-shared-lists.md) — bare `repairsList()` returns the 50 oldest rows; bulk loaders must page, detail screens must resolve by id, snapshots keyed by id.
 - [Voice-note recording](voice-note-recording.md) — pause = stop into ADTS segments joined by byte concat; native forDuration cap; wall-clock segment length; owned temp files deleted on every exit.
