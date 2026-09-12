@@ -31,7 +31,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
-import * as Contacts from 'expo-contacts';
+import * as Contacts from 'expo-contacts/legacy';
 import {
   useAudioPlayer,
   useAudioPlayerStatus,

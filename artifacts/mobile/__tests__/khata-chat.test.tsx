@@ -117,7 +117,7 @@ jest.mock('expo-media-library/legacy', () => ({
   getAssetInfoAsync: jest.fn(),
 }));
 
-jest.mock('expo-contacts', () => ({
+jest.mock('expo-contacts/legacy', () => ({
   requestPermissionsAsync: jest.fn(async () => ({ granted: false })),
   getContactsAsync: jest.fn(async () => ({ data: [] })),
   Fields: { PhoneNumbers: 'phoneNumbers' },

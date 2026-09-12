@@ -10,7 +10,7 @@ description: What to do when the GitHub connection's auth() returns unauthentica
 
 **Gotcha:** CodeExecution `shellExec` output uses CRLF — file lists split on `\n` keep a trailing `\r` that breaks paths/readFile. Always strip `\r` before using shell output as paths.
 
-**How to apply:** After an API push, local and remote SHAs DIVERGE (same content, different commits). Before the next token-based `git push`, either `git fetch && git reset --hard origin/<branch>` (if no new local work) or push with `--force-with-lease` knowing content is identical. As of Aug 15 2026, local `vmc-electronic-bms` (f81bc9a) diverges from remote head 41011ba this way.
+**How to apply:** After an API push, local and remote SHAs DIVERGE (same content, different commits). Before the next token-based `git push`, either `git fetch && git reset --hard origin/<branch>` (if no new local work) or push with `--force-with-lease` knowing content is identical. As of Sep 12 2026, local `main` (8ed7013) and remote `main` (318f4df) have IDENTICAL trees but different commit SHAs; treat the next push as a tree-delta push again, not a fast-forward.
 
 ## Empty repository bootstrap
 
@@ -47,3 +47,8 @@ GitHub connector writes may return a Cloudflare 403 for raw source trees or spec
 **Why:** The same connection can read the repo and create ordinary blobs while a source-heavy tree body is blocked by the proxy/WAF.
 
 **How to apply:** Upload required build files as base64 Git blobs, then create a small SHA-only tree on the verified remote base. Restrict release commits to real build inputs and preserve remote-only files.
+
+## Chunked base_tree delta (Sep 2026, ~330 changed paths)
+Plan the delta by comparing local `git ls-tree -r HEAD` blob SHAs with the remote recursive tree; upload only added/changed blobs (serially, base64, verify returned SHA == local SHA); then POST `/git/trees` in chunks of ~60 entries, each with `base_tree` = the previous chunk's result (deletions are entries with `sha: null`). The final root SHA must equal local `HEAD^{tree}` before creating the commit. Whole run for 311 blobs + 15 deletes took a few minutes and hit no WAF 403s.
+
+**Gotcha:** a helper function defined in one CodeExecution block and reused in a later block failed with `executeJs is not defined`; define the impure uploader inline in every block.

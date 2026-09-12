@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import * as Contacts from 'expo-contacts';
+import * as Contacts from 'expo-contacts/legacy';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
@@ -755,7 +755,11 @@ function CustomerInboxScreen() {
             <View style={styles.contactHeaderTitle}>
               <Text style={[styles.contactTitle, { color: colors.foreground }]}>Select contact</Text>
               <Text style={[styles.contactCount, { color: colors.mutedForeground }]}>
-                {contactsLoaded ? `${deviceContacts.length} contacts` : 'Loading contacts…'}
+                {!contactsLoaded
+                  ? 'Loading contacts…'
+                  : contactStatus === 'loading'
+                    ? `${deviceContacts.length} contacts · checking who is on Avarpus…`
+                    : `${deviceContacts.length} contacts · ${matchedContacts.length} on Avarpus`}
               </Text>
             </View>
             <TouchableOpacity
