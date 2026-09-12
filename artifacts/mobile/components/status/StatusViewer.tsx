@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -15,6 +15,7 @@ import { statusesViewersList } from '@workspace/api-client-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { StatusMedia } from './StatusMedia';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
+import { ConfirmDialogHost, useConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 const IMAGE_DURATION_MS = 7_000;
 const VIDEO_DURATION_MS = 15_000;
@@ -54,6 +55,10 @@ export function StatusViewer({
   const [viewers, setViewers] = useState<Viewer[] | null>(null);
   const [viewerLoading, setViewerLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const { confirm } = useConfirmDialog();
+  // Playback must not advance (or close the viewer) under an open delete
+  // confirmation; the interval below simply stops counting while paused.
+  const pausedRef = useRef(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -70,9 +75,17 @@ export function StatusViewer({
     onViewed(item.id);
     setProgress(0);
     const duration = item.kind === 'video' ? VIDEO_DURATION_MS : IMAGE_DURATION_MS;
-    const startedAt = Date.now();
+    let startedAt = Date.now();
+    let lastTick = startedAt;
     const timer = setInterval(() => {
-      const next = Math.min(1, (Date.now() - startedAt) / duration);
+      const now = Date.now();
+      if (pausedRef.current) {
+        startedAt += now - lastTick;
+        lastTick = now;
+        return;
+      }
+      lastTick = now;
+      const next = Math.min(1, (now - startedAt) / duration);
       setProgress(next);
       if (next >= 1) {
         clearInterval(timer);
@@ -116,6 +129,28 @@ export function StatusViewer({
       setDeleting(false);
     }
   };
+  const confirmDeleteCurrent = () => {
+    pausedRef.current = true;
+    confirm({
+      title: 'Delete status?',
+      message: 'It will disappear for everyone who can see it.',
+      actions: [
+        {
+          label: 'Delete status',
+          description: 'Remove for all viewers',
+          tone: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteCurrent();
+            } finally {
+              pausedRef.current = false;
+            }
+          },
+        },
+      ],
+      onCancel: () => { pausedRef.current = false; },
+    });
+  };
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
@@ -154,7 +189,7 @@ export function StatusViewer({
             </View>
             {own && (
               <TouchableOpacity
-                onPress={deleteCurrent}
+                onPress={confirmDeleteCurrent}
                 disabled={deleting}
                 style={styles.actionButton}
                 accessibilityLabel="Delete status"
@@ -210,6 +245,7 @@ export function StatusViewer({
             </Pressable>
           </Pressable>
         </Modal>
+        <ConfirmDialogHost />
       </View>
     </Modal>
   );

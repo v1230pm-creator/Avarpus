@@ -113,6 +113,13 @@ jest.mock('react-native-qrcode-svg', () => {
   const { View } = require('react-native');
   return (props: object) => <View {...props} />;
 });
+// Destructive confirmations go through the shared dialog; mock its hook so the
+// screen renders without the root provider.
+const mockConfirm = jest.fn();
+jest.mock('@/components/ui/ConfirmDialog', () => ({
+  ...jest.requireActual('@/components/ui/ConfirmDialog'),
+  useConfirmDialog: () => ({ confirm: mockConfirm }),
+}));
 jest.mock('@/utils/seedData', () => ({ seedIfNeeded: jest.fn(async () => {}) }));
 jest.mock('@/utils/storage', () => ({
   KEYS: { AUTH_TOKEN: 'auth_token', CURRENT_USER: 'current_user' },

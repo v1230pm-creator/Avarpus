@@ -25,6 +25,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { ConfirmDialogHost, useConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { RepairStatusBadge, PriorityBadge, SampleBadge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -153,6 +154,7 @@ export default function RepairDetailScreen() {
   const { repairs, updateRepair, deleteRepair, inventory, loadAll, isLoading: shopDataLoading } = useData();
   const { user, canAccess } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm } = useConfirmDialog();
 
   const [updating, setUpdating] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -762,6 +764,20 @@ export default function RepairDetailScreen() {
   const svcEditable = svcStage === 1 || dealerDeliveredEdit;
 
   // Dealer/owner only — permanently remove this repair and all its records.
+  const confirmDeleteRepair = () => {
+    confirm({
+      title: 'Delete repair?',
+      message: `${repair.repairId} and its payments, parts, photos and history will be removed for good.`,
+      actions: [
+        {
+          label: 'Delete repair',
+          description: 'Remove permanently with all its records',
+          tone: 'destructive',
+          onPress: handleDeleteRepair,
+        },
+      ],
+    });
+  };
   const handleDeleteRepair = async () => {
     if (updating) return;
     setUpdating(true);
@@ -948,14 +964,21 @@ export default function RepairDetailScreen() {
                 text: 'Customer Return',
                 style: 'destructive',
                 onPress: () => {
-                  Alert.alert(
-                    'Customer Return',
-                    'Device bina repair ke customer ko wapas kiya jayega aur job "Cannot Repair" mark hogi. Pakka?',
-                    [
-                      { text: 'Nahi', style: 'cancel' },
-                      { text: 'Haan, confirm', style: 'destructive', onPress: () => handleStatusUpdate('cannot_repair') },
+                  confirm({
+                    title: 'Return device to customer?',
+                    message: 'The device goes back unrepaired and the job is marked "Cannot Repair".',
+                    icon: 'corner-up-left',
+                    actions: [
+                      {
+                        label: 'Yes, return device',
+                        description: 'Mark this job as Cannot Repair',
+                        icon: 'corner-up-left',
+                        tone: 'destructive',
+                        onPress: () => handleStatusUpdate('cannot_repair'),
+                      },
                     ],
-                  );
+                    cancelLabel: 'No',
+                  });
                 },
               },
             ],
@@ -1526,14 +1549,7 @@ export default function RepairDetailScreen() {
                     title="Delete Repair"
                     variant="outline"
                     onPress={() => {
-                      Alert.alert(
-                        'Delete Repair',
-                        `${repair.repairId} hamesha ke liye delete ho jayega — payments, parts, photos aur history bhi. Yeh wapas nahi aa sakta. Pakka delete karein?`,
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Haan, Delete Karein', style: 'destructive', onPress: handleDeleteRepair },
-                        ],
-                      );
+                      confirmDeleteRepair();
                     }}
                   />
                 </View>
@@ -1558,14 +1574,7 @@ export default function RepairDetailScreen() {
                   title="Delete Repair"
                   variant="outline"
                   onPress={() => {
-                    Alert.alert(
-                      'Delete Repair',
-                      `${repair.repairId} hamesha ke liye delete ho jayega — payments, parts, photos aur history bhi. Yeh wapas nahi aa sakta. Pakka delete karein?`,
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Haan, Delete Karein', style: 'destructive', onPress: handleDeleteRepair },
-                      ],
-                    );
+                    confirmDeleteRepair();
                   }}
                 />
               </View>
@@ -1615,10 +1624,21 @@ export default function RepairDetailScreen() {
             {isActiveRepair && (user?.role === 'dealer' || user?.role === 'super_admin') && (
               <TouchableOpacity
                 onPress={() => {
-                  Alert.alert('Cancel Repair', 'Mark this job as cancelled?', [
-                    { text: 'No', style: 'cancel' },
-                    { text: 'Yes, Cancel Job', style: 'destructive', onPress: () => handleStatusUpdate('cancelled') },
-                  ]);
+                  confirm({
+                    title: 'Cancel repair job?',
+                    message: `${repair.repairId} will be marked as cancelled.`,
+                    icon: 'x-circle',
+                    actions: [
+                      {
+                        label: 'Yes, cancel job',
+                        description: 'Mark this repair as cancelled',
+                        icon: 'x-circle',
+                        tone: 'destructive',
+                        onPress: () => handleStatusUpdate('cancelled'),
+                      },
+                    ],
+                    cancelLabel: 'No, keep it',
+                  });
                 }}
                 style={{ borderWidth: 1, borderColor: colors.destructive + '55', borderRadius: 12, padding: 12, marginBottom: 12, alignItems: 'center' }}
               >
@@ -1628,6 +1648,7 @@ export default function RepairDetailScreen() {
             <Button title="Cancel" variant="outline" onPress={() => setShowStatusPicker(false)} />
           </View>
         </View>
+        <ConfirmDialogHost />
       </Modal>
 
       {/* MORE — full details & history */}
@@ -2590,10 +2611,20 @@ export default function RepairDetailScreen() {
                     (svcEditable && (editDiagnosis !== (repair.diagnosis || '') || editWorkPerformed !== (repair.workPerformed || ''))) ||
                     (testingEditable && JSON.stringify(editTesting) !== JSON.stringify(repair.testingChecklist || {}));
                   if (dirty) {
-                    Alert.alert('Unsaved changes', 'Aapke changes save nahi hue hain. Bina save kiye band karein?', [
-                      { text: 'Wapas jayen', style: 'cancel' },
-                      { text: 'Haan, discard karein', style: 'destructive', onPress: () => setShowServiceEdit(false) },
-                    ]);
+                    confirm({
+                      title: 'Discard changes?',
+                      message: 'Your edits have not been saved.',
+                      icon: 'alert-triangle',
+                      actions: [
+                        {
+                          label: 'Discard changes',
+                          description: 'Close without saving',
+                          tone: 'destructive',
+                          onPress: () => setShowServiceEdit(false),
+                        },
+                      ],
+                      cancelLabel: 'Keep editing',
+                    });
                   } else {
                     setShowServiceEdit(false);
                   }
@@ -2604,6 +2635,7 @@ export default function RepairDetailScreen() {
             </View>
           </View>
         </KeyboardAvoidingCompat>
+        <ConfirmDialogHost />
       </Modal>
 
       {/* Assign Technician Modal */}

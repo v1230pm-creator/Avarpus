@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BackgroundRelock } from '@/components/BackgroundRelock';
 import { KeyboardProviderCompat } from '@/components/KeyboardProviderCompat';
 import { PrivacyShield } from '@/components/PrivacyShield';
+import { ConfirmDialogProvider } from '@/components/ui/ConfirmDialog';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import {
   Inter_400Regular,
@@ -91,7 +92,9 @@ export default function RootLayout() {
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <KeyboardProviderCompat>
                   <BackgroundRelock>
-                    <RootLayoutNav dark={dark} />
+                    <ConfirmDialogProvider>
+                      <RootLayoutNav dark={dark} />
+                    </ConfirmDialogProvider>
                     <PrivacyShield />
                   </BackgroundRelock>
                 </KeyboardProviderCompat>

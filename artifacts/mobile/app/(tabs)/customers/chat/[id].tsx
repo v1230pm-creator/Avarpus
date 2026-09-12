@@ -53,6 +53,7 @@ import * as Location from 'expo-location';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import * as Sharing from 'expo-sharing';
 import { useColors } from '@/hooks/useColors';
+import { useConfirmDialog, type ConfirmAction } from '@/components/ui/ConfirmDialog';
 import { useAuth } from '@/context/AuthContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { storage, KEYS } from '@/utils/storage';
@@ -2178,6 +2179,7 @@ export default function ChatScreen() {
   }, [clearSelection, resolvedRoomId, router]);
 
   const deleteMutation = useChatMessagesDelete();
+  const { confirm } = useConfirmDialog();
 
   const performDelete = useCallback(async (messages: ChatMessage[], scope: 'me' | 'everyone') => {
     if (!resolvedRoomId || messages.length === 0) return;
@@ -2234,18 +2236,23 @@ export default function ChatScreen() {
     const allWithinWindow = live.every((m) => new Date(m.createdAt).getTime() >= cutoff);
     const count = live.length;
     const title = count === 1 ? 'Delete message?' : `Delete ${count} messages?`;
-    const options: Parameters<typeof Alert.alert>[2] = [];
+    const actions: ConfirmAction[] = [];
     if (allMine && allWithinWindow) {
-      options.push({
-        text: 'Delete for everyone',
-        style: 'destructive',
-        onPress: () => void performDelete(live, 'everyone'),
+      actions.push({
+        label: 'Delete for everyone',
+        description: 'Remove for all participants',
+        tone: 'destructive',
+        onPress: () => performDelete(live, 'everyone'),
       });
     }
-    options.push({ text: 'Delete for me', style: 'destructive', onPress: () => void performDelete(live, 'me') });
-    options.push({ text: 'Cancel', style: 'cancel' });
-    Alert.alert(title, undefined, options);
-  }, [performDelete, user?.id]);
+    actions.push({
+      label: 'Delete for me',
+      description: 'Remove only from this device',
+      tone: actions.length === 0 ? 'destructive' : 'neutral',
+      onPress: () => performDelete(live, 'me'),
+    });
+    confirm({ title, actions });
+  }, [confirm, performDelete, user?.id]);
 
   const openSelectionMenu = useCallback(() => {
     const options: Parameters<typeof Alert.alert>[2] = [];

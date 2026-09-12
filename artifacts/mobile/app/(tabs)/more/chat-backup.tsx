@@ -31,6 +31,7 @@ import {
   type DriveBackupStatus,
 } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
+import { useConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   bytesToBase64,
   decryptDriveBackup,
@@ -86,6 +87,7 @@ function formatBackupTime(value: string | null | undefined): string {
 
 export default function ChatBackupScreen() {
   const colors = useColors();
+  const { confirm } = useConfirmDialog();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -346,16 +348,29 @@ export default function ChatBackupScreen() {
   }, [status]);
 
   const manageAccount = useCallback(() => {
-    Alert.alert(status?.email ?? 'Google Account', 'Manage the account used for chat backup.', [
-      { text: 'Change account', onPress: () => void addGoogleAccount() },
-      {
-        text: 'Disconnect',
-        style: 'destructive',
-        onPress: () => disconnectMutation.mutate(),
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  }, [addGoogleAccount, disconnectMutation, status?.email]);
+    confirm({
+      title: status?.email ?? 'Google Account',
+      message: 'Manage the account used for chat backup.',
+      caption: null,
+      icon: 'cloud-off',
+      actions: [
+        {
+          label: 'Disconnect',
+          description: 'Stop backing up chats to this account',
+          icon: 'cloud-off',
+          tone: 'destructive',
+          onPress: () => disconnectMutation.mutateAsync(),
+        },
+        {
+          label: 'Change account',
+          description: 'Back up to a different Google account',
+          icon: 'refresh-cw',
+          tone: 'neutral',
+          onPress: () => addGoogleAccount(),
+        },
+      ],
+    });
+  }, [addGoogleAccount, confirm, disconnectMutation, status?.email]);
 
   const openEncryptionDialog = useCallback(() => {
     if (!status) return;

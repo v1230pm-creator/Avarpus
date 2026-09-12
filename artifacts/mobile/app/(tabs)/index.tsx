@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { useConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { buildInviteSmsUrl } from '@/constants/install';
 import { AVARPUS_BLUE } from '@/constants/brand';
 import { Avatar } from '@/components/ui/Avatar';
@@ -193,6 +194,7 @@ function CustomerInboxScreen() {
   const [roomFilter, setRoomFilter] = useState<'all' | 'unread' | 'archived'>('all');
   const [selectedRoomIds, setSelectedRoomIds] = useState<Set<string>>(new Set());
   const [bulkActionPending, setBulkActionPending] = useState(false);
+  const { confirm } = useConfirmDialog();
 
   // Contact Discovery State
   const [showContactDiscovery, setShowContactDiscovery] = useState(false);
@@ -313,15 +315,19 @@ function CustomerInboxScreen() {
       void applyBulkAction(action);
       return;
     }
-    Alert.alert(
-      'Delete selected chats?',
-      'This hides the chats only for you. It does not delete the shared room or anyone else’s history.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete for me', style: 'destructive', onPress: () => void applyBulkAction('delete') },
+    confirm({
+      title: selectedRoomIds.size === 1 ? 'Delete chat?' : `Delete ${selectedRoomIds.size} chats?`,
+      message: 'This hides the chats only for you. Nobody else’s history is touched.',
+      actions: [
+        {
+          label: 'Delete for me',
+          description: 'Remove only from this device',
+          tone: 'destructive',
+          onPress: () => applyBulkAction('delete'),
+        },
       ],
-    );
-  }, [applyBulkAction]);
+    });
+  }, [applyBulkAction, confirm, selectedRoomIds]);
 
   const handleReadAll = useCallback(async () => {
     setShowOverflowMenu(false);

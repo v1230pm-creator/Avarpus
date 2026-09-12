@@ -46,6 +46,15 @@ jest.mock('@/context/AuthContext', () => ({
 }));
 
 const mockUseData = jest.fn();
+// Screens confirm destructive actions through the shared dialog; mock at that
+// boundary (as Alert used to be) and inspect the options each screen sends.
+const mockConfirm = jest.fn();
+jest.mock('@/components/ui/ConfirmDialog', () => ({
+  ...jest.requireActual('@/components/ui/ConfirmDialog'),
+  useConfirmDialog: () => ({ confirm: mockConfirm }),
+}));
+type ConfirmCall = { title: string; message?: string; actions: Array<{ label: string; description?: string; tone?: string; onPress: () => unknown }> };
+const lastConfirm = () => mockConfirm.mock.calls.at(-1)?.[0] as ConfirmCall;
 jest.mock('@/context/DataContext', () => ({
   useData: (...args: any[]) => mockUseData(...args),
 }));
@@ -897,26 +906,26 @@ describe('Inbox — no fake data', () => {
       isError: false,
       refetch: jest.fn(),
     });
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+    mockConfirm.mockClear();
 
     render(<HomeScreen />);
     fireEvent(screen.getByTestId('room-item-r-alice'), 'longPress');
     fireEvent.press(screen.getByTestId('room-item-r-carol'));
     fireEvent.press(screen.getByLabelText('Delete selected chats'));
 
-    expect(alertSpy).toHaveBeenCalledWith(
-      'Delete selected chats?',
-      expect.stringContaining('only for you'),
-      expect.any(Array),
-    );
-    const buttons = alertSpy.mock.calls[0][2] as Array<{ text: string; onPress?: () => void }>;
-    buttons.find((button) => button.text === 'Delete for me')?.onPress?.();
+    expect(lastConfirm()).toEqual(expect.objectContaining({
+      title: 'Delete 2 chats?',
+      message: expect.stringContaining('only for you'),
+    }));
+    expect(lastConfirm().actions.map((a) => [a.label, a.description])).toEqual([
+      ['Delete for me', 'Remove only from this device'],
+    ]);
+    lastConfirm().actions[0].onPress();
 
     await waitFor(() => {
       expect(mutateAsync).toHaveBeenCalledWith({ roomId: 'r-alice' });
       expect(mutateAsync).toHaveBeenCalledWith({ roomId: 'r-carol' });
     });
-    alertSpy.mockRestore();
   });
 
   it('shows empty state when provider is up but no rooms exist', () => {
@@ -1736,28 +1745,33 @@ describe('Chat screen — text send and read marker', () => {
       isError: false,
       refetch: jest.fn(),
     });
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+    mockConfirm.mockClear();
     render(<ChatRoomScreen />);
 
-    const optionTexts = () => (alertSpy.mock.calls.at(-1)?.[2] as Array<{ text: string }>).map((b) => b.text);
+    const optionTexts = () => lastConfirm().actions.map((a) => a.label);
 
     fireEvent(screen.getByText('fresh mine'), 'longPress');
     fireEvent.press(screen.getByTestId('selection-delete'));
-    expect(alertSpy).toHaveBeenLastCalledWith('Delete message?', undefined, expect.any(Array));
-    expect(optionTexts()).toEqual(['Delete for everyone', 'Delete for me', 'Cancel']);
+    expect(lastConfirm().title).toBe('Delete message?');
+    expect(lastConfirm().message).toBeUndefined();
+    expect(lastConfirm().actions.map((a) => [a.label, a.description, a.tone])).toEqual([
+      ['Delete for everyone', 'Remove for all participants', 'destructive'],
+      ['Delete for me', 'Remove only from this device', 'neutral'],
+    ]);
     fireEvent.press(screen.getByLabelText('Clear selection'));
 
     fireEvent(screen.getByText('old mine'), 'longPress');
     fireEvent.press(screen.getByTestId('selection-delete'));
-    expect(optionTexts()).toEqual(['Delete for me', 'Cancel']);
+    expect(optionTexts()).toEqual(['Delete for me']);
+    // The only choice is the primary one, so it takes the red treatment.
+    expect(lastConfirm().actions[0].tone).toBe('destructive');
     fireEvent.press(screen.getByLabelText('Clear selection'));
 
     // A mixed selection is only ever deletable for me.
     fireEvent(screen.getByText('fresh mine'), 'longPress');
     fireEvent.press(screen.getByText('old mine'));
     fireEvent.press(screen.getByTestId('selection-delete'));
-    expect(optionTexts()).toEqual(['Delete for me', 'Cancel']);
-    alertSpy.mockRestore();
+    expect(optionTexts()).toEqual(['Delete for me']);
   });
 
   it('calls send mutation with correct roomId and text body', async () => {
@@ -3273,7 +3287,7 @@ describe('Chat screen — message actions', () => {
   });
 
   it('Delete offers "for everyone" only when every selected message is mine and applies the chosen scope', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    mockConfirm.mockClear();
     const deleteAsync = jest.fn().mockResolvedValue({ deletedIds: ['msg-photo-mine'] });
     mockUseChatMessagesDelete.mockReturnValue({ mutateAsync: deleteAsync, isPending: false });
     render(<ChatRoomScreen />);
@@ -3282,18 +3296,18 @@ describe('Chat screen — message actions', () => {
     fireEvent(screen.getByTestId('message-row-msg-photo-mine'), 'longPress');
     fireEvent.press(screen.getByTestId('message-row-msg-photo-theirs'));
     fireEvent.press(screen.getByTestId('selection-delete'));
-    let buttons = alertSpy.mock.calls.at(-1)?.[2] as any[];
-    expect(alertSpy.mock.calls.at(-1)?.[0]).toBe('Delete 2 messages?');
-    expect(buttons.map((b) => b.text)).toEqual(['Delete for me', 'Cancel']);
+    let buttons = lastConfirm().actions;
+    expect(lastConfirm().title).toBe('Delete 2 messages?');
+    expect(buttons.map((b) => b.label)).toEqual(['Delete for me']);
     fireEvent.press(screen.getByLabelText('Clear selection'));
 
     // Own-only → both options; choose everyone.
     fireEvent(screen.getByTestId('message-row-msg-photo-mine'), 'longPress');
     fireEvent.press(screen.getByTestId('selection-delete'));
-    buttons = alertSpy.mock.calls.at(-1)?.[2] as any[];
-    expect(buttons.map((b) => b.text)).toEqual(['Delete for everyone', 'Delete for me', 'Cancel']);
+    buttons = lastConfirm().actions;
+    expect(buttons.map((b) => b.label)).toEqual(['Delete for everyone', 'Delete for me']);
     await act(async () => {
-      buttons[0].onPress();
+      await buttons[0].onPress();
     });
     expect(deleteAsync).toHaveBeenCalledWith({
       roomId: 'room-1',
@@ -3306,24 +3320,21 @@ describe('Chat screen — message actions', () => {
     expect(next.messages[0]).toEqual(expect.objectContaining({ id: 'msg-photo-mine', deletedAt: expect.any(String), body: '' }));
     expect(next.messages[1]).toEqual(textTheirs);
     await waitFor(() => expect(screen.queryByTestId('message-selection-header')).toBeNull());
-    alertSpy.mockRestore();
   });
 
   it('"Delete for me" removes the rows from the cache locally', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    mockConfirm.mockClear();
     const deleteAsync = jest.fn().mockResolvedValue({ deletedIds: ['msg-photo-theirs'] });
     mockUseChatMessagesDelete.mockReturnValue({ mutateAsync: deleteAsync, isPending: false });
     render(<ChatRoomScreen />);
     fireEvent(screen.getByTestId('message-row-msg-photo-theirs'), 'longPress');
     fireEvent.press(screen.getByTestId('selection-delete'));
-    const buttons = alertSpy.mock.calls.at(-1)?.[2] as any[];
     await act(async () => {
-      buttons.find((b) => b.text === 'Delete for me').onPress();
+      await lastConfirm().actions.find((a) => a.label === 'Delete for me')!.onPress();
     });
     expect(deleteAsync).toHaveBeenCalledWith({ roomId: 'room-1', data: { messageIds: ['msg-photo-theirs'], scope: 'me' } });
     const updater = mockSetQueryData.mock.calls.at(-1)?.[1];
     expect(updater({ messages: [photoMine, photoTheirs] }).messages.map((m: any) => m.id)).toEqual(['msg-photo-mine']);
-    alertSpy.mockRestore();
   });
 
   it('renders deleted-for-everyone tombstones with sender-aware copy', () => {
@@ -3394,8 +3405,7 @@ describe('Chat screen — message actions', () => {
     fireEvent.press(screen.getByTestId('message-row-msg-photo-theirs'));
     fireEvent.press(screen.getByTestId('image-viewer-more'));
     fireEvent.press(screen.getByTestId('image-viewer-delete'));
-    const buttons = alertSpy.mock.calls.at(-1)?.[2] as any[];
-    expect(buttons.map((b) => b.text)).toEqual(['Delete for me', 'Cancel']);
+    expect(lastConfirm().actions.map((a) => a.label)).toEqual(['Delete for me']);
     alertSpy.mockRestore();
   });
 

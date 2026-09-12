@@ -16,6 +16,7 @@ import {
   type PanResponderGestureState,
 } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { ConfirmDialogHost } from '@/components/ui/ConfirmDialog';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ChatMessage } from '@workspace/api-client-react';
@@ -376,6 +377,7 @@ export function ImageViewer({
           </View>
         )}
       </View>
+      <ConfirmDialogHost />
     </Modal>
   );
 }
