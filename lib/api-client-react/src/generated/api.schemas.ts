@@ -1263,6 +1263,14 @@ export interface RepairPhotoInput {
   objectPath: string;
 }
 
+export interface RepairNoteInput {
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  text: string;
+}
+
 export type RepairEventDetails = { [key: string]: unknown };
 
 export interface RepairEvent {
@@ -2522,6 +2530,10 @@ export type RepairPartsAdd200 = {
 
 export type RepairEventsList200 = {
   events: RepairEvent[];
+};
+
+export type RepairNotesAdd201 = {
+  event: RepairEvent;
 };
 
 export type RepairPaymentsList200 = {

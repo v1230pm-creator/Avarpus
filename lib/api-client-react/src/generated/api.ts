@@ -169,6 +169,8 @@ import type {
   RepairAssignTechnician200,
   RepairEventsList200,
   RepairInput,
+  RepairNoteInput,
+  RepairNotesAdd201,
   RepairNotifyReady200,
   RepairPartInput,
   RepairPartsAdd200,
@@ -4925,6 +4927,78 @@ export function useRepairEventsList<TData = Awaited<ReturnType<typeof repairEven
 
 
 
+
+export const getRepairNotesAddUrl = (id: string,) => {
+
+
+
+
+  return `/api/repairs/${id}/notes`
+}
+
+/**
+ * @summary Add a free-text work note to a repair (append-only timeline event)
+ */
+export const repairNotesAdd = async (id: string,
+    repairNoteInput: RepairNoteInput, options?: Parameters<typeof customFetch>[1]): Promise<RepairNotesAdd201> => {
+
+  return customFetch<RepairNotesAdd201>(getRepairNotesAddUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(repairNoteInput)
+  }
+);}
+
+
+
+
+
+export const getRepairNotesAddMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repairNotesAdd>>, TError,{id: string;data: BodyType<RepairNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof repairNotesAdd>>, TError,{id: string;data: BodyType<RepairNoteInput>}, TContext> => {
+
+const mutationKey = ['repairNotesAdd'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof repairNotesAdd>>, {id: string;data: BodyType<RepairNoteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  repairNotesAdd(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RepairNotesAddMutationResult = NonNullable<Awaited<ReturnType<typeof repairNotesAdd>>>
+    export type RepairNotesAddMutationBody = BodyType<RepairNoteInput>
+    export type RepairNotesAddMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add a free-text work note to a repair (append-only timeline event)
+ */
+export const useRepairNotesAdd = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repairNotesAdd>>, TError,{id: string;data: BodyType<RepairNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof repairNotesAdd>>,
+        TError,
+        {id: string;data: BodyType<RepairNoteInput>},
+        TContext
+      > => {
+      return useMutation(getRepairNotesAddMutationOptions(options));
+    }
 
 export const getRepairPaymentsListUrl = (id: string,) => {
 

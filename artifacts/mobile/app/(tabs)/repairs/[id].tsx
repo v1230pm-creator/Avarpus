@@ -43,7 +43,7 @@ import {
   useRepairPartsList, getRepairPartsListQueryKey, repairPartsAdd,
   useRepairPaymentsList, getRepairPaymentsListQueryKey, repairPaymentsCreate, repairPaymentVoid, repairPaymentsVoidAll,
   useStaffList, getStaffListQueryKey, repairAssignTechnician,
-  useRepairTesting, repairTesting, useEstimateApprovalsList, getEstimateApprovalsListQueryKey, estimateApprovalsCreate,
+  repairNotesAdd, useEstimateApprovalsList, getEstimateApprovalsListQueryKey, estimateApprovalsCreate,
   estimateApprovalsDecide, repairNotifyReady, estimateApprovalsSendOtp,
   repairsUpdate, useRepairsGet, getRepairsGetQueryKey, type UploadUrlRequestContentType } from '@workspace/api-client-react';
 import { AvarpusLoadingScreen } from '@/components/ui/AvarpusSpinner';
@@ -129,12 +129,14 @@ function ReadOnlyRepairDetail({ repair, topPad }: { repair: Repair; topPad: numb
           <InfoRow label="Device" value={[repair.deviceType, repair.brand, repair.model].filter(Boolean).join(' · ')} />
           <InfoRow label="Problem" value={repair.problem || 'Not provided'} />
         </Card>
-        <Card>
-          <Text style={[styles.cardLabel, { color: colors.mutedForeground }]}>COMPLETED REPAIR WORK</Text>
-          <Text style={{ fontSize: 14, color: repair.workPerformed ? colors.foreground : colors.mutedForeground, lineHeight: 20 }}>
-            {repair.workPerformed || 'Repair work has not been completed yet.'}
-          </Text>
-        </Card>
+        {/* Legacy jobs only: the structured work field older repairs carry.
+            Work notes are internal timeline events, which portals cannot read. */}
+        {!!repair.workPerformed?.trim() && (
+          <Card>
+            <Text style={[styles.cardLabel, { color: colors.mutedForeground }]}>REPAIR WORK</Text>
+            <Text style={{ fontSize: 14, color: colors.foreground, lineHeight: 20 }}>{repair.workPerformed.trim()}</Text>
+          </Card>
+        )}
         <Card>
           <Text style={[styles.cardLabel, { color: colors.mutedForeground }]}>PAYMENT SUMMARY</Text>
           <InfoRow label="Charges / Price" value={formatCurrency(total)} bold />
@@ -203,12 +205,6 @@ export default function RepairDetailScreen() {
   // Technician Assignment
   const [showAssign, setShowAssign] = useState(false);
 
-  // Testing Checklist
-  const [showTesting, setShowTesting] = useState(false);
-  const [testingChecklist, setTestingChecklist] = useState<Record<string, boolean>>({});
-  // Testing results being edited inside the Service Edit modal (true = Pass, false = Fail, absent = not tested)
-  const [editTesting, setEditTesting] = useState<Record<string, boolean>>({});
-
   // Estimate Approval
   const [showApproval, setShowApproval] = useState(false);
   const [newEstimate, setNewEstimate] = useState('');
@@ -223,13 +219,9 @@ export default function RepairDetailScreen() {
   // More details sheet
   const [showMore, setShowMore] = useState(false);
 
-  // Service Edits
-  const [showServiceEdit, setShowServiceEdit] = useState(false);
-  const [editDiagnosis, setEditDiagnosis] = useState('');
-  const [editWorkPerformed, setEditWorkPerformed] = useState('');
-
-  // Service workflow tab (Complaint / Diagnosis / Repairing / Testing)
-  const [svcTab, setSvcTab] = useState<'complaint' | 'diagnosis' | 'repairing' | 'testing' | null>(null);
+  // Work notes (free text, append-only)
+  const [noteDraft, setNoteDraft] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
 
   const qrRef = useRef<any>(null);
   useEffect(() => {
@@ -270,12 +262,6 @@ export default function RepairDetailScreen() {
   // Only a request that is genuinely in flight may show the loader.
   const repairResolving = !repair && !repairDetailError && (repairDetailLoading || shopDataLoading);
   const isReadOnlyPortal = isDealerPortalRole(user?.role) || isLinkedCustomerPortalUser(user);
-
-  // Keep the Testing tab's Pass/Fail state in sync with the saved checklist.
-  const savedTestingJson = JSON.stringify(repair?.testingChecklist || {});
-  useEffect(() => {
-    setEditTesting(JSON.parse(savedTestingJson));
-  }, [savedTestingJson]);
 
   const portalQueriesEnabled = !!id && !isReadOnlyPortal;
   const { data: photosData } = useRepairPhotosList(id as string, { query: { enabled: portalQueriesEnabled, queryKey: getRepairPhotosListQueryKey(id as string) } });
@@ -347,7 +333,7 @@ export default function RepairDetailScreen() {
     : repair.status === 'delivered' ? 4
     : -1;
   const nextStep =
-    repair.status === 'received' ? { id: 'repairing', label: 'Repairing', desc: 'Start repairing and add diagnosis' }
+    repair.status === 'received' ? { id: 'repairing', label: 'Repairing', desc: 'Start repairing — add work notes as you go' }
     : ['diagnosing', 'waiting_parts', 'repairing'].includes(repair.status as string) ? { id: 'testing', label: 'Testing', desc: 'Move job to testing' }
     : ['testing', 'customer_approval'].includes(repair.status as string) ? { id: 'ready', label: 'Ready', desc: 'Ready for customer pickup' }
     : repair.status === 'ready' ? { id: 'delivered', label: 'Delivered', desc: 'Complete delivery and choose Due or Mark as Paid' }
@@ -359,8 +345,9 @@ export default function RepairDetailScreen() {
     : nextStep?.id === 'delivered' ? 'Continue to Deliver'
     : 'Continue';
 
-  // Task-completion gate (mirrors the server): the next stage stays locked
-  // until the current stage's required work is SAVED on the server.
+  // Intake-completion gate (mirrors the server): a job cannot leave
+  // 'received' until the intake record itself is complete. Later stages are
+  // never gated — work is described through free-text notes.
   const stageMissing: string[] = (() => {
     if (!nextStep) return [];
     if (stageIndex === 0) {
@@ -370,18 +357,6 @@ export default function RepairDetailScreen() {
       if (!(repair.brand?.trim() || repair.model?.trim())) miss.push('Device details');
       if (!repair.problem?.trim()) miss.push('Complaint / problem');
       return miss;
-    }
-    if (stageIndex === 1) {
-      const miss: string[] = [];
-      if (!repair.diagnosis?.trim()) miss.push('Diagnosis');
-      if (!repair.workPerformed?.trim()) miss.push('Work performed');
-      return miss;
-    }
-    if (stageIndex === 2) {
-      const vals = Object.values(repair.testingChecklist || {});
-      if (vals.length === 0) return ['Testing result (Pass/Fail)'];
-      if (vals.some(v => v === false)) return ['All tested items must Pass (Fail hone par Return to Repair use karein)'];
-      return [];
     }
     return [];
   })();
@@ -670,11 +645,7 @@ export default function RepairDetailScreen() {
       setShowStatusPicker(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
-      if (e?.code === 'TESTING_REQUIRED' || e?.message?.includes('TESTING_REQUIRED')) {
-        setShowStatusPicker(false);
-        setTestingChecklist({ ...(repair.testingChecklist || {}) });
-        setTimeout(() => setShowTesting(true), 350);
-      } else if (e?.code === 'STAGE_INCOMPLETE' || e?.message?.includes('STAGE_INCOMPLETE')) {
+      if (e?.code === 'STAGE_INCOMPLETE' || e?.message?.includes('STAGE_INCOMPLETE')) {
         setShowStatusPicker(false);
         setTimeout(() => showIncompleteAlert(Array.isArray(e?.missing) ? e.missing : undefined), 350);
       } else if (e?.code === 'INVALID_STATUS_TRANSITION' || e?.message?.includes('INVALID_STATUS_TRANSITION')) {
@@ -745,23 +716,23 @@ export default function RepairDetailScreen() {
     }
   };
 
-  // Stage of the service workflow, used to decide which Edit Service Details
-  // section is currently editable. Earlier stages stay visible but locked.
-  const svcStage =
-    repair.status === 'received' ? 0
-    : ['diagnosing', 'waiting_parts', 'repairing'].includes(repair.status as string) ? 1
-    : 2;
-  const testingEditable = ['testing', 'customer_approval'].includes(repair.status as string);
-
-  // Active service tab: user selection, else default to the current stage.
-  const defaultSvcTab =
-    svcStage === 0 ? 'complaint' : svcStage === 1 ? 'repairing' : svcStage === 2 ? 'testing' : 'testing';
-  const activeSvcTab = svcTab ?? defaultSvcTab;
-  const testingTabDirty = JSON.stringify(editTesting) !== JSON.stringify(repair.testingChecklist || {});
-
-  // Whether the diagnosis/work fields are editable right now: staff during
-  // the repairing stage, and the dealer/owner also after delivery.
-  const svcEditable = svcStage === 1 || dealerDeliveredEdit;
+  // Work notes shown newest first: note_added timeline events, then any
+  // legacy structured fields older jobs still carry (read-only), then the
+  // intake note. Portal viewers never see this card's composer.
+  const canAddNote = !isReadOnlyPortal && canUpdateStatus;
+  const workNotes: Array<{ id: string; kind: 'note' | 'legacy' | 'intake'; label?: string; text: string; meta?: string }> = [
+    ...(eventsData?.events ?? [])
+      .filter((ev) => ev.action === 'note_added' && typeof ev.details?.text === 'string' && ev.details.text)
+      .map((ev) => ({
+        id: ev.id,
+        kind: 'note' as const,
+        text: String(ev.details!.text),
+        meta: `${ev.userName} · ${new Date(ev.createdAt).toLocaleString('en-IN', { hour: 'numeric', minute: '2-digit', day: '2-digit', month: 'short' })}`,
+      })),
+    ...(repair.workPerformed?.trim() ? [{ id: 'legacy-work', kind: 'legacy' as const, label: 'WORK PERFORMED', text: repair.workPerformed.trim() }] : []),
+    ...(repair.diagnosis?.trim() ? [{ id: 'legacy-diagnosis', kind: 'legacy' as const, label: 'DIAGNOSIS', text: repair.diagnosis.trim() }] : []),
+    ...(repair.notes?.trim() ? [{ id: 'intake-note', kind: 'intake' as const, label: 'INTAKE NOTE', text: repair.notes.trim() }] : []),
+  ];
 
   // Dealer/owner only — permanently remove this repair and all its records.
   const confirmDeleteRepair = () => {
@@ -792,203 +763,31 @@ export default function RepairDetailScreen() {
     }
   };
 
-  const openServiceEdit = () => {
-    if (!isActiveRepair && !dealerDeliveredEdit) return;
-    setEditDiagnosis(repair.diagnosis || '');
-    setEditWorkPerformed(repair.workPerformed || '');
-    setEditTesting({ ...(repair.testingChecklist || {}) });
-    setShowServiceEdit(true);
-  };
-
-  // Save any unsaved Pass/Fail results, then continue directly to the stage
-  // named on the primary button.
-  const handleContinueAndSave = async () => {
+  // Continue directly to the stage named on the primary button. Only the
+  // intake record is gated (server mirrors this); work details are free
+  // text notes and never block a stage change.
+  const handleContinue = async () => {
     if (updating || !nextStep) return;
-    const currentMissing = stageIndex === 2
-      ? (() => {
-          const vals = Object.values(editTesting);
-          if (vals.length === 0) return ['Testing result (Pass/Fail)'];
-          if (vals.some(v => v === false)) return ['All tested items must Pass (Fail hone par Return to Repair use karein)'];
-          return [];
-        })()
-      : stageMissing;
-    if (currentMissing.length > 0) {
-      showIncompleteAlert(currentMissing);
+    if (stageMissing.length > 0) {
+      showIncompleteAlert(stageMissing);
       return;
-    }
-    if (testingEditable && testingTabDirty) {
-      setUpdating(true);
-      try {
-        await repairTesting(repair.id, { checklist: editTesting });
-        const savedFail = Object.values(editTesting).some(v => v === false);
-        await loadAll();
-        queryClient.invalidateQueries();
-        setUpdating(false);
-        if (savedFail) {
-          Alert.alert(
-            'Testing Failed',
-            'Ek ya zyada testing items fail hain. Aage kya karna hai?',
-            [
-              { text: 'Baad mein', style: 'cancel' },
-              { text: 'Return to Repair', onPress: () => handleStatusUpdate('repairing') },
-            ],
-          );
-          return;
-        }
-      } catch (e: any) {
-        setUpdating(false);
-        Alert.alert('Error', e.message);
-        return;
-      }
     }
     await handleStatusUpdate(nextStep.id);
   };
 
-  // Save Pass/Fail results directly from the Testing tab.
-  const handleSaveTestingTab = async () => {
-    if (updating || !testingTabDirty) return;
-    setUpdating(true);
+  const handleAddNote = async () => {
+    const text = noteDraft.trim();
+    if (!text || noteSaving) return;
+    setNoteSaving(true);
     try {
-      await repairTesting(repair.id, { checklist: editTesting });
-      const savedFail = Object.values(editTesting).some(v => v === false);
-      await loadAll();
-      queryClient.invalidateQueries();
-      if (savedFail) {
-        setTimeout(() => {
-          Alert.alert(
-            'Testing Failed',
-            'Ek ya zyada testing items fail hain. Aage kya karna hai?',
-            [
-              { text: 'Baad mein', style: 'cancel' },
-              { text: 'Return to Repair', onPress: () => handleStatusUpdate('repairing') },
-            ],
-          );
-        }, 300);
-      }
+      await repairNotesAdd(repair.id, { text });
+      setNoteDraft('');
+      await queryClient.invalidateQueries({ queryKey: getRepairEventsListQueryKey(repair.id) });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Note not saved', e?.message || 'Could not save the note. Please try again.');
     } finally {
-      setUpdating(false);
-    }
-  };
-
-  // Shared Pass/Fail rows for testing checklists. An item already saved as
-  // Pass on the server is locked: shown but not editable.
-  const renderTestingRows = (
-    values: Record<string, boolean>,
-    setValues: React.Dispatch<React.SetStateAction<Record<string, boolean>>>,
-    disabledAll = false,
-  ) => (
-    <View style={{ gap: 8 }}>
-      {CHECKLIST_ITEMS.map((item) => {
-        const locked = disabledAll || (repair.testingChecklist || {})[item.id] === true;
-        const value = values[item.id]; // true = Pass, false = Fail, undefined = not tested
-        const setValue = (v: boolean) => {
-          if (locked) return;
-          setValues(prev => {
-            if (prev[item.id] === v) {
-              const next = { ...prev };
-              delete next[item.id];
-              return next;
-            }
-            return { ...prev, [item.id]: v };
-          });
-        };
-        return (
-          <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, backgroundColor: colors.card, borderColor: colors.border, opacity: locked ? 0.75 : 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-              {locked && <Feather name="lock" size={11} color={colors.mutedForeground} />}
-              <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>{item.label}</Text>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              <TouchableOpacity
-                activeOpacity={locked ? 1 : 0.7}
-                disabled={locked}
-                onPress={() => setValue(true)}
-                style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, borderWidth: 1, backgroundColor: value === true ? colors.success + '22' : 'transparent', borderColor: value === true ? colors.success : colors.border }}
-              >
-                <Text style={{ fontSize: 12, fontFamily: 'Inter_600SemiBold', color: value === true ? colors.success : colors.mutedForeground }}>Pass</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                activeOpacity={locked ? 1 : 0.7}
-                disabled={locked}
-                onPress={() => setValue(false)}
-                style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, borderWidth: 1, backgroundColor: value === false ? colors.destructive + '22' : 'transparent', borderColor: value === false ? colors.destructive : colors.border }}
-              >
-                <Text style={{ fontSize: 12, fontFamily: 'Inter_600SemiBold', color: value === false ? colors.destructive : colors.mutedForeground }}>Fail</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
-
-  const handleSaveService = async () => {
-    setUpdating(true);
-    try {
-      // Only the current stage's fields are sent; locked fields stay
-      // untouched. The complaint is permanently fixed at intake — it is
-      // never sent from here.
-      if (svcEditable) {
-        await repairsUpdate(repair.id, { diagnosis: editDiagnosis, workPerformed: editWorkPerformed });
-      }
-      let savedFail = false;
-      if (testingEditable) {
-        const savedTesting = repair.testingChecklist || {};
-        if (JSON.stringify(editTesting) !== JSON.stringify(savedTesting)) {
-          await repairTesting(repair.id, { checklist: editTesting });
-          savedFail = Object.values(editTesting).some(v => v === false);
-        }
-      }
-      setShowServiceEdit(false);
-      await loadAll();
-      queryClient.invalidateQueries();
-      if (!savedFail && isActiveRepair) {
-        // "Update Status" flow: after saving, go straight to the status
-        // picker so the job can continue to the next stage. (Delivered jobs
-        // being corrected by the dealer just save — no status change.)
-        setTimeout(() => setShowStatusPicker(true), 400);
-      }
-      if (savedFail) {
-        // A testing item failed: the job either goes back to repair or the
-        // device is returned to the customer without repair.
-        setTimeout(() => {
-          Alert.alert(
-            'Testing Failed',
-            'Ek ya zyada testing items fail hain. Aage kya karna hai?',
-            [
-              { text: 'Baad mein', style: 'cancel' },
-              { text: 'Return to Repair', onPress: () => handleStatusUpdate('repairing') },
-              {
-                text: 'Customer Return',
-                style: 'destructive',
-                onPress: () => {
-                  confirm({
-                    title: 'Return device to customer?',
-                    message: 'The device goes back unrepaired and the job is marked "Cannot Repair".',
-                    icon: 'corner-up-left',
-                    actions: [
-                      {
-                        label: 'Yes, return device',
-                        description: 'Mark this job as Cannot Repair',
-                        icon: 'corner-up-left',
-                        tone: 'destructive',
-                        onPress: () => handleStatusUpdate('cannot_repair'),
-                      },
-                    ],
-                    cancelLabel: 'No',
-                  });
-                },
-              },
-            ],
-          );
-        }, 400);
-      }
-    } catch (e: any) {
-       Alert.alert('Error', e.message);
-    } finally {
-      setUpdating(false);
+      setNoteSaving(false);
     }
   };
 
@@ -1198,7 +997,7 @@ export default function RepairDetailScreen() {
           {/* Notes */}
           <View style={{ padding: 16 }}>
             <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 6 }}>Notes</Text>
-            <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_400Regular' }}>{repair.notes || repair.diagnosis || 'No notes provided.'}</Text>
+            <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_400Regular' }}>{workNotes[0]?.text || 'No notes provided.'}</Text>
           </View>
           
           {/* Secondary actions */}
@@ -1209,106 +1008,55 @@ export default function RepairDetailScreen() {
           </View>
         </View>
 
-{/* 4-5. SERVICE WORKFLOW — Complaint / Diagnosis / Repairing / Testing tabs */}
-        <Card style={{ paddingHorizontal: 12 }}>
-          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
-            {([
-              { id: 'complaint', label: 'Complaint' },
-              { id: 'diagnosis', label: 'Diagnosis' },
-              { id: 'repairing', label: 'Repairing' },
-              { id: 'testing', label: 'Testing' },
-            ] as const).map((t) => {
-              const active = activeSvcTab === t.id;
-              return (
-                <TouchableOpacity
-                  key={t.id}
-                  onPress={() => setSvcTab(t.id)}
-                  style={{ flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center', borderWidth: 1, backgroundColor: active ? colors.primary + '18' : 'transparent', borderColor: active ? colors.primary : colors.border }}
-                >
-                  <Text style={{ fontSize: 12, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium', color: active ? colors.primary : colors.mutedForeground }}>{t.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
+        {/* 4. WORK NOTES — the only place staff describe what was done */}
+        <Card>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>WORK NOTES</Text>
+            {workNotes.length > 0 && (
+              <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{workNotes.length}</Text>
+            )}
           </View>
 
-          {activeSvcTab === 'complaint' && (
-            <View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>CUSTOMER COMPLAINT</Text>
-                <Feather name="lock" size={11} color={colors.mutedForeground} />
-              </View>
-              <Text style={{ fontSize: 14, color: colors.foreground, marginTop: 4, lineHeight: 20 }}>{repair.problem}</Text>
-              <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 8 }}>Complaint intake par note hota hai aur permanently fixed rehta hai — isse badla nahi ja sakta.</Text>
+          {canAddNote && (
+            <View style={{ marginBottom: workNotes.length > 0 ? 14 : 4 }}>
+              <TextInput
+                testID="work-note-input"
+                value={noteDraft}
+                onChangeText={setNoteDraft}
+                placeholder="Phone mein kya kaam hua? Yahan likhein…"
+                placeholderTextColor={colors.mutedForeground}
+                multiline
+                maxLength={2000}
+                editable={!noteSaving}
+                style={[styles.input, { color: colors.foreground, borderColor: colors.border, minHeight: 72, textAlignVertical: 'top', marginBottom: 8 }]}
+              />
+              <Button
+                title="Add Note"
+                onPress={handleAddNote}
+                loading={noteSaving}
+                disabled={!noteDraft.trim()}
+                fullWidth
+              />
             </View>
           )}
 
-          {activeSvcTab === 'diagnosis' && (
-            <View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>DIAGNOSIS</Text>
-                {svcStage > 1 && <Feather name="lock" size={12} color={colors.mutedForeground} />}
-              </View>
-              <Text style={{ fontSize: 14, color: repair.diagnosis ? colors.foreground : colors.warning, marginTop: 4, lineHeight: 20 }}>
-                {repair.diagnosis || (svcStage === 0 ? 'Diagnosis repairing stage mein add hogi' : 'Diagnosis pending')}
-              </Text>
-              {((isActiveRepair && svcStage === 1) || dealerDeliveredEdit) && (
-                <Button
-                  title={dealerDeliveredEdit ? 'Edit Diagnosis' : repair.diagnosis ? 'Continue / Update' : 'Add Diagnosis'}
-                  onPress={openServiceEdit}
-                  style={{ marginTop: 12 }}
-                />
-              )}
-            </View>
-          )}
-
-          {activeSvcTab === 'repairing' && (
-            <View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>CUSTOMER COMPLAINT</Text>
-                <Feather name="lock" size={11} color={colors.mutedForeground} />
-              </View>
-              <Text style={{ fontSize: 13, color: colors.foreground, marginTop: 2, lineHeight: 19 }}>{repair.problem}</Text>
-
-              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginTop: 12 }]}>DIAGNOSIS STATUS</Text>
-              {repair.diagnosis ? (
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 2 }}>
-                  <Feather name="check-circle" size={14} color={colors.success} style={{ marginTop: 2 }} />
-                  <Text style={{ fontSize: 13, color: colors.foreground, lineHeight: 19, flex: 1 }}>{repair.diagnosis}</Text>
-                </View>
-              ) : (
-                <Text style={{ fontSize: 13, color: colors.mutedForeground, marginTop: 2 }}>{svcStage === 0 ? 'Not started' : 'Diagnosis pending'}</Text>
-              )}
-
-              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginTop: 12 }]}>REPAIR WORK</Text>
-              <Text style={{ fontSize: 13, color: repair.workPerformed ? colors.foreground : colors.warning, marginTop: 2, lineHeight: 19 }}>
-                {repair.workPerformed || 'Repairing pending'}
-              </Text>
-              {((isActiveRepair && svcStage === 1) || dealerDeliveredEdit) && (
-                <Button
-                  title={dealerDeliveredEdit ? 'Edit Repair Work' : repair.workPerformed ? 'Update Repair Work' : 'Add Repair Work'}
-                  onPress={openServiceEdit}
-                  style={{ marginTop: 12 }}
-                />
-              )}
-            </View>
-          )}
-
-          {activeSvcTab === 'testing' && (
-            <View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>TESTING — PASS / FAIL</Text>
-                {!testingEditable && <Feather name="lock" size={12} color={colors.mutedForeground} />}
-              </View>
-              {svcStage < 2 && Object.keys(repair.testingChecklist || {}).length === 0 ? (
-                <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Testing yahan tab hogi jab job Testing stage par pahunchegi.</Text>
-              ) : (
-                <>
-                  {renderTestingRows(editTesting, setEditTesting, !testingEditable)}
-                  {testingEditable && testingTabDirty && (
-                    <Button title="Save Testing" onPress={handleSaveTestingTab} loading={updating} style={{ marginTop: 12 }} />
+          {workNotes.length === 0 ? (
+            <Text style={{ fontSize: 13, color: colors.mutedForeground, lineHeight: 19 }}>
+              {canAddNote ? 'Abhi koi note nahi. Har kaam ke baad ek chhota note add karein.' : 'No work notes yet.'}
+            </Text>
+          ) : (
+            <View style={{ gap: 12 }}>
+              {workNotes.map((n) => (
+                <View key={n.id} style={{ paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: n.kind === 'note' ? colors.primary + '66' : colors.border }}>
+                  {n.kind !== 'note' && (
+                    <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.6, marginBottom: 2 }}>{n.label}</Text>
                   )}
-                </>
-              )}
+                  <Text style={{ fontSize: 14, color: colors.foreground, lineHeight: 20 }}>{n.text}</Text>
+                  {!!n.meta && (
+                    <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 3 }}>{n.meta}</Text>
+                  )}
+                </View>
+              ))}
             </View>
           )}
         </Card>
@@ -1540,19 +1288,14 @@ export default function RepairDetailScreen() {
                   </TouchableOpacity>
                 </View>
               )}
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Button title="Edit Details" variant="outline" onPress={openServiceEdit} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Button
-                    title="Delete Repair"
-                    variant="outline"
-                    onPress={() => {
-                      confirmDeleteRepair();
-                    }}
-                  />
-                </View>
+              <View style={{ marginTop: 10 }}>
+                <Button
+                  title="Delete Repair"
+                  variant="outline"
+                  onPress={() => {
+                    confirmDeleteRepair();
+                  }}
+                />
               </View>
             </View>
           ) : (
@@ -1584,7 +1327,7 @@ export default function RepairDetailScreen() {
           canUpdateStatus && nextStep ? (
             <Button
               title={continueButtonLabel}
-              onPress={handleContinueAndSave}
+              onPress={handleContinue}
               loading={updating}
               fullWidth
             />
@@ -1620,6 +1363,19 @@ export default function RepairDetailScreen() {
               </TouchableOpacity>
             ) : (
               <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 12 }}>No further status available.</Text>
+            )}
+            {repair.status === 'testing' && (
+              <TouchableOpacity
+                onPress={() => handleStatusUpdate('repairing')}
+                disabled={updating}
+                style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, marginBottom: 12 }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Feather name="rotate-ccw" size={14} color={colors.foreground} />
+                  <Text style={{ fontSize: 15, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Back to Repairing</Text>
+                </View>
+                <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 2 }}>Test fail hua? Job wapas repairing mein bhejein aur note likhein.</Text>
+              </TouchableOpacity>
             )}
             {isActiveRepair && (user?.role === 'dealer' || user?.role === 'super_admin') && (
               <TouchableOpacity
@@ -1719,39 +1475,20 @@ export default function RepairDetailScreen() {
               </Card>
             )}
 
-            {/* Testing Results */}
-            {Object.keys(repair.testingChecklist || {}).length > 0 && (
-              <Card>
-                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 12 }]}>TESTING RESULTS</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {Object.keys(repair.testingChecklist || {}).map(k => {
-                    const passed = repair.testingChecklist![k];
-                    return (
-                      <View key={k} style={{ padding: 8, borderRadius: 8, backgroundColor: passed ? colors.success + '15' : colors.destructive + '15', borderWidth: 1, borderColor: passed ? colors.success + '33' : colors.destructive + '33', width: '31%' }}>
-                        <Text style={{ fontSize: 11, color: passed ? colors.success : colors.destructive, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>{CHECKLIST_ITEMS.find(c => c.id === k)?.label || k}</Text>
-                        <Text style={{ fontSize: 10, color: passed ? colors.success : colors.destructive }}>{passed ? 'Pass' : 'Fail'}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </Card>
-            )}
-
             {/* Work / Parts */}
             <Card>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>WORK & PARTS</Text>
+                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>PARTS REPLACED</Text>
                 {isActiveRepair && (
                   <TouchableOpacity onPress={() => { setShowMore(false); setTimeout(() => setShowAddPart(true), 350); }}>
                     <Feather name="plus-circle" size={16} color={colors.primary} />
                   </TouchableOpacity>
                 )}
               </View>
-              <Text style={{ fontSize: 12, color: colors.primary, marginBottom: 4, fontFamily: 'Inter_500Medium' }}>Work Performed</Text>
-              <Text style={{ fontSize: 13, color: colors.foreground, marginBottom: 12 }}>{repair.workPerformed || 'Pending'}</Text>
-              {parts.length > 0 && (
+              {parts.length === 0 ? (
+                <Text style={{ fontSize: 13, color: colors.mutedForeground }}>No parts recorded.</Text>
+              ) : (
                 <>
-                  <Text style={{ fontSize: 12, color: colors.primary, marginBottom: 4, fontFamily: 'Inter_500Medium' }}>Parts Replaced</Text>
                   {parts.map((p, idx) => (
                     <View key={p.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: idx === parts.length - 1 ? 0 : 1, borderBottomColor: colors.border + '55' }}>
                       <View>
@@ -1935,7 +1672,10 @@ export default function RepairDetailScreen() {
                         <Text style={{ fontSize: 12, color: colors.mutedForeground, marginBottom: 2 }}>
                           {new Date(ev.createdAt).toLocaleString('en-IN', { hour: 'numeric', minute: '2-digit', day: '2-digit', month: 'short', year: 'numeric' })}
                         </Text>
-                        <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>{ev.action}</Text>
+                        <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>{ev.action === 'note_added' ? 'Note added' : ev.action}</Text>
+                        {ev.action === 'note_added' && typeof ev.details?.text === 'string' && (
+                          <Text style={{ fontSize: 13, color: colors.foreground, marginTop: 4, lineHeight: 19 }}>{String(ev.details.text)}</Text>
+                        )}
                         <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 2 }}>By: {ev.userName} ({ev.userRole})</Text>
                       </View>
                     </View>
@@ -1947,7 +1687,7 @@ export default function RepairDetailScreen() {
             {/* Staff Notes */}
             {!!repair.notes && (
               <Card>
-                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 8 }]}>STAFF NOTES</Text>
+                <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 8 }]}>INTAKE NOTE</Text>
                 <Text style={{ fontSize: 13, color: colors.foreground, lineHeight: 20 }}>{repair.notes}</Text>
               </Card>
             )}
@@ -2390,37 +2130,6 @@ export default function RepairDetailScreen() {
       </Modal>
 
 
-      {/* Testing Modal */}
-      <Modal visible={showTesting} animationType="slide" transparent onRequestClose={() => setShowTesting(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Final Testing Checklist</Text>
-
-            <ScrollView style={{ maxHeight: 400, marginVertical: 10 }}>
-              {renderTestingRows(testingChecklist, setTestingChecklist)}
-            </ScrollView>
-
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-              <Button title="Cancel" variant="outline" onPress={() => setShowTesting(false)} style={{ flex: 1 }} />
-              <Button title="Confirm & Set Ready" onPress={async () => {
-                setUpdating(true);
-                try {
-                  await repairTesting(repair.id, { checklist: testingChecklist, confirm: true });
-                  setShowTesting(false);
-                  await loadAll();
-                  queryClient.invalidateQueries();
-                } catch (e: any) {
-                  Alert.alert('Testing Failed', e.message);
-                } finally {
-                  setUpdating(false);
-                }
-              }} loading={updating} style={{ flex: 1 }} />
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-
       {/* Estimate Approval Modal */}
       <Modal visible={showApproval} animationType="slide" transparent onRequestClose={() => setShowApproval(false)}>
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
@@ -2558,84 +2267,6 @@ export default function RepairDetailScreen() {
             </View>
           </View>
         </KeyboardAvoidingCompat>
-      </Modal>
-
-      {/* Service Edit Modal */}
-      <Modal visible={showServiceEdit} animationType="fade" transparent onRequestClose={() => setShowServiceEdit(false)}>
-        <KeyboardAvoidingCompat style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Service Details</Text>
-
-            <ScrollView style={{ maxHeight: 440 }} keyboardShouldPersistTaps="handled">
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Complaint (Fixed)</Text>
-              <Feather name="lock" size={11} color={colors.mutedForeground} />
-            </View>
-            <Text style={{ fontSize: 14, color: colors.mutedForeground, lineHeight: 20, marginBottom: 12, paddingHorizontal: 2 }}>{repair.problem}</Text>
-
-            {svcStage >= 1 && (
-              <>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={[styles.label, { color: svcEditable ? colors.foreground : colors.mutedForeground }]}>Diagnosis</Text>
-                  {!svcEditable && <Feather name="lock" size={11} color={colors.mutedForeground} />}
-                </View>
-                <TextInput value={editDiagnosis} onChangeText={setEditDiagnosis} editable={svcEditable} multiline numberOfLines={3} style={[styles.input, { color: svcEditable ? colors.foreground : colors.mutedForeground, borderColor: colors.border, height: 80, textAlignVertical: 'top', opacity: svcEditable ? 1 : 0.7 }]} />
-
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={[styles.label, { color: svcEditable ? colors.foreground : colors.mutedForeground }]}>Work Performed</Text>
-                  {!svcEditable && <Feather name="lock" size={11} color={colors.mutedForeground} />}
-                </View>
-                <TextInput value={editWorkPerformed} onChangeText={setEditWorkPerformed} editable={svcEditable} multiline numberOfLines={3} style={[styles.input, { color: svcEditable ? colors.foreground : colors.mutedForeground, borderColor: colors.border, height: 80, textAlignVertical: 'top', opacity: svcEditable ? 1 : 0.7 }]} />
-              </>
-            )}
-
-            {svcStage >= 2 && (
-              <>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={[styles.label, { color: testingEditable ? colors.foreground : colors.mutedForeground }]}>Testing</Text>
-                  {!testingEditable && <Feather name="lock" size={11} color={colors.mutedForeground} />}
-                </View>
-                {renderTestingRows(editTesting, setEditTesting, !testingEditable)}
-              </>
-            )}
-            </ScrollView>
-
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-              <Button
-                title="Cancel"
-                variant="outline"
-                onPress={() => {
-                  // Discarding unsaved edits needs a confirmation; saved data
-                  // is never touched by closing this sheet.
-                  const dirty =
-                    (svcEditable && (editDiagnosis !== (repair.diagnosis || '') || editWorkPerformed !== (repair.workPerformed || ''))) ||
-                    (testingEditable && JSON.stringify(editTesting) !== JSON.stringify(repair.testingChecklist || {}));
-                  if (dirty) {
-                    confirm({
-                      title: 'Discard changes?',
-                      message: 'Your edits have not been saved.',
-                      icon: 'alert-triangle',
-                      actions: [
-                        {
-                          label: 'Discard changes',
-                          description: 'Close without saving',
-                          tone: 'destructive',
-                          onPress: () => setShowServiceEdit(false),
-                        },
-                      ],
-                      cancelLabel: 'Keep editing',
-                    });
-                  } else {
-                    setShowServiceEdit(false);
-                  }
-                }}
-                style={{ flex: 1 }}
-              />
-              <Button title={dealerDeliveredEdit ? 'Save Changes' : 'Update Status'} onPress={handleSaveService} loading={updating} style={{ flex: 1 }} />
-            </View>
-          </View>
-        </KeyboardAvoidingCompat>
-        <ConfirmDialogHost />
       </Modal>
 
       {/* Assign Technician Modal */}

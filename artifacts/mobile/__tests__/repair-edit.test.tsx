@@ -1,7 +1,7 @@
 /**
- * Guards the repair detail/edit screen — where staff update status,
- * diagnosis/service notes, and money fields — against regressions that
- * silently lose an update:
+ * Guards the repair detail/edit screen — where staff update status, add
+ * work notes, and edit money fields — against regressions that silently
+ * lose an update:
  *  - a failed update alerts and keeps the edited values on screen for retry
  *  - a successful update replaces the record in the shop's repairs list
  *
@@ -16,6 +16,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ── Mocks (network + native boundaries only) ─────────────────────────────
 const mockRepairsUpdate = jest.fn();
+const mockRepairNotesAdd = jest.fn();
+/** Timeline events returned by the mocked events hook (work notes live here). */
+const mockEvents: { events: unknown[] } = { events: [] };
 
 const mockLists: Record<string, unknown[]> = { repairs: [], customers: [], items: [], purchases: [], entries: [] };
 /** State returned by the mocked per-repair GET hook (detail fallback). */
@@ -65,13 +68,12 @@ jest.mock('@workspace/api-client-react', () => {
     // Detail-screen react-query hooks — all idle (no photos/parts/etc.).
     useRepairsGet: jest.fn(() => ({ data: mockRepairGet.data, isLoading: mockRepairGet.isLoading, error: mockRepairGet.error })),
     useRepairPhotosList: idleHook(),
-    useRepairEventsList: idleHook(),
+    useRepairEventsList: jest.fn(() => ({ data: { events: [...mockEvents.events] }, refetch: jest.fn(async () => ({})) })),
     useReturnsList: idleHook(),
     useRepairPartsList: idleHook(),
     useRepairPaymentsList: idleHook(),
     useStaffList: idleHook(),
     useEstimateApprovalsList: idleHook(),
-    useRepairTesting: idleHook(),
     getRepairsGetQueryKey: key('repairGet'),
     getRepairPhotosListQueryKey: key('photos'),
     getRepairEventsListQueryKey: key('events'),
@@ -85,7 +87,7 @@ jest.mock('@workspace/api-client-react', () => {
     repairPartsAdd: jest.fn(),
     repairPaymentsCreate: jest.fn(),
     repairAssignTechnician: jest.fn(),
-    repairTesting: jest.fn(),
+    repairNotesAdd: (...a: unknown[]) => mockRepairNotesAdd(...a),
     estimateApprovalsCreate: jest.fn(),
     estimateApprovalsDecide: jest.fn(),
     estimateApprovalsSendOtp: jest.fn(),
@@ -211,15 +213,7 @@ const press = async (label: string) =>
     fireEvent.press(matches[matches.length - 1]);
   });
 
-/**
- * Opens the Edit Service Details modal. With the tabbed service section the
- * sheet opens from the Repairing tab's "Update Repair Work" button (repair is
- * in the repairing stage in these tests, so Repairing is the default tab).
- */
-const openServiceEdit = async () => {
-  await press('Update Repair Work');
-  expect(screen.getByText('Edit Service Details')).toBeTruthy();
-};
+const NOTE_PLACEHOLDER = 'Phone mein kya kaam hua? Yahan likhein…';
 
 /** Opens the Edit Financials modal via the Edit Estimate action. */
 const openFinancialEdit = async () => {
@@ -246,6 +240,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   for (const key of Object.keys(mockLists)) mockLists[key] = [];
   mockLists.repairs = [{ ...baseRepair }];
+  mockEvents.events = [];
   mockRepairGet.data = undefined;
   mockRepairGet.isLoading = false;
   mockRepairGet.error = null;
@@ -259,26 +254,19 @@ afterEach(() => {
 
 // ── Failed update alerts and keeps the edited values ─────────────────────
 describe('failed update alerts and keeps edited values', () => {
-  it('service-details save failure alerts, keeps the modal open with edits, and the record unchanged', async () => {
-    mockRepairsUpdate.mockRejectedValue(new Error('boom'));
+  it('a failed work-note save alerts and keeps the typed note for retry', async () => {
+    mockRepairNotesAdd.mockRejectedValue(new Error('boom'));
     const { unmount } = await renderDetail();
-    await openServiceEdit();
 
-    fireEvent.changeText(screen.getByDisplayValue('Old diagnosis'), 'Battery swollen, needs replacement');
-    fireEvent.changeText(screen.getByDisplayValue('Old work'), 'Opened back panel');
-    await press('Update Status');
+    fireEvent.changeText(screen.getByPlaceholderText(NOTE_PLACEHOLDER), 'Replaced battery, phone charging now');
+    await press('Add Note');
 
-    await waitFor(() =>
-      expect(alertSpy).toHaveBeenCalledWith('Error', expect.any(String)),
-    );
-    // Modal stayed open with every edited value intact for retry.
-    expect(screen.getByText('Edit Service Details')).toBeTruthy();
-    expect(screen.getByDisplayValue('Battery swollen, needs replacement')).toBeTruthy();
-    expect(screen.getByDisplayValue('Opened back panel')).toBeTruthy();
-    // The list still holds the original record — nothing was replaced.
-    expect(screen.getByText('repair:r1:repairing:Old diagnosis')).toBeTruthy();
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('Note not saved', expect.any(String)));
+    expect(screen.getByDisplayValue('Replaced battery, phone charging now')).toBeTruthy();
+    expect(mockRepairsUpdate).not.toHaveBeenCalled();
     unmount();
   });
+
 
   it('status update failure alerts and keeps the status unchanged', async () => {
     mockRepairsUpdate.mockRejectedValue(new Error('boom'));
@@ -353,40 +341,57 @@ describe('financial edit keeps amounts on failure and saves them on success', ()
 
 // ── Successful update replaces the record in the list ────────────────────
 describe('successful update replaces the record in the list', () => {
-  it('saving service details sends the edits and the updated record replaces the old one', async () => {
+  it('adding a work note posts it, clears the composer, and shows it newest first', async () => {
+    mockRepairNotesAdd.mockImplementation(async (id: string, body: { text: string }) => {
+      const event = { id: 'ev-new', repairId: id, userName: 'Owner', userRole: 'dealer', action: 'note_added', details: { text: body.text }, createdAt: '2026-09-12T10:00:00.000Z' };
+      mockEvents.events = [event, ...mockEvents.events];
+      return { event };
+    });
+    mockEvents.events = [
+      { id: 'ev-old', repairId: 'r1', userName: 'Ravi', userRole: 'technician', action: 'note_added', details: { text: 'Opened back panel' }, createdAt: '2026-09-11T10:00:00.000Z' },
+      { id: 'ev-status', repairId: 'r1', userName: 'Owner', userRole: 'dealer', action: 'status_changed', details: { to: 'repairing' }, createdAt: '2026-09-10T10:00:00.000Z' },
+    ];
+    const { unmount } = await renderDetail();
+
+    // Existing note and legacy structured fields are readable in the card.
+    // (The newest note is also echoed as the summary card's Notes line.)
+    expect(screen.getAllByText('Opened back panel').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Old diagnosis')).toBeTruthy();
+    expect(screen.getByText('Old work')).toBeTruthy();
+    // The old Complaint / Diagnosis / Repairing / Testing tab card is gone.
+    expect(screen.queryByText('Complaint')).toBeNull();
+    expect(screen.queryByText('Update Repair Work')).toBeNull();
+    expect(screen.queryByText('Edit Service Details')).toBeNull();
+
+    fireEvent.changeText(screen.getByPlaceholderText(NOTE_PLACEHOLDER), '  Replaced battery  ');
+    await press('Add Note');
+
+    await waitFor(() => expect(mockRepairNotesAdd).toHaveBeenCalledWith('r1', { text: 'Replaced battery' }));
+    await waitFor(() => expect(screen.getAllByText('Replaced battery').length).toBeGreaterThanOrEqual(1));
+    expect(screen.getByPlaceholderText(NOTE_PLACEHOLDER).props.value).toBe('');
+    // Notes never go through the repair PATCH, so nothing structured changed.
+    expect(mockRepairsUpdate).not.toHaveBeenCalled();
+    expect(alertSpy).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('moves to Testing without diagnosis, work performed, or a test result', async () => {
+    mockLists.repairs = [{ ...baseRepair, diagnosis: undefined, workPerformed: undefined, testingChecklist: undefined }];
     mockRepairsUpdate.mockImplementation(async (id: string, patch: Record<string, unknown>) => {
-      const updated = { ...baseRepair, ...patch, id };
-      mockLists.repairs = [updated]; // server now returns the new record on reload
+      const updated = { ...baseRepair, diagnosis: undefined, workPerformed: undefined, ...patch, id };
+      mockLists.repairs = [updated];
       return { repair: updated };
     });
     const { unmount } = await renderDetail();
-    await openServiceEdit();
 
-    fireEvent.changeText(screen.getByDisplayValue('Old diagnosis'), 'Battery swollen, needs replacement');
-    fireEvent.changeText(screen.getByDisplayValue('Old work'), 'Replaced battery');
-    await press('Update Status');
+    await press('Continue as Testing');
 
-    await waitFor(() =>
-      expect(screen.getByText('repair:r1:repairing:Battery swollen, needs replacement')).toBeTruthy(),
-    );
-    expect(screen.queryByText('repair:r1:repairing:Old diagnosis')).toBeNull();
-    // Modal closed and the screen shows the new diagnosis text.
-    expect(screen.queryByText('Edit Service Details')).toBeNull();
-    expect(screen.getAllByText('Battery swollen, needs replacement').length).toBeGreaterThanOrEqual(1);
+    await waitFor(() => expect(screen.getByText('repair:r1:testing:')).toBeTruthy());
     expect(alertSpy).not.toHaveBeenCalled();
-
-    // Only the current stage's fields are sent — the complaint is immutable
-    // and is never included in the payload.
-    expect(mockRepairsUpdate).toHaveBeenCalledWith(
-      'r1',
-      expect.objectContaining({
-        diagnosis: 'Battery swollen, needs replacement',
-        workPerformed: 'Replaced battery',
-      }),
-    );
-    expect(mockRepairsUpdate).toHaveBeenCalledWith('r1', expect.not.objectContaining({ problem: expect.anything() }));
+    expect(mockRepairsUpdate).toHaveBeenCalledWith('r1', expect.objectContaining({ status: 'testing' }));
     unmount();
   });
+
 
   it('status change to Testing updates the record directly', async () => {
     mockRepairsUpdate.mockImplementation(async (id: string, patch: Record<string, unknown>) => {

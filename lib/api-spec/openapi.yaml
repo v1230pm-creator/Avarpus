@@ -1328,6 +1328,33 @@ paths:
                     items:
                       $ref: "#/components/schemas/RepairEvent"
                 required: [events]
+  /repairs/{id}/notes:
+    post:
+      operationId: repairNotesAdd
+      tags: [business]
+      summary: Add a free-text work note to a repair (append-only timeline event)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepairNoteInput"
+      responses:
+        "201":
+          description: The recorded note_added event
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  event:
+                    $ref: "#/components/schemas/RepairEvent"
+                required: [event]
   /repairs/{id}/payments:
     get:
       operationId: repairPaymentsList
@@ -4830,6 +4857,11 @@ components:
         kind: { type: string, enum: [front, back, imei, left, right, top, bottom, damage, bill, customer_id, other] }
         objectPath: { type: string }
       required: [kind, objectPath]
+    RepairNoteInput:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 2000 }
     RepairEvent:
       type: object
       properties:

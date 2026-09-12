@@ -7,6 +7,8 @@
 //     authorized rewind is testing -> repairing when the stored checklist
 //     has a failed item. Other rewinds -> 409 INVALID_STATUS_TRANSITION.
 //   - Testing items saved as Pass stay immutable -> 409 TESTING_ITEM_LOCKED.
+//   - Forward moves are NOT gated on diagnosis/work/testing; work notes are
+//     append-only note_added timeline events via POST /repairs/:id/notes.
 // Usage: node scripts/run-isolated.mjs scripts/test-stage-locks.mjs
 import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -167,39 +169,60 @@ async function run(A) {
   r = await api("PATCH", `/repairs/${rep}`, A.token, { workPerformed: "replaced touch panel" });
   check("back in repairing: work edit -> 200 again", r.status === 200, r);
 
-  // ── Completion gate: next stage locked until required work is SAVED ─────
+  // ── No work-field gate: diagnosis / work / testing are optional notes ────
+  // Staff describe the work via free-text notes; a job moves through the
+  // stages without any of the legacy structured fields being filled.
   const repG = await createRepair(A);
   await api("PATCH", `/repairs/${repG}`, A.token, { status: "repairing" });
   r = await api("PATCH", `/repairs/${repG}`, A.token, { status: "testing" });
+  check("no gate: repairing -> testing without diagnosis/work -> 200", r.status === 200, r);
+  r = await api("PATCH", `/repairs/${repG}`, A.token, { status: "ready" });
+  check("no gate: testing -> ready without any testing result -> 200", r.status === 200, r);
+
+  // ── Work notes: append-only timeline entries ─────────────────────────────
+  const repN = await createRepair(A);
+  r = await api("POST", `/repairs/${repN}/notes`, A.token, { text: "   " });
+  check("note: blank text -> 400", r.status === 400, r);
+  r = await api("POST", `/repairs/${repN}/notes`, A.token, { text: "x".repeat(2001) });
+  check("note: over 2000 chars -> 400", r.status === 400, r);
+  r = await api("POST", `/repairs/${repN}/notes`, A.token, { text: "  Replaced charging port, tested OK  " });
   check(
-    "gate: repairing -> testing without diagnosis/work -> 409 STAGE_INCOMPLETE",
-    r.status === 409 && r.json.code === "STAGE_INCOMPLETE" &&
-      (r.json.missing ?? []).includes("diagnosis") && (r.json.missing ?? []).includes("workPerformed"),
+    "note: saved as a note_added event with trimmed text and author",
+    r.status === 201 && r.json.event?.action === "note_added"
+      && r.json.event?.details?.text === "Replaced charging port, tested OK"
+      && r.json.event?.userRole === "dealer" && !!r.json.event?.createdAt,
     r,
   );
-  // Diagnosis alone is not enough — workPerformed is also required.
-  await api("PATCH", `/repairs/${repG}`, A.token, { diagnosis: "half done" });
-  r = await api("PATCH", `/repairs/${repG}`, A.token, { status: "testing" });
-  check("gate: diagnosis without work -> still 409", r.status === 409 && r.json.code === "STAGE_INCOMPLETE", r);
-  await api("PATCH", `/repairs/${repG}`, A.token, { workPerformed: "swap part" });
-  r = await api("PATCH", `/repairs/${repG}`, A.token, { status: "testing" });
-  check("gate: after diagnosis+work saved -> testing 200", r.status === 200, r);
-  r = await api("PATCH", `/repairs/${repG}`, A.token, { status: "ready" });
-  check(
-    "gate: testing -> ready without testing result -> 409 STAGE_INCOMPLETE",
-    r.status === 409 && r.json.code === "STAGE_INCOMPLETE" && (r.json.missing ?? []).includes("testingResult"),
-    r,
-  );
-  await api("POST", `/repairs/${repG}/testing`, A.token, { checklist: { power_on: true, display: false } });
-  r = await api("PATCH", `/repairs/${repG}`, A.token, { status: "ready" });
-  check(
-    "gate: testing -> ready with a Fail -> 409 (testingAllPass)",
-    r.status === 409 && r.json.code === "STAGE_INCOMPLETE" && (r.json.missing ?? []).includes("testingAllPass"),
-    r,
-  );
-  await api("POST", `/repairs/${repG}/testing`, A.token, { checklist: { display: true } });
-  r = await api("PATCH", `/repairs/${repG}`, A.token, { status: "ready" });
-  check("gate: all items Pass -> ready 200", r.status === 200, r);
+  await api("POST", `/repairs/${repN}/notes`, A.token, { text: "Second note" });
+  r = await api("GET", `/repairs/${repN}/events`, A.token);
+  {
+    const notes = (r.json.events ?? []).filter((e) => e.action === "note_added");
+    check(
+      "note: both notes listed newest first in the timeline",
+      r.status === 200 && notes.length === 2 && notes[0].details?.text === "Second note",
+      notes,
+    );
+  }
+  r = await api("POST", `/repairs/00000000-0000-4000-8000-000000000000/notes`, A.token, { text: "ghost" });
+  check("note: unknown repair -> 404", r.status === 404, r);
+  {
+    // Another shop can neither write to nor read this repair's notes.
+    const B = await seedTestShop("B");
+    try {
+      r = await api("POST", `/repairs/${repN}/notes`, B.token, { text: "cross-shop" });
+      check("note: other shop's POST -> 404", r.status === 404, r);
+      r = await api("GET", `/repairs/${repN}/events`, B.token);
+      check("note: other shop's events read -> 404", r.status === 404, r);
+      r = await api("GET", `/repairs/${repN}/events`, A.token);
+      check(
+        "note: cross-shop attempt left no trace in the timeline",
+        (r.json.events ?? []).every((e) => e.details?.text !== "cross-shop"),
+        r.json.events,
+      );
+    } finally {
+      await cleanup(B.userId);
+    }
+  }
 
   // Skip-ahead attempts are rejected as non-adjacent transitions — even when
   // the payload supplies the "missing" work in the same request.
@@ -255,13 +278,14 @@ async function run(A) {
     );
   }
 
-  // ── Rewind without a failed test must be rejected ────────────────────────
+  // ── Testing → repairing rewind no longer needs a failed checklist item ──
   const rep2 = await createRepair(A);
   await api("PATCH", `/repairs/${rep2}`, A.token, { status: "repairing" });
-  await completeRepairing(A, rep2);
   await api("PATCH", `/repairs/${rep2}`, A.token, { status: "testing" });
   r = await api("PATCH", `/repairs/${rep2}`, A.token, { status: "repairing" });
-  check("testing -> repairing without failed item -> 409", r.status === 409 && r.json.code === "INVALID_STATUS_TRANSITION", r);
+  check("testing -> repairing without failed item -> 200", r.status === 200 && r.json.repair?.status === "repairing", r);
+  r = await api("PATCH", `/repairs/${rep2}`, A.token, { status: "testing" });
+  check("repairing -> testing again -> 200", r.status === 200, r);
 
   // ── Later stages cannot rewind into editable stages ──────────────────────
   await completeTesting(A, rep2);
@@ -273,35 +297,6 @@ async function run(A) {
   check("ready -> repairing rewind -> 409", r.status === 409 && r.json.code === "INVALID_STATUS_TRANSITION", r);
   r = await api("POST", `/repairs/${rep2}/testing`, A.token, { checklist: { camera: true } });
   check("ready: checklist write -> 409", r.status === 409 && r.json.code === "FIELD_LOCKED_STAGE", r);
-
-  // ── Race: testing-fail rewind vs concurrent checklist clear ─────────────
-  // Fire "clear the only failed item" (POST /testing touch:true) and
-  // "return to repairing" (PATCH status) at the same time, repeatedly.
-  // Serialized correctly, at most one can win: if the checklist write lands
-  // first there is no failed item so the rewind must 409; if the rewind
-  // lands first the job left the testing stage so the checklist write must
-  // 409. Both succeeding means the FOR UPDATE revalidation is broken.
-  for (let i = 0; i < 5; i++) {
-    const rr = await createRepair(A);
-    await api("PATCH", `/repairs/${rr}`, A.token, { status: "repairing" });
-    await completeRepairing(A, rr);
-    await api("PATCH", `/repairs/${rr}`, A.token, { status: "testing" });
-    await api("POST", `/repairs/${rr}/testing`, A.token, { checklist: { touch: false } });
-    const [clear, rewind] = await Promise.all([
-      api("POST", `/repairs/${rr}/testing`, A.token, { checklist: { touch: true } }),
-      api("PATCH", `/repairs/${rr}`, A.token, { status: "repairing" }),
-    ]);
-    const bothWon = clear.status === 200 && rewind.status === 200;
-    check(`race ${i + 1}: fail-clear and rewind never both succeed`, !bothWon, { clear, rewind });
-    const { json: st } = await api("GET", "/repairs", A.token);
-    const repNow = (st.repairs ?? []).find((x) => x.id === rr) ?? {};
-    const cl = repNow.testingChecklist ?? {};
-    const consistent =
-      (repNow.status === "repairing" && cl.touch === false) ||
-      (["testing", "customer_approval"].includes(repNow.status) && cl.touch === true) ||
-      (["testing", "customer_approval"].includes(repNow.status) && cl.touch === false && rewind.status !== 200 && clear.status !== 200);
-    check(`race ${i + 1}: final state consistent`, consistent, { status: repNow.status, cl, clear: clear.status, rewind: rewind.status });
-  }
 
   // ── Terminal statuses are frozen ─────────────────────────────────────────
   const rep3 = await createRepair(A);

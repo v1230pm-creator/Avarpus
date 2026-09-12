@@ -1366,10 +1366,10 @@ router.patch(
           isTerminalFrom &&
           (requesterRole === "dealer" || requesterRole === "super_admin") &&
           (patch.status === "ready" || patch.status === "delivered");
-        const checklistNow = (row.testingChecklist as Record<string, boolean> | null) ?? {};
-        const hasFailedTest = Object.values(checklistNow).some((v) => v === false);
-        const isAuthorizedTestingFailReturn =
-          row.status === "testing" && patch.status === "repairing" && hasFailedTest;
+        // Testing → repairing is the one sanctioned rewind: a device that
+        // fails on the bench goes back for more work. It no longer depends on
+        // a stored checklist failure — staff record the failure as a note.
+        const isTestingReturn = row.status === "testing" && patch.status === "repairing";
         // Forward moves must be ADJACENT (one stage at a time): sideways
         // within a stage or exactly one rank up. Skipping stages — even with
         // a complete payload — breaks the sequential workflow. Voiding
@@ -1380,20 +1380,22 @@ router.patch(
           : isVoidMove ||
             toRank === fromRank ||
             toRank === fromRank + 1 ||
-            isAuthorizedTestingFailReturn;
+            isTestingReturn;
         if (!allowed) {
           return {
             code: "INVALID_STATUS_TRANSITION",
             message: "This status change is not allowed by the repair workflow.",
           };
         }
-        // Completion gate: a stage only unlocks after the previous stage's
-        // required work is actually SAVED. Applies to every forward move into
-        // a working stage; voiding (cancelled/cannot_repair) and the
-        // dealer-only restore-from-void path are exempt.
+        // Completion gate: leaving intake requires the intake record itself to
+        // be complete. Later stages are NOT gated on diagnosis / work
+        // performed / testing results — staff describe the work through free
+        // text notes (POST /repairs/:id/notes) and those are optional.
+        // Voiding (cancelled/cannot_repair) and the dealer-only
+        // restore-from-void path are exempt.
         const isVoidTarget = patch.status === "cancelled" || patch.status === "cannot_repair";
         if (!isVoidTarget && !isRestoreFromVoid && toRank > fromRank) {
-          const merged = (f: "customerName" | "mobile" | "brand" | "model" | "problem" | "diagnosis" | "workPerformed") =>
+          const merged = (f: "customerName" | "mobile" | "brand" | "model" | "problem") =>
             norm(patch[f] !== undefined ? patch[f] : row[f]).trim();
           const missing: string[] = [];
           if (toRank >= 1) {
@@ -1401,19 +1403,6 @@ router.patch(
             if (!merged("mobile")) missing.push("phone");
             if (!merged("brand") && !merged("model")) missing.push("device");
             if (!merged("problem")) missing.push("problem");
-          }
-          if (toRank >= 2) {
-            if (!merged("diagnosis")) missing.push("diagnosis");
-            if (!merged("workPerformed")) missing.push("workPerformed");
-          }
-          if (toRank >= 3) {
-            // Ready/Delivered unlock only after a saved testing result with
-            // every recorded item passing. (A failed item routes through the
-            // testing-fail return paths instead.)
-            const cl = (row.testingChecklist as Record<string, boolean> | null) ?? {};
-            const entries = Object.values(cl);
-            if (entries.length === 0) missing.push("testingResult");
-            else if (entries.some((v) => v === false)) missing.push("testingAllPass");
           }
           if (missing.length > 0) {
             return {
@@ -1951,6 +1940,62 @@ router.get(
         details: (e.details as Record<string, unknown> | null) ?? undefined,
         createdAt: iso(e.createdAt),
       })),
+    });
+  }),
+);
+
+// Free-text work notes: how staff describe what was done to a device (the
+// mobile app no longer edits diagnosis / workPerformed / testing — those
+// remain as legacy compatibility fields on PATCH and /testing). Each note is
+// an immutable timeline event (author + time), so a technician's note can
+// never be silently rewritten by a later one.
+const MAX_REPAIR_NOTE_CHARS = 2000;
+router.post(
+  "/repairs/:id/notes",
+  requireAuth,
+  requireFeature("repairs_update"),
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const id = String(req.params.id ?? "");
+    if (!(await repairInShop(shopId, id))) {
+      res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    const raw = (req.body ?? {}).text;
+    const text = typeof raw === "string" ? raw.trim() : "";
+    if (!text) {
+      res.status(400).json({ message: "Note text is required" });
+      return;
+    }
+    if (text.length > MAX_REPAIR_NOTE_CHARS) {
+      res.status(400).json({ message: `Note must be at most ${MAX_REPAIR_NOTE_CHARS} characters` });
+      return;
+    }
+    const user = (req as AuthedRequest).user;
+    const [row] = await db
+      .insert(repairEventsTable)
+      .values({
+        shopId,
+        repairId: id,
+        userId: user.id,
+        userName: user.name,
+        userRole: user.role,
+        action: "note_added",
+        details: { text },
+      })
+      .returning();
+    res.status(201).json({
+      event: {
+        id: row.id,
+        repairId: row.repairId,
+        userId: row.userId ?? undefined,
+        userName: row.userName,
+        userRole: row.userRole,
+        action: row.action,
+        details: (row.details as Record<string, unknown> | null) ?? undefined,
+        createdAt: iso(row.createdAt),
+      },
     });
   }),
 );

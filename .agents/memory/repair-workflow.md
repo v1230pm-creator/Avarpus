@@ -17,9 +17,11 @@ All four tabs are views over the same repairs table (same VMC-xxx ticket); After
 
 ## Task-completion gate (stage unlock)
 - Status moves must be ADJACENT (same rank or +1); skipping stages is INVALID_STATUS_TRANSITION even with a complete payload. Voiding and dealer restore-from-void are exempt.
-- STAGE_INCOMPLETE (409, with `missing[]`) blocks forward moves until required saved work exists: rank1 intake fields, rank2 diagnosis+workPerformed, rank3 non-empty all-Pass checklist.
+- STAGE_INCOMPLETE (409, with `missing[]`) now gates only leaving 'received' (intake fields). Diagnosis/workPerformed/testing checklist no longer gate anything (Sept 2026 decision): staff describe work via append-only notes (POST /repairs/:id/notes → repair_events action note_added, read through /events). Do not reintroduce work-field gates; the mobile app no longer edits diagnosis/workPerformed/testing at all (legacy fields remain readable + PATCHable for web).
+- testing→repairing is the only rewind and is unconditional (used to require a failed checklist item).
 - POST /repairs ignores client status — always starts at 'received' (no create-as-delivered).
-- Tests that deliver a repair must walk received→repairing(+diag/work)→testing(+all-pass checklist)→ready→delivered.
+- Tests that deliver a repair only need received→repairing→testing→ready→delivered; intake fields are the only prerequisite.
+- **Why:** the owner found the Complaint/Diagnosis/Repairing/Testing card too heavy; technicians should just write what they did.
 
 ## Mobile stage and delivery UX
 - The repair detail primary action lives at the end of the scroll content and names its destination: Continue as Repairing/Testing/Ready, then Continue to Deliver.

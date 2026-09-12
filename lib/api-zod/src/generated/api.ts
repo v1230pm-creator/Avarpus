@@ -2084,6 +2084,35 @@ export const RepairEventsListResponse = zod.object({
 
 
 /**
+ * @summary Add a free-text work note to a repair (append-only timeline event)
+ */
+export const RepairNotesAddParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const repairNotesAddBodyTextMax = 2000;
+
+
+
+export const RepairNotesAddBody = zod.object({
+  "text": zod.string().min(1).max(repairNotesAddBodyTextMax)
+})
+
+export const RepairNotesAddResponse = zod.object({
+  "event": zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "userId": zod.string().optional(),
+  "userName": zod.string(),
+  "userRole": zod.string(),
+  "action": zod.string(),
+  "details": zod.record(zod.string(), zod.unknown()).optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
  * @summary List the payment ledger of a repair
  */
 export const RepairPaymentsListParams = zod.object({
