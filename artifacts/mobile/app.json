@@ -3,7 +3,7 @@
     "name": "Avarpus",
     "slug": "avarpus",
     "version": "1.0.6",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/avarpus-icon-universal-square.png",
     "scheme": "vmcelectronicerp",
     "userInterfaceStyle": "automatic",
