@@ -79,3 +79,4 @@
 - [Launcher icon geometry](launcher-icon-geometry.md) — size icon artwork by its enclosing circle, not its bbox; adaptive foreground carries the mark only, never a coloured disc.
 - [Privileged session inactivity](privileged-session-idle.md) — only super_admin sessions expire after 30 idle days, enforced at read time; idle deletes must re-check the cutoff in SQL.
 - [Request validation conventions](request-validation-conventions.md) — bodies parse via generated api-zod schemas + shared helpers; per-router UUID guards (some `:id` accept `me`); re-verify uploads at attach.
+- [Matrix homeserver DNS](matrix-homeserver-dns.md) — "fetch failed" on chat sends with a healthy API = missing custom Matrix subdomain record; check an outside resolver before blaming the provider.

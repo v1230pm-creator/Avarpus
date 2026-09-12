@@ -65,6 +65,7 @@ import {
   matrixProvisionDirectRoom,
   matrixProvisionTimeoutMs,
   matrixSendMessage,
+  describeProviderError,
   matrixUserIdForApp,
   matrixTxnId,
 } from "../lib/chatProviders";
@@ -241,7 +242,7 @@ async function provisionClaimedDirectRoom(room: ChatRoom): Promise<ChatRoom | nu
           ),
         );
     }
-    console.error("[chat] Matrix room/participant provisioning failed:", (err as Error).message);
+    console.error("[chat] Matrix room/participant provisioning failed:", describeProviderError(err));
     return null;
   }
 }
@@ -2114,7 +2115,7 @@ router.post(
           code: "MATRIX_UNAVAILABLE",
         });
       } else {
-        console.error("[chat] Matrix sendMessage failed:", (err as Error).message);
+        console.error("[chat] Matrix sendMessage failed:", describeProviderError(err));
         res.status(503).json({
           message: "Failed to deliver message to chat provider. Please try again.",
           code: "MATRIX_SEND_FAILED",

@@ -10,7 +10,9 @@ description: What to do when the GitHub connection's auth() returns unauthentica
 
 **Gotcha:** CodeExecution `shellExec` output uses CRLF — file lists split on `\n` keep a trailing `\r` that breaks paths/readFile. Always strip `\r` before using shell output as paths.
 
-**How to apply:** After an API push, local and remote SHAs DIVERGE (same content, different commits). Before the next token-based `git push`, either `git fetch && git reset --hard origin/<branch>` (if no new local work) or push with `--force-with-lease` knowing content is identical. As of Sep 12 2026, local `main` (8ed7013) and remote `main` (318f4df) have IDENTICAL trees but different commit SHAs; treat the next push as a tree-delta push again, not a fast-forward.
+**How to apply:** After an API push, local and remote SHAs DIVERGE (same content, different commits). Before the next token-based `git push`, either `git fetch && git reset --hard origin/<branch>` (if no new local work) or push with `--force-with-lease` knowing content is identical. As of Sep 12 2026, local `main` (voice-note fix commit, tree d57c1ca…) and remote `main` have IDENTICAL trees but different commit SHAs; treat the next push as a tree-delta push again, not a fast-forward.
+
+**Gotcha (Sep 12 2026):** `shellExec` in CodeExecution also drops TAB characters and silently truncated a 1359-line `git ls-tree` to 547 lines with `truncated:false`. Write the listing to a `/tmp` file with `sed 's/\t/|/'` and `readFile` it instead.
 
 ## Empty repository bootstrap
 

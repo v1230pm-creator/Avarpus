@@ -267,6 +267,17 @@ const mockRecorder = {
   setInput: jest.fn(),
 };
 
+const mockRecorderPrepare = mockRecorder.prepareToRecordAsync;
+
+/**
+ * Release the held mic after a genuine hold. Releases shorter than the
+ * accidental-tap threshold discard the note, so advance the (fake) clock first.
+ */
+function releaseMic(holdMs = 1500) {
+  act(() => { jest.advanceTimersByTime(holdMs); });
+  fireEvent(screen.getByLabelText('Recording, release to send'), 'pressOut');
+}
+
 jest.mock('expo-audio', () => ({
   useAudioRecorder: jest.fn(() => mockRecorder),
   useAudioRecorderState: (...args: any[]) => mockUseAudioRecorderState(...args),
@@ -2381,7 +2392,7 @@ describe('Chat screen — voice notes', () => {
 
   it('mic button is enabled when provider available and room resolved', () => {
     render(<ChatRoomScreen />);
-    const mic = screen.getByLabelText('Record voice note');
+    const mic = screen.getByLabelText('Hold to record voice note');
     expect(mic).toBeTruthy();
     expect(mic.props.accessibilityState?.disabled).toBeFalsy();
   });
@@ -2395,7 +2406,7 @@ describe('Chat screen — voice notes', () => {
     render(<ChatRoomScreen />);
     // Provider down — setup-pending card shown, no mic button
     expect(screen.getByText('Chat setup pending')).toBeTruthy();
-    expect(screen.queryByLabelText('Record voice note')).toBeNull();
+    expect(screen.queryByLabelText('Hold to record voice note')).toBeNull();
   });
 
   it('shows permission-denied notice when microphone permission is denied', async () => {
@@ -2404,7 +2415,7 @@ describe('Chat screen — voice notes', () => {
       status: 'denied',
     });
     render(<ChatRoomScreen />);
-    fireEvent.press(screen.getByLabelText('Record voice note'));
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
     await waitFor(() => {
       expect(
         screen.getByText(/Microphone permission denied/),
@@ -2429,16 +2440,159 @@ describe('Chat screen — voice notes', () => {
     });
 
     render(<ChatRoomScreen />);
-    fireEvent.press(screen.getByLabelText('Record voice note'));
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
 
     await waitFor(() => {
       expect(mockRecorderRecord).toHaveBeenCalled();
     });
     await waitFor(() => {
       // Recording overlay should appear
-      expect(screen.queryByLabelText('Stop and send recording')).toBeTruthy();
+      expect(screen.queryByLabelText('Recording, release to send')).toBeTruthy();
       expect(screen.queryByLabelText('Cancel recording')).toBeTruthy();
     });
+  });
+
+  it('prepares the recorder before record() — Android record() is a no-op on an unprepared recorder', async () => {
+    mockRequestRecordingPermissionsAsync.mockResolvedValueOnce({ granted: true, status: 'granted' });
+    const order: string[] = [];
+    mockRecorderPrepare.mockImplementationOnce(async () => { order.push('prepare'); });
+    mockRecorderRecord.mockImplementationOnce(() => { order.push('record'); });
+
+    render(<ChatRoomScreen />);
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
+
+    await waitFor(() => expect(mockRecorderRecord).toHaveBeenCalled());
+    expect(order).toEqual(['prepare', 'record']);
+  });
+
+  it('recovers when the recorder was left prepared by an earlier aborted attempt', async () => {
+    mockRequestRecordingPermissionsAsync.mockResolvedValueOnce({ granted: true, status: 'granted' });
+    mockRecorderPrepare
+      .mockRejectedValueOnce(new Error('AudioRecorder has already been prepared. Stop or release the current session before preparing again.'))
+      .mockResolvedValueOnce(undefined);
+
+    render(<ChatRoomScreen />);
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
+
+    await waitFor(() => expect(mockRecorderRecord).toHaveBeenCalled());
+    // Released the stale session, then prepared again
+    expect(mockRecorderStop).toHaveBeenCalled();
+    expect(mockRecorderPrepare).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(/already been prepared/)).toBeNull();
+  });
+
+  it('a quick tap discards the note and shows the hold hint instead of sending', async () => {
+    mockRequestRecordingPermissionsAsync.mockResolvedValueOnce({ granted: true, status: 'granted' });
+    const uploadMutate = jest.fn();
+    mockUseChatUploadUrl.mockReturnValue({ mutate: uploadMutate, isPending: false });
+    const sendMutate = jest.fn();
+    mockUseChatMessagesSend.mockReturnValue({ mutate: sendMutate, isPending: false });
+
+    render(<ChatRoomScreen />);
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
+    await waitFor(() => screen.getByLabelText('Recording, release to send'));
+
+    // Release almost immediately (below the accidental-tap threshold)
+    releaseMic(100);
+
+    await waitFor(() => expect(screen.getByText(/Hold the mic button to record/)).toBeTruthy());
+    expect(mockRecorderStop).toHaveBeenCalled();
+    expect(uploadMutate).not.toHaveBeenCalled();
+    expect(sendMutate).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText('Recording, release to send')).toBeNull();
+  });
+
+  it('release and 10-minute auto-stop racing each other produce exactly one stop and one send', async () => {
+    mockRequestRecordingPermissionsAsync.mockResolvedValueOnce({ granted: true, status: 'granted' });
+    const uploadMutate = jest.fn();
+    mockUseChatUploadUrl.mockReturnValue({ mutate: uploadMutate, isPending: false });
+    const sendMutate = jest.fn();
+    mockUseChatMessagesSend.mockReturnValue({ mutate: sendMutate, isPending: false });
+    let durationMillis = 2000;
+    mockUseAudioRecorderState.mockImplementation(() => ({
+      canRecord: true,
+      isRecording: true,
+      durationMillis,
+      mediaServicesDidReset: false,
+      url: null,
+    }));
+
+    const { rerender } = render(<ChatRoomScreen />);
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
+    await waitFor(() => screen.getByLabelText('Recording, release to send'));
+    act(() => { jest.advanceTimersByTime(1500); });
+
+    // Auto-stop fires from the duration effect on this render; the finger
+    // lifts in the same tick before React commits the `stopping` state.
+    durationMillis = 10 * 60 * 1000;
+    await act(async () => {
+      rerender(<ChatRoomScreen />);
+      fireEvent(screen.getByLabelText('Recording, release to send'), 'pressOut');
+    });
+
+    await waitFor(() => expect(uploadMutate).toHaveBeenCalledTimes(1));
+    expect(mockRecorderStop).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases a prepared recorder when record() throws after prepare', async () => {
+    mockRequestRecordingPermissionsAsync.mockResolvedValueOnce({ granted: true, status: 'granted' });
+    mockRecorderRecord.mockImplementationOnce(() => {
+      throw new Error('record boom');
+    });
+
+    render(<ChatRoomScreen />);
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
+
+    await waitFor(() => expect(screen.getByText(/record boom/)).toBeTruthy());
+    expect(mockRecorderPrepare).toHaveBeenCalled();
+    // The native recorder was prepared and must be released, not just the audio mode
+    expect(mockRecorderStop).toHaveBeenCalled();
+  });
+
+  it('unmount cleanup tolerates a rejecting stop() and still restores the audio session', async () => {
+    mockRequestRecordingPermissionsAsync.mockResolvedValueOnce({ granted: true, status: 'granted' });
+    mockUseAudioRecorderState.mockReturnValue({
+      canRecord: true,
+      isRecording: true,
+      durationMillis: 2000,
+      mediaServicesDidReset: false,
+      url: null,
+    });
+    mockRecorderStop.mockRejectedValueOnce(new Error('unmount stop boom'));
+    const unhandled = jest.fn();
+    process.on('unhandledRejection', unhandled);
+
+    const { unmount } = render(<ChatRoomScreen />);
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
+    await waitFor(() => screen.getByLabelText('Recording, release to send'));
+    mockSetAudioModeAsync.mockClear();
+
+    unmount();
+    await waitFor(() => {
+      expect(mockSetAudioModeAsync).toHaveBeenCalledWith(expect.objectContaining({ allowsRecording: false }));
+    });
+    await act(async () => { await Promise.resolve(); });
+    process.off('unhandledRejection', unhandled);
+    expect(unhandled).not.toHaveBeenCalled();
+  });
+
+  it('a release while the permission prompt is up never starts recording', async () => {
+    let grant: (value: { granted: boolean; status: string }) => void = () => {};
+    mockRequestRecordingPermissionsAsync.mockImplementationOnce(
+      () => new Promise((resolve) => { grant = resolve; }),
+    );
+
+    render(<ChatRoomScreen />);
+    const mic = screen.getByLabelText('Hold to record voice note');
+    fireEvent(mic, 'pressIn');
+    // The OS dialog steals the touch → press-out arrives before permission resolves
+    fireEvent(mic, 'pressOut');
+    await act(async () => { grant({ granted: true, status: 'granted' }); });
+
+    await waitFor(() => expect(screen.getByText(/Hold the mic button to record/)).toBeTruthy());
+    expect(mockRecorderRecord).not.toHaveBeenCalled();
+    // Audio session must not be left in recording mode
+    expect(mockSetAudioModeAsync).toHaveBeenCalledWith(expect.objectContaining({ allowsRecording: false }));
   });
 
   it('cancel recording does NOT upload or send', async () => {
@@ -2459,7 +2613,7 @@ describe('Chat screen — voice notes', () => {
     }));
 
     const { rerender } = render(<ChatRoomScreen />);
-    fireEvent.press(screen.getByLabelText('Record voice note'));
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
     await waitFor(() => expect(mockRecorderRecord).toHaveBeenCalled());
 
     // Simulate state change: now recording
@@ -2508,7 +2662,7 @@ describe('Chat screen — voice notes', () => {
     }));
 
     const { rerender } = render(<ChatRoomScreen />);
-    fireEvent.press(screen.getByLabelText('Record voice note'));
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
     await waitFor(() => expect(mockRecorderRecord).toHaveBeenCalled());
 
     recorderStateIsRecording = true;
@@ -2536,7 +2690,7 @@ describe('Chat screen — voice notes', () => {
     });
 
     render(<ChatRoomScreen />);
-    fireEvent.press(screen.getByLabelText('Record voice note'));
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
 
     // Start failed → error surfaced and NOT stuck in recording UI
     await waitFor(() => {
@@ -2549,7 +2703,7 @@ describe('Chat screen — voice notes', () => {
       );
     });
     // Should be back in idle (composer mic visible, no recording overlay)
-    expect(screen.queryByLabelText('Stop and send recording')).toBeNull();
+    expect(screen.queryByLabelText('Recording, release to send')).toBeNull();
   });
 
   it('restores audio mode when stop() throws during stop/send', async () => {
@@ -2571,15 +2725,15 @@ describe('Chat screen — voice notes', () => {
     }));
 
     const { rerender } = render(<ChatRoomScreen />);
-    fireEvent.press(screen.getByLabelText('Record voice note'));
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
     await waitFor(() => expect(mockRecorderRecord).toHaveBeenCalled());
 
     recorderStateIsRecording = true;
     rerender(<ChatRoomScreen />);
-    await waitFor(() => screen.getByLabelText('Stop and send recording'));
+    await waitFor(() => screen.getByLabelText('Recording, release to send'));
     mockSetAudioModeAsync.mockClear();
 
-    fireEvent.press(screen.getByLabelText('Stop and send recording'));
+    releaseMic();
 
     // stop() failed → audio session must still be restored, no upload/send
     await waitFor(() => {
@@ -2604,12 +2758,12 @@ describe('Chat screen — voice notes', () => {
     }));
 
     const { rerender, unmount } = render(<ChatRoomScreen />);
-    fireEvent.press(screen.getByLabelText('Record voice note'));
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
     await waitFor(() => expect(mockRecorderRecord).toHaveBeenCalled());
 
     recorderStateIsRecording = true;
     rerender(<ChatRoomScreen />);
-    await waitFor(() => screen.getByLabelText('Stop and send recording'));
+    await waitFor(() => screen.getByLabelText('Recording, release to send'));
     mockSetAudioModeAsync.mockClear();
 
     // Tear the screen down mid-recording
@@ -2667,13 +2821,13 @@ describe('Chat screen — voice notes', () => {
     }));
 
     const { rerender } = render(<ChatRoomScreen />);
-    fireEvent.press(screen.getByLabelText('Record voice note'));
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
     await waitFor(() => expect(mockRecorderRecord).toHaveBeenCalled());
 
     recorderStateIsRecording = true;
     rerender(<ChatRoomScreen />);
-    await waitFor(() => screen.getByLabelText('Stop and send recording'));
-    fireEvent.press(screen.getByLabelText('Stop and send recording'));
+    await waitFor(() => screen.getByLabelText('Recording, release to send'));
+    releaseMic();
 
     await waitFor(() => expect(mockRecorderStop).toHaveBeenCalled());
 
@@ -2766,13 +2920,13 @@ describe('Chat screen — voice notes', () => {
     }));
 
     const { rerender } = render(<ChatRoomScreen />);
-    fireEvent.press(screen.getByLabelText('Record voice note'));
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
     await waitFor(() => expect(mockRecorderRecord).toHaveBeenCalled());
 
     recorderStateIsRecording = true;
     rerender(<ChatRoomScreen />);
-    await waitFor(() => screen.getByLabelText('Stop and send recording'));
-    fireEvent.press(screen.getByLabelText('Stop and send recording'));
+    await waitFor(() => screen.getByLabelText('Recording, release to send'));
+    releaseMic();
 
     // First attempt: upload OK but send fails → error bar
     await waitFor(() => {
@@ -2857,7 +3011,7 @@ describe('Chat screen — voice notes', () => {
     }));
 
     const { rerender } = render(<ChatRoomScreen />);
-    fireEvent.press(screen.getByLabelText('Record voice note'));
+    fireEvent(screen.getByLabelText('Hold to record voice note'), 'pressIn');
     await waitFor(() => expect(mockRecorderRecord).toHaveBeenCalled());
 
     rerender(<ChatRoomScreen />);

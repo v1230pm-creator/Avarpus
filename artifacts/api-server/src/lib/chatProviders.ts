@@ -85,6 +85,24 @@ export function matrixProvisionTimeoutMs(): number {
  * client operations must go through the AS token or they cannot legally
  * impersonate virtual users.
  */
+/**
+ * Log-safe description of a failed provider call. Node's fetch reports every
+ * transport failure as the opaque "fetch failed"; the actionable detail
+ * (ENOTFOUND, ECONNREFUSED, certificate errors, timeouts) sits on `cause`.
+ * Never includes tokens or response bodies.
+ */
+export function describeProviderError(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const parts = [err.name === "TimeoutError" || err.name === "AbortError" ? `${err.name}: ${err.message}` : err.message];
+  const cause = (err as Error & { cause?: unknown }).cause;
+  if (cause instanceof Error) {
+    const code = (cause as NodeJS.ErrnoException).code;
+    const syscall = (cause as NodeJS.ErrnoException).syscall;
+    parts.push(`cause=${[code, syscall].filter(Boolean).join("/") || cause.name}: ${cause.message}`);
+  }
+  return parts.join(" | ");
+}
+
 export function matrixConfigured(): boolean {
   return !!(
     process.env.MATRIX_BASE_URL?.trim() &&

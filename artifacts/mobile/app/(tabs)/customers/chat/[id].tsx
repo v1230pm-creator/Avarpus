@@ -79,6 +79,9 @@ import type {
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB
 const MAX_RECORDING_MS = 10 * 60 * 1000; // 10 minutes
+// Releases faster than this are treated as an accidental tap, not a voice note.
+const MIN_RECORDING_MS = 700;
+const HOLD_TO_RECORD_HINT = 'Hold the mic button to record a voice note, release to send.';
 
 /**
  * Server-allowlisted content types. Map raw picker MIME → normalised value.
@@ -1062,10 +1065,21 @@ export default function ChatScreen() {
   const [contactsLoading, setContactsLoading] = useState(false);
 
   // ── Voice recording state ───────────────────────────────────────────────
-  const [recordingPhase, setRecordingPhase] = useState<RecordingPhase>('idle');
+  const [recordingPhase, setRecordingPhaseState] = useState<RecordingPhase>('idle');
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [recorderError, setRecorderError] = useState<string | null>(null);
   const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // The ref is the authoritative recorder state machine: transitions are
+  // written to it synchronously so concurrent callers (release gesture, the
+  // 10-minute auto-stop, Cancel) cannot both observe `recording` and stop or
+  // send twice. React state mirrors it for rendering only.
+  const recordingPhaseRef = useRef<RecordingPhase>('idle');
+  const setRecordingPhase = useCallback((phase: RecordingPhase) => {
+    recordingPhaseRef.current = phase;
+    setRecordingPhaseState(phase);
+  }, []);
+  const micHeldRef = useRef(false);
+  const recordStartedAtRef = useRef(0);
 
   // Tracks whether the audio session is currently in recording mode
   // (allowsRecording:true) so we only reset when needed and can guarantee
@@ -1090,18 +1104,27 @@ export default function ChatScreen() {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 200);
 
+  /**
+   * Best-effort release of the native recorder (prepared or recording) and
+   * the audio session. Safe on every failure/abort path: stop() on an idle
+   * recorder just resets it, and rejections are swallowed.
+   */
+  const releaseRecorder = useCallback(async () => {
+    try {
+      await recorder.stop();
+    } catch {
+      // Recorder may already be released — nothing left to clean up.
+    }
+    await resetAudioMode();
+  }, [recorder, resetAudioMode]);
+
   // Unmount cleanup — if the screen is torn down mid-recording, stop the
   // recorder and restore the audio session so allowsRecording is never left
   // stuck true. Never uploads.
   useEffect(() => {
     return () => {
       if (audioModeActiveRef.current) {
-        try {
-          recorder.stop();
-        } catch {
-          // Best-effort — recorder may already be stopped.
-        }
-        void resetAudioMode();
+        void releaseRecorder();
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1924,7 +1947,7 @@ export default function ChatScreen() {
 
   const handleMicPress = useCallback(async () => {
     if (!providerAvailable || !resolvedRoomId) return;
-    if (recordingPhase !== 'idle') return;
+    if (recordingPhaseRef.current !== 'idle') return;
     if (uploadProgress !== null || isSendingUpload) return;
 
     setPermissionDenied(false);
@@ -1946,29 +1969,55 @@ export default function ChatScreen() {
       });
       audioModeActiveRef.current = true;
 
+      // expo-audio requires an explicit prepare step: on Android `record()`
+      // is a silent no-op on an unprepared recorder (timer stays at 0:00 and
+      // stop() yields no file). A recorder left prepared by an aborted
+      // attempt must be released before it can be prepared again.
+      try {
+        await recorder.prepareToRecordAsync();
+      } catch (prepareErr: any) {
+        if (!/already been prepared/i.test(prepareErr?.message ?? '')) throw prepareErr;
+        await recorder.stop().catch(() => undefined);
+        await recorder.prepareToRecordAsync();
+      }
+
+      if (!micHeldRef.current) {
+        // Finger lifted while we were asking for permission / preparing
+        // (e.g. the OS permission dialog took the touch). Release the
+        // prepared recorder and tell the user how the button works.
+        await releaseRecorder();
+        setRecorderError(HOLD_TO_RECORD_HINT);
+        setRecordingPhase('idle');
+        return;
+      }
+
       recorder.record();
+      recordStartedAtRef.current = Date.now();
       setRecordingPhase('recording');
     } catch (err: any) {
-      // record() (or setAudioModeAsync) failed — always restore the session so
-      // the mic/audio route is not left locked in recording mode.
-      await resetAudioMode();
+      // setAudioModeAsync / prepare / record() failed — release whatever the
+      // native side already holds (a prepared recorder survives a throwing
+      // record()) and restore the session so the mic route is not left locked.
+      await releaseRecorder();
       setRecorderError(err?.message ?? 'Could not start recording.');
       setRecordingPhase('idle');
     }
-  }, [providerAvailable, resolvedRoomId, recordingPhase, uploadProgress, isSendingUpload, recorder, resetAudioMode]);
+  }, [providerAvailable, resolvedRoomId, uploadProgress, isSendingUpload, recorder, releaseRecorder, setRecordingPhase]);
 
   const handleStopAndSendRecording = useCallback(async () => {
-    if (recordingPhase !== 'recording') return;
+    // Synchronous claim: whichever of release / auto-stop / Cancel gets here
+    // first owns the stop; the others see `stopping` and return.
+    if (recordingPhaseRef.current !== 'recording') return;
     setRecordingPhase('stopping');
 
     try {
       const durationMs = capturedDurationRef.current || recorderState.durationMillis || 1;
       // expo-audio on Android can clear recorder.uri as stop() finalises the
       // native recorder. Capture the prepared file URI before stopping.
-      const uriBeforeStop = recorder.uri ?? (recorderState as any).url ?? null;
+      const uriBeforeStop = recorder.uri || (recorderState as any).url || null;
       await recorder.stop();
 
-      const uri = recorder.uri ?? (recorderState as any).url ?? uriBeforeStop;
+      const uri = recorder.uri || (recorderState as any).url || uriBeforeStop;
       if (!uri) throw new Error('Recording URI unavailable after stop.');
 
       const timestamp = Date.now();
@@ -1999,29 +2048,41 @@ export default function ChatScreen() {
       // Auto-start the upload/send immediately
       await handleSendUpload(upload);
     } catch (err: any) {
-      // stop()/getInfoAsync failed — always restore the session so the audio
-      // route is not left locked in recording mode.
-      await resetAudioMode();
+      // stop()/getInfoAsync failed — release the recorder and restore the
+      // session so the audio route is not left locked in recording mode.
+      await releaseRecorder();
       setRecorderError(err?.message ?? 'Recording failed.');
       setRecordingPhase('idle');
     }
-  }, [recordingPhase, recorder, recorderState, handleSendUpload, resetAudioMode]);
+  }, [recorder, recorderState, handleSendUpload, resetAudioMode, releaseRecorder, setRecordingPhase]);
 
   const handleCancelRecording = useCallback(async () => {
-    if (recordingPhase !== 'recording') return;
+    if (recordingPhaseRef.current !== 'recording') return;
     setRecordingPhase('stopping');
-    try {
-      await recorder.stop();
-    } catch {
-      // Best-effort stop — ignore errors
-    } finally {
-      // Always restore the audio session on cancel, even if stop() threw.
-      await resetAudioMode();
-    }
+    // Stop + restore the audio session, even if stop() throws.
+    await releaseRecorder();
     setRecordingPhase('idle');
     setRecorderError(null);
     // Do NOT set pendingUpload — cancel means discard (no upload / no send).
-  }, [recordingPhase, recorder, resetAudioMode]);
+  }, [releaseRecorder, setRecordingPhase]);
+
+  // Hold-to-record: press starts the recorder, release sends the note.
+  // A release before the recorder actually captured audio (quick tap, or a
+  // release during the permission prompt) discards and shows the hint.
+  const handleMicPressIn = useCallback(() => {
+    micHeldRef.current = true;
+    void handleMicPress();
+  }, [handleMicPress]);
+
+  const handleMicPressOut = useCallback(() => {
+    micHeldRef.current = false;
+    if (recordingPhaseRef.current !== 'recording') return;
+    if (Date.now() - recordStartedAtRef.current < MIN_RECORDING_MS) {
+      void handleCancelRecording().then(() => setRecorderError(HOLD_TO_RECORD_HINT));
+      return;
+    }
+    void handleStopAndSendRecording();
+  }, [handleCancelRecording, handleStopAndSendRecording]);
 
   // ── Download / open / share ─────────────────────────────────────────────
   const handleDownloadAttachment = useCallback(
@@ -2375,59 +2436,6 @@ export default function ChatScreen() {
         </View>
       )}
 
-      {/* Recording overlay (replaces composer while recording) */}
-      {isRecording && (
-        <View
-          style={[
-            styles.composer,
-            {
-              paddingBottom: isKeyboardVisible ? 6 : Math.max(insets.bottom, 6),
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.inputContainer,
-              { backgroundColor: colors.card, borderColor: colors.border, justifyContent: 'space-between', paddingLeft: 12 },
-            ]}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Animated.View style={{ opacity: blinkAnim }}>
-                <View style={styles.recordingDot} />
-              </Animated.View>
-              <Text
-                style={[styles.recordingTimer, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}
-                accessibilityLabel="Recording elapsed time"
-              >
-                {formatDuration(recorderState.durationMillis)}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={handleCancelRecording}
-              style={{ paddingHorizontal: 12, height: '100%', justifyContent: 'center' }}
-              accessibilityLabel="Cancel recording"
-            >
-              <Text style={{ color: colors.destructive, fontFamily: 'Inter_500Medium', fontSize: 15 }}>
-                Cancel
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity
-            onPress={handleStopAndSendRecording}
-            style={[styles.actionCircle, { backgroundColor: colors.primary }]}
-            accessibilityLabel="Stop and send recording"
-          >
-            <Feather
-              name="send"
-              size={19}
-              color={colors.primaryForeground}
-              style={{ transform: [{ translateX: -1 }, { translateY: 1 }] }}
-            />
-          </TouchableOpacity>
-        </View>
-      )}
-
       {/* Pending upload preview (file attachments + voice notes after stop) */}
       {!isRecording && pendingUpload && (
         <View
@@ -2564,8 +2572,10 @@ export default function ChatScreen() {
         </View>
       )}
 
-      {/* Composer (hidden while recording) */}
-      {!isRecording && (
+      {/* Composer. While recording, the input row becomes the recording strip;
+          the action button stays mounted so the hold gesture that started the
+          recording keeps receiving press-out when the finger lifts. */}
+      {(
         <View
           style={[
             styles.composer,
@@ -2574,6 +2584,38 @@ export default function ChatScreen() {
             },
           ]}
         >
+          {isRecording ? (
+            <View
+              style={[
+                styles.inputContainer,
+                { backgroundColor: colors.card, borderColor: colors.border, justifyContent: 'space-between', paddingLeft: 12 },
+              ]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Animated.View style={{ opacity: blinkAnim }}>
+                  <View style={styles.recordingDot} />
+                </Animated.View>
+                <Text
+                  style={[styles.recordingTimer, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}
+                  accessibilityLabel="Recording elapsed time"
+                >
+                  {formatDuration(recorderState.durationMillis)}
+                </Text>
+                <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 13 }}>
+                  Release to send
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={handleCancelRecording}
+                style={{ paddingHorizontal: 12, height: '100%', justifyContent: 'center' }}
+                accessibilityLabel="Cancel recording"
+              >
+                <Text style={{ color: colors.destructive, fontFamily: 'Inter_500Medium', fontSize: 15 }}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
           <View
             style={[
               styles.inputContainer,
@@ -2617,36 +2659,59 @@ export default function ChatScreen() {
               />
             </TouchableOpacity>
           </View>
+          )}
 
-          <TouchableOpacity
-            onPress={text.trim() ? handleSend : handleMicPress}
-            disabled={text.trim() ? !resolvedRoomId || !providerAvailable || isBlocked : !micEnabled}
-            style={[
-              styles.actionCircle,
-              {
-                backgroundColor:
-                  text.trim() && resolvedRoomId && providerAvailable && !isBlocked
-                    ? colors.primary
-                    : micEnabled
-                    ? colors.primary
-                    : colors.border,
-              },
-            ]}
-            accessibilityLabel={
-              text.trim()
-                ? 'Send message'
-                : micEnabled
-                ? 'Record voice note'
-                : 'Voice notes unavailable'
-            }
-          >
-            <Feather
-              name={text.trim() ? 'send' : 'mic'}
-              size={text.trim() ? 19 : 22}
-              color={text.trim() || micEnabled ? colors.primaryForeground : colors.mutedForeground}
-              style={text.trim() ? { transform: [{ translateX: -1 }, { translateY: 1 }] } : undefined}
-            />
-          </TouchableOpacity>
+          {text.trim() && !isRecording ? (
+            <TouchableOpacity
+              onPress={handleSend}
+              disabled={!resolvedRoomId || !providerAvailable || isBlocked}
+              style={[
+                styles.actionCircle,
+                {
+                  backgroundColor:
+                    resolvedRoomId && providerAvailable && !isBlocked ? colors.primary : colors.border,
+                },
+              ]}
+              accessibilityLabel="Send message"
+            >
+              <Feather
+                name="send"
+                size={19}
+                color={colors.primaryForeground}
+                style={{ transform: [{ translateX: -1 }, { translateY: 1 }] }}
+              />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPressIn={handleMicPressIn}
+              onPressOut={handleMicPressOut}
+              delayPressIn={0}
+              // Never flip `disabled` mid-gesture: the button must keep
+              // receiving press-out while a recording is in progress.
+              disabled={!micEnabled && recordingPhase === 'idle'}
+              style={[
+                styles.actionCircle,
+                {
+                  backgroundColor: micEnabled || isRecording ? colors.primary : colors.border,
+                  transform: [{ scale: isRecording ? 1.15 : 1 }],
+                },
+              ]}
+              accessibilityLabel={
+                isRecording
+                  ? 'Recording, release to send'
+                  : micEnabled
+                  ? 'Hold to record voice note'
+                  : 'Voice notes unavailable'
+              }
+              accessibilityHint="Press and hold to record, release to send"
+            >
+              <Feather
+                name="mic"
+                size={22}
+                color={micEnabled || isRecording ? colors.primaryForeground : colors.mutedForeground}
+              />
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
