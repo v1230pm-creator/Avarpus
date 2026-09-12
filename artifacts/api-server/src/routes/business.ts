@@ -883,7 +883,7 @@ router.get(
         .select()
         .from(repairsTable)
         .where(where)
-        .orderBy(receivedOnly ? desc(repairsTable.createdAt) : asc(repairsTable.createdAt));
+        .orderBy(...(receivedOnly ? [desc(repairsTable.createdAt), desc(repairsTable.id)] : [asc(repairsTable.createdAt), asc(repairsTable.id)]));
       const mapped = allRows
         .map((r) => ({ r, t: computeTotals(r) }))
         .filter(({ t }) => {
@@ -907,7 +907,7 @@ router.get(
       .select()
       .from(repairsTable)
       .where(where)
-      .orderBy(receivedOnly ? desc(repairsTable.createdAt) : asc(repairsTable.createdAt))
+      .orderBy(...(receivedOnly ? [desc(repairsTable.createdAt), desc(repairsTable.id)] : [asc(repairsTable.createdAt), asc(repairsTable.id)]))
       .limit(limit)
       .offset((page - 1) * limit);
     const out = me.role === "customer" || isDealerPortalRole(me.role) ? portalRepairOut : repairOut;

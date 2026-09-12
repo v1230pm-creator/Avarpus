@@ -262,8 +262,9 @@ export default function RepairDetailScreen() {
   // A status transition can immediately remove the repair from the currently
   // filtered list (for example received -> repairing). Keep the open detail
   // anchored to the last server-confirmed record instead of rendering the
-  // misleading "Repair not found" state.
-  const repair = repairResolved ?? repairSnapshot;
+  // misleading "Repair not found" state. The snapshot is only ever valid for
+  // the id currently on screen — never carry one repair over to another route.
+  const repair = repairResolved ?? (repairSnapshot?.id === id ? repairSnapshot : undefined);
   // Only a request that is genuinely in flight may show the loader.
   const repairResolving = !repair && !repairDetailError && (repairDetailLoading || shopDataLoading);
   const isReadOnlyPortal = isDealerPortalRole(user?.role) || isLinkedCustomerPortalUser(user);
@@ -625,7 +626,7 @@ export default function RepairDetailScreen() {
         warrantyExpiry,
         warrantyDays: wd,
         paymentMethod: markPaid ? handoverPaymentMethod : repair.paymentMethod,
-      });
+      }, repair);
       setShowDeliveryHandover(false);
       await paymentsRefetch();
       await loadAll();
@@ -662,7 +663,7 @@ export default function RepairDetailScreen() {
       const updatedRepair = await updateRepair({
         ...repair,
         status: newStatus as RepairStatus,
-      });
+      }, repair);
       setRepairSnapshot(updatedRepair);
       setShowStatusPicker(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -727,7 +728,7 @@ export default function RepairDetailScreen() {
         otherCharge: Number(editOtherCharge),
         discount: Number(editDiscount),
         taxPercent: Number(editTaxPercent)
-      });
+      }, repair);
       setShowFinancialEdit(false);
       await loadAll();
       queryClient.invalidateQueries();

@@ -30,6 +30,7 @@ jest.mock('@workspace/api-client-react', () => ({
   repairsList: jest.fn(async () => ({ repairs: [] })),
   repairsCreate: (...args: unknown[]) => mockRepairsCreate(...args),
   repairsUpdate: jest.fn(),
+  getRepairsGetQueryKey: jest.fn((id: string) => ['/repairs/' + id]),
   repairsDelete: jest.fn(),
   inventoryList: jest.fn(async () => ({ items: [] })),
   inventoryCreate: jest.fn(),

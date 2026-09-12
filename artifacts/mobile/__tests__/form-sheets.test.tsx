@@ -56,6 +56,7 @@ jest.mock('@workspace/api-client-react', () => {
     financeList: emptyList('entries'),
     repairsCreate: jest.fn(),
     repairsUpdate: jest.fn(),
+    getRepairsGetQueryKey: jest.fn((id: string) => ['/repairs/' + id]),
     customersCreate: (...a: unknown[]) => mockCustomersCreate(...a),
     customersUpdate: (...a: unknown[]) => mockCustomersUpdate(...a),
     inventoryCreate: (...a: unknown[]) => mockInventoryCreate(...a),

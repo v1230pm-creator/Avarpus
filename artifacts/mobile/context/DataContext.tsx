@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   customersList, customersCreate, customersUpdate,
-  repairsList, repairsCreate, repairsUpdate, repairsDelete,
+  repairsList, repairsCreate, repairsUpdate, repairsDelete, getRepairsGetQueryKey,
   inventoryList, inventoryCreate, inventoryUpdate,
   purchasesList, purchasesCreate, purchasesUpdate,
   financeList, financeCreate, financeUpdate,
@@ -25,7 +25,7 @@ const AUTO_SYNC_INTERVAL_MS = 30_000;
  * intake all read from it — so walk every page instead of silently keeping
  * only the first one. */
 const REPAIRS_PAGE_LIMIT = 200;
-const REPAIRS_MAX_PAGES = 50;
+const REPAIRS_MAX_PAGES = 100;
 
 async function fetchAllRepairs(): Promise<{ repairs: Repair[] }> {
   const all: Repair[] = [];
@@ -65,7 +65,10 @@ interface DataContextType {
   loadError: string | null;
   loadAll: () => Promise<void>;
   addRepair: (r: Repair) => Promise<Repair>;
-  updateRepair: (r: Repair) => Promise<Repair>;
+  /** Save a repair. `base` is the last server-confirmed record when the
+   * caller resolved it outside the shared list (e.g. the detail screen's
+   * per-id fetch); it decides which server-derived fields are safe to send. */
+  updateRepair: (r: Repair, base?: Repair) => Promise<Repair>;
   /** Permanently delete a repair — dealer/owner only (server-enforced). */
   deleteRepair: (id: string) => Promise<void>;
   addCustomer: (c: NewCustomer) => Promise<Customer>;
@@ -443,10 +446,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return created;
   });
 
-  const updateRepair = async (r: Repair) => guarded('update the repair', async () => {
+  const updateRepair = async (r: Repair, base?: Repair) => guarded('update the repair', async () => {
     // partsCharge is server-derived once parts are tracked in the ledger —
     // only send it when it actually changed, or the server rejects the patch.
-    const current = repairs.find((x) => x.id === r.id);
+    // The shared list may not hold this repair yet (opened by id before the
+    // paginated load finished), so fall back to the caller's baseline.
+    const current = repairs.find((x) => x.id === r.id) ?? base;
     const res = await repairsUpdate(r.id, {
       customerName: r.customerName,
       mobile: r.mobile,
@@ -489,7 +494,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       deliverySignaturePath: r.deliverySignaturePath,
     });
     const updated = res.repair as Repair;
-    setRepairs((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+    // Upsert: a repair resolved by id may not be in the list snapshot yet.
+    setRepairs((prev) => (prev.some((x) => x.id === updated.id)
+      ? prev.map((x) => (x.id === updated.id ? updated : x))
+      : [...prev, updated]));
+    // Keep the per-id detail cache in step so a GET-backed screen never
+    // shows the pre-save record while its refetch is still in flight.
+    queryClient.setQueryData(getRepairsGetQueryKey(updated.id), { repair: updated });
     refreshCustomers();
     return updated;
   });
@@ -497,6 +508,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const deleteRepair = async (id: string) => guarded('delete the repair', async () => {
     await repairsDelete(id);
     setRepairs((prev) => prev.filter((x) => x.id !== id));
+    queryClient.removeQueries({ queryKey: getRepairsGetQueryKey(id) });
     // Customer dueAmount/totalRepairs are derived from repairs server-side.
     refreshCustomers();
   });

@@ -96,9 +96,10 @@ jest.mock('@workspace/api-client-react', () => {
 });
 
 const mockBack = jest.fn();
+const mockRoute = { id: 'r1' };
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: mockBack, replace: jest.fn(), push: jest.fn() }),
-  useLocalSearchParams: () => ({ id: 'r1' }),
+  useLocalSearchParams: () => ({ id: mockRoute.id }),
 }));
 
 jest.mock('react-native-safe-area-context', () => ({
@@ -241,6 +242,7 @@ beforeEach(() => {
   mockRepairGet.data = undefined;
   mockRepairGet.isLoading = false;
   mockRepairGet.error = null;
+  mockRoute.id = 'r1';
   alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 });
 
@@ -422,6 +424,52 @@ describe('detail resolves the repair even when the shop list lacks it', () => {
     mockRepairGet.error = new Error('HTTP 404');
     const { unmount } = await renderDetail();
     expect(screen.getByText('Repair not found')).toBeTruthy();
+    unmount();
+  });
+});
+
+describe('GET-backed detail stays correct across mutations and route changes', () => {
+  it('a status change on a repair missing from the list does not resend partsCharge and upserts the row', async () => {
+    // Ledger-managed parts: the server rejects an unchanged partsCharge resend.
+    mockLists.repairs = [];
+    mockRepairGet.data = { repair: { ...baseRepair, partsCharge: 450 } };
+    mockRepairsUpdate.mockImplementation(async (id: string, patch: Record<string, unknown>) => {
+      if ('partsCharge' in patch) throw new Error('partsCharge is ledger-derived');
+      return { repair: { ...baseRepair, partsCharge: 450, ...patch, id } };
+    });
+    const { unmount } = await renderDetail();
+
+    await press('Continue as Testing');
+
+    await waitFor(() => expect(screen.getByText('repair:r1:testing:Old diagnosis')).toBeTruthy());
+    expect(mockRepairsUpdate).toHaveBeenCalledWith('r1', expect.not.objectContaining({ partsCharge: expect.anything() }));
+    expect(alertSpy).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('never shows a previously opened repair after navigating to an id that fails to load', async () => {
+    mockLists.repairs = [];
+    mockRepairGet.data = { repair: { ...baseRepair } };
+    const { unmount, rerender } = await renderDetail();
+    expect(screen.getByText('Asha Kumar')).toBeTruthy();
+
+    mockRoute.id = 'r2';
+    mockRepairGet.data = undefined;
+    mockRepairGet.error = new Error('HTTP 404');
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    rerender(
+      <QueryClientProvider client={qc}>
+        <AuthProvider>
+          <DataProvider>
+            <RepairsProbe />
+            <RepairDetailScreen />
+          </DataProvider>
+        </AuthProvider>
+      </QueryClientProvider>,
+    );
+    await act(async () => {});
+    await waitFor(() => expect(screen.getByText('Repair not found')).toBeTruthy());
+    expect(screen.queryByText('Asha Kumar')).toBeNull();
     unmount();
   });
 });
