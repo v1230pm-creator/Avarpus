@@ -1718,6 +1718,99 @@ export const RepairsCreateResponse = zod.object({
 
 
 /**
+ * Same ownership predicate as the list. Portal roles (customer / dealer
+ * portal) receive the reduced portal projection. Unknown, foreign-shop or
+ * inaccessible ids all answer 404.
+ * @summary Fetch one repair of the caller's shop by id
+ */
+export const RepairsGetParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RepairsGetResponse = zod.object({
+  "repair": zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string(),
+  "mobile": zod.string(),
+  "dealerId": zod.string().optional(),
+  "dealerName": zod.string().optional(),
+  "dealerDetectedByPhone": zod.boolean().optional(),
+  "deviceType": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "imei": zod.string().optional(),
+  "imei2": zod.string().optional(),
+  "serialNumber": zod.string().optional(),
+  "color": zod.string().optional(),
+  "storage": zod.string().optional(),
+  "ram": zod.string().optional(),
+  "devicePassword": zod.string().optional(),
+  "simPresent": zod.boolean(),
+  "memoryCardPresent": zod.boolean(),
+  "alternateMobile": zod.string().optional(),
+  "accessories": zod.string().optional(),
+  "accessoriesList": zod.array(zod.string()).optional(),
+  "physicalCondition": zod.record(zod.string(), zod.boolean()).optional(),
+  "problem": zod.string(),
+  "deviceCondition": zod.string().optional(),
+  "diagnosis": zod.string().optional(),
+  "workPerformed": zod.string().optional(),
+  "technicianId": zod.string().optional(),
+  "technicianName": zod.string().optional(),
+  "assignedById": zod.string().optional(),
+  "assignedByName": zod.string().optional(),
+  "assignedAt": zod.string().optional(),
+  "status": zod.string(),
+  "priority": zod.string(),
+  "repairCharge": zod.number(),
+  "partsCharge": zod.number(),
+  "serviceCharge": zod.number(),
+  "otherCharge": zod.number(),
+  "discount": zod.number(),
+  "taxPercent": zod.number(),
+  "advance": zod.number(),
+  "totalAmount": zod.number(),
+  "paidAmount": zod.number(),
+  "balance": zod.number(),
+  "estimatedCost": zod.number().optional(),
+  "paymentStatus": zod.enum(['unpaid', 'partial', 'paid', 'overpaid']).optional(),
+  "testingChecklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "testingConfirmedById": zod.string().optional(),
+  "testingConfirmedByName": zod.string().optional(),
+  "testingConfirmedAt": zod.string().optional(),
+  "readyAt": zod.string().optional(),
+  "customerNotifiedAt": zod.string().optional(),
+  "clientRequestId": zod.string().optional(),
+  "receiveDate": zod.string(),
+  "expectedDate": zod.string(),
+  "deliveryDate": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "checklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "receivingSignaturePath": zod.string().optional(),
+  "deliverySignaturePath": zod.string().optional(),
+  "warrantyDays": zod.number(),
+  "warrantyExpiry": zod.string().optional(),
+  "receivedById": zod.string().optional(),
+  "receivedByName": zod.string().optional(),
+  "deliveredById": zod.string().optional(),
+  "deliveredByName": zod.string().optional(),
+  "paymentMethod": zod.string().optional(),
+  "repairStartedAt": zod.string().optional(),
+  "repairCompletedAt": zod.string().optional(),
+  "isSample": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "updatedById": zod.string().optional(),
+  "updatedByName": zod.string().optional(),
+  "updatedAt": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
  * @summary Update a repair in the caller's shop
  */
 export const RepairsUpdateParams = zod.object({

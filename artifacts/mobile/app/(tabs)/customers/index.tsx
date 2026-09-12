@@ -65,13 +65,13 @@ export default function CustomersScreen() {
   const isDark = colorScheme === 'dark';
   
   const theme = {
-    bg: isDark ? '#040914' : colors.background,
-    card: isDark ? '#0A1221' : colors.card,
-    border: isDark ? '#1E293B' : colors.border,
+    bg: colors.background,
+    card: colors.card,
+    border: colors.border,
     primary: isDark ? '#2563EB' : colors.primary,
-    text: isDark ? '#FFFFFF' : colors.foreground,
-    textMuted: isDark ? '#94A3B8' : colors.mutedForeground,
-    inputBg: isDark ? '#0F172A' : colors.input,
+    text: colors.foreground,
+    textMuted: colors.mutedForeground,
+    inputBg: colors.input,
     warning: isDark ? '#F59E0B' : colors.warning,
   };
 

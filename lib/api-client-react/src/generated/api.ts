@@ -185,6 +185,7 @@ import type {
   RepairTestingInput,
   RepairsCreate200,
   RepairsDelete200,
+  RepairsGet200,
   RepairsList200,
   RepairsListParams,
   RepairsUpdate200,
@@ -4324,6 +4325,86 @@ export const useRepairsCreate = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getRepairsCreateMutationOptions(options));
     }
+
+export const getRepairsGetUrl = (id: string,) => {
+
+
+
+
+  return `/api/repairs/${id}`
+}
+
+/**
+ * Same ownership predicate as the list. Portal roles (customer / dealer
+ * portal) receive the reduced portal projection. Unknown, foreign-shop or
+ * inaccessible ids all answer 404.
+ * @summary Fetch one repair of the caller's shop by id
+ */
+export const repairsGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<RepairsGet200> => {
+
+  return customFetch<RepairsGet200>(getRepairsGetUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRepairsGetQueryKey = (id: string,) => {
+    return [
+    `/api/repairs/${id}`
+    ] as const;
+    }
+
+
+export const getRepairsGetQueryOptions = <TData = Awaited<ReturnType<typeof repairsGet>>, TError = ErrorType<void>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof repairsGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRepairsGetQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof repairsGet>>> = ({ signal }) => repairsGet(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof repairsGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RepairsGetQueryResult = NonNullable<Awaited<ReturnType<typeof repairsGet>>>
+export type RepairsGetQueryError = ErrorType<void>
+
+
+/**
+ * @summary Fetch one repair of the caller's shop by id
+ */
+
+export function useRepairsGet<TData = Awaited<ReturnType<typeof repairsGet>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof repairsGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRepairsGetQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getRepairsUpdateUrl = (id: string,) => {
 

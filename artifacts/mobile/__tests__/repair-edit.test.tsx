@@ -18,6 +18,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const mockRepairsUpdate = jest.fn();
 
 const mockLists: Record<string, unknown[]> = { repairs: [], customers: [], items: [], purchases: [], entries: [] };
+/** State returned by the mocked per-repair GET hook (detail fallback). */
+const mockRepairGet: { data: unknown; isLoading: boolean; error: unknown } = { data: undefined, isLoading: false, error: null };
 
 jest.mock('@workspace/api-client-react', () => {
   class ApiError extends Error {
@@ -61,6 +63,7 @@ jest.mock('@workspace/api-client-react', () => {
     sampleDataLoad: jest.fn(),
     sampleDataClear: jest.fn(),
     // Detail-screen react-query hooks — all idle (no photos/parts/etc.).
+    useRepairsGet: jest.fn(() => ({ data: mockRepairGet.data, isLoading: mockRepairGet.isLoading, error: mockRepairGet.error })),
     useRepairPhotosList: idleHook(),
     useRepairEventsList: idleHook(),
     useReturnsList: idleHook(),
@@ -69,6 +72,7 @@ jest.mock('@workspace/api-client-react', () => {
     useStaffList: idleHook(),
     useEstimateApprovalsList: idleHook(),
     useRepairTesting: idleHook(),
+    getRepairsGetQueryKey: key('repairGet'),
     getRepairPhotosListQueryKey: key('photos'),
     getRepairEventsListQueryKey: key('events'),
     getReturnsListQueryKey: key('returns'),
@@ -234,6 +238,9 @@ beforeEach(() => {
   jest.clearAllMocks();
   for (const key of Object.keys(mockLists)) mockLists[key] = [];
   mockLists.repairs = [{ ...baseRepair }];
+  mockRepairGet.data = undefined;
+  mockRepairGet.isLoading = false;
+  mockRepairGet.error = null;
   alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 });
 
@@ -386,6 +393,35 @@ describe('successful update replaces the record in the list', () => {
     expect(screen.queryByText('repair:r1:repairing:Old diagnosis')).toBeNull();
     expect(mockRepairsUpdate).toHaveBeenCalledWith('r1', expect.objectContaining({ status: 'testing' }));
     expect(alertSpy).not.toHaveBeenCalled();
+    unmount();
+  });
+});
+
+// ── Detail must not depend on the bulk list containing the row ───────────
+describe('detail resolves the repair even when the shop list lacks it', () => {
+  it('renders from the per-repair GET when the list snapshot does not contain the id', async () => {
+    mockLists.repairs = [];
+    mockRepairGet.data = { repair: { ...baseRepair } };
+    const { unmount } = await renderDetail();
+    expect(screen.queryByText('Repair not found')).toBeNull();
+    expect(screen.getByText('Asha Kumar')).toBeTruthy();
+    unmount();
+  });
+
+  it('shows the loader (not "Repair not found") while the GET is still in flight', async () => {
+    mockLists.repairs = [];
+    mockRepairGet.isLoading = true;
+    const { unmount } = await renderDetail();
+    expect(screen.queryByText('Repair not found')).toBeNull();
+    expect(screen.queryByText('Asha Kumar')).toBeNull();
+    unmount();
+  });
+
+  it('shows "Repair not found" only once the GET has actually failed', async () => {
+    mockLists.repairs = [];
+    mockRepairGet.error = new Error('HTTP 404');
+    const { unmount } = await renderDetail();
+    expect(screen.getByText('Repair not found')).toBeTruthy();
     unmount();
   });
 });

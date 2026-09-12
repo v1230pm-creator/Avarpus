@@ -1129,6 +1129,32 @@ paths:
                     $ref: "#/components/schemas/Repair"
                 required: [repair]
   /repairs/{id}:
+    get:
+      operationId: repairsGet
+      tags: [business]
+      summary: Fetch one repair of the caller's shop by id
+      description: |
+        Same ownership predicate as the list. Portal roles (customer / dealer
+        portal) receive the reduced portal projection. Unknown, foreign-shop or
+        inaccessible ids all answer 404.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Repair
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  repair:
+                    $ref: "#/components/schemas/Repair"
+                required: [repair]
+        "404":
+          description: Repair not found or not accessible to the caller
     patch:
       operationId: repairsUpdate
       tags: [business]

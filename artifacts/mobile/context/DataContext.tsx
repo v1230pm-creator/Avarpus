@@ -20,6 +20,32 @@ import { hasLegacyLocalData, migrateLegacyLocalData } from '@/utils/legacyMigrat
  * technician) appear automatically without pull-to-refresh. */
 const AUTO_SYNC_INTERVAL_MS = 30_000;
 
+/** The repairs endpoint is paginated (server default 50, max 200 per page).
+ * The shared shop list must hold every repair — detail screens, reports and
+ * intake all read from it — so walk every page instead of silently keeping
+ * only the first one. */
+const REPAIRS_PAGE_LIMIT = 200;
+const REPAIRS_MAX_PAGES = 50;
+
+async function fetchAllRepairs(): Promise<{ repairs: Repair[] }> {
+  const all: Repair[] = [];
+  const seen = new Set<string>();
+  for (let page = 1; page <= REPAIRS_MAX_PAGES; page++) {
+    const res = await repairsList({ page, limit: REPAIRS_PAGE_LIMIT });
+    const rows = (res.repairs ?? []) as Repair[];
+    for (const row of rows) {
+      if (!seen.has(row.id)) {
+        seen.add(row.id);
+        all.push(row);
+      }
+    }
+    const total = typeof res.total === 'number' ? res.total : undefined;
+    if (rows.length < REPAIRS_PAGE_LIMIT) break;
+    if (total !== undefined && all.length >= total) break;
+  }
+  return { repairs: all };
+}
+
 // Business data now lives server-side, scoped to the signed-in user's shop.
 // This context loads it from the API and keeps mutations in sync — nothing
 // is persisted on the device anymore.
@@ -123,7 +149,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       setLoadError(null);
       try {
-        const r = await repairsList();
+        const r = await fetchAllRepairs();
         if (session === sessionEpoch.current && policy === policyEpoch.current) {
           setRepairs(r.repairs as Repair[]);
         }
@@ -138,7 +164,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setLoadError(null);
     try {
       const [r, c, i, p, f] = await Promise.all([
-        canLoadRepairs ? repairsList() : Promise.resolve(null),
+        canLoadRepairs ? fetchAllRepairs() : Promise.resolve(null),
         canLoadCustomers ? customersList() : Promise.resolve(null),
         canLoadInventory ? inventoryList() : Promise.resolve(null),
         canLoadPurchases ? purchasesList() : Promise.resolve(null),
@@ -210,11 +236,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     try {
       if (isPortal) {
         if (!canLoadRepairs) return;
-        const r = await repairsList();
+        const r = await fetchAllRepairs();
         if (canCommit()) setRepairs(r.repairs as Repair[]);
       } else {
         const [r, c, i, p, f] = await Promise.all([
-          canLoadRepairs ? repairsList() : Promise.resolve(null),
+          canLoadRepairs ? fetchAllRepairs() : Promise.resolve(null),
           canLoadCustomers ? customersList() : Promise.resolve(null),
           canLoadInventory ? inventoryList() : Promise.resolve(null),
           canLoadPurchases ? purchasesList() : Promise.resolve(null),
@@ -233,7 +259,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         if (canCommit() && queue.some((q) => q.status === 'pending')) {
           const { success } = await offlineQueue.flush();
           if (success > 0 && canCommit()) {
-            const r2 = await repairsList();
+            const r2 = await fetchAllRepairs();
             if (canCommit()) {
               setRepairs(r2.repairs as Repair[]);
             }

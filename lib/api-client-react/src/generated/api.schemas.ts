@@ -2471,6 +2471,10 @@ export type RepairsCreate200 = {
   repair: Repair;
 };
 
+export type RepairsGet200 = {
+  repair: Repair;
+};
+
 export type RepairsUpdate200 = {
   repair: Repair;
 };

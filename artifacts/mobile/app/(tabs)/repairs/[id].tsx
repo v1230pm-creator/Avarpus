@@ -44,7 +44,8 @@ import {
   useStaffList, getStaffListQueryKey, repairAssignTechnician,
   useRepairTesting, repairTesting, useEstimateApprovalsList, getEstimateApprovalsListQueryKey, estimateApprovalsCreate,
   estimateApprovalsDecide, repairNotifyReady, estimateApprovalsSendOtp,
-  repairsUpdate, type UploadUrlRequestContentType } from '@workspace/api-client-react';
+  repairsUpdate, useRepairsGet, getRepairsGetQueryKey, type UploadUrlRequestContentType } from '@workspace/api-client-react';
+import { AvarpusLoadingScreen } from '@/components/ui/AvarpusSpinner';
 import { fetch as expoFetch } from 'expo/fetch';
 import { File as ExpoFile } from 'expo-file-system';
 
@@ -149,7 +150,7 @@ export default function RepairDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { repairs, updateRepair, deleteRepair, inventory, loadAll } = useData();
+  const { repairs, updateRepair, deleteRepair, inventory, loadAll, isLoading: shopDataLoading } = useData();
   const { user, canAccess } = useAuth();
   const queryClient = useQueryClient();
 
@@ -242,15 +243,29 @@ export default function RepairDetailScreen() {
   const anims = useStaggerAnim(16);
 
   const repairFromList = useMemo(() => repairs.find((r) => r.id === id), [repairs, id]);
-  const [repairSnapshot, setRepairSnapshot] = useState<Repair | undefined>(repairFromList);
+  // The shared shop list is a bulk snapshot; a repair opened from a
+  // notification, a deep link or a search result may not be in it yet (or at
+  // all). Fetch the row directly so the detail never depends on list contents.
+  const {
+    data: repairDetailData,
+    isLoading: repairDetailLoading,
+    error: repairDetailError,
+  } = useRepairsGet(id as string, {
+    query: { enabled: !!id, queryKey: getRepairsGetQueryKey(id as string) },
+  });
+  const repairFromServer = repairDetailData?.repair as Repair | undefined;
+  const repairResolved = repairFromList ?? repairFromServer;
+  const [repairSnapshot, setRepairSnapshot] = useState<Repair | undefined>(repairResolved);
   useEffect(() => {
-    if (repairFromList) setRepairSnapshot(repairFromList);
-  }, [repairFromList]);
+    if (repairResolved) setRepairSnapshot(repairResolved);
+  }, [repairResolved]);
   // A status transition can immediately remove the repair from the currently
   // filtered list (for example received -> repairing). Keep the open detail
   // anchored to the last server-confirmed record instead of rendering the
   // misleading "Repair not found" state.
-  const repair = repairFromList ?? repairSnapshot;
+  const repair = repairResolved ?? repairSnapshot;
+  // Only a request that is genuinely in flight may show the loader.
+  const repairResolving = !repair && !repairDetailError && (repairDetailLoading || shopDataLoading);
   const isReadOnlyPortal = isDealerPortalRole(user?.role) || isLinkedCustomerPortalUser(user);
 
   // Keep the Testing tab's Pass/Fail state in sync with the saved checklist.
@@ -289,11 +304,15 @@ export default function RepairDetailScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <View style={styles.notFound}>
-          <Text style={[styles.notFoundText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            Repair not found
-          </Text>
-        </View>
+        {repairResolving ? (
+          <AvarpusLoadingScreen background={colors.background} size={40} />
+        ) : (
+          <View style={styles.notFound}>
+            <Text style={[styles.notFoundText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              Repair not found
+            </Text>
+          </View>
+        )}
       </View>
     );
   }

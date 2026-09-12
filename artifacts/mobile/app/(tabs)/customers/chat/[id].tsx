@@ -1066,13 +1066,7 @@ export default function ChatScreen() {
   
   const colors = useMemo(() => ({
     ...rawColors,
-    background: isDark ? '#040914' : rawColors.background,
-    card: isDark ? '#0A1221' : rawColors.card,
-    border: isDark ? '#1E293B' : rawColors.border,
     primary: isDark ? '#2563EB' : rawColors.primary,
-    foreground: isDark ? '#FFFFFF' : rawColors.foreground,
-    mutedForeground: isDark ? '#94A3B8' : rawColors.mutedForeground,
-    backgroundSecondary: isDark ? '#0F172A' : rawColors.backgroundSecondary,
     success: isDark ? '#10B981' : rawColors.success,
   }), [rawColors, isDark]);
 

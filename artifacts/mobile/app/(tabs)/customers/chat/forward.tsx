@@ -13,7 +13,6 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  useColorScheme,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -70,17 +69,7 @@ function CircleCheck({ selected, colors }: { selected: boolean; colors: { border
 export default function ForwardScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const rawColors = useColors();
-  const isDark = useColorScheme() === 'dark';
-  const colors = useMemo(() => ({
-    ...rawColors,
-    background: isDark ? '#040914' : rawColors.background,
-    card: isDark ? '#0A1221' : rawColors.card,
-    border: isDark ? '#1E293B' : rawColors.border,
-    foreground: isDark ? '#FFFFFF' : rawColors.foreground,
-    mutedForeground: isDark ? '#94A3B8' : rawColors.mutedForeground,
-    backgroundSecondary: isDark ? '#0F172A' : rawColors.backgroundSecondary,
-  }), [rawColors, isDark]);
+  const colors = useColors();
   const queryClient = useQueryClient();
 
   const params = useLocalSearchParams<{ roomId: string; messageIds: string }>();
