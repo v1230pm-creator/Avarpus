@@ -144,6 +144,8 @@ jest.mock('@/types', () => ({
 
 // expo-audio — required because the updated chat screen imports it
 jest.mock('expo-audio', () => ({
+  IOSOutputFormat: { MPEG4AAC: 'aac ' },
+  AudioQuality: { HIGH: 96 },
   useAudioRecorder: jest.fn(() => ({
     record: jest.fn(),
     stop: jest.fn().mockResolvedValue(undefined),
