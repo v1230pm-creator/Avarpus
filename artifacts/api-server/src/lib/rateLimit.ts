@@ -43,6 +43,17 @@ export interface LimitStatus {
   retryAfterMs: number;
 }
 
+export interface WindowReservation extends LimitStatus {
+  /**
+   * Hand the reserved slot back. Only for callers that can prove the guarded
+   * action never happened (e.g. the SMS request never left this process).
+   * One-shot, and bound to the exact window entry that was reserved: if the
+   * window has since rolled over, releasing is a no-op rather than a debit
+   * against the newer window. No-op when `limited` is true.
+   */
+  release(): void;
+}
+
 export type OtpVerificationAttempt =
   | { status: "approved" }
   | { status: "rejected" }
@@ -293,22 +304,39 @@ export async function acquireRateLimitLock(key: string): Promise<() => void> {
   };
 }
 
+const NO_RELEASE = () => {};
+
+function releaseFrom(key: string, entry: WindowEntry): () => void {
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    // Identity check: a rolled-over window is a fresh object, and a slot from
+    // the old window must never be refunded against the new one.
+    if (windows.get(key) !== entry) return;
+    entry.count -= 1;
+    if (entry.count <= 0) windows.delete(key);
+  };
+}
+
 /**
  * Fixed-window throttle: allow at most `max` calls per `windowMs` for a key.
- * Counts every call, successful or not.
+ * Counts every call, successful or not, unless the caller explicitly gives the
+ * slot back via `release()` (see `WindowReservation`).
  */
-export function checkWindowLimit(key: string, max: number, windowMs: number): LimitStatus {
+export function checkWindowLimit(key: string, max: number, windowMs: number): WindowReservation {
   const t = now();
   const entry = windows.get(key);
   if (!entry || t - entry.windowStart > windowMs) {
-    windows.set(key, { count: 1, windowStart: t });
-    return { limited: false, retryAfterMs: 0 };
+    const fresh: WindowEntry = { count: 1, windowStart: t };
+    windows.set(key, fresh);
+    return { limited: false, retryAfterMs: 0, release: releaseFrom(key, fresh) };
   }
   if (entry.count >= max) {
-    return { limited: true, retryAfterMs: entry.windowStart + windowMs - t };
+    return { limited: true, retryAfterMs: entry.windowStart + windowMs - t, release: NO_RELEASE };
   }
   entry.count += 1;
-  return { limited: false, retryAfterMs: 0 };
+  return { limited: false, retryAfterMs: 0, release: releaseFrom(key, entry) };
 }
 
 // Periodically drop stale entries so the maps don't grow unbounded.

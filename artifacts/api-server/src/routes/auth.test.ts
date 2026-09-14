@@ -28,7 +28,7 @@ vi.mock("../lib/mailer", () => ({
 
 type HanuOtpResult =
   | { ok: true }
-  | { ok: false; reason: string; invalidNumber?: boolean };
+  | { ok: false; reason: string; invalidNumber?: boolean; notDispatched?: boolean };
 
 // Mock Hanu OTP delivery — default to success so individual tests can override.
 // Typed as vi.Mock to allow mockResolvedValueOnce calls without type errors.
@@ -370,6 +370,132 @@ describe("POST /api/auth/otp/request", () => {
       .where(eq(otpCodesTable.identifier, PROVIDER_FAILURE_MOBILE));
     expect(rows).toHaveLength(0);
   });
+
+  // Every OTP throttle is keyed per mobile AND per client IP. The app trusts
+  // one proxy hop, so a forwarded address isolates each case's IP bucket from
+  // the rest of this file.
+  const fromIp = (ip: string) => request(app).post("/api/auth/otp/request").set("X-Forwarded-For", ip);
+  // Numbers used only by the throttle cases below; the `8` + two-digit tag +
+  // RUN tail shape cannot collide with MOBILE/altMobile/INACTIVE_MOBILE.
+  const throttleMobile = (tag: number) => `8${String(tag).padStart(2, "0")}${RUN.slice(-7)}`;
+  const notDispatched = { ok: false, reason: "Hanu OTP send failed: fetch failed", invalidNumber: false, notDispatched: true };
+
+  it("does not spend the per-mobile throttle on sends that never reached the provider", async () => {
+    // Per-mobile limit is 3 per window. During a DNS/connect outage every
+    // attempt fails before dispatch, so a caller must still be able to retry
+    // once the provider is back instead of being told they asked too often.
+    const outageMobile = throttleMobile(90);
+    const ip = "203.0.113.10";
+    mockHanuSend.mockClear();
+    for (let i = 0; i < 5; i++) {
+      mockHanuSend.mockResolvedValueOnce(notDispatched);
+      const res = await fromIp(ip).send({ mobile: outageMobile });
+      expect(res.status).toBe(502);
+      expect(res.body.message).toMatch(/could not send/i);
+    }
+    expect(mockHanuSend).toHaveBeenCalledTimes(5);
+
+    // Provider recovers: delivered sends count as usual (3 allowed, 4th is 429).
+    mockHanuSend.mockClear();
+    mockHanuSend.mockResolvedValue({ ok: true });
+    const statuses: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const res = await fromIp(ip).send({ mobile: outageMobile });
+      statuses.push(res.status);
+    }
+    expect(statuses).toEqual([200, 200, 200, 429]);
+    expect(mockHanuSend).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps charging the per-IP throttle for sends that never reached the provider", async () => {
+    // Per-IP limit is 10 per window and is never refunded: it bounds the
+    // unauthenticated work one client can cause during an outage.
+    const ip = "203.0.113.13";
+    mockHanuSend.mockClear();
+    mockHanuSend.mockResolvedValue(notDispatched);
+    const statuses: number[] = [];
+    for (let i = 0; i < 12; i++) {
+      // Rotate mobiles so only the IP dimension can deny.
+      const probe = throttleMobile(10 + i);
+      statuses.push((await fromIp(ip).send({ mobile: probe })).status);
+    }
+    expect(statuses.slice(0, 10).every((status) => status === 502)).toBe(true);
+    expect(statuses.slice(10)).toEqual([429, 429]);
+    expect(mockHanuSend).toHaveBeenCalledTimes(10);
+  });
+
+  it("does not let a denied request fill the other dimension's bucket", async () => {
+    mockHanuSend.mockClear();
+    mockHanuSend.mockResolvedValue({ ok: true });
+
+    // IP exhausted, mobile fresh: three denials must leave the victim's
+    // per-mobile bucket untouched.
+    const attackerIp = "203.0.113.14";
+    for (let i = 0; i < 10; i++) {
+      const filler = throttleMobile(30 + i);
+      expect((await fromIp(attackerIp).send({ mobile: filler })).status).toBe(200);
+    }
+    const victimMobile = throttleMobile(91);
+    for (let i = 0; i < 3; i++) {
+      expect((await fromIp(attackerIp).send({ mobile: victimMobile })).status).toBe(429);
+    }
+    expect((await fromIp("203.0.113.15").send({ mobile: victimMobile })).status).toBe(200);
+
+    // Mobile exhausted, IP fresh: denials must leave that IP's bucket untouched.
+    const spentMobile = throttleMobile(92);
+    const bystanderIp = "203.0.113.16";
+    for (let i = 0; i < 3; i++) {
+      expect((await fromIp(bystanderIp).send({ mobile: spentMobile })).status).toBe(200);
+    }
+    for (let i = 0; i < 10; i++) {
+      expect((await fromIp(bystanderIp).send({ mobile: spentMobile })).status).toBe(429);
+    }
+    // 3 delivered + 0 charged denials leaves 7 IP slots: all of these succeed.
+    for (let i = 0; i < 7; i++) {
+      const other = throttleMobile(50 + i);
+      expect((await fromIp(bystanderIp).send({ mobile: other })).status).toBe(200);
+    }
+  });
+
+  it("still counts provider refusals, HTTP errors and timeouts against the throttle", async () => {
+    // These may have reached the provider (or reveal something about the
+    // number), so they must keep consuming slots: 3 attempts, then 429 without
+    // another provider call.
+    const cases = [
+      { ok: false, reason: "Hanu OTP error: Invalid mobile number", invalidNumber: true, notDispatched: false },
+      { ok: false, reason: "Hanu OTP returned HTTP 503: down", invalidNumber: false, notDispatched: false },
+      { ok: false, reason: "Hanu OTP send failed: aborted", invalidNumber: false, notDispatched: false },
+    ];
+    const countedMobile = throttleMobile(93);
+    const ip = "203.0.113.11";
+    mockHanuSend.mockClear();
+    const statuses: number[] = [];
+    for (const outcome of cases) {
+      mockHanuSend.mockResolvedValueOnce(outcome);
+      statuses.push((await fromIp(ip).send({ mobile: countedMobile })).status);
+    }
+    expect(statuses).toEqual([400, 502, 502]);
+    const fourth = await fromIp(ip).send({ mobile: countedMobile });
+    expect(fourth.status).toBe(429);
+    expect(mockHanuSend).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps the per-IP bound on provider calls when numbers vary", async () => {
+    // Per-IP limit is 10 per window. Refusals must not refund the IP slot,
+    // otherwise rotating through locally valid numbers gives an unbounded
+    // number-validity oracle against the provider.
+    const ip = "203.0.113.12";
+    mockHanuSend.mockClear();
+    mockHanuSend.mockResolvedValue({ ok: false, reason: "Hanu OTP error: Invalid mobile number", invalidNumber: true, notDispatched: false });
+    const statuses: number[] = [];
+    for (let i = 0; i < 12; i++) {
+      const probe = throttleMobile(70 + i);
+      statuses.push((await fromIp(ip).send({ mobile: probe })).status);
+    }
+    expect(statuses.slice(0, 10).every((status) => status === 400)).toBe(true);
+    expect(statuses.slice(10)).toEqual([429, 429]);
+    expect(mockHanuSend).toHaveBeenCalledTimes(10);
+  });
 });
 
 // ── OTP resend ────────────────────────────────────────────────────────────
@@ -453,6 +579,30 @@ describe("POST /api/auth/otp/resend", () => {
     expect(last!.body.message).toMatch(/too many resend/i);
 
     await db.delete(usersTable).where(eq(usersTable.id, tUser.id));
+  });
+
+  it("does not spend the per-mobile resend throttle on sends that never reached the provider", async () => {
+    // Resend limits are 2 per mobile and 5 per IP per window. Pre-dispatch
+    // failures refund the mobile slot only; the first two delivered resends
+    // then succeed and the third is denied by the mobile dimension.
+    // Same collision-free shape as the request throttle cases (tags 94/95).
+    const resendMobile = `894${RUN.slice(-7)}`;
+    const ip = "203.0.113.20";
+    const resend = (mobile: string) =>
+      request(app).post("/api/auth/otp/resend").set("X-Forwarded-For", ip).send({ mobile });
+    mockHanuSend.mockClear();
+    for (let i = 0; i < 2; i++) {
+      mockHanuSend.mockResolvedValueOnce({ ok: false, reason: "Hanu OTP send failed: fetch failed", invalidNumber: false, notDispatched: true });
+      expect((await resend(resendMobile)).status).toBe(502);
+    }
+    mockHanuSend.mockResolvedValue({ ok: true });
+    const statuses: number[] = [];
+    for (let i = 0; i < 3; i++) statuses.push((await resend(resendMobile)).status);
+    expect(statuses).toEqual([200, 200, 429]);
+    // IP charged 2 (failed) + 2 (delivered); the denial released its slot, so
+    // one IP slot remains for another number.
+    expect((await resend(`895${RUN.slice(-7)}`)).status).toBe(200);
+    expect(mockHanuSend).toHaveBeenCalledTimes(5);
   });
 });
 

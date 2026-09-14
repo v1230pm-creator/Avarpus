@@ -83,3 +83,4 @@
 - [Paginated shared lists](paginated-shared-lists.md) — bare `repairsList()` returns the 50 oldest rows; bulk loaders must page, detail screens must resolve by id, snapshots keyed by id.
 - [Voice-note recording](voice-note-recording.md) — pause = stop into ADTS segments joined by byte concat; native forDuration cap; wall-clock segment length; owned temp files deleted on every exit.
 - [Shared confirm dialog](confirm-dialog.md) — destructive prompts use ConfirmDialog, never Alert.alert; hosts inside Modals, return promises from onPress, `caption: null` when reversible.
+- [OTP throttle refunds](otp-throttle-refunds.md) — dead SMS provider surfaces as 429 after 3 tries; refund only per-mobile for provable pre-dispatch failures, release siblings on denial.

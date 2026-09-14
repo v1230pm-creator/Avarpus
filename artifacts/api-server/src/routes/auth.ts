@@ -31,6 +31,7 @@ import {
   recordFailure,
   retryAfterText,
   verifyOtpWithDurableLimit,
+  type WindowReservation,
 } from "../lib/rateLimit";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireRole } from "../middlewares/requireRole";
@@ -40,6 +41,7 @@ import {
   getHanuOtpStatus,
   hanuSendOtp,
   normaliseIndianMobile,
+  type HanuOtpResult,
 } from "../lib/hanuOtp";
 import { ObjectStorageService } from "../lib/objectStorage";
 import {
@@ -125,6 +127,40 @@ async function linkOwnedCustomerRows(
   return owned.length;
 }
 
+// OTP send throttles are two-dimensional (per mobile, per client IP). Both are
+// reserved up front; if either denies, the other reservation is handed back so
+// a denied request cannot fill a bucket it never used. Without that, a caller
+// whose own IP bucket is exhausted could still burn through any victim's
+// per-mobile allowance with requests that never reach the provider.
+function reserveOtpSend(
+  perMobile: WindowReservation,
+  perIp: WindowReservation,
+): WindowReservation | null {
+  const throttled = [perMobile, perIp].find((s) => s.limited);
+  if (!throttled) return null;
+  for (const reservation of [perMobile, perIp]) {
+    if (!reservation.limited) reservation.release();
+  }
+  return throttled;
+}
+
+// An OTP request that never reached the SMS provider (DNS or connection failure
+// before dispatch) must not spend the caller's per-mobile throttle: no message
+// could have been sent, and counting it turns a provider outage into a
+// misleading 429 that hides the real delivery error and blocks the retry once
+// the provider is back. The per-IP slot is deliberately kept: it bounds
+// unauthenticated work (OTP rows, provider calls) per client regardless of
+// outcome. Provider refusals, HTTP errors and timeouts count against both —
+// the provider may have acted on those, and an "invalid number" reply must
+// stay rate-limited so it cannot be used to probe numbers.
+function refundUndispatchedSend(
+  result: Extract<HanuOtpResult, { ok: false }>,
+  perMobile: WindowReservation,
+): void {
+  if (!result.notDispatched) return;
+  perMobile.release();
+}
+
 // ── Mobile OTP login ──────────────────────────────────────────────────────
 router.post("/auth/otp/request", asyncHandler(async (req, res) => {
   const body = parseBody(AuthOtpRequestBody, req, res);
@@ -145,7 +181,7 @@ router.post("/auth/otp/request", asyncHandler(async (req, res) => {
   // Throttle OTP requests per mobile number and per IP to prevent SMS flooding.
   const perMobile = checkWindowLimit(`otpreq:mobile:${mobile}`, 3, 15 * 60 * 1000);
   const perIp = checkWindowLimit(`otpreq:ip:${req.ip ?? "unknown"}`, 10, 15 * 60 * 1000);
-  const throttled = [perMobile, perIp].find((s) => s.limited);
+  const throttled = reserveOtpSend(perMobile, perIp);
   if (throttled) {
     res.status(429).json({
       message: `Too many code requests. Try again in ${retryAfterText(throttled.retryAfterMs)}.`,
@@ -156,6 +192,7 @@ router.post("/auth/otp/request", asyncHandler(async (req, res) => {
   const result = await hanuSendOtp(mobile, code);
   if (!result.ok) {
     await invalidateOtp(mobile, "login");
+    refundUndispatchedSend(result, perMobile);
     req.log.warn({ providerReason: result.reason }, "Hanu OTP send failed");
     if (result.invalidNumber) {
       res.status(400).json({ message: INVALID_MOBILE_MESSAGE });
@@ -197,7 +234,7 @@ router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
   // Stricter throttle for resend: 2 resends per 15-minute window per mobile.
   const perMobile = checkWindowLimit(`otpresend:mobile:${mobile}`, 2, 15 * 60 * 1000);
   const perIp = checkWindowLimit(`otpresend:ip:${req.ip ?? "unknown"}`, 5, 15 * 60 * 1000);
-  const throttled = [perMobile, perIp].find((s) => s.limited);
+  const throttled = reserveOtpSend(perMobile, perIp);
   if (throttled) {
     res.status(429).json({
       message: `Too many resend requests. Try again in ${retryAfterText(throttled.retryAfterMs)}.`,
@@ -208,6 +245,7 @@ router.post("/auth/otp/resend", asyncHandler(async (req, res) => {
   const result = await hanuSendOtp(mobile, code);
   if (!result.ok) {
     await invalidateOtp(mobile, "login");
+    refundUndispatchedSend(result, perMobile);
     req.log.warn({ providerReason: result.reason }, "Hanu OTP resend failed");
     if (result.invalidNumber) {
       res.status(400).json({ message: INVALID_MOBILE_MESSAGE });

@@ -29,6 +29,16 @@ vi.mock("../lib/mailer", () => ({
   getMailFrom: () => "test@example.com",
   warnIfMailFromUnset: () => {},
 }));
+// The OTP eligibility checks below only care that the request reaches the
+// send step; never let a unit test dial the live SMS provider.
+vi.mock("../lib/hanuOtp", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/hanuOtp")>();
+  return {
+    ...actual,
+    getHanuOtpStatus: () => ({ ...actual.getHanuOtpStatus(), configured: true }),
+    hanuSendOtp: async () => ({ ok: true, providerMessage: "success", providerReference: null }),
+  };
+});
 
 const { default: app } = await import("../app");
 const { createSession, hashPassword } = await import("../lib/authUtils");

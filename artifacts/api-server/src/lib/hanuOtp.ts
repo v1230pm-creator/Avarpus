@@ -34,11 +34,43 @@ function templateId(): string {
   return process.env["HANU_OTP_TEMPLATE_ID"]?.trim() || HANU_DEFAULT_TEMPLATE_ID;
 }
 
+// Low-level failures that can only happen before an HTTP request is written:
+// name resolution and connection establishment. Anything else thrown by fetch
+// (reset while awaiting the response, TLS mid-stream, abort) may follow a
+// request the provider already acted on and is treated as "possibly sent".
+const PRE_DISPATCH_ERROR_CODES = new Set([
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EAI_FAIL",
+  "EAI_NONAME",
+  "ECONNREFUSED",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "UND_ERR_CONNECT_TIMEOUT",
+]);
+
+function failedBeforeDispatch(err: unknown, depth = 0): boolean {
+  if (!err || typeof err !== "object" || depth > 5) return false;
+  const error = err as { code?: unknown; cause?: unknown; errors?: unknown };
+  if (typeof error.code === "string" && PRE_DISPATCH_ERROR_CODES.has(error.code)) return true;
+  if (Array.isArray(error.errors) && error.errors.length > 0) {
+    // AggregateError from a dual-stack connect: every address must have
+    // failed before dispatch for the whole attempt to count as undelivered.
+    return error.errors.every((inner) => failedBeforeDispatch(inner, depth + 1));
+  }
+  return failedBeforeDispatch(error.cause, depth + 1);
+}
+
 export type HanuOtpResult =
   | { ok: true; providerMessage: string; providerReference: string | null }
   // `invalidNumber` marks a refusal the caller can fix by correcting the
   // number, so the API can say that instead of "try again shortly".
-  | { ok: false; reason: string; invalidNumber: boolean };
+  // `notDispatched` is true only when the request provably never reached the
+  // provider (no key, or a DNS/connect error code — see
+  // PRE_DISPATCH_ERROR_CODES). A timeout, a reset, an HTTP error or an
+  // unreadable body may follow a delivered SMS and must be treated as
+  // "possibly sent".
+  | { ok: false; reason: string; invalidNumber: boolean; notDispatched: boolean };
 
 export type HanuOtpStatus = {
   provider: "Hanu OTP";
@@ -135,6 +167,7 @@ export async function hanuSendOtp(
       ok: false,
       reason: "HANU_OTP_API_KEY is not configured",
       invalidNumber: false,
+      notDispatched: true,
     };
   }
   const url = new URL(HANU_OTP_ENDPOINT);
@@ -161,6 +194,7 @@ export async function hanuSendOtp(
         ok: false,
         reason: `Hanu OTP send failed: ${message}`,
         invalidNumber: false,
+        notDispatched: !controller.signal.aborted && failedBeforeDispatch(err),
       };
     }
 
@@ -180,6 +214,7 @@ export async function hanuSendOtp(
         ok: false,
         reason: `Hanu OTP returned HTTP ${response.status}: ${errorMessage}`,
         invalidNumber: providerRejectedTheNumber(errorMessage),
+        notDispatched: false,
       };
     }
     if (responseIsSuccessful(body)) return { ok: true, ...safeSuccessDetails(body) };
@@ -189,6 +224,7 @@ export async function hanuSendOtp(
       ok: false,
       reason: `Hanu OTP error: ${providerMessage}`,
       invalidNumber: providerRejectedTheNumber(providerMessage),
+      notDispatched: false,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "invalid provider response";
@@ -196,6 +232,7 @@ export async function hanuSendOtp(
       ok: false,
       reason: `Hanu OTP send failed: ${message}`,
       invalidNumber: false,
+      notDispatched: false,
     };
   } finally {
     clearTimeout(timer);

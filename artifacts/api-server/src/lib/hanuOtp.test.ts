@@ -61,6 +61,7 @@ describe("hanuSendOtp", () => {
       ok: false,
       reason: "Hanu OTP error: Invalid API Key",
       invalidNumber: false,
+      notDispatched: false,
     });
 
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("<html>bad gateway</html>"));
@@ -68,6 +69,7 @@ describe("hanuSendOtp", () => {
       ok: false,
       reason: "Hanu OTP error: <html>bad gateway</html>",
       invalidNumber: false,
+      notDispatched: false,
     });
   });
 
@@ -92,6 +94,7 @@ describe("hanuSendOtp", () => {
       ok: false,
       reason: "Hanu OTP returned HTTP 400: Invalid mobile number",
       invalidNumber: true,
+      notDispatched: false,
     });
 
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
@@ -101,6 +104,7 @@ describe("hanuSendOtp", () => {
       ok: false,
       reason: "Hanu OTP returned HTTP 503: service unavailable",
       invalidNumber: false,
+      notDispatched: false,
     });
   });
 
@@ -111,6 +115,7 @@ describe("hanuSendOtp", () => {
       ok: false,
       reason: "HANU_OTP_API_KEY is not configured",
       invalidNumber: false,
+      notDispatched: true,
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -170,6 +175,69 @@ describe("hanuSendOtp", () => {
       ok: false,
       reason: "Hanu OTP send failed: aborted",
       invalidNumber: false,
+      // The provider may already hold the request; treat as possibly sent.
+      notDispatched: false,
+    });
+  });
+
+  it("marks a DNS or connection failure as never dispatched", async () => {
+    // undici wraps the socket error: TypeError("fetch failed") with `cause`.
+    const dns = new TypeError("fetch failed", {
+      cause: Object.assign(new Error("getaddrinfo ENOTFOUND api.hanuotp.in"), { code: "ENOTFOUND" }),
+    });
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(dns);
+    await expect(hanuSendOtp("9876543210", "123456")).resolves.toEqual({
+      ok: false,
+      reason: "Hanu OTP send failed: fetch failed",
+      invalidNumber: false,
+      notDispatched: true,
+    });
+
+    // Dual-stack connect refusals arrive as an AggregateError of per-address errors.
+    const refused = new TypeError("fetch failed", {
+      cause: new AggregateError(
+        [
+          Object.assign(new Error("connect ECONNREFUSED 203.0.113.5:443"), { code: "ECONNREFUSED" }),
+          Object.assign(new Error("connect ENETUNREACH ::1:443"), { code: "ENETUNREACH" }),
+        ],
+        "",
+      ),
+    });
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(refused);
+    await expect(hanuSendOtp("9876543210", "123456")).resolves.toMatchObject({
+      ok: false,
+      notDispatched: true,
+    });
+  });
+
+  it("treats a reset, an unexplained fetch failure and a mid-flight error as possibly sent", async () => {
+    const reset = new TypeError("fetch failed", {
+      cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }),
+    });
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(reset);
+    await expect(hanuSendOtp("9876543210", "123456")).resolves.toMatchObject({
+      ok: false,
+      notDispatched: false,
+    });
+
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("fetch failed"));
+    await expect(hanuSendOtp("9876543210", "123456")).resolves.toMatchObject({
+      ok: false,
+      notDispatched: false,
+    });
+
+    // The response arrived but its body could not be read.
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => {
+        throw new Error("terminated");
+      },
+    } as unknown as Response);
+    await expect(hanuSendOtp("9876543210", "123456")).resolves.toMatchObject({
+      ok: false,
+      reason: "Hanu OTP send failed: terminated",
+      notDispatched: false,
     });
   });
 });
