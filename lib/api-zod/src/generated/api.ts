@@ -1243,6 +1243,140 @@ export const DealersMeResponse = zod.object({
 
 
 /**
+ * For business accounts only (not dealer-portal or customer logins). Lists every OTHER shop holding an active dealer record with the caller's mobile, with that shop's contact and the caller's live repair stats there. Shops that switched their dealer portal off are omitted.
+ * @summary Shops where the caller is filed as a B2B dealer (matched by verified mobile)
+ */
+export const DealersSuppliersListResponse = zod.object({
+  "suppliers": zod.array(zod.object({
+  "dealerId": zod.string(),
+  "dealerCode": zod.string(),
+  "dealerName": zod.string(),
+  "shopId": zod.string(),
+  "supplier": zod.object({
+  "businessName": zod.string(),
+  "address": zod.string().optional(),
+  "ownerName": zod.string(),
+  "ownerMobile": zod.string()
+}).describe('The repair shop as seen by a dealer-portal login.'),
+  "stats": zod.object({
+  "totalRepairs": zod.number(),
+  "received": zod.number(),
+  "repairing": zod.number(),
+  "ready": zod.number(),
+  "delivered": zod.number(),
+  "cancelled": zod.number(),
+  "afterSaleReturns": zod.number(),
+  "refunded": zod.number(),
+  "refundedAmount": zod.number(),
+  "totalRepairValue": zod.number(),
+  "pendingAmount": zod.number()
+})
+}).describe('One shop that files the caller as a B2B dealer.'))
+})
+
+
+/**
+ * Read-only portal projection, newest first. 404 when the dealer record is not the caller's, is inactive, or the shop disabled its portal.
+ * @summary Repairs the supplier shop booked against the caller's dealer record
+ */
+export const DealersSuppliersRepairsListParams = zod.object({
+  "dealerId": zod.coerce.string()
+})
+
+export const DealersSuppliersRepairsListQueryParams = zod.object({
+  "q": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const DealersSuppliersRepairsListResponse = zod.object({
+  "repairs": zod.array(zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string(),
+  "mobile": zod.string(),
+  "dealerId": zod.string().optional(),
+  "dealerName": zod.string().optional(),
+  "dealerDetectedByPhone": zod.boolean().optional(),
+  "deviceType": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "imei": zod.string().optional(),
+  "imei2": zod.string().optional(),
+  "serialNumber": zod.string().optional(),
+  "color": zod.string().optional(),
+  "storage": zod.string().optional(),
+  "ram": zod.string().optional(),
+  "devicePassword": zod.string().optional(),
+  "simPresent": zod.boolean(),
+  "memoryCardPresent": zod.boolean(),
+  "alternateMobile": zod.string().optional(),
+  "accessories": zod.string().optional(),
+  "accessoriesList": zod.array(zod.string()).optional(),
+  "physicalCondition": zod.record(zod.string(), zod.boolean()).optional(),
+  "problem": zod.string(),
+  "deviceCondition": zod.string().optional(),
+  "diagnosis": zod.string().optional(),
+  "workPerformed": zod.string().optional(),
+  "technicianId": zod.string().optional(),
+  "technicianName": zod.string().optional(),
+  "assignedById": zod.string().optional(),
+  "assignedByName": zod.string().optional(),
+  "assignedAt": zod.string().optional(),
+  "status": zod.string(),
+  "priority": zod.string(),
+  "repairCharge": zod.number(),
+  "partsCharge": zod.number(),
+  "serviceCharge": zod.number(),
+  "otherCharge": zod.number(),
+  "discount": zod.number(),
+  "taxPercent": zod.number(),
+  "advance": zod.number(),
+  "totalAmount": zod.number(),
+  "paidAmount": zod.number(),
+  "balance": zod.number(),
+  "estimatedCost": zod.number().optional(),
+  "paymentStatus": zod.enum(['unpaid', 'partial', 'paid', 'overpaid']).optional(),
+  "testingChecklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "testingConfirmedById": zod.string().optional(),
+  "testingConfirmedByName": zod.string().optional(),
+  "testingConfirmedAt": zod.string().optional(),
+  "readyAt": zod.string().optional(),
+  "customerNotifiedAt": zod.string().optional(),
+  "clientRequestId": zod.string().optional(),
+  "receiveDate": zod.string(),
+  "expectedDate": zod.string(),
+  "deliveryDate": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "checklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "receivingSignaturePath": zod.string().optional(),
+  "deliverySignaturePath": zod.string().optional(),
+  "warrantyDays": zod.number(),
+  "warrantyExpiry": zod.string().optional(),
+  "receivedById": zod.string().optional(),
+  "receivedByName": zod.string().optional(),
+  "deliveredById": zod.string().optional(),
+  "deliveredByName": zod.string().optional(),
+  "paymentMethod": zod.string().optional(),
+  "repairStartedAt": zod.string().optional(),
+  "repairCompletedAt": zod.string().optional(),
+  "isSample": zod.boolean(),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "updatedById": zod.string().optional(),
+  "updatedByName": zod.string().optional(),
+  "updatedAt": zod.string().optional(),
+  "createdAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
  * @summary Overall dealer-repair statistics (dealer/owner only)
  */
 export const DealersOverviewResponse = zod.object({

@@ -24,6 +24,14 @@ describe('restricted account tab routes', () => {
     expect(canPortalAccessTabsRoute(['(tabs)', 'repairs', 'repair-1'])).toBe(true);
   });
 
+  it('opens supplier repair views to business accounts only', () => {
+    const denied = () => false;
+    expect(canAccessTabsRoute(['(tabs)', 'repairs', 'suppliers'], { role: 'technician', canAccess: denied })).toBe(true);
+    expect(canAccessTabsRoute(['(tabs)', 'repairs', 'supplier', 'dealer-1'], { role: 'dealer', canAccess: denied })).toBe(true);
+    expect(canPortalAccessTabsRoute(['(tabs)', 'repairs', 'suppliers'])).toBe(false);
+    expect(canCustomerAccessTabsRoute(['(tabs)', 'repairs', 'supplier', 'dealer-1'])).toBe(false);
+  });
+
   it('keeps unrelated business routes closed to restricted accounts', () => {
     expect(canCustomerAccessTabsRoute(['(tabs)', 'inventory'])).toBe(false);
     expect(canPortalAccessTabsRoute(['(tabs)', 'inventory'])).toBe(false);

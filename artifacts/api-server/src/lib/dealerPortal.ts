@@ -44,3 +44,21 @@ export function dealerPortalAllowed(req: Request): boolean {
   const path = req.path.replace(/\/+$/, "") || "/";
   return ALLOWED.some((a) => a.method === req.method && a.re.test(path));
 }
+
+// Families a portal login keeps even when the supplier shop has deactivated
+// the dealer row or switched the portal off: account self-service and setting
+// up the person's OWN Shop. Neither reads the supplier's data, and the
+// supplier must not be able to veto the person's independent business.
+const EXEMPT_FAMILIES = new Set(
+  contract.families
+    .filter((f) => "inactiveDealerExempt" in f && f.inactiveDealerExempt === true)
+    .map((f) => f.id),
+);
+const INACTIVE_EXEMPT = contract.rules
+  .filter((r) => EXEMPT_FAMILIES.has(r.family))
+  .map(({ method, pattern }) => ({ method, re: new RegExp(pattern) }));
+
+export function dealerPortalInactiveExempt(req: Request): boolean {
+  const path = req.path.replace(/\/+$/, "") || "/";
+  return INACTIVE_EXEMPT.some((a) => a.method === req.method && a.re.test(path));
+}

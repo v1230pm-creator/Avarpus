@@ -229,6 +229,14 @@ function DealerInactiveScreen() {
         )}
       </TouchableOpacity>
       <TouchableOpacity
+        testID="dealer-inactive-own-shop"
+        accessibilityRole="button"
+        onPress={() => router.push('/(tabs)/shop')}
+        style={[styles.inactiveSecondary, { borderColor: colors.border }]}
+      >
+        <Text style={[styles.inactiveSecondaryText, { color: colors.foreground }]}>Set up your own Shop</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
         testID="dealer-inactive-account"
         accessibilityRole="button"
         onPress={() => router.push('/(tabs)/more/profile')}
@@ -291,8 +299,12 @@ export default function TabLayout() {
     return <Redirect href="/(auth)" />;
   }
 
+  // Account self-service and the person's OWN Shop setup stay reachable while
+  // the supplier has the portal switched off (mirrors the API contract's
+  // inactive-exempt families): the supplier cannot veto an independent business.
   const isPersonalAccountRoute =
-    segments[1] === 'more' && ['profile', 'account', 'security'].includes(segments[2] ?? '');
+    (segments[1] === 'more' && ['profile', 'account', 'security'].includes(segments[2] ?? '')) ||
+    segments[1] === 'shop';
   if (portal && dealerPortalInactive && !isPersonalAccountRoute) {
     return <DealerInactiveScreen />;
   }

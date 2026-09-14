@@ -910,6 +910,15 @@ async function verifyInactiveDealerPortal(label, portal) {
     sessions,
   );
 
+  // The supplier switching the portal off must not veto this person's OWN
+  // business: Shop setup stays reachable and still shows no workspace.
+  const ownShop = await api("GET", "/shop/me", portal.token);
+  check(
+    `${label} can still reach own Shop setup while dealer is inactive`,
+    ownShop.status === 200 && ownShop.json.shop === null,
+    ownShop,
+  );
+
   const logout = await api("POST", "/auth/logout", portal.logoutToken);
   check(`${label} can sign out while dealer is inactive`, logout.status === 200, logout);
   const signedOut = await api("GET", "/auth/me", portal.logoutToken);

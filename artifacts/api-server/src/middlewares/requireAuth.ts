@@ -4,6 +4,7 @@ import { getSessionUser } from "../lib/authUtils";
 import {
   dealerPortalAllowed,
   dealerPortalDealerIsActive,
+  dealerPortalInactiveExempt,
   isDealerPortalRole,
 } from "../lib/dealerPortal";
 import { customerPortalAllowed } from "../lib/customerPortal";
@@ -71,9 +72,9 @@ export function requireAuth(
           return;
         }
         // Shop owner can switch the portal off per role (Staff Permissions).
-        // Account self-service under /auth stays available so the user can
-        // still manage their profile and sign out.
-        if (!req.path.startsWith("/auth")) {
+        // Account self-service (/auth) and the person's OWN Shop setup stay
+        // available — see the contract's inactiveDealerExempt families.
+        if (!dealerPortalInactiveExempt(req)) {
           if (!await dealerPortalDealerIsActive(user)) {
             res.status(403).json({
               message: "Dealer portal access is inactive. Please contact the shop.",

@@ -23,6 +23,7 @@ import {
   ShopWorkspaceSwitchBody,
 } from "@workspace/api-zod";
 import { parseBody } from "../lib/validate";
+import { isDealerPortalRole } from "../lib/dealerPortal";
 
 const router: IRouter = Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -155,9 +156,18 @@ router.post("/shop/recovery/verify", requireAuth, asyncHandler(async (req, res) 
 
 // Start a business-email verification challenge for an existing personal
 // account. No shop is created before the code is successfully consumed.
+// A dealer-portal login (a B2B dealer whose supplier shop filed their number)
+// has `shopId` pointing at the SUPPLIER's shop, not a workspace of their own.
+// Such an account may still open its own Shop: afterwards its supplier's
+// repairs stay reachable through GET /dealers/suppliers (matched by mobile).
+function hasOwnWorkspace(user: { shopId: string | null; role: string }): boolean {
+  if (user.role === "dealer" || user.role === "super_admin") return true;
+  return Boolean(user.shopId) && !isDealerPortalRole(user.role);
+}
+
 router.post("/shop/setup/request", requireAuth, asyncHandler(async (req, res) => {
   const user = me(req);
-  if (user.shopId || user.role === "dealer" || user.role === "super_admin") {
+  if (hasOwnWorkspace(user)) {
     res.status(409).json({ message: "This account already has a business workspace." });
     return;
   }
@@ -226,7 +236,7 @@ router.post("/shop/setup/verify", requireAuth, asyncHandler(async (req, res) => 
   }
   const created = await db.transaction(async (tx) => {
     const [locked] = await tx.select().from(usersTable).where(eq(usersTable.id, user.id)).for("update");
-    if (!locked || locked.shopId || locked.role === "dealer") {
+    if (!locked || hasOwnWorkspace(locked)) {
       throw new Error("ACCOUNT_ALREADY_HAS_WORKSPACE");
     }
     const [shop] = await tx.insert(shopsTable).values({
@@ -248,6 +258,9 @@ router.post("/shop/setup/verify", requireAuth, asyncHandler(async (req, res) => 
     const [updated] = await tx.update(usersTable).set({
       role: "dealer",
       shopId: shop.id,
+      // A former portal login is now a shop owner; its supplier link is
+      // resolved by mobile from here on, never by this pointer.
+      dealerId: null,
       businessName: shop.businessName,
       shopAddress: shop.address,
       gstNumber: shop.gstNumber,

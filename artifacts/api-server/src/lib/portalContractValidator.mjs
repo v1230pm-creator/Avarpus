@@ -77,6 +77,8 @@ export const customerPortalProfile = {
   ],
 };
 
+const INACTIVE_DEALER_EXEMPT_FAMILIES = new Set(["auth-self-service", "shop-setup"]);
+
 export const dealerPortalProfile = {
   portal: "Dealer",
   coverageModes: [
@@ -98,7 +100,10 @@ export const dealerPortalProfile = {
     {
       present: (family) => family.inactiveDealerExempt === true,
       validate: (family, portal) => {
-        if (family.id !== "auth-self-service") {
+        // Only the caller's OWN account and their OWN (future) Shop may stay
+        // reachable while the supplier has switched the portal off: neither
+        // exposes a byte of the supplier's data.
+        if (!INACTIVE_DEALER_EXEMPT_FAMILIES.has(family.id)) {
           fail(portal, `unsupported exemption for family: ${family.id}`);
         }
       },

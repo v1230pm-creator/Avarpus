@@ -29,7 +29,7 @@ import * as Network from 'expo-network';
 import { offlineQueue, QueuedRepair } from '@/utils/offlineQueue';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { useReturnsList, useRepairsList, getRepairsListQueryKey, useDealersList, useDealersMe, useDealersOverview, useCustomersKhataGet } from '@workspace/api-client-react';
+import { useReturnsList, useRepairsList, getRepairsListQueryKey, useDealersList, useDealersMe, useDealersOverview, useCustomersKhataGet, useDealersSuppliersList } from '@workspace/api-client-react';
 
 const FILTERS = ['Received', 'Repair', 'Ready', 'Delivered', 'Dealers', 'After-Sales Service'] as const;
 type Filter = (typeof FILTERS)[number];
@@ -157,6 +157,9 @@ export default function RepairsScreen() {
 
   // Dealer-portal: own dealer profile + stats.
   const { data: myDealer } = useDealersMe({ query: { enabled: isDealerPortal } } as any);
+  // Business accounts: other shops that file this person as THEIR dealer.
+  const { data: suppliersData } = useDealersSuppliersList({ query: { enabled: !isPortal } } as any);
+  const supplierLinks = suppliersData?.suppliers ?? [];
   const { data: myKhata } = useCustomersKhataGet('me', { query: { enabled: isCustomerPortal } } as any);
 
   const getStatusQuery = () => {
@@ -352,6 +355,36 @@ export default function RepairsScreen() {
 
 
         {/* Offline Sync Banner */}
+        {/* Repairs this person has sent to other shops as their dealer */}
+        {!isPortal && supplierLinks.length > 0 && (
+          <TouchableOpacity
+            testID="supplier-repairs-entry"
+            accessibilityRole="button"
+            accessibilityLabel="Open my repairs at supplier shops"
+            onPress={() => router.push('/(tabs)/repairs/suppliers')}
+            activeOpacity={0.8}
+          >
+            <FlatCard style={{ padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.info + '1A', alignItems: 'center', justifyContent: 'center' }}>
+                <Feather name="truck" size={18} color={colors.info} />
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }} numberOfLines={1}>
+                  My repairs at {supplierLinks.length === 1 ? supplierLinks[0].supplier.businessName : `${supplierLinks.length} supplier shops`}
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>
+                  {(() => {
+                    const inProgress = supplierLinks.reduce((n, link) => n + link.stats.received + link.stats.repairing, 0);
+                    const ready = supplierLinks.reduce((n, link) => n + link.stats.ready, 0);
+                    return `${inProgress} in progress · ${ready} ready to collect`;
+                  })()}
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </FlatCard>
+          </TouchableOpacity>
+        )}
+
         {!isPortal && offlineItems.length > 0 && (
           <View style={{ backgroundColor: colors.warning + '22', borderWidth: 1, borderColor: colors.warning + '44', padding: 12, borderRadius: 8, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>

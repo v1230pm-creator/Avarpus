@@ -97,6 +97,9 @@ import type {
   DealersList200,
   DealersListParams,
   DealersOverview200,
+  DealersSuppliersList200,
+  DealersSuppliersRepairsList200,
+  DealersSuppliersRepairsListParams,
   DealersUpdate200,
   DeliveryOtpVerify200,
   DeliveryOtpVerifyInput,
@@ -3568,6 +3571,174 @@ export function useDealersMe<TData = Awaited<ReturnType<typeof dealersMe>>, TErr
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getDealersMeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDealersSuppliersListUrl = () => {
+
+
+
+
+  return `/api/dealers/suppliers`
+}
+
+/**
+ * For business accounts only (not dealer-portal or customer logins). Lists every OTHER shop holding an active dealer record with the caller's mobile, with that shop's contact and the caller's live repair stats there. Shops that switched their dealer portal off are omitted.
+ * @summary Shops where the caller is filed as a B2B dealer (matched by verified mobile)
+ */
+export const dealersSuppliersList = async ( options?: Parameters<typeof customFetch>[1]): Promise<DealersSuppliersList200> => {
+
+  return customFetch<DealersSuppliersList200>(getDealersSuppliersListUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDealersSuppliersListQueryKey = () => {
+    return [
+    `/api/dealers/suppliers`
+    ] as const;
+    }
+
+
+export const getDealersSuppliersListQueryOptions = <TData = Awaited<ReturnType<typeof dealersSuppliersList>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersSuppliersList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDealersSuppliersListQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof dealersSuppliersList>>> = ({ signal }) => dealersSuppliersList({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof dealersSuppliersList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DealersSuppliersListQueryResult = NonNullable<Awaited<ReturnType<typeof dealersSuppliersList>>>
+export type DealersSuppliersListQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Shops where the caller is filed as a B2B dealer (matched by verified mobile)
+ */
+
+export function useDealersSuppliersList<TData = Awaited<ReturnType<typeof dealersSuppliersList>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersSuppliersList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDealersSuppliersListQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDealersSuppliersRepairsListUrl = (dealerId: string,
+    params?: DealersSuppliersRepairsListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/dealers/suppliers/${dealerId}/repairs?${stringifiedParams}` : `/api/dealers/suppliers/${dealerId}/repairs`
+}
+
+/**
+ * Read-only portal projection, newest first. 404 when the dealer record is not the caller's, is inactive, or the shop disabled its portal.
+ * @summary Repairs the supplier shop booked against the caller's dealer record
+ */
+export const dealersSuppliersRepairsList = async (dealerId: string,
+    params?: DealersSuppliersRepairsListParams, options?: Parameters<typeof customFetch>[1]): Promise<DealersSuppliersRepairsList200> => {
+
+  return customFetch<DealersSuppliersRepairsList200>(getDealersSuppliersRepairsListUrl(dealerId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDealersSuppliersRepairsListQueryKey = (dealerId: string,
+    params?: DealersSuppliersRepairsListParams,) => {
+    return [
+    `/api/dealers/suppliers/${dealerId}/repairs`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getDealersSuppliersRepairsListQueryOptions = <TData = Awaited<ReturnType<typeof dealersSuppliersRepairsList>>, TError = ErrorType<void>>(dealerId: string,
+    params?: DealersSuppliersRepairsListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersSuppliersRepairsList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDealersSuppliersRepairsListQueryKey(dealerId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof dealersSuppliersRepairsList>>> = ({ signal }) => dealersSuppliersRepairsList(dealerId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: dealerId !== null && dealerId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof dealersSuppliersRepairsList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DealersSuppliersRepairsListQueryResult = NonNullable<Awaited<ReturnType<typeof dealersSuppliersRepairsList>>>
+export type DealersSuppliersRepairsListQueryError = ErrorType<void>
+
+
+/**
+ * @summary Repairs the supplier shop booked against the caller's dealer record
+ */
+
+export function useDealersSuppliersRepairsList<TData = Awaited<ReturnType<typeof dealersSuppliersRepairsList>>, TError = ErrorType<void>>(
+ dealerId: string,
+    params?: DealersSuppliersRepairsListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersSuppliersRepairsList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDealersSuppliersRepairsListQueryOptions(dealerId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -7,7 +7,8 @@
     { "id": "drive-backup", "label": "Drive backup", "inactiveProbe": { "method": "GET", "path": "/drive-backup" } },
     { "id": "notifications", "label": "notifications", "inactiveProbe": { "method": "GET", "path": "/notifications" } },
     { "id": "push-registration", "label": "push registration", "inactiveProbe": { "method": "POST", "path": "/push/tokens/unregister", "body": { "token": "ExponentPushToken[portal-contract-probe]" } } },
-    { "id": "chat", "label": "chat", "inactiveProbe": { "method": "GET", "path": "/chat/capabilities" } }
+    { "id": "chat", "label": "chat", "inactiveProbe": { "method": "GET", "path": "/chat/capabilities" } },
+    { "id": "shop-setup", "label": "own shop setup", "inactiveDealerExempt": true }
   ],
   "rules": [
     { "family": "dealer-profile", "method": "GET", "pattern": "^/dealers/me$" },
@@ -42,6 +43,9 @@
     { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/read$" },
     { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/upload-url$" },
     { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/call-token$" },
-    { "family": "chat", "method": "GET", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/messages/[0-9a-fA-F-]{36}/media$" }
+    { "family": "chat", "method": "GET", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/messages/[0-9a-fA-F-]{36}/media$" },
+    { "family": "shop-setup", "method": "GET", "pattern": "^/shop/me$" },
+    { "family": "shop-setup", "method": "POST", "pattern": "^/shop/setup/request$" },
+    { "family": "shop-setup", "method": "POST", "pattern": "^/shop/setup/verify$" }
   ]
 }

@@ -38,11 +38,11 @@ export function canAccessTabsRoute(segments: TabSegments, { role, canAccess }: A
   if (isCustomerRole(role)) {
     if (segments[1] !== 'repairs' || !canAccess('repairs_portal')) return false;
     // Customer repair deep links are read-only list/detail routes only.
-    return !['new', 'scanner', 'return', 'returns', 'dealer', 'dealer-new'].includes(segments[2] ?? '');
+    return !['new', 'scanner', 'return', 'returns', 'dealer', 'dealer-new', 'suppliers', 'supplier'].includes(segments[2] ?? '');
   }
   if (isDealerPortalRole(role)) {
     if (segments[1] !== 'repairs' || !canAccess('repairs_portal')) return false;
-    return !['new', 'scanner', 'return', 'returns', 'dealer', 'dealer-new'].includes(segments[2] ?? '');
+    return !['new', 'scanner', 'return', 'returns', 'dealer', 'dealer-new', 'suppliers', 'supplier'].includes(segments[2] ?? '');
   }
 
   const owner = role === 'dealer' || role === 'super_admin';
@@ -53,6 +53,9 @@ export function canAccessTabsRoute(segments: TabSegments, { role, canAccess }: A
     case 'updates':
       return true;
     case 'repairs':
+      // Supplier views are personal (matched by the signed-in mobile), not a
+      // shop feature: any business account may open them.
+      if (segments[2] === 'suppliers' || segments[2] === 'supplier') return true;
       if (segments[2] === 'new') return canAccess('repairs_create');
       if (segments[2] === 'return') return canAccess('repairs_update');
       if (segments[2] === 'dealer' || segments[2] === 'dealer-new') return canAccess('customers');

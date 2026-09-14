@@ -761,6 +761,18 @@ export interface DealerPortalProfile {
   supplier: DealerSupplier | null;
 }
 
+/**
+ * One shop that files the caller as a B2B dealer.
+ */
+export interface SupplierLink {
+  dealerId: string;
+  dealerCode: string;
+  dealerName: string;
+  shopId: string;
+  supplier: DealerSupplier;
+  stats: DealerStats;
+}
+
 export interface DealerOverviewStats {
   totalDealerRepairs: number;
   activeRepairs: number;
@@ -2433,6 +2445,24 @@ mobile: string;
 
 export type DealersDetect200 = {
   dealers: Dealer[];
+};
+
+export type DealersSuppliersList200 = {
+  suppliers: SupplierLink[];
+};
+
+export type DealersSuppliersRepairsListParams = {
+q?: string;
+status?: string;
+page?: number;
+limit?: number;
+};
+
+export type DealersSuppliersRepairsList200 = {
+  repairs: Repair[];
+  total: number;
+  page: number;
+  limit: number;
 };
 
 export type DealersOverview200 = {

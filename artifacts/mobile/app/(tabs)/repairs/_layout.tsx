@@ -13,6 +13,8 @@ export default function RepairsLayout() {
       <Stack.Screen name="return/[id]" />
       <Stack.Screen name="dealer-new" />
       <Stack.Screen name="dealer/[id]" />
+      <Stack.Screen name="suppliers" />
+      <Stack.Screen name="supplier/[dealerId]" />
       <Stack.Screen name="[id]" />
     </Stack>
   );

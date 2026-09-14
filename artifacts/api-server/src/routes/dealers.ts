@@ -23,6 +23,9 @@ import { asyncHandler } from "../lib/asyncHandler";
 import { isDealerPortalRole } from "../lib/dealerPortal";
 import { requireFeature } from "../lib/roleFeatures";
 import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
+import { normaliseIndianMobile } from "../lib/hanuOtp";
+import { getShopRoleFeatureMatrix } from "../lib/roleFeatures";
+import { portalRepairOut } from "../lib/repairProjection";
 import { parseBody, parseQuery, uuidParam } from "../lib/validate";
 import type { Request, Response } from "express";
 
@@ -35,6 +38,7 @@ import type { Request, Response } from "express";
 
 const router: IRouter = Router();
 router.param("id", uuidParam);
+router.param("dealerId", uuidParam);
 
 type AuthedRequest = Request & { user: DbUser };
 
@@ -177,6 +181,155 @@ router.get(
         }
       : null;
     res.json({ dealer: dealerOut(dealer), stats, supplier });
+  }),
+);
+
+// ── Supplier view: my repairs at other shops ────────────────────────────────
+// A shop owner (or staff member) can also be a B2B dealer of ANOTHER shop:
+// that shop files a `dealers` row carrying this person's mobile and books
+// repairs against it. OTP proved control of `users.mobile` (a session cannot
+// change it without a fresh OTP), so every ACTIVE dealer row in another shop
+// whose mobile matches is this caller's own party record. This mirrors the
+// single-shop dealer portal, but from inside a full business account, across
+// every shop that lists this person. Read-only, portal projection only, and
+// each supplier shop's own "portal_repairs" switch is honoured.
+
+type SupplierLink = {
+  dealer: DbDealer;
+  supplier: { businessName: string; address: string | null; ownerName: string; ownerMobile: string };
+};
+
+// Same acceptance rules as normaliseIndianMobile, expressed in SQL over the
+// stored (possibly unnormalised) dealer mobile.
+function dealerMobileMatches(mobile: string): SQL {
+  const compact = sql`regexp_replace(${dealersTable.mobile}, '[[:space:]().-]', '', 'g')`;
+  return inArray(compact, [mobile, `0${mobile}`, `91${mobile}`, `+91${mobile}`]);
+}
+
+async function supplierLinksFor(me: DbUser, dealerId?: string): Promise<SupplierLink[]> {
+  const mobile = me.mobile ? normaliseIndianMobile(me.mobile) : null;
+  if (!mobile) return [];
+  const conds: SQL[] = [eq(dealersTable.isActive, true), dealerMobileMatches(mobile)];
+  // A shop listing its own owner's number as a dealer is not a supplier.
+  if (me.shopId) conds.push(sql`${dealersTable.shopId} <> ${me.shopId}`);
+  if (dealerId) conds.push(eq(dealersTable.id, dealerId));
+  const rows = await db
+    .select({
+      dealer: dealersTable,
+      businessName: shopsTable.businessName,
+      address: shopsTable.address,
+      ownerName: usersTable.name,
+      ownerMobile: usersTable.mobile,
+    })
+    .from(dealersTable)
+    .innerJoin(shopsTable, eq(shopsTable.id, dealersTable.shopId))
+    .innerJoin(usersTable, eq(usersTable.id, shopsTable.dealerId))
+    .where(and(...conds))
+    .orderBy(desc(dealersTable.createdAt), asc(dealersTable.id));
+  const links: SupplierLink[] = [];
+  for (const row of rows) {
+    // The supplier shop can switch its dealer portal off per role; that
+    // switch governs this view too — same data, different door.
+    const matrix = await getShopRoleFeatureMatrix(row.dealer.shopId);
+    if (matrix.dealer_owner?.portal_repairs === false) continue;
+    links.push({
+      dealer: row.dealer,
+      supplier: {
+        businessName: row.businessName,
+        address: row.address ?? null,
+        ownerName: row.ownerName,
+        ownerMobile: row.ownerMobile ?? "",
+      },
+    });
+  }
+  return links;
+}
+
+function supplierViewer(req: Request, res: Response): DbUser | null {
+  const me = (req as AuthedRequest).user;
+  // Portal and customer accounts have their own single-shop read paths.
+  if (isDealerPortalRole(me.role) || me.role === "customer") {
+    res.status(403).json({ message: "This view is for business accounts." });
+    return null;
+  }
+  return me;
+}
+
+router.get(
+  "/dealers/suppliers",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const me = supplierViewer(req, res);
+    if (!me) return;
+    const links = await supplierLinksFor(me);
+    const suppliers = [];
+    for (const link of links) {
+      const stats = await dealerStats(link.dealer.shopId, link.dealer.id);
+      suppliers.push({
+        dealerId: link.dealer.id,
+        dealerCode: link.dealer.dealerCode,
+        dealerName: link.dealer.name,
+        shopId: link.dealer.shopId,
+        supplier: {
+          businessName: link.supplier.businessName,
+          address: link.supplier.address ?? undefined,
+          ownerName: link.supplier.ownerName,
+          ownerMobile: link.supplier.ownerMobile,
+        },
+        stats,
+      });
+    }
+    res.json({ suppliers });
+  }),
+);
+
+router.get(
+  "/dealers/suppliers/:dealerId/repairs",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const me = supplierViewer(req, res);
+    if (!me) return;
+    const dealerId = req.params.dealerId as string;
+    const [link] = await supplierLinksFor(me, dealerId);
+    if (!link) {
+      // Not this caller's party (or inactive / switched off): indistinguishable
+      // from a dealer that does not exist.
+      res.status(404).json({ message: "Supplier not found" });
+      return;
+    }
+    const conds: SQL[] = [
+      eq(repairsTable.shopId, link.dealer.shopId),
+      eq(repairsTable.dealerId, link.dealer.id),
+    ];
+    const status = str(req.query.status);
+    if (status) {
+      const wanted = status.split(",").map((v) => v.trim()).filter(Boolean);
+      if (wanted.length === 1) conds.push(eq(repairsTable.status, wanted[0]));
+      else if (wanted.length > 1) conds.push(inArray(repairsTable.status, wanted));
+    }
+    const q = str(req.query.q);
+    if (q) {
+      const like = `%${q}%`;
+      conds.push(or(
+        ilike(repairsTable.repairId, like),
+        ilike(repairsTable.customerName, like),
+        ilike(repairsTable.brand, like),
+        ilike(repairsTable.model, like),
+        ilike(repairsTable.problem, like),
+      ) as SQL);
+    }
+    const pageRaw = Number(req.query.page);
+    const limitRaw = Number(req.query.limit);
+    const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.trunc(pageRaw) : 1;
+    const limit = Number.isFinite(limitRaw) && limitRaw >= 1 ? Math.min(Math.trunc(limitRaw), 200) : 50;
+    const where = and(...conds);
+    const [[{ total }], rows] = await Promise.all([
+      db.select({ total: sql<number>`count(*)::int` }).from(repairsTable).where(where),
+      db.select().from(repairsTable).where(where)
+        .orderBy(desc(repairsTable.createdAt), desc(repairsTable.id))
+        .limit(limit).offset((page - 1) * limit),
+    ]);
+    res.json({ repairs: rows.map(portalRepairOut), total, page, limit });
   }),
 );
 

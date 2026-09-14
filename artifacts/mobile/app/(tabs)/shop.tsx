@@ -26,6 +26,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { AvarpusLoadingScreen, AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
+import { isDealerPortalRole } from '@/types';
 
 type Mode = 'overview' | 'setup' | 'claim' | 'recovery';
 
@@ -39,7 +40,8 @@ export default function ShopScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
-  const { refreshUser, refreshFeatures, canAccess } = useAuth();
+  const { user, refreshUser, refreshFeatures, canAccess } = useAuth();
+  const isDealerPortal = isDealerPortalRole(user?.role);
   const [mode, setMode] = useState<Mode>('overview');
   const [workspace, setWorkspace] = useState<ShopMeResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -298,16 +300,20 @@ export default function ShopScreen() {
               <Text style={[styles.heroText, { color: colors.mutedForeground }]}>
                 {workspace?.backupDetected
                   ? 'Restore your protected workspace with your mobile-authenticated account and verified business email.'
-                  : 'Repairs, Khata, customers, staff and reports stay protected inside a separate business workspace.'}
+                  : isDealerPortal
+                    ? 'You are listed as a dealer at another shop. Set up your own Shop here; their repairs for you stay visible under Repairs.'
+                    : 'Repairs, Khata, customers, staff and reports stay protected inside a separate business workspace.'}
               </Text>
               {workspace?.backupDetected ? (
                 <PrimaryButton label="Recover Shop backup" onPress={beginRecovery} busy={saving} colors={colors} />
               ) : (
                 <>
                   <PrimaryButton label="Set up your Shop" onPress={() => setMode('setup')} colors={colors} />
-                  <TouchableOpacity onPress={() => setMode('claim')} style={[styles.secondaryButton, { borderColor: colors.border }]}>
-                    <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Join with Staff ID</Text>
-                  </TouchableOpacity>
+                  {!isDealerPortal && (
+                    <TouchableOpacity onPress={() => setMode('claim')} style={[styles.secondaryButton, { borderColor: colors.border }]}>
+                      <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Join with Staff ID</Text>
+                    </TouchableOpacity>
+                  )}
                 </>
               )}
             </View>
