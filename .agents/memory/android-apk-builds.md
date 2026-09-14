@@ -3,7 +3,7 @@ name: Android APK builds
 description: How the VMC Android APK gets built (expo.dev GitHub builds) and the pitfalls hit
 ---
 
-Replit cannot build Android APKs (Expo Launch is iOS-only). Avarpus builds from the private GitHub repo `v1230pm-creator/Avarpus`, branch `main`, on EAS project `avarpus` under `avarpus-team`; base directory is `artifacts/mobile`, profile `production`. (An older dashed repo/branch name no longer resolves — confirm the repo via the GitHub connector before syncing.)
+Replit cannot build Android APKs (Expo Launch is iOS-only). Avarpus builds from the private GitHub repo `v1230pm-creator/Avarpus`, branch `main`, on EAS project `avarpus` under the `julian647` Expo account (moved from `avarpus-team` on 2026-09-14; projectId in app.json must match the account that runs the build); base directory is `artifacts/mobile`, profile `production`. (An older dashed repo/branch name no longer resolves — confirm the repo via the GitHub connector before syncing.)
 
 Task environments generally have **no shell Git credentials** (no SSH key, HTTPS unauthenticated), so `git push` fails with `Permission denied (publickey)` while the GitHub connector still works. Sync via the Git Data API instead: read file bytes with `node:fs` *inside* the `"use impure"` function (avoids the CodeExecution byte budget and shellExec base64 truncation), POST each blob, then chunk `POST /git/trees` with `base_tree` and `sha:null` entries for deletions, create the commit, and PATCH the ref. Verify by comparing the remote recursive tree's blob SHAs against local `git ls-tree -r HEAD`.
 
