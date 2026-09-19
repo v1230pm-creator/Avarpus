@@ -308,7 +308,7 @@ export default function ShopScreen() {
                 <PrimaryButton label="Recover Shop backup" onPress={beginRecovery} busy={saving} colors={colors} />
               ) : (
                 <>
-                  <PrimaryButton label="Set up your Shop" onPress={() => setMode('setup')} colors={colors} />
+                  <PrimaryButton label="Set up your Shop" onPress={() => { setMode('setup'); setError(null); }} colors={colors} />
                   {!isDealerPortal && (
                     <TouchableOpacity onPress={() => setMode('claim')} style={[styles.secondaryButton, { borderColor: colors.border }]}>
                       <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Join with Staff ID</Text>

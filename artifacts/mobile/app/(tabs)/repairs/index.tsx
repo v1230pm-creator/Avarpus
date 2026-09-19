@@ -61,6 +61,15 @@ function RepairCard({ repair, onPress }: { repair: Repair; onPress: () => void; 
           <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 4 }} numberOfLines={1}>{repair.problem}</Text>
           <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 2 }}>{repair.deviceType} · {repair.brand} {repair.model}</Text>
           <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 2 }}>{repair.customerName}</Text>
+          {!!repair.sourceDealerBusinessName && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+              <Feather name="briefcase" size={11} color={colors.primary} />
+              <Text style={{ fontSize: 12, color: colors.primary, fontFamily: 'Inter_500Medium', flexShrink: 1 }} numberOfLines={1}>
+                Source Dealer: {repair.sourceDealerBusinessName}
+                {repair.sourceDealerReceivedAt ? '' : ' · Waiting for acceptance'}
+              </Text>
+            </View>
+          )}
           <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>{formatDate(repair.createdAt)}</Text>
         </View>
 

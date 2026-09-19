@@ -6,10 +6,29 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DealerLookupMatch } from './dealerLookupMatch';
+import type { DealerTransactionFinancials } from './dealerTransactionFinancials';
+import type { DealerTransactionsGet200Acceptance } from './dealerTransactionsGet200Acceptance';
+import type { DealerTransactionsGet200Side } from './dealerTransactionsGet200Side';
+import type { Refund } from './refund';
 import type { Repair } from './repair';
+import type { RepairEvent } from './repairEvent';
+import type { RepairPayment } from './repairPayment';
 
 export type DealerTransactionsGet200 = {
   repair: Repair;
   /** The OTHER party to this transaction: the source dealer when viewed from the receiving shop, or the receiving shop when viewed from the sending shop. Used to open the dedicated dealer-to-dealer chat. */
   counterpart: DealerLookupMatch;
+  /** Which party the caller is. */
+  side: DealerTransactionsGet200Side;
+  transactionCode: string;
+  /** waiting until the repairing shop explicitly confirms receipt. */
+  acceptance: DealerTransactionsGet200Acceptance;
+  /** Omitted unless the caller has the `payments` feature. */
+  financials?: DealerTransactionFinancials;
+  /** Omitted unless the caller has the `payments` feature. */
+  payments?: RepairPayment[];
+  /** Omitted unless the caller has the `payments` feature. */
+  refunds?: Refund[];
+  /** Shared status timeline, oldest first (includes dealer_sent / dealer_received milestones). Payment events are omitted unless the caller has the `payments` feature. */
+  events: RepairEvent[];
 };

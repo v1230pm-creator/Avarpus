@@ -1111,11 +1111,83 @@ paths:
                   repair:
                     $ref: "#/components/schemas/Repair"
                 required: [repair]
+  /dealers/transactions/ledger:
+    get:
+      operationId: dealerTransactionsLedger
+      tags: [business]
+      summary: Dealer-to-dealer ledger summary for the caller's shop
+      description: >-
+        One row per (other shop, direction). direction=payable rows are the
+        shops repairing devices the caller sent (Khata → Suppliers);
+        direction=receivable rows are shops whose devices the caller repairs.
+        Every figure is derived on read from the shared repair, payment and
+        refund rows, so both shops always see the same balance. Requires the
+        payments feature.
+      responses:
+        "200":
+          description: Ledger parties
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  parties:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DealerLedgerParty"
+                  totals:
+                    type: object
+                    properties:
+                      receivable: { type: number }
+                      payable: { type: number }
+                    required: [receivable, payable]
+                required: [parties, totals]
+  /dealers/transactions/ledger/{shopId}:
+    get:
+      operationId: dealerTransactionsLedgerGet
+      tags: [business]
+      summary: Full dealer ledger with ONE other shop in ONE direction
+      description: >-
+        Chronological bill / payment / void / refund entries with a running
+        balance, from the caller's point of view. The two directions between
+        the same pair of shops are independent ledgers and are never netted.
+      parameters:
+        - name: shopId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: direction
+          in: query
+          required: true
+          schema: { type: string, enum: [receivable, payable] }
+      responses:
+        "200":
+          description: Ledger
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  party:
+                    $ref: "#/components/schemas/DealerLedgerParty"
+                  entries:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DealerLedgerEntry"
+                  totals:
+                    $ref: "#/components/schemas/DealerLedgerTotals"
+                required: [party, entries, totals]
+        "404":
+          description: Unknown shop
   /dealers/transactions/{id}:
     get:
       operationId: dealerTransactionsGet
       tags: [business]
       summary: Dealer-transaction detail, from either side
+      description: >-
+        Returns the shared repair row plus the SAME payments, refunds,
+        timeline and derived balance to whichever of the two shops asks.
+        Anyone else gets 404.
       parameters:
         - name: id
           in: path
@@ -1138,7 +1210,34 @@ paths:
                       shop when viewed from the sending shop. Used to open the
                       dedicated dealer-to-dealer chat.
                     $ref: "#/components/schemas/DealerLookupMatch"
-                required: [repair, counterpart]
+                  side:
+                    type: string
+                    enum: [receiver, sender]
+                    description: Which party the caller is.
+                  transactionCode: { type: string }
+                  acceptance:
+                    type: string
+                    enum: [waiting, received]
+                    description: waiting until the repairing shop explicitly confirms receipt.
+                  financials:
+                    description: Omitted unless the caller has the `payments` feature.
+                    $ref: "#/components/schemas/DealerTransactionFinancials"
+                  payments:
+                    type: array
+                    description: Omitted unless the caller has the `payments` feature.
+                    items:
+                      $ref: "#/components/schemas/RepairPayment"
+                  refunds:
+                    type: array
+                    description: Omitted unless the caller has the `payments` feature.
+                    items:
+                      $ref: "#/components/schemas/Refund"
+                  events:
+                    type: array
+                    description: Shared status timeline, oldest first (includes dealer_sent / dealer_received milestones). Payment events are omitted unless the caller has the `payments` feature.
+                    items:
+                      $ref: "#/components/schemas/RepairEvent"
+                required: [repair, counterpart, side, transactionCode, acceptance, events]
         "404":
           description: Not found or not a party to this transaction
   /dealers/transactions/{id}/receive:
@@ -4696,12 +4795,74 @@ components:
         ownerName: { type: string }
         ownerMobile: { type: string }
       required: [shopId, businessName, ownerUserId, ownerName, ownerMobile]
+    DealerLedgerTotals:
+      type: object
+      properties:
+        billed: { type: number }
+        paid: { type: number }
+        refunded: { type: number }
+        balance:
+          type: number
+          description: billed − paid + refunded. Positive means the payable side still owes.
+      required: [billed, paid, refunded, balance]
+    DealerLedgerParty:
+      type: object
+      properties:
+        shopId: { type: string }
+        businessName: { type: string }
+        ownerUserId: { type: string }
+        ownerName: { type: string }
+        ownerMobile: { type: string }
+        direction: { type: string, enum: [receivable, payable] }
+        role:
+          type: string
+          enum: [supplier, customer]
+          description: Transaction-based role of the OTHER shop from the caller's side.
+        billed: { type: number }
+        paid: { type: number }
+        refunded: { type: number }
+        balance: { type: number }
+        repairCount: { type: number }
+        openRepairCount: { type: number }
+        lastActivityAt: { type: string }
+      required: [shopId, businessName, ownerUserId, ownerName, ownerMobile, direction, role, billed, paid, refunded, balance, repairCount, openRepairCount, lastActivityAt]
+    DealerLedgerEntry:
+      type: object
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [bill, payment, void, refund] }
+        direction:
+          type: string
+          enum: [you_owe, they_owe_you, you_paid, you_received, refund_to_you, refund_by_you, voided]
+          description: Plain-language accounting direction from the caller's side.
+        repairId: { type: string, description: Repair row id (the shared transaction). }
+        transactionCode: { type: string }
+        ticket: { type: string }
+        device: { type: string }
+        amount: { type: number }
+        method: { type: string }
+        referenceNo: { type: string }
+        note: { type: string }
+        actorName: { type: string }
+        voidedAt: { type: string }
+        voidReason: { type: string }
+        at: { type: string }
+        runningBalance: { type: number }
+      required: [id, kind, direction, repairId, transactionCode, ticket, device, amount, at, runningBalance]
+    DealerTransactionFinancials:
+      type: object
+      properties:
+        billed: { type: number, description: Posted bill (0 until the repair is ready/delivered). }
+        paid: { type: number }
+        refunded: { type: number }
+        balance: { type: number }
+        liveTotal: { type: number, description: Current charge total even before posting. }
+        billPosted: { type: boolean }
+      required: [billed, paid, refunded, balance, liveTotal, billPosted]
     DealerTransactionInput:
       type: object
       properties:
         receiverShopId: { type: string }
-        customerName: { type: string }
-        customerMobile: { type: string, pattern: '^\d{10}$' }
         deviceType: { type: string, minLength: 1 }
         brand: { type: string, minLength: 1 }
         model: { type: string, minLength: 1 }
@@ -4787,7 +4948,8 @@ components:
         amount: { type: number }
         note: { type: string }
         method: { type: string }
-        repairId: { type: string }
+        repairId: { type: string, description: Display ticket (e.g. VMC-012). }
+        repairRowId: { type: string, description: Repair row id, for linking to the repair record. }
         bookDate: { type: string }
         createdAt: { type: string }
         runningBalance: { type: number }
@@ -4903,6 +5065,9 @@ components:
         sourceDealerUserId: { type: string }
         sourceDealerBusinessName: { type: string }
         sourceDealerReceivedAt: { type: string }
+        transactionCode:
+          type: string
+          description: Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.
       required: [id, repairId, customerName, mobile, deviceType, brand, model, problem, status, priority, repairCharge, partsCharge, serviceCharge, otherCharge, discount, taxPercent, advance, simPresent, memoryCardPresent, totalAmount, paidAmount, balance, receiveDate, expectedDate, warrantyDays, isSample, createdAt]
     RepairInput:
       type: object

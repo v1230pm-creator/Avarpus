@@ -131,6 +131,18 @@ export interface Repair {
   dealerId?: string;
   dealerName?: string;
   dealerDetectedByPhone?: boolean;
+  /**
+   * Dealer-to-dealer: the shop that sent this device in for repair. Present
+   * only on the repairing shop's row; the sender sees the same row through
+   * the dealer-transactions endpoints.
+   */
+  sourceDealerShopId?: string;
+  sourceDealerUserId?: string;
+  sourceDealerBusinessName?: string;
+  /** Set when the repairing shop confirmed physical receipt. */
+  sourceDealerReceivedAt?: string;
+  /** Shared transaction code (DT-…) visible to both shops. */
+  transactionCode?: string;
   createdById?: string;
   createdByName?: string;
   updatedById?: string;

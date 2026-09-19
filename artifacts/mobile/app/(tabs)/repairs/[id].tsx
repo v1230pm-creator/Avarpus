@@ -127,7 +127,7 @@ function ReadOnlyRepairDetail({ repair, topPad }: { repair: Repair; topPad: numb
           <InfoRow label="Status" value={REPAIR_STATUS_LABELS[repair.status] || repair.status} />
           <InfoRow label="Customer" value={repair.customerName} />
           <InfoRow label="Device" value={[repair.deviceType, repair.brand, repair.model].filter(Boolean).join(' · ')} />
-          <InfoRow label="Problem" value={repair.problem || 'Not provided'} />
+          {!!repair.problem && <InfoRow label="Problem" value={repair.problem} />}
         </Card>
         {/* Legacy jobs only: the structured work field older repairs carry.
             Work notes are internal timeline events, which portals cannot read. */}
@@ -651,6 +651,16 @@ export default function RepairDetailScreen() {
       } else if (e?.code === 'INVALID_STATUS_TRANSITION' || e?.message?.includes('INVALID_STATUS_TRANSITION')) {
         setShowStatusPicker(false);
         setTimeout(() => Alert.alert('Complete the current task first.', 'Yeh stage abhi locked hai — workflow ke hisaab se pehle current stage complete karein.'), 350);
+      } else if (e?.code === 'DEALER_RECEIPT_REQUIRED' || e?.data?.code === 'DEALER_RECEIPT_REQUIRED' || e?.message?.includes('DEALER_RECEIPT_REQUIRED')) {
+        setShowStatusPicker(false);
+        setTimeout(() => Alert.alert(
+          'Confirm receipt first',
+          `Mark the device as received from ${repair.sourceDealerBusinessName ?? 'the source dealer'} before changing its status.`,
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Open transaction', onPress: () => router.push(`/(tabs)/repairs/dealer-transactions/${repair.id}` as any) },
+          ],
+        ), 350);
       } else {
         Alert.alert('Update failed', e.message || "Couldn't update the repair status.");
       }
@@ -913,6 +923,32 @@ export default function RepairDetailScreen() {
               </View>
             </View>
           </View>
+
+          {/* Source Dealer (dealer-to-dealer transaction) */}
+          {!!repair.sourceDealerShopId && (
+            <TouchableOpacity
+              onPress={() => router.push(`/(tabs)/repairs/dealer-transactions/${repair.id}` as any)}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Open dealer transaction"
+              style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary + '1A', alignItems: 'center', justifyContent: 'center' }}>
+                <Feather name="briefcase" size={18} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 2 }}>Source Dealer</Text>
+                <Text style={{ fontSize: 15, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>{repair.sourceDealerBusinessName}</Text>
+                <Text style={{ fontSize: 12, color: repair.sourceDealerReceivedAt ? colors.success : colors.warning, fontFamily: 'Inter_600SemiBold', marginTop: 2 }}>
+                  {repair.sourceDealerReceivedAt
+                    ? `Received on ${formatDate(repair.sourceDealerReceivedAt)}`
+                    : 'Waiting for acceptance — confirm receipt before starting work'}
+                  {repair.transactionCode ? ` · ${repair.transactionCode}` : ''}
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          )}
 
           {/* Device & Problem */}
           <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -1442,7 +1478,12 @@ export default function RepairDetailScreen() {
               {repair.imei ? <InfoRow label="IMEI 1" value={repair.imei} /> : null}
               {repair.imei2 ? <InfoRow label="IMEI 2" value={repair.imei2} /> : null}
               {repair.serialNumber ? <InfoRow label="Serial No" value={repair.serialNumber} /> : null}
-              <InfoRow label="SIM / SD Card" value={`SIM: ${repair.simPresent ? 'Yes' : 'No'} · SD: ${repair.memoryCardPresent ? 'Yes' : 'No'}`} />
+              {(repair.simPresent || repair.memoryCardPresent) ? (
+                <InfoRow
+                  label={repair.simPresent && repair.memoryCardPresent ? 'SIM / SD Card' : repair.simPresent ? 'SIM Card' : 'SD Card'}
+                  value={[repair.simPresent && 'SIM: Yes', repair.memoryCardPresent && 'SD: Yes'].filter(Boolean).join(' · ')}
+                />
+              ) : null}
               {repair.alternateMobile ? <InfoRow label="Alternate Mobile" value={repair.alternateMobile} /> : null}
               {(repair.accessoriesList?.length || repair.accessories) ? <InfoRow label="Accessories" value={(repair.accessoriesList?.length ? repair.accessoriesList.join(', ') : '') + (repair.accessories ? ` ${repair.accessories}` : '')} /> : null}
               {repair.status === 'delivered' && repair.paymentMethod ? <InfoRow label="Payment Method" value={repair.paymentMethod} /> : null}

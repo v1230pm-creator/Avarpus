@@ -15,7 +15,10 @@ export interface CustomerKhataLedgerEntry {
   amount: number;
   note?: string;
   method?: string;
+  /** Display ticket (e.g. VMC-012). */
   repairId?: string;
+  /** Repair row id */
+  repairRowId?: string;
   bookDate: string;
   createdAt: string;
   runningBalance: number;

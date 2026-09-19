@@ -295,8 +295,8 @@ export default function ReturnDetailScreen() {
             <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>AFTER-SALES CASE</Text>
             <InfoRow label="Reason" value={ret.reason.replace(/_/g, ' ')} />
             <InfoRow label="Complaint" value={ret.complaint} />
-            <InfoRow label="Condition" value={ret.deviceCondition || 'N/A'} />
-            <InfoRow label="Received By" value={ret.receivedByName || 'N/A'} />
+            {!!ret.deviceCondition && <InfoRow label="Condition" value={ret.deviceCondition} />}
+            {!!ret.receivedByName && <InfoRow label="Received By" value={ret.receivedByName} />}
           </Card>
         </FadeInView>
 
@@ -304,8 +304,8 @@ export default function ReturnDetailScreen() {
         <FadeInView animValue={anims[2]}>
           <Card>
             <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>ORIGINAL REPAIR</Text>
-            <InfoRow label="Ticket" value={ret.repairTicket || 'N/A'} bold />
-            <InfoRow label="Customer" value={ret.customerName || 'N/A'} />
+            {!!ret.repairTicket && <InfoRow label="Ticket" value={ret.repairTicket} bold />}
+            {!!ret.customerName && <InfoRow label="Customer" value={ret.customerName} />}
             <InfoRow label="Device" value={`${ret.brand} ${ret.model}`} />
             {ret.imei && <InfoRow label="IMEI" value={ret.imei} />}
             {ret.originalProblem && <InfoRow label="Problem" value={ret.originalProblem} />}
@@ -337,12 +337,20 @@ export default function ReturnDetailScreen() {
                 <Feather name="edit-2" size={16} color={colors.primary} />
               </TouchableOpacity>
             </View>
-            <InfoRow label="Resolution" value={ret.resolution?.replace(/_/g, ' ') || 'Pending'} bold />
-            <View style={styles.divider} />
-            <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Diagnosis</Text>
-            <Text style={{ fontSize: 14, color: colors.foreground, marginBottom: 8 }}>{ret.diagnosis || 'None'}</Text>
-            <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Work Performed</Text>
-            <Text style={{ fontSize: 14, color: colors.foreground }}>{ret.workPerformed || 'None'}</Text>
+            {!!ret.resolution && <InfoRow label="Resolution" value={ret.resolution.replace(/_/g, ' ')} bold />}
+            {(!!ret.diagnosis || !!ret.workPerformed) && <View style={styles.divider} />}
+            {!!ret.diagnosis && (
+              <>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Diagnosis</Text>
+                <Text style={{ fontSize: 14, color: colors.foreground, marginBottom: 8 }}>{ret.diagnosis}</Text>
+              </>
+            )}
+            {!!ret.workPerformed && (
+              <>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Work Performed</Text>
+                <Text style={{ fontSize: 14, color: colors.foreground }}>{ret.workPerformed}</Text>
+              </>
+            )}
           </Card>
         </FadeInView>
 

@@ -310,12 +310,15 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
     return;
   }
 
-  // A verified mobile may already be on file as a B2B dealer party and/or as
-  // one or more walk-in customer rows (the same person entered twice, or on
-  // file at more than one shop). OTP proves control of the number, so every
-  // matching record belongs to this caller: never refuse the login because the
-  // number appears more than once. Resolution is done after OTP verification,
-  // in one transaction, and never replaces an existing business identity.
+  // A verified mobile may already be on file as one or more walk-in customer
+  // rows (the same person entered twice, or on file at more than one shop),
+  // and/or as a B2B dealer party recorded by some shop's "Add Dealer" note.
+  // OTP proves control of the number, so every matching customer row belongs
+  // to this caller: never refuse the login because the number appears more
+  // than once. A dealer-party match is intentionally NOT used to attach or
+  // reshape this account — see the dealer_owner/dealer_staff comment below.
+  // Resolution is done after OTP verification, in one transaction, and never
+  // replaces an existing business identity.
   const account = await db.transaction(async (tx) => {
     // Serialize resolution and customer-link claims for this normalized phone
     // across API processes. hashtext is used only as a transaction-local lock
@@ -374,17 +377,16 @@ router.post("/auth/otp/verify", asyncHandler(async (req, res) => {
     }
 
     // A standalone account attaches to a business identity here. A dealer
-    // party wins over walk-in customer rows: the dealer portal can also show
-    // the repairs booked under this person's customer rows in the same shop.
+    // record naming this mobile is a shop's own note about who supplies it —
+    // it must NEVER silently convert this person's account into a read-only
+    // dealer-portal login. That would misclassify anyone whose number a shop
+    // happened to record (or mis-typed), and would block them from running
+    // their own independent Shop. Dealer relationships stay visible to a full
+    // account (of any role) via GET /dealers/suppliers, matched live by
+    // mobile, without touching role/shopId here. The dealer_owner/dealer_staff
+    // roles are only ever assigned explicitly by a shop via POST /staff.
     if (user.role === "customer" && !user.shopId && !user.dealerId) {
-      if (dealerMatches.length > 0) {
-        const dealer = dealerMatches[0];
-        const [upgraded] = await tx.update(usersTable)
-          .set({ role: "dealer_owner", shopId: dealer.shopId, dealerId: dealer.id })
-          .where(and(eq(usersTable.id, user.id), eq(usersTable.role, "customer")))
-          .returning();
-        user = upgraded ?? await reloadUser(tx, user.id);
-      } else if (customerMatches.length > 0) {
+      if (customerMatches.length > 0) {
         // Try the newest shop first. A customer row already claimed by another
         // login is skipped rather than treated as a conflict; the account only
         // opens on a shop where it actually owns at least one customer row.

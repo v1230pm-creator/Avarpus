@@ -247,8 +247,13 @@ async function supplierLinksFor(me: DbUser, dealerId?: string): Promise<Supplier
 
 function supplierViewer(req: Request, res: Response): DbUser | null {
   const me = (req as AuthedRequest).user;
-  // Portal and customer accounts have their own single-shop read paths.
-  if (isDealerPortalRole(me.role) || me.role === "customer") {
+  // Dealer-portal logins have their own single-shop read path (/dealers/me).
+  // Every other role — including a plain customer account with no shop of
+  // its own — may look up dealer relationships that match its own verified
+  // mobile: this is what lets someone be a Shop owner AND a dealer of
+  // another shop (or just a dealer with no shop at all) without any role
+  // mutation on their account.
+  if (isDealerPortalRole(me.role)) {
     res.status(403).json({ message: "This view is for business accounts." });
     return null;
   }

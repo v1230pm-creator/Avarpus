@@ -26,7 +26,7 @@ export function useCustomerKhataGet(id: string, options?: any) {
           partyName: data.customer.name,
           partyType: 'customer',
           repairId: entry.repairId ?? '',
-          repairDbId: '',
+          repairDbId: entry.repairRowId ?? '',
           type:
             entry.type === 'repair_bill'
               ? 'bill'

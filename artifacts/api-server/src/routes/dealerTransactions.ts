@@ -1,8 +1,11 @@
 import { Router, type IRouter } from "express";
 import type { Request, Response } from "express";
-import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import {
   db,
+  refundsTable,
+  repairEventsTable,
+  repairPaymentsTable,
   repairsTable,
   shopsTable,
   usersTable,
@@ -14,11 +17,22 @@ import {
   DealerTransactionsListQueryParams,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
-import { requireFeature } from "../lib/roleFeatures";
+import { requireFeature, userHasFeature } from "../lib/roleFeatures";
 import { asyncHandler } from "../lib/asyncHandler";
 import { parseBody, parseQuery, uuidParam } from "../lib/validate";
 import { computeTotals, paymentStatusOf, portalRepairOut } from "../lib/repairProjection";
 import { notifyShop, notifyUser } from "../lib/notify";
+import {
+  allRefundsForRepair,
+  billPosted,
+  dealerLedgerEntries,
+  dealerLedgerParties,
+  repairMoney,
+  repairMoneyRows,
+  sharedTimeline,
+  transactionCodeOf,
+  type LedgerDirection,
+} from "../lib/dealerLedger";
 
 // ── Dealer-to-dealer transactions ───────────────────────────────────────────
 // A registered shop (the "source dealer") sends a device to ANOTHER
@@ -43,6 +57,10 @@ function shopIdOr403(req: Request, res: Response): string | null {
   }
   return me.shopId;
 }
+
+// Timeline entries that reveal money movement; hidden from staff without
+// the `payments` feature alongside the financial block itself.
+const MONEY_EVENT_ACTIONS = new Set(["payment_recorded", "payment_voided"]);
 
 // Full repair projection for the RECEIVING shop's own view (same shape as
 // GET /repairs/:id). Kept local to avoid importing business.ts's router.
@@ -88,6 +106,7 @@ function fullRepairOut(r: typeof repairsTable.$inferSelect) {
     paidAmount: t.paidAmount,
     balance: t.balance,
     paymentStatus: paymentStatusOf(t.totalAmount, t.paidAmount),
+    transactionCode: r.sourceDealerShopId ? transactionCodeOf(r) : undefined,
   };
 }
 
@@ -96,10 +115,68 @@ function fullRepairOut(r: typeof repairsTable.$inferSelect) {
 function outgoingRepairOut(r: typeof repairsTable.$inferSelect) {
   return {
     ...portalRepairOut(r),
+    imei: r.imei ?? undefined,
+    imei2: r.imei2 ?? undefined,
+    serialNumber: r.serialNumber ?? undefined,
+    // `notes` is deliberately omitted: the receiving shop may overwrite it
+    // with internal notes that the sender must not see.
+    createdAt: r.createdAt.toISOString(),
+    sourceDealerShopId: r.sourceDealerShopId ?? undefined,
+    sourceDealerBusinessName: r.sourceDealerBusinessName ?? undefined,
     sourceDealerReceivedAt: r.sourceDealerReceivedAt
       ? r.sourceDealerReceivedAt.toISOString()
       : undefined,
+    transactionCode: transactionCodeOf(r),
   };
+}
+
+type PaymentRow = typeof repairPaymentsTable.$inferSelect;
+type RefundRow = typeof refundsTable.$inferSelect;
+
+// Shared money projections: the SAME rows shown to both shops. Only fields a
+// counterpart is entitled to (no customer ids, no sample flags).
+function sharedPaymentOut(p: PaymentRow) {
+  return {
+    id: p.id,
+    repairId: p.repairId,
+    amount: p.amount,
+    method: p.method,
+    kind: p.kind,
+    note: p.note ?? undefined,
+    referenceNo: p.referenceNo ?? undefined,
+    receivedById: p.receivedById ?? undefined,
+    receivedByName: p.receivedByName ?? undefined,
+    voidedAt: p.voidedAt ? p.voidedAt.toISOString() : undefined,
+    voidedById: p.voidedById ?? undefined,
+    voidedByName: p.voidedByName ?? undefined,
+    voidReason: p.voidReason ?? undefined,
+    createdAt: p.createdAt.toISOString(),
+  };
+}
+
+function sharedRefundOut(x: RefundRow) {
+  return {
+    id: x.id,
+    repairId: x.repairId,
+    returnId: x.returnId,
+    amount: x.amount,
+    originalPaid: x.originalPaid,
+    method: x.method,
+    status: x.status,
+    reason: x.reason,
+    referenceNo: x.referenceNo ?? undefined,
+    requestedByName: x.requestedByName ?? undefined,
+    approvedByName: x.approvedByName ?? undefined,
+    approvedAt: x.approvedAt ? x.approvedAt.toISOString() : undefined,
+    paidByName: x.paidByName ?? undefined,
+    paidAt: x.paidAt ? x.paidAt.toISOString() : undefined,
+    rejectionReason: x.rejectionReason ?? undefined,
+    createdAt: x.createdAt.toISOString(),
+  };
+}
+
+function parseDirection(raw: unknown): LedgerDirection | null {
+  return raw === "receivable" || raw === "payable" ? raw : null;
 }
 
 router.get(
@@ -210,8 +287,11 @@ router.post(
       res.status(500).json({ message: "Could not resolve your shop's owner account." });
       return;
     }
-    const customerName = body.customerName?.trim() || `${sourceShop.businessName} (Dealer)`;
-    const customerMobile = body.customerMobile?.trim() || owner.mobile;
+    // The repairing shop's "customer" for this row is always the SOURCE
+    // SHOP, never the sender's end customer — their name and mobile stay in
+    // the sender's own books and are not transferred across shops.
+    const customerName = `${sourceShop.businessName} (Dealer)`;
+    const customerMobile = owner.mobile;
     const created = await db.transaction(async (tx) => {
       const [{ count }] = await tx
         .select({ count: sql<number>`count(*)::int` })
@@ -252,9 +332,55 @@ router.post(
       type: "dealer_transaction_incoming",
       title: `New device from ${sourceShop.businessName}`,
       body: `${created.brand} ${created.model} — ${created.problem}`,
-      data: { repairId: created.id },
+      data: { repairId: created.id, dealerTransaction: true },
     });
     res.json({ repair: fullRepairOut(created) });
+  }),
+);
+
+// ── Dealer ledger (Khata → Suppliers / dealer receivables) ─────────────────
+// Registered BEFORE the `:id` routes so "ledger" is never parsed as an id.
+// Read-only: balances are derived from the shared rows on every request.
+// Any shop member with the `payments` feature may read (same rule as the
+// customer khata); portal/customer roles never reach here (no own shop).
+router.get(
+  "/dealers/transactions/ledger",
+  requireAuth,
+  requireFeature("payments"),
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    res.json(await dealerLedgerParties(shopId));
+  }),
+);
+
+router.get(
+  "/dealers/transactions/ledger/:shopId",
+  requireAuth,
+  requireFeature("payments"),
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const otherShopId = String(req.params.shopId ?? "");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(otherShopId)) {
+      res.status(400).json({ message: "Invalid shop id" });
+      return;
+    }
+    const direction = parseDirection(req.query.direction);
+    if (!direction) {
+      res.status(400).json({ message: "direction must be receivable or payable" });
+      return;
+    }
+    if (otherShopId === shopId) {
+      res.status(400).json({ message: "A shop has no dealer ledger with itself." });
+      return;
+    }
+    const ledger = await dealerLedgerEntries(shopId, otherShopId, direction);
+    if (!ledger) {
+      res.status(404).json({ message: "Not found" });
+      return;
+    }
+    res.json(ledger);
   }),
 );
 
@@ -270,7 +396,43 @@ router.get(
       res.status(404).json({ message: "Not found" });
       return;
     }
-    if (row.shopId === shopId) {
+    const isReceiver = row.shopId === shopId;
+    const isSender = row.sourceDealerShopId === shopId;
+    if (!isReceiver && !isSender) {
+      res.status(404).json({ message: "Not found" });
+      return;
+    }
+    // Shared, side-independent facts: the same payment/refund rows, the
+    // same timeline, the same derived balance — read once, shown to both.
+    const [{ payments, refunds: paidRefunds }, refunds, events] = await Promise.all([
+      repairMoneyRows(row.id),
+      allRefundsForRepair(row.id),
+      sharedTimeline(row),
+    ]);
+    const money = repairMoney(row, payments, paidRefunds);
+    // Money is a separate permission from seeing the repair: staff without
+    // the `payments` feature get the transaction and timeline but no
+    // balances, payment rows, references or refunds.
+    const canSeeMoney = await userHasFeature(req.user!, "payments");
+    const shared = {
+      transactionCode: transactionCodeOf(row),
+      acceptance: row.sourceDealerReceivedAt ? ("received" as const) : ("waiting" as const),
+      ...(canSeeMoney
+        ? {
+            financials: {
+              ...money,
+              liveTotal: computeTotals(row).totalAmount,
+              billPosted: billPosted(row),
+            },
+            payments: payments.map(sharedPaymentOut),
+            refunds: refunds
+              .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+              .map(sharedRefundOut),
+          }
+        : {}),
+      events: canSeeMoney ? events : events.filter((e) => !MONEY_EVENT_ACTIONS.has(e.action)),
+    };
+    if (isReceiver) {
       // Incoming: the counterpart is the shop that sent this device in.
       let counterpart = null as null | {
         shopId: string; businessName: string; ownerUserId: string; ownerName: string; ownerMobile: string;
@@ -289,27 +451,23 @@ router.get(
           ownerMobile: owner?.mobile ?? "",
         };
       }
-      res.json({ repair: fullRepairOut(row), counterpart });
+      res.json({ repair: fullRepairOut(row), counterpart, side: "receiver", ...shared });
       return;
     }
-    if (row.sourceDealerShopId === shopId) {
-      // Outgoing: the counterpart is the shop repairing the device.
-      const [receiver] = await db
-        .select({
-          shopId: shopsTable.id,
-          businessName: shopsTable.businessName,
-          ownerUserId: usersTable.id,
-          ownerName: usersTable.name,
-          ownerMobile: usersTable.mobile,
-        })
-        .from(shopsTable)
-        .innerJoin(usersTable, eq(usersTable.id, shopsTable.dealerId))
-        .where(eq(shopsTable.id, row.shopId))
-        .limit(1);
-      res.json({ repair: outgoingRepairOut(row), counterpart: receiver ?? null });
-      return;
-    }
-    res.status(404).json({ message: "Not found" });
+    // Outgoing: the counterpart is the shop repairing the device.
+    const [receiver] = await db
+      .select({
+        shopId: shopsTable.id,
+        businessName: shopsTable.businessName,
+        ownerUserId: usersTable.id,
+        ownerName: usersTable.name,
+        ownerMobile: usersTable.mobile,
+      })
+      .from(shopsTable)
+      .innerJoin(usersTable, eq(usersTable.id, shopsTable.dealerId))
+      .where(eq(shopsTable.id, row.shopId))
+      .limit(1);
+    res.json({ repair: outgoingRepairOut(row), counterpart: receiver ?? null, side: "sender", ...shared });
   }),
 );
 
@@ -333,20 +491,49 @@ router.post(
       res.status(404).json({ message: "Not found" });
       return;
     }
+    const me = (req as AuthedRequest).user;
     let updated = row;
+    let accepted = false;
     if (!row.sourceDealerReceivedAt) {
-      [updated] = await db
-        .update(repairsTable)
-        .set({ sourceDealerReceivedAt: new Date() })
-        .where(eq(repairsTable.id, id))
-        .returning();
-      if (updated.sourceDealerUserId) {
+      // Conditional claim: only the first confirmation wins, so two staff
+      // tapping at once never produce two acceptance events.
+      const result = await db.transaction(async (tx) => {
+        const [claimed] = await tx
+          .update(repairsTable)
+          .set({
+            sourceDealerReceivedAt: new Date(),
+            receivedById: row.receivedById ?? me.id,
+            receivedByName: row.receivedByName ?? me.name,
+          })
+          .where(and(eq(repairsTable.id, id), isNull(repairsTable.sourceDealerReceivedAt)))
+          .returning();
+        if (!claimed) return null;
+        await tx.insert(repairEventsTable).values({
+          shopId,
+          repairId: id,
+          userId: me.id,
+          userName: me.name,
+          userRole: me.role,
+          action: "dealer_received",
+          details: { sourceDealerShopId: claimed.sourceDealerShopId },
+        });
+        return claimed;
+      });
+      if (result) {
+        updated = result;
+        accepted = true;
+      } else {
+        const [fresh] = await db.select().from(repairsTable).where(eq(repairsTable.id, id));
+        if (fresh) updated = fresh;
+      }
+      if (accepted && updated.sourceDealerUserId) {
         void notifyUser({
           userId: updated.sourceDealerUserId,
           shopId: updated.sourceDealerShopId,
           type: "dealer_transaction_status",
           title: "Device received",
           body: `${updated.brand} ${updated.model} was received by the repairing shop.`,
+          data: { repairId: updated.id, dealerTransaction: true },
           dedupeKey: `dealer-txn:${updated.id}:received`,
         });
       }

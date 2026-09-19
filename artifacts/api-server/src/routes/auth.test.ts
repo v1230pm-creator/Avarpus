@@ -763,7 +763,7 @@ describe("POST /api/auth/otp/verify", () => {
     await db.delete(usersTable).where(eq(usersTable.id, created.id));
   });
 
-  it("links a uniquely matching active dealer mobile as that dealer's owner", async () => {
+  it("never auto-converts a plain login into a dealer-portal account from a mobile match alone", async () => {
     const mobile = altMobile("4");
     let ownerId: string | undefined;
     let shopId: string | undefined;
@@ -785,16 +785,27 @@ describe("POST /api/auth/otp/verify", () => {
 
       const code = await createOtp(mobile, "login");
       const res = await request(app).post("/api/auth/otp/verify").send({ mobile, code });
-      expect(res.status).toBe(200);
-      expect(res.body.user.role).toBe("dealer_owner");
-      expect(res.body.user.shopId).toBe(shopId);
-      expect(res.body.user.dealerId).toBe(dealer.id);
-
       const [linked] = await db.select().from(usersTable).where(eq(usersTable.mobile, mobile));
-      portalUserId = linked.id;
-      expect(linked.role).toBe("dealer_owner");
-      expect(linked.shopId).toBe(shopId);
-      expect(linked.dealerId).toBe(dealer.id);
+      portalUserId = linked?.id;
+      expect(res.status).toBe(200);
+      // A dealer note at another shop must never flip this login into the
+      // restricted dealer-portal role — the account stays a normal, standalone
+      // customer login with no shop of its own.
+      expect(res.body.user.role).toBe("customer");
+      expect(res.body.user.shopId).toBeUndefined();
+      expect(res.body.user.dealerId).toBeUndefined();
+      expect(linked.role).toBe("customer");
+      expect(linked.shopId).toBeNull();
+      expect(linked.dealerId).toBeNull();
+
+      // The dealer relationship is still visible, read-only, via the
+      // supplier view — without touching this account's role.
+      const suppliers = await request(app)
+        .get("/api/dealers/suppliers")
+        .set("Authorization", `Bearer ${res.body.token}`);
+      expect(suppliers.status).toBe(200);
+      expect(suppliers.body.suppliers).toHaveLength(1);
+      expect(suppliers.body.suppliers[0].dealerId ?? suppliers.body.suppliers[0].id).toBeTruthy();
     } finally {
       if (portalUserId) await db.delete(usersTable).where(eq(usersTable.id, portalUserId));
       await db.delete(otpCodesTable).where(eq(otpCodesTable.identifier, mobile));
@@ -843,7 +854,7 @@ describe("POST /api/auth/otp/verify", () => {
     }
   });
 
-  it("opens the dealer portal when the mobile is both a dealer party and a walk-in customer", async () => {
+  it("links the walk-in customer rows (not the dealer role) when the mobile is both a dealer party and a customer", async () => {
     const mobile = altMobile("2");
     let ownerId: string | undefined;
     let shopId: string | undefined;
@@ -871,26 +882,29 @@ describe("POST /api/auth/otp/verify", () => {
 
       const code = await createOtp(mobile, "login");
       const res = await request(app).post("/api/auth/otp/verify").send({ mobile, code });
-      expect(res.status).toBe(200);
-      expect(res.body.user.role).toBe("dealer_owner");
-      expect(res.body.user.shopId).toBe(shopId);
-      expect(res.body.user.dealerId).toBe(dealer.id);
-
       const [linked] = await db.select().from(usersTable).where(eq(usersTable.mobile, mobile));
-      portalUserId = linked.id;
+      portalUserId = linked?.id;
+      expect(res.status).toBe(200);
+      // The dealer note at this same shop must not win over — or restrict —
+      // this account: it stays a normal customer login, linked to its own
+      // walk-in rows, with the dealer relationship still readable separately.
+      expect(res.body.user.role).toBe("customer");
+      expect(res.body.user.shopId).toBe(shopId);
+      expect(res.body.user.dealerId).toBeUndefined();
       const links = await db.select().from(customerUsersTable)
         .where(eq(customerUsersTable.userId, linked.id));
       expect(links.map((link) => link.customerId).sort()).toEqual([customerA.id, customerB.id].sort());
       expect(links.every((link) => link.shopId === shopId)).toBe(true);
 
-      // The dealer portal profile names the shop as this login's supplier.
-      const me = await request(app).get("/api/dealers/me").set("Authorization", `Bearer ${res.body.token}`);
-      expect(me.status).toBe(200);
-      expect(me.body.supplier).toEqual({
-        businessName: "Dual Link Shop",
-        ownerName: "Dual Link Shop Owner",
-        ownerMobile: altMobile("1"),
-      });
+      // The dealer note at this SAME shop is not a "supplier" relationship —
+      // this dealer's repairs for the customer already show up through the
+      // normal linked-customer /repairs view, so the supplier list (which
+      // only ever surfaces dealer relationships at OTHER shops) stays empty.
+      const suppliers = await request(app)
+        .get("/api/dealers/suppliers")
+        .set("Authorization", `Bearer ${res.body.token}`);
+      expect(suppliers.status).toBe(200);
+      expect(suppliers.body.suppliers).toHaveLength(0);
     } finally {
       if (portalUserId) await db.delete(usersTable).where(eq(usersTable.id, portalUserId));
       await db.delete(otpCodesTable).where(eq(otpCodesTable.identifier, mobile));

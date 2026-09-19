@@ -784,11 +784,111 @@ export interface DealerLookupMatch {
   ownerMobile: string;
 }
 
+export interface DealerLedgerTotals {
+  billed: number;
+  paid: number;
+  refunded: number;
+  /** billed − paid + refunded. Positive means the payable side still owes. */
+  balance: number;
+}
+
+export type DealerLedgerPartyDirection = typeof DealerLedgerPartyDirection[keyof typeof DealerLedgerPartyDirection];
+
+
+export const DealerLedgerPartyDirection = {
+  receivable: 'receivable',
+  payable: 'payable',
+} as const;
+
+/**
+ * Transaction-based role of the OTHER shop from the caller's side.
+ */
+export type DealerLedgerPartyRole = typeof DealerLedgerPartyRole[keyof typeof DealerLedgerPartyRole];
+
+
+export const DealerLedgerPartyRole = {
+  supplier: 'supplier',
+  customer: 'customer',
+} as const;
+
+export interface DealerLedgerParty {
+  shopId: string;
+  businessName: string;
+  ownerUserId: string;
+  ownerName: string;
+  ownerMobile: string;
+  direction: DealerLedgerPartyDirection;
+  /** Transaction-based role of the OTHER shop from the caller's side. */
+  role: DealerLedgerPartyRole;
+  billed: number;
+  paid: number;
+  refunded: number;
+  balance: number;
+  repairCount: number;
+  openRepairCount: number;
+  lastActivityAt: string;
+}
+
+export type DealerLedgerEntryKind = typeof DealerLedgerEntryKind[keyof typeof DealerLedgerEntryKind];
+
+
+export const DealerLedgerEntryKind = {
+  bill: 'bill',
+  payment: 'payment',
+  void: 'void',
+  refund: 'refund',
+} as const;
+
+/**
+ * Plain-language accounting direction from the caller's side.
+ */
+export type DealerLedgerEntryDirection = typeof DealerLedgerEntryDirection[keyof typeof DealerLedgerEntryDirection];
+
+
+export const DealerLedgerEntryDirection = {
+  you_owe: 'you_owe',
+  they_owe_you: 'they_owe_you',
+  you_paid: 'you_paid',
+  you_received: 'you_received',
+  refund_to_you: 'refund_to_you',
+  refund_by_you: 'refund_by_you',
+  voided: 'voided',
+} as const;
+
+export interface DealerLedgerEntry {
+  id: string;
+  kind: DealerLedgerEntryKind;
+  /** Plain-language accounting direction from the caller's side. */
+  direction: DealerLedgerEntryDirection;
+  /** Repair row id (the shared transaction). */
+  repairId: string;
+  transactionCode: string;
+  ticket: string;
+  device: string;
+  amount: number;
+  method?: string;
+  referenceNo?: string;
+  note?: string;
+  actorName?: string;
+  voidedAt?: string;
+  voidReason?: string;
+  at: string;
+  runningBalance: number;
+}
+
+export interface DealerTransactionFinancials {
+  /** Posted bill (0 until the repair is ready/delivered). */
+  billed: number;
+  paid: number;
+  refunded: number;
+  balance: number;
+  /** Current charge total even before posting. */
+  liveTotal: number;
+  billPosted: boolean;
+}
+
 export interface DealerTransactionInput {
   receiverShopId: string;
-  customerName?: string;
-  /** @pattern ^\d{10}$ */
-  customerMobile?: string;
   /** @minLength 1 */
   deviceType: string;
   /** @minLength 1 */
@@ -923,7 +1023,10 @@ export interface CustomerKhataLedgerEntry {
   amount: number;
   note?: string;
   method?: string;
+  /** Display ticket (e.g. VMC-012). */
   repairId?: string;
+  /** Repair row id */
+  repairRowId?: string;
   bookDate: string;
   createdAt: string;
   runningBalance: number;
@@ -1039,6 +1142,8 @@ export interface Repair {
   sourceDealerUserId?: string;
   sourceDealerBusinessName?: string;
   sourceDealerReceivedAt?: string;
+  /** Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop. */
+  transactionCode?: string;
 }
 
 export type RepairInputPhysicalCondition = {[key: string]: boolean};
@@ -2545,10 +2650,73 @@ export type DealerTransactionsCreate200 = {
   repair: Repair;
 };
 
+export type DealerTransactionsLedger200Totals = {
+  receivable: number;
+  payable: number;
+};
+
+export type DealerTransactionsLedger200 = {
+  parties: DealerLedgerParty[];
+  totals: DealerTransactionsLedger200Totals;
+};
+
+export type DealerTransactionsLedgerGetParams = {
+direction: DealerTransactionsLedgerGetDirection;
+};
+
+export type DealerTransactionsLedgerGetDirection = typeof DealerTransactionsLedgerGetDirection[keyof typeof DealerTransactionsLedgerGetDirection];
+
+
+export const DealerTransactionsLedgerGetDirection = {
+  receivable: 'receivable',
+  payable: 'payable',
+} as const;
+
+export type DealerTransactionsLedgerGet200 = {
+  party: DealerLedgerParty;
+  entries: DealerLedgerEntry[];
+  totals: DealerLedgerTotals;
+};
+
+/**
+ * Which party the caller is.
+ */
+export type DealerTransactionsGet200Side = typeof DealerTransactionsGet200Side[keyof typeof DealerTransactionsGet200Side];
+
+
+export const DealerTransactionsGet200Side = {
+  receiver: 'receiver',
+  sender: 'sender',
+} as const;
+
+/**
+ * waiting until the repairing shop explicitly confirms receipt.
+ */
+export type DealerTransactionsGet200Acceptance = typeof DealerTransactionsGet200Acceptance[keyof typeof DealerTransactionsGet200Acceptance];
+
+
+export const DealerTransactionsGet200Acceptance = {
+  waiting: 'waiting',
+  received: 'received',
+} as const;
+
 export type DealerTransactionsGet200 = {
   repair: Repair;
   /** The OTHER party to this transaction: the source dealer when viewed from the receiving shop, or the receiving shop when viewed from the sending shop. Used to open the dedicated dealer-to-dealer chat. */
   counterpart: DealerLookupMatch;
+  /** Which party the caller is. */
+  side: DealerTransactionsGet200Side;
+  transactionCode: string;
+  /** waiting until the repairing shop explicitly confirms receipt. */
+  acceptance: DealerTransactionsGet200Acceptance;
+  /** Omitted unless the caller has the `payments` feature. */
+  financials?: DealerTransactionFinancials;
+  /** Omitted unless the caller has the `payments` feature. */
+  payments?: RepairPayment[];
+  /** Omitted unless the caller has the `payments` feature. */
+  refunds?: Refund[];
+  /** Shared status timeline, oldest first (includes dealer_sent / dealer_received milestones). Payment events are omitted unless the caller has the `payments` feature. */
+  events: RepairEvent[];
 };
 
 export type DealerTransactionsReceive200 = {

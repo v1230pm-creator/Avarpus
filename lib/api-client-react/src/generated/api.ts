@@ -94,6 +94,9 @@ import type {
   DealerTransactionInput,
   DealerTransactionsCreate200,
   DealerTransactionsGet200,
+  DealerTransactionsLedger200,
+  DealerTransactionsLedgerGet200,
+  DealerTransactionsLedgerGetParams,
   DealerTransactionsList200,
   DealerTransactionsListParams,
   DealerTransactionsReceive200,
@@ -4227,6 +4230,174 @@ export const useDealerTransactionsCreate = <TError = ErrorType<unknown>,
       return useMutation(getDealerTransactionsCreateMutationOptions(options));
     }
 
+export const getDealerTransactionsLedgerUrl = () => {
+
+
+
+
+  return `/api/dealers/transactions/ledger`
+}
+
+/**
+ * One row per (other shop, direction). direction=payable rows are the shops repairing devices the caller sent (Khata → Suppliers); direction=receivable rows are shops whose devices the caller repairs. Every figure is derived on read from the shared repair, payment and refund rows, so both shops always see the same balance. Requires the payments feature.
+ * @summary Dealer-to-dealer ledger summary for the caller's shop
+ */
+export const dealerTransactionsLedger = async ( options?: Parameters<typeof customFetch>[1]): Promise<DealerTransactionsLedger200> => {
+
+  return customFetch<DealerTransactionsLedger200>(getDealerTransactionsLedgerUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDealerTransactionsLedgerQueryKey = () => {
+    return [
+    `/api/dealers/transactions/ledger`
+    ] as const;
+    }
+
+
+export const getDealerTransactionsLedgerQueryOptions = <TData = Awaited<ReturnType<typeof dealerTransactionsLedger>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealerTransactionsLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDealerTransactionsLedgerQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof dealerTransactionsLedger>>> = ({ signal }) => dealerTransactionsLedger({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof dealerTransactionsLedger>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DealerTransactionsLedgerQueryResult = NonNullable<Awaited<ReturnType<typeof dealerTransactionsLedger>>>
+export type DealerTransactionsLedgerQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Dealer-to-dealer ledger summary for the caller's shop
+ */
+
+export function useDealerTransactionsLedger<TData = Awaited<ReturnType<typeof dealerTransactionsLedger>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealerTransactionsLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDealerTransactionsLedgerQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDealerTransactionsLedgerGetUrl = (shopId: string,
+    params: DealerTransactionsLedgerGetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/dealers/transactions/ledger/${shopId}?${stringifiedParams}` : `/api/dealers/transactions/ledger/${shopId}`
+}
+
+/**
+ * Chronological bill / payment / void / refund entries with a running balance, from the caller's point of view. The two directions between the same pair of shops are independent ledgers and are never netted.
+ * @summary Full dealer ledger with ONE other shop in ONE direction
+ */
+export const dealerTransactionsLedgerGet = async (shopId: string,
+    params: DealerTransactionsLedgerGetParams, options?: Parameters<typeof customFetch>[1]): Promise<DealerTransactionsLedgerGet200> => {
+
+  return customFetch<DealerTransactionsLedgerGet200>(getDealerTransactionsLedgerGetUrl(shopId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDealerTransactionsLedgerGetQueryKey = (shopId: string,
+    params?: DealerTransactionsLedgerGetParams,) => {
+    return [
+    `/api/dealers/transactions/ledger/${shopId}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getDealerTransactionsLedgerGetQueryOptions = <TData = Awaited<ReturnType<typeof dealerTransactionsLedgerGet>>, TError = ErrorType<void>>(shopId: string,
+    params: DealerTransactionsLedgerGetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealerTransactionsLedgerGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDealerTransactionsLedgerGetQueryKey(shopId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof dealerTransactionsLedgerGet>>> = ({ signal }) => dealerTransactionsLedgerGet(shopId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: shopId !== null && shopId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof dealerTransactionsLedgerGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DealerTransactionsLedgerGetQueryResult = NonNullable<Awaited<ReturnType<typeof dealerTransactionsLedgerGet>>>
+export type DealerTransactionsLedgerGetQueryError = ErrorType<void>
+
+
+/**
+ * @summary Full dealer ledger with ONE other shop in ONE direction
+ */
+
+export function useDealerTransactionsLedgerGet<TData = Awaited<ReturnType<typeof dealerTransactionsLedgerGet>>, TError = ErrorType<void>>(
+ shopId: string,
+    params: DealerTransactionsLedgerGetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealerTransactionsLedgerGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDealerTransactionsLedgerGetQueryOptions(shopId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getDealerTransactionsGetUrl = (id: string,) => {
 
 
@@ -4236,6 +4407,7 @@ export const getDealerTransactionsGetUrl = (id: string,) => {
 }
 
 /**
+ * Returns the shared repair row plus the SAME payments, refunds, timeline and derived balance to whichever of the two shops asks. Anyone else gets 404.
  * @summary Dealer-transaction detail, from either side
  */
 export const dealerTransactionsGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<DealerTransactionsGet200> => {

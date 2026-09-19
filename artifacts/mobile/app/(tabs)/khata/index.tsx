@@ -22,8 +22,27 @@ import { useColors } from '@/hooks/useColors';
 import { useKhataLedger } from '@/hooks/useKhataLedger';
 import { groupLedgerByParty, type KhataPartyType } from '@/utils/khata-ledger';
 import { CustomerFormSheet } from '@/components/forms/CustomerFormSheet';
+import { useDealerTransactionsLedger, type DealerLedgerParty } from '@workspace/api-client-react';
+import { dealerBalanceLabel } from '@/utils/dealer-ledger';
 
-type FilterState = 'all' | KhataPartyType | 'due' | 'today';
+type FilterState = 'all' | KhataPartyType | 'supplier' | 'due' | 'today';
+
+// One row in the overview list. Customers and B2B dealer records are local
+// parties; `shop` rows are other Avarpus shops linked to us by real
+// dealer-to-dealer transactions (one row per shop per direction).
+type OverviewParty = {
+  key: string;
+  partyId: string;
+  partyIds: string[];
+  partyName: string;
+  partyType: KhataPartyType | 'shop';
+  /** Positive = they owe me; negative = I owe them. */
+  balance: number;
+  lastActivity: string;
+  amountLabel: string;
+  subtitle?: string;
+  shop?: DealerLedgerParty;
+};
 
 function RepairOnlyKhataScreen() {
   const { canAccess } = useAuth();
@@ -79,6 +98,8 @@ function FullKhataOverviewScreen() {
   const router = useRouter();
   const { ledger, totals, isLoading, error, reload } = useKhataLedger();
   const { customers, loadAll } = useData();
+  const dealerLedger = useDealerTransactionsLedger();
+  const shopParties: DealerLedgerParty[] = dealerLedger.data?.parties ?? [];
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterState>('all');
   const [showSearch, setShowSearch] = useState(false);
@@ -89,7 +110,7 @@ function FullKhataOverviewScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([reload(), loadAll()]);
+      await Promise.all([reload(), loadAll(), dealerLedger.refetch()]);
     } finally {
       setRefreshing(false);
     }
@@ -102,26 +123,59 @@ function FullKhataOverviewScreen() {
         .filter((party) => party.partyType === 'customer')
         .map((party) => [party.partyId, party]),
     );
-    let result = [
-      ...customers.map((customer) => {
+    const dueLabel = (balance: number) => (balance > 0 ? 'Due' : balance < 0 ? 'Advance' : 'Settled');
+    let result: OverviewParty[] = [
+      ...customers.map((customer): OverviewParty => {
         const fromLedger = byCustomer.get(customer.id);
         return {
+          key: `customer:${customer.id}`,
           partyId: customer.id,
-           partyIds: [customer.id],
+          partyIds: [customer.id],
           partyName: customer.name,
-          partyType: 'customer' as const,
+          partyType: 'customer',
           balance: customer.dueAmount,
           lastActivity: fromLedger?.lastActivity ?? customer.createdAt,
+          amountLabel: dueLabel(customer.dueAmount),
         };
       }),
-      ...ledgerParties.filter((party) => party.partyType === 'dealer'),
+      ...ledgerParties
+        .filter((party) => party.partyType === 'dealer')
+        .map((party): OverviewParty => ({
+          key: `dealer:${party.partyId}`,
+          partyId: party.partyId,
+          partyIds: party.partyIds,
+          partyName: party.partyName,
+          partyType: 'dealer',
+          balance: party.balance,
+          lastActivity: party.lastActivity,
+          amountLabel: dueLabel(party.balance),
+          subtitle: 'Dealer',
+        })),
+      ...shopParties.map((shop): OverviewParty => {
+        // Normalise to "positive = they owe me" so sorting and the Pending
+        // filter treat both directions consistently.
+        const signed = shop.direction === 'payable' ? -shop.balance : shop.balance;
+        return {
+          key: `shop:${shop.direction}:${shop.shopId}`,
+          partyId: shop.shopId,
+          partyIds: [shop.shopId],
+          partyName: shop.businessName,
+          partyType: 'shop',
+          balance: signed,
+          lastActivity: shop.lastActivityAt,
+          amountLabel: dealerBalanceLabel(shop.direction, shop.balance),
+          subtitle: shop.direction === 'payable' ? 'Supplier · repairs your devices' : 'Dealer shop · you repair theirs',
+          shop,
+        };
+      }),
     ];
     if (filter === 'customer') result = result.filter(p => p.partyType === 'customer');
-    else if (filter === 'dealer') result = result.filter(p => p.partyType === 'dealer');
-    else if (filter === 'due') result = result.filter(p => p.balance > 0);
+    else if (filter === 'dealer') result = result.filter(p => p.partyType === 'dealer' || (p.partyType === 'shop' && p.shop?.direction === 'receivable'));
+    else if (filter === 'supplier') result = result.filter(p => p.partyType === 'shop' && p.shop?.direction === 'payable');
+    else if (filter === 'due') result = result.filter(p => p.balance !== 0);
     else if (filter === 'today') {
       const todayString = new Date().toDateString();
-      result = result.filter(p => p.balance > 0 && new Date(p.lastActivity).toDateString() === todayString);
+      result = result.filter(p => p.balance !== 0 && new Date(p.lastActivity).toDateString() === todayString);
     }
 
     const query = search.trim().toLowerCase();
@@ -129,32 +183,39 @@ function FullKhataOverviewScreen() {
       result = result.filter((p) => p.partyName.toLowerCase().includes(query));
     }
 
-    // Sort by balance descending (highest due first), then by newest activity
+    // Sort by outstanding amount (largest first, either direction), then by newest activity
     return result.sort((a, b) => {
-      if (b.balance !== a.balance) return b.balance - a.balance;
+      const da = Math.abs(a.balance), db = Math.abs(b.balance);
+      if (db !== da) return db - da;
       return b.lastActivity.localeCompare(a.lastActivity);
     });
-  }, [customers, ledger, filter, search]);
+  }, [customers, ledger, shopParties, filter, search]);
 
   const receivableTotal = useMemo(() => {
     const dealerBalances = groupLedgerByParty(ledger)
       .filter((party) => party.partyType === 'dealer')
       .reduce((sum, party) => sum + Math.max(party.balance, 0), 0);
-    return customers.reduce((sum, customer) => sum + Math.max(customer.dueAmount, 0), dealerBalances);
-  }, [customers, ledger]);
+    const local = customers.reduce((sum, customer) => sum + Math.max(customer.dueAmount, 0), dealerBalances);
+    return local + (dealerLedger.data?.totals.receivable ?? 0);
+  }, [customers, ledger, dealerLedger.data]);
 
-  const openParty = (
-    partyType: KhataPartyType,
-    partyId: string,
-    partyName: string,
-    partyIds: string[],
-  ) => {
+  // What I still owe other shops for repairing my devices.
+  const payableTotal = dealerLedger.data?.totals.payable ?? 0;
+
+  const openParty = (party: OverviewParty) => {
+    if (party.partyType === 'shop' && party.shop) {
+      router.push({
+        pathname: '/(tabs)/khata/dealer/[shopId]',
+        params: { shopId: party.shop.shopId, direction: party.shop.direction, name: party.shop.businessName },
+      } as any);
+      return;
+    }
     const mergedIds =
-      partyType === 'dealer' && partyIds.length > 1
-        ? `&ids=${encodeURIComponent(partyIds.join(','))}`
+      party.partyType === 'dealer' && party.partyIds.length > 1
+        ? `&ids=${encodeURIComponent(party.partyIds.join(','))}`
         : '';
     router.push(
-      `/(tabs)/khata/party/${partyType}/${partyId}?name=${encodeURIComponent(partyName)}${mergedIds}`,
+      `/(tabs)/khata/party/${party.partyType}/${party.partyId}?name=${encodeURIComponent(party.partyName)}${mergedIds}`,
     );
   };
 
@@ -226,7 +287,7 @@ function FullKhataOverviewScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
-        {!!error && <DataErrorBanner onRetry={reload} />}
+        {(!!error || !!dealerLedger.error) && <DataErrorBanner onRetry={onRefresh} />}
 
         <View style={[styles.netBalanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.netBalanceRow}>
@@ -236,8 +297,9 @@ function FullKhataOverviewScreen() {
                 <Text style={[styles.netBalanceLabel, { color: colors.mutedForeground }]}>You will give</Text>
               </View>
               <Text style={[styles.netBalanceValue, { color: colors.success }]}>
-                {formatCurrency(0 /* Future: Dealers payable */)}
+                {formatCurrency(payableTotal)}
               </Text>
+              <Text style={[styles.netBalanceHint, { color: colors.mutedForeground }]}>You owe suppliers</Text>
             </View>
             <View style={[styles.netBalanceDivider, { backgroundColor: colors.border }]} />
             <View style={styles.netBalanceCell}>
@@ -248,14 +310,15 @@ function FullKhataOverviewScreen() {
               <Text style={[styles.netBalanceValue, { color: colors.destructive }]}>
                  {formatCurrency(receivableTotal)}
               </Text>
+              <Text style={[styles.netBalanceHint, { color: colors.mutedForeground }]}>Owed to you</Text>
             </View>
           </View>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-          {(['all', 'customer', 'dealer', 'due', 'today'] as const).map((value) => {
+          {(['all', 'customer', 'dealer', 'supplier', 'due', 'today'] as const).map((value) => {
             const active = filter === value;
-            const labels: Record<string, string> = { all: 'All', customer: 'Customers', dealer: 'Suppliers', due: 'Pending', today: 'Due Today' };
+            const labels: Record<string, string> = { all: 'All', customer: 'Customers', dealer: 'Dealers', supplier: 'Suppliers', due: 'Pending', today: 'Due Today' };
             return (
               <TouchableOpacity
                 key={value}
@@ -274,11 +337,9 @@ function FullKhataOverviewScreen() {
           {visibleParties.length > 0 ? (
             visibleParties.map((party) => (
               <TouchableOpacity
-                key={party.partyId}
+                key={party.key}
                 activeOpacity={0.7}
-                onPress={() =>
-                  openParty(party.partyType, party.partyId, party.partyName, party.partyIds)
-                }
+                onPress={() => openParty(party)}
                 style={[styles.partyRow, { borderBottomColor: colors.border }]}
               >
                 <Avatar name={party.partyName} size={42} />
@@ -286,8 +347,8 @@ function FullKhataOverviewScreen() {
                   <Text style={[styles.partyName, { color: colors.foreground }]} numberOfLines={1}>
                     {party.partyName}
                   </Text>
-                  <Text style={[styles.partyDate, { color: colors.mutedForeground }]}>
-                    {formatDateLabel(party.lastActivity)}
+                  <Text style={[styles.partyDate, { color: colors.mutedForeground }]} numberOfLines={1}>
+                    {party.subtitle ? `${party.subtitle} · ` : ''}{formatDateLabel(party.lastActivity)}
                   </Text>
                 </View>
                 <View style={styles.partyAmountBox}>
@@ -305,7 +366,7 @@ function FullKhataOverviewScreen() {
                     </Text>
                   )}
                   <Text style={[styles.partyDueLabel, { color: colors.mutedForeground }]}>
-                    {party.balance > 0 ? 'Due' : party.balance < 0 ? 'Advance' : 'Settled'}
+                    {party.amountLabel}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -398,6 +459,7 @@ const styles = StyleSheet.create({
   },
   netBalanceLabel: { fontSize: 12, fontFamily: 'Inter_500Medium' },
   netBalanceValue: { fontSize: 20, fontFamily: 'Inter_700Bold' },
+  netBalanceHint: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: -4 },
   netBalanceDivider: { width: 1, height: '100%' },
 
   partyList: { paddingHorizontal: 16, paddingBottom: 24 },

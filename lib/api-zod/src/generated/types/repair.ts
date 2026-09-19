@@ -92,4 +92,6 @@ export interface Repair {
   sourceDealerUserId?: string;
   sourceDealerBusinessName?: string;
   sourceDealerReceivedAt?: string;
+  /** Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop. */
+  transactionCode?: string;
 }

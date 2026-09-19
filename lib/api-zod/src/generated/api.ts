@@ -1372,7 +1372,8 @@ export const DealersSuppliersRepairsListResponse = zod.object({
   "sourceDealerShopId": zod.string().optional(),
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
-  "sourceDealerReceivedAt": zod.string().optional()
+  "sourceDealerReceivedAt": zod.string().optional(),
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -1580,7 +1581,8 @@ export const DealerTransactionsListResponse = zod.object({
   "sourceDealerShopId": zod.string().optional(),
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
-  "sourceDealerReceivedAt": zod.string().optional()
+  "sourceDealerReceivedAt": zod.string().optional(),
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -1592,7 +1594,6 @@ export const DealerTransactionsListResponse = zod.object({
  * Creates the repair record directly inside the RECEIVING shop's own repairs table (goes through their normal intake/testing/delivery workflow), tagged with the sending shop as sourceDealer. The sending shop only ever gets a read-scoped view of this one row afterward.
  * @summary Send a device to another registered shop for repair
  */
-export const dealerTransactionsCreateBodyCustomerMobileRegExp = new RegExp('^\\d{10}$');
 
 
 
@@ -1601,8 +1602,6 @@ export const dealerTransactionsCreateBodyCustomerMobileRegExp = new RegExp('^\\d
 
 export const DealerTransactionsCreateBody = zod.object({
   "receiverShopId": zod.string(),
-  "customerName": zod.string().optional(),
-  "customerMobile": zod.string().regex(dealerTransactionsCreateBodyCustomerMobileRegExp).optional(),
   "deviceType": zod.string().min(1),
   "brand": zod.string().min(1),
   "model": zod.string().min(1),
@@ -1697,12 +1696,98 @@ export const DealerTransactionsCreateResponse = zod.object({
   "sourceDealerShopId": zod.string().optional(),
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
-  "sourceDealerReceivedAt": zod.string().optional()
+  "sourceDealerReceivedAt": zod.string().optional(),
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
 })
 })
 
 
 /**
+ * One row per (other shop, direction). direction=payable rows are the shops repairing devices the caller sent (Khata → Suppliers); direction=receivable rows are shops whose devices the caller repairs. Every figure is derived on read from the shared repair, payment and refund rows, so both shops always see the same balance. Requires the payments feature.
+ * @summary Dealer-to-dealer ledger summary for the caller's shop
+ */
+export const DealerTransactionsLedgerResponse = zod.object({
+  "parties": zod.array(zod.object({
+  "shopId": zod.string(),
+  "businessName": zod.string(),
+  "ownerUserId": zod.string(),
+  "ownerName": zod.string(),
+  "ownerMobile": zod.string(),
+  "direction": zod.enum(['receivable', 'payable']),
+  "role": zod.enum(['supplier', 'customer']).describe('Transaction-based role of the OTHER shop from the caller\'s side.'),
+  "billed": zod.number(),
+  "paid": zod.number(),
+  "refunded": zod.number(),
+  "balance": zod.number(),
+  "repairCount": zod.number(),
+  "openRepairCount": zod.number(),
+  "lastActivityAt": zod.string()
+})),
+  "totals": zod.object({
+  "receivable": zod.number(),
+  "payable": zod.number()
+})
+})
+
+
+/**
+ * Chronological bill / payment / void / refund entries with a running balance, from the caller's point of view. The two directions between the same pair of shops are independent ledgers and are never netted.
+ * @summary Full dealer ledger with ONE other shop in ONE direction
+ */
+export const DealerTransactionsLedgerGetParams = zod.object({
+  "shopId": zod.coerce.string()
+})
+
+export const DealerTransactionsLedgerGetQueryParams = zod.object({
+  "direction": zod.enum(['receivable', 'payable'])
+})
+
+export const DealerTransactionsLedgerGetResponse = zod.object({
+  "party": zod.object({
+  "shopId": zod.string(),
+  "businessName": zod.string(),
+  "ownerUserId": zod.string(),
+  "ownerName": zod.string(),
+  "ownerMobile": zod.string(),
+  "direction": zod.enum(['receivable', 'payable']),
+  "role": zod.enum(['supplier', 'customer']).describe('Transaction-based role of the OTHER shop from the caller\'s side.'),
+  "billed": zod.number(),
+  "paid": zod.number(),
+  "refunded": zod.number(),
+  "balance": zod.number(),
+  "repairCount": zod.number(),
+  "openRepairCount": zod.number(),
+  "lastActivityAt": zod.string()
+}),
+  "entries": zod.array(zod.object({
+  "id": zod.string(),
+  "kind": zod.enum(['bill', 'payment', 'void', 'refund']),
+  "direction": zod.enum(['you_owe', 'they_owe_you', 'you_paid', 'you_received', 'refund_to_you', 'refund_by_you', 'voided']).describe('Plain-language accounting direction from the caller\'s side.'),
+  "repairId": zod.string().describe('Repair row id (the shared transaction).'),
+  "transactionCode": zod.string(),
+  "ticket": zod.string(),
+  "device": zod.string(),
+  "amount": zod.number(),
+  "method": zod.string().optional(),
+  "referenceNo": zod.string().optional(),
+  "note": zod.string().optional(),
+  "actorName": zod.string().optional(),
+  "voidedAt": zod.string().optional(),
+  "voidReason": zod.string().optional(),
+  "at": zod.string(),
+  "runningBalance": zod.number()
+})),
+  "totals": zod.object({
+  "billed": zod.number(),
+  "paid": zod.number(),
+  "refunded": zod.number(),
+  "balance": zod.number().describe('billed − paid + refunded. Positive means the payable side still owes.')
+})
+})
+
+
+/**
+ * Returns the shared repair row plus the SAME payments, refunds, timeline and derived balance to whichever of the two shops asks. Anyone else gets 404.
  * @summary Dealer-transaction detail, from either side
  */
 export const DealerTransactionsGetParams = zod.object({
@@ -1791,7 +1876,8 @@ export const DealerTransactionsGetResponse = zod.object({
   "sourceDealerShopId": zod.string().optional(),
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
-  "sourceDealerReceivedAt": zod.string().optional()
+  "sourceDealerReceivedAt": zod.string().optional(),
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
 }),
   "counterpart": zod.object({
   "shopId": zod.string(),
@@ -1799,7 +1885,68 @@ export const DealerTransactionsGetResponse = zod.object({
   "ownerUserId": zod.string(),
   "ownerName": zod.string(),
   "ownerMobile": zod.string()
-}).describe('The OTHER party to this transaction: the source dealer when viewed from the receiving shop, or the receiving shop when viewed from the sending shop. Used to open the dedicated dealer-to-dealer chat.')
+}).describe('The OTHER party to this transaction: the source dealer when viewed from the receiving shop, or the receiving shop when viewed from the sending shop. Used to open the dedicated dealer-to-dealer chat.'),
+  "side": zod.enum(['receiver', 'sender']).describe('Which party the caller is.'),
+  "transactionCode": zod.string(),
+  "acceptance": zod.enum(['waiting', 'received']).describe('waiting until the repairing shop explicitly confirms receipt.'),
+  "financials": zod.object({
+  "billed": zod.number().describe('Posted bill (0 until the repair is ready\/delivered).'),
+  "paid": zod.number(),
+  "refunded": zod.number(),
+  "balance": zod.number(),
+  "liveTotal": zod.number().describe('Current charge total even before posting.'),
+  "billPosted": zod.boolean()
+}).optional().describe('Omitted unless the caller has the `payments` feature.'),
+  "payments": zod.array(zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "amount": zod.number(),
+  "method": zod.string(),
+  "kind": zod.enum(['advance', 'partial', 'final', 'due', 'refund']),
+  "note": zod.string().optional(),
+  "referenceNo": zod.string().optional(),
+  "recordedById": zod.string().optional(),
+  "recordedByName": zod.string().optional(),
+  "receivedById": zod.string().optional(),
+  "receivedByName": zod.string().optional(),
+  "voidedAt": zod.string().optional(),
+  "voidedById": zod.string().optional(),
+  "voidedByName": zod.string().optional(),
+  "voidReason": zod.string().optional(),
+  "createdAt": zod.string()
+})).optional().describe('Omitted unless the caller has the `payments` feature.'),
+  "refunds": zod.array(zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "repairTicket": zod.string().optional(),
+  "returnId": zod.string(),
+  "returnCaseId": zod.string().optional(),
+  "customerId": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "amount": zod.number(),
+  "originalPaid": zod.number(),
+  "method": zod.string(),
+  "status": zod.enum(['pending_approval', 'approved', 'paid', 'rejected']),
+  "reason": zod.string(),
+  "referenceNo": zod.string().optional(),
+  "requestedByName": zod.string().optional(),
+  "approvedByName": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidByName": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "rejectionReason": zod.string().optional(),
+  "createdAt": zod.string()
+})).optional().describe('Omitted unless the caller has the `payments` feature.'),
+  "events": zod.array(zod.object({
+  "id": zod.string(),
+  "repairId": zod.string(),
+  "userId": zod.string().optional(),
+  "userName": zod.string(),
+  "userRole": zod.string(),
+  "action": zod.string(),
+  "details": zod.record(zod.string(), zod.unknown()).optional(),
+  "createdAt": zod.string()
+})).describe('Shared status timeline, oldest first (includes dealer_sent \/ dealer_received milestones). Payment events are omitted unless the caller has the `payments` feature.')
 })
 
 
@@ -1893,7 +2040,8 @@ export const DealerTransactionsReceiveResponse = zod.object({
   "sourceDealerShopId": zod.string().optional(),
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
-  "sourceDealerReceivedAt": zod.string().optional()
+  "sourceDealerReceivedAt": zod.string().optional(),
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
 })
 })
 
@@ -2002,7 +2150,8 @@ export const CustomersKhataGetResponse = zod.object({
   "amount": zod.number(),
   "note": zod.string().optional(),
   "method": zod.string().optional(),
-  "repairId": zod.string().optional(),
+  "repairId": zod.string().optional().describe('Display ticket (e.g. VMC-012).'),
+  "repairRowId": zod.string().optional().describe('Repair row id'),
   "bookDate": zod.string(),
   "createdAt": zod.string(),
   "runningBalance": zod.number()
@@ -2156,7 +2305,8 @@ export const RepairsListResponse = zod.object({
   "sourceDealerShopId": zod.string().optional(),
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
-  "sourceDealerReceivedAt": zod.string().optional()
+  "sourceDealerReceivedAt": zod.string().optional(),
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
 })),
   "total": zod.number().optional(),
   "page": zod.number().optional(),
@@ -2295,7 +2445,8 @@ export const RepairsCreateResponse = zod.object({
   "sourceDealerShopId": zod.string().optional(),
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
-  "sourceDealerReceivedAt": zod.string().optional()
+  "sourceDealerReceivedAt": zod.string().optional(),
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
 })
 })
 
@@ -2392,7 +2543,8 @@ export const RepairsGetResponse = zod.object({
   "sourceDealerShopId": zod.string().optional(),
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
-  "sourceDealerReceivedAt": zod.string().optional()
+  "sourceDealerReceivedAt": zod.string().optional(),
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
 })
 })
 
@@ -2532,7 +2684,8 @@ export const RepairsUpdateResponse = zod.object({
   "sourceDealerShopId": zod.string().optional(),
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
-  "sourceDealerReceivedAt": zod.string().optional()
+  "sourceDealerReceivedAt": zod.string().optional(),
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
 })
 })
 
@@ -2986,7 +3139,8 @@ export const RepairAssignTechnicianResponse = zod.object({
   "sourceDealerShopId": zod.string().optional(),
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
-  "sourceDealerReceivedAt": zod.string().optional()
+  "sourceDealerReceivedAt": zod.string().optional(),
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
 })
 })
 
@@ -3085,7 +3239,8 @@ export const RepairTestingResponse = zod.object({
   "sourceDealerShopId": zod.string().optional(),
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
-  "sourceDealerReceivedAt": zod.string().optional()
+  "sourceDealerReceivedAt": zod.string().optional(),
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
 })
 })
 
@@ -3309,7 +3464,8 @@ export const RepairNotifyReadyResponse = zod.object({
   "sourceDealerShopId": zod.string().optional(),
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
-  "sourceDealerReceivedAt": zod.string().optional()
+  "sourceDealerReceivedAt": zod.string().optional(),
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
 })
 })
 

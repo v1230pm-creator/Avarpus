@@ -27,8 +27,11 @@ const router: IRouter = Router();
 router.use(healthRouter);
 router.use(authRouter);
 router.use(staffRouter);
-router.use(dealersRouter);
+// Dealer-to-dealer routes MUST mount before the B2B dealers router: its
+// `/dealers/:id` (UUID-guarded, answers 404) would otherwise swallow
+// `/dealers/lookup` and `/dealers/transactions`.
 router.use(dealerTransactionsRouter);
+router.use(dealersRouter);
 router.use(businessRouter);
 router.use(storageRouter);
 router.use(approvalsRouter);

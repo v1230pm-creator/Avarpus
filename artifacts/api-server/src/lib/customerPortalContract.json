@@ -54,6 +54,11 @@
       "id": "chat-reports",
       "label": "own abuse reports",
       "isolationProbe": "chat-report-author"
+    },
+    {
+      "id": "dealer-supplier-view",
+      "label": "dealer supplier view",
+      "isolationExempt": "The route matches dealer rows live by the caller's own verified mobile; it accepts no customer or shop identifier and can never read another account's dealer relationship."
     }
   ],
   "rules": [
@@ -99,6 +104,8 @@
     { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/upload-url$" },
     { "family": "chat", "method": "POST", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/call-token$" },
     { "family": "chat", "method": "GET", "pattern": "^/chat/rooms/[0-9a-fA-F-]{36}/messages/[0-9a-fA-F-]{36}/media$" },
-    { "family": "chat-reports", "method": "GET", "pattern": "^/chat/reports/mine$" }
+    { "family": "chat-reports", "method": "GET", "pattern": "^/chat/reports/mine$" },
+    { "family": "dealer-supplier-view", "method": "GET", "pattern": "^/dealers/suppliers$" },
+    { "family": "dealer-supplier-view", "method": "GET", "pattern": "^/dealers/suppliers/[0-9a-fA-F-]{36}/repairs$" }
   ]
 }

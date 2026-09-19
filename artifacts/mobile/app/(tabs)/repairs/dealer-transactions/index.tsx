@@ -147,6 +147,7 @@ export default function DealerTransactionsScreen() {
                       {item.brand} {item.model}
                     </Text>
                     <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>
+                      {item.transactionCode ? `${item.transactionCode} · ` : ''}
                       {direction === 'incoming'
                         ? `From ${item.sourceDealerBusinessName ?? 'another shop'}`
                         : `Repair ticket ${item.repairId}`}
@@ -159,10 +160,17 @@ export default function DealerTransactionsScreen() {
                     {item.problem}
                   </Text>
                 )}
-                {direction === 'incoming' && !item.sourceDealerReceivedAt && (
+                {!item.sourceDealerReceivedAt ? (
                   <View style={[styles.pendingBadge, { backgroundColor: colors.warning + '1A' }]}>
                     <Feather name="clock" size={11} color={colors.warning} />
-                    <Text style={{ fontSize: 11, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>Awaiting physical receipt</Text>
+                    <Text style={{ fontSize: 11, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>
+                      {direction === 'incoming' ? 'Waiting for Acceptance · confirm receipt' : 'Waiting for Acceptance'}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={[styles.pendingBadge, { backgroundColor: colors.success + '1A' }]}>
+                    <Feather name="check-circle" size={11} color={colors.success} />
+                    <Text style={{ fontSize: 11, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>Received</Text>
                   </View>
                 )}
               </FlatCard>

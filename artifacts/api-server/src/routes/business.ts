@@ -31,7 +31,8 @@ import { sendOtpEmail } from "../lib/mailer";
 import { recordPayment, voidPayment, PAYMENT_KINDS } from "../lib/repairPayments";
 import { isDealerPortalRole } from "../lib/dealerPortal";
 import { computeTotals, paymentStatusOf, portalRepairOut } from "../lib/repairProjection";
-import { notifyShop, notifyUser } from "../lib/notify";
+import { notifyShop, notifySourceDealer, notifyUser } from "../lib/notify";
+import { transactionCodeOf } from "../lib/dealerLedger";
 import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
 import { ObjectStorageService } from "../lib/objectStorage";
 import {
@@ -359,7 +360,7 @@ router.get(
     ]);
     type LedgerEntry = {
       id: string; type: string; direction: "given" | "received"; amount: number;
-      note?: string; method?: string; repairId?: string; bookDate: string; createdAt: string;
+      note?: string; method?: string; repairId?: string; repairRowId?: string; bookDate: string; createdAt: string;
     };
     const deliveredRepairIds = new Set(repairs.map((repair) => repair.id));
     const entries: LedgerEntry[] = [
@@ -370,6 +371,7 @@ router.get(
         amount: computeTotals(repair).totalAmount,
         note: `Repair bill ${repair.repairId}`,
         repairId: repair.repairId,
+        repairRowId: repair.id,
         bookDate: repair.deliveryDate ?? repair.receiveDate,
         createdAt: iso(repair.createdAt),
       })),
@@ -388,6 +390,7 @@ router.get(
             note: payment.voidReason ?? "Repair payment voided",
             method: payment.method,
             repairId: displayRepairId,
+            repairRowId: payment.repairId,
             bookDate,
             createdAt: iso(payment.voidedAt),
           }];
@@ -400,6 +403,7 @@ router.get(
           note: payment.note ?? undefined,
           method: payment.method,
           repairId: displayRepairId,
+          repairRowId: payment.repairId,
           bookDate,
           createdAt: iso(payment.createdAt),
         }];
@@ -412,6 +416,7 @@ router.get(
         note: refund.reason,
         method: refund.method,
         repairId: repairs.find((repair) => repair.id === refund.repairId)?.repairId,
+        repairRowId: refund.repairId,
         bookDate: (refund.paidAt ?? refund.createdAt).toISOString().slice(0, 10),
         createdAt: iso(refund.paidAt ?? refund.createdAt),
       })),
@@ -719,6 +724,13 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
     updatedByName: r.updatedByName ?? undefined,
     updatedAt: r.updatedAt ? iso(r.updatedAt) : undefined,
     createdAt: iso(r.createdAt),
+    // Dealer-to-dealer: which shop sent this device in, and whether we have
+    // confirmed physical receipt yet. Absent on ordinary walk-in repairs.
+    sourceDealerShopId: r.sourceDealerShopId ?? undefined,
+    sourceDealerUserId: r.sourceDealerUserId ?? undefined,
+    sourceDealerBusinessName: r.sourceDealerBusinessName ?? undefined,
+    sourceDealerReceivedAt: r.sourceDealerReceivedAt ? iso(r.sourceDealerReceivedAt) : undefined,
+    transactionCode: r.sourceDealerShopId ? transactionCodeOf(r) : undefined,
     ...(() => {
       const t = computeTotals(r);
       return {
@@ -1428,6 +1440,23 @@ router.patch(
       res.status(403).json({ message: "Dealer/Owner approval required." });
       return;
     }
+    // A device sent in by another shop must be explicitly accepted (physical
+    // receipt confirmed) before any work status is recorded — the sender's
+    // view says "Waiting for acceptance" until then. Cancelling (device never
+    // arrived / declined) is the one move allowed before acceptance.
+    if (
+      existing.sourceDealerShopId &&
+      !existing.sourceDealerReceivedAt &&
+      patch.status !== undefined &&
+      patch.status !== existing.status &&
+      patch.status !== "cancelled"
+    ) {
+      res.status(409).json({
+        code: "DEALER_RECEIPT_REQUIRED",
+        message: "Confirm you have received this device from the sending dealer before updating its status.",
+      });
+      return;
+    }
     // Delivered is terminal for staff: without this, staff could un-deliver,
     // edit the locked financial fields, and re-deliver. Only the dealer/owner
     // may move a delivered repair back into the workflow.
@@ -1661,8 +1690,8 @@ router.patch(
         shopId: updated.sourceDealerShopId,
         type: "dealer_transaction_status",
         title: `${updated.brand} ${updated.model}: ${String(updated.status).replace(/_/g, " ")}`,
-        body: `${updated.sourceDealerBusinessName ? "" : ""}Your device at ${updated.repairId} is now ${String(updated.status).replace(/_/g, " ")}.`,
-        data: { repairId: updated.id },
+        body: `Your device at ${updated.repairId} is now ${String(updated.status).replace(/_/g, " ")}.`,
+        data: { repairId: updated.id, dealerTransaction: true },
         dedupeKey: `dealer-txn:${updated.id}:status:${updated.status}:${updated.updatedAt?.toISOString() ?? Date.now()}`,
       });
     }
@@ -2105,7 +2134,7 @@ router.post(
         details: { amount, method, kind, referenceNo: referenceNo ?? null },
       });
       if (repair.customerId) await syncCustomerStats(tx, shopId, repair.customerId);
-      return { row };
+      return { row, repair };
     });
     if ("error" in result && result.error) {
       res
@@ -2113,6 +2142,7 @@ router.post(
         .json({ message: result.error.message, ...(result.error.code ? { code: result.error.code } : {}) });
       return;
     }
+    const repair = result.repair;
     void notifyShop({
       shopId,
       type: "payment_recorded",
@@ -2120,6 +2150,12 @@ router.post(
       body: `Recorded by ${me.name} (${result.row.method})`,
       data: { repairId: id },
       actorId: me.id,
+    });
+    void notifySourceDealer(repair, {
+      type: "dealer_transaction_payment",
+      title: `Payment recorded — ₹${result.row.amount}`,
+      body: `${repair.brand} ${repair.model} (${repair.repairId}): ₹${result.row.amount} ${result.row.method} recorded by the repairing shop.`,
+      dedupeKey: `dealer-txn:${id}:payment:${result.row.id}`,
     });
     res.json({ payment: paymentOut(result.row) });
   }),
@@ -2195,7 +2231,7 @@ router.post(
         .select({ advance: repairsTable.advance })
         .from(repairsTable)
         .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)));
-      return { rows, paidAmount: after?.advance ?? 0 };
+      return { rows, paidAmount: after?.advance ?? 0, repair };
     });
     if ("error" in result && result.error) {
       const err = result.error as { status: number; message: string; code?: string };
@@ -2203,6 +2239,15 @@ router.post(
       return;
     }
     const voided = (result as { rows: (typeof repairPaymentsTable.$inferSelect)[] }).rows;
+    const repair = (result as { repair: typeof repairsTable.$inferSelect }).repair;
+    if (voided.length > 0) {
+      void notifySourceDealer(repair, {
+        type: "dealer_transaction_payment",
+        title: "Payments reversed",
+        body: `${repair.brand} ${repair.model} (${repair.repairId}): ${voided.length} payment(s) were voided by the repairing shop.`,
+        dedupeKey: `dealer-txn:${id}:void-all:${Date.now()}`,
+      });
+    }
     res.json({
       voidedCount: voided.length,
       paidAmount: (result as { paidAmount: number }).paidAmount,
@@ -2260,12 +2305,22 @@ router.post(
         details: { paymentId, amount: row.amount, method: row.method, kind: row.kind, reason },
       });
       if (repair.customerId) await syncCustomerStats(tx, shopId, repair.customerId);
-      return { row };
+      return { row, repair };
     });
     if ("error" in result && result.error) {
       const err = result.error as { status: number; message: string; code?: string };
       res.status(err.status).json({ message: err.message, ...(err.code ? { code: err.code } : {}) });
       return;
+    }
+    {
+      const repair = result.repair as typeof repairsTable.$inferSelect;
+      const voidedRow = result.row as typeof repairPaymentsTable.$inferSelect;
+      void notifySourceDealer(repair, {
+        type: "dealer_transaction_payment",
+        title: `Payment voided — ₹${voidedRow.amount}`,
+        body: `${repair.brand} ${repair.model} (${repair.repairId}): the ₹${voidedRow.amount} ${voidedRow.method} payment was voided by the repairing shop.`,
+        dedupeKey: `dealer-txn:${id}:void:${voidedRow.id}`,
+      });
     }
     res.json({ payment: paymentOut(result.row as typeof repairPaymentsTable.$inferSelect) });
   }),

@@ -97,12 +97,35 @@ export default function KhataDetailScreen() {
     });
   };
 
+  // Every entry opens its own details: server-backed customer entries open
+  // the dynamic entry page; legacy computed rows fall back to their repair.
+  const openEntry = (entry: LedgerEntry) => {
+    if (newKhataData && validType === 'customer') {
+      router.push({
+        pathname: '/(tabs)/khata/transaction',
+        params: { scope: 'customer', entryId: entry.id, customerId: id, name: partyName },
+      } as any);
+      return;
+    }
+    if (entry.repairDbId) {
+      router.push(`/(tabs)/repairs/${entry.repairDbId}` as any);
+    }
+  };
+
   const renderEntry = (entry: LedgerEntry) => {
     const isDebit = entry.debit > 0; // Given (charge)
     const amount = isDebit ? entry.debit : entry.credit;
+    const tappable = (newKhataData && validType === 'customer') || !!entry.repairDbId;
 
     return (
-      <View key={entry.id} style={[styles.entryRow, isDebit ? styles.entryRight : styles.entryLeft]}>
+      <TouchableOpacity
+        key={entry.id}
+        activeOpacity={0.75}
+        disabled={!tappable}
+        onPress={() => openEntry(entry)}
+        accessibilityRole={tappable ? 'button' : undefined}
+        style={[styles.entryRow, isDebit ? styles.entryRight : styles.entryLeft]}
+      >
         <View style={[styles.entryCard, { backgroundColor: isDebit ? colors.destructive + '10' : colors.success + '10', borderColor: isDebit ? colors.destructive + '30' : colors.success + '30' }]}>
           <Text style={[styles.entryAmount, { color: isDebit ? colors.destructive : colors.success }]}>
             {formatCurrency(amount)}
@@ -118,7 +141,7 @@ export default function KhataDetailScreen() {
             </Text>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 

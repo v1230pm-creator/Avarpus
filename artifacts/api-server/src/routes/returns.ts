@@ -22,6 +22,7 @@ import { asyncHandler } from "../lib/asyncHandler";
 import { requireFeature, userHasFeature } from "../lib/roleFeatures";
 import type { Request, Response } from "express";
 import { uuidParam } from "../lib/validate";
+import { notifySourceDealer } from "../lib/notify";
 
 // Return / Rework / Refund workflow.
 // The original repair is NEVER edited or deleted — a return case links to it
@@ -1001,6 +1002,28 @@ router.post(
     if ("error" in result) {
       res.status(result.error.status).json({ message: result.error.message });
       return;
+    }
+    {
+      const [repair] = await db
+        .select({
+          id: repairsTable.id,
+          repairId: repairsTable.repairId,
+          brand: repairsTable.brand,
+          model: repairsTable.model,
+          sourceDealerUserId: repairsTable.sourceDealerUserId,
+          sourceDealerShopId: repairsTable.sourceDealerShopId,
+        })
+        .from(repairsTable)
+        .where(eq(repairsTable.id, result.repairId))
+        .limit(1);
+      if (repair) {
+        void notifySourceDealer(repair, {
+          type: "dealer_transaction_payment",
+          title: `Refund paid — ₹${result.amount}`,
+          body: `${repair.brand} ${repair.model} (${repair.repairId}): ₹${result.amount} ${result.method} refunded by the repairing shop.`,
+          dedupeKey: `dealer-txn:${repair.id}:refund:${result.id}`,
+        });
+      }
     }
     res.json({ refund: refundOut(result) });
   }),

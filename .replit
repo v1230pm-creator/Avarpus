@@ -96,6 +96,10 @@ args = "web-list-search"
 task = "workflow.run"
 args = "session-idle"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "dealer-transactions"
+
 [[workflows.workflow]]
 name = "typecheck"
 author = "agent"
@@ -312,6 +316,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-session-idle.mjs"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "dealer-transactions"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-dealer-transactions.mjs"
 
 [workflows.workflow.metadata]
 isValidation = true

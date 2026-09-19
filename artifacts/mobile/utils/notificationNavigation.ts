@@ -6,6 +6,12 @@ export function getNotificationRoute(data: unknown): string | null {
     return `/(tabs)/customers/chat/${payload.roomId}`;
   }
   if (typeof payload.repairId === 'string' && payload.repairId) {
+    // Dealer-to-dealer alerts (sent / received / status / bill / payment)
+    // open the shared transaction view, which both shops can read. The plain
+    // repair screen only exists for the repairing shop.
+    if (payload.dealerTransaction === true) {
+      return `/(tabs)/repairs/dealer-transactions/${payload.repairId}`;
+    }
     return `/(tabs)/repairs/${payload.repairId}`;
   }
   if (typeof payload.approvalId === 'string' && payload.approvalId) {

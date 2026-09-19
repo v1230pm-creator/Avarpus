@@ -159,3 +159,26 @@ export async function notifyActiveSuperAdminsOfPublicRequest(input: {
     console.error("notifyActiveSuperAdminsOfPublicRequest failed:", err);
   }
 }
+
+// Cross-shop update for a dealer-to-dealer transaction: tells the SENDING
+// shop's owner about something the repairing shop did (status, money). No-op
+// for ordinary repairs. Best-effort like everything else here.
+export async function notifySourceDealer(
+  repair: {
+    id: string;
+    sourceDealerUserId: string | null;
+    sourceDealerShopId: string | null;
+  },
+  input: { type: string; title: string; body: string; dedupeKey?: string },
+): Promise<void> {
+  if (!repair.sourceDealerUserId) return;
+  await notifyUser({
+    userId: repair.sourceDealerUserId,
+    shopId: repair.sourceDealerShopId,
+    type: input.type,
+    title: input.title,
+    body: input.body,
+    data: { repairId: repair.id, dealerTransaction: true },
+    dedupeKey: input.dedupeKey,
+  });
+}

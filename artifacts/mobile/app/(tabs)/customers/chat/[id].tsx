@@ -1082,6 +1082,8 @@ export default function ChatScreen() {
     targetId?: string;
     type?: 'customer' | 'dealer';
     name?: string;
+    /** Optional composer prefill (e.g. a dealer transaction reference). */
+    draft?: string;
   }>();
 
   const routeId = params.id;
@@ -1112,7 +1114,7 @@ export default function ChatScreen() {
   }, []);
 
   // ── Text composer ───────────────────────────────────────────────────────
-  const [text, setText] = useState('');
+  const [text, setText] = useState(() => (typeof params.draft === 'string' ? params.draft : ''));
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   useEffect(() => {

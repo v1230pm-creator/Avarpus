@@ -8,9 +8,6 @@
 
 export interface DealerTransactionInput {
   receiverShopId: string;
-  customerName?: string;
-  /** @pattern ^\d{10}$ */
-  customerMobile?: string;
   /** @minLength 1 */
   deviceType: string;
   /** @minLength 1 */

@@ -10,6 +10,8 @@ export default function KhataLayout() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="party/[type]/[id]" />
+        <Stack.Screen name="dealer/[shopId]" />
+        <Stack.Screen name="transaction" />
       </Stack>
     </FeatureRouteGuard>
   );
