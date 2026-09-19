@@ -20,6 +20,7 @@
 - [Android focus loss fix](android-focus-collapsable.md) — focus-styled input wrappers need collapsable={false} or Android view flattening blurs the TextInput and kills the keyboard.
 - [Dealer phone auto-detection](dealer-phone-detection.md) — intake mobile auto-links single active dealer match; explicit dealerId:null = user removal (no re-link); manual links now open to all staff.
 - [Dealer portal](dealer-portal.md) — B2B dealers vs owner `dealer` role; portal subresources need dealer-level (not just shop) checks; DataContext.addRepair maps fields explicitly.
+- [Dealer supplier view](dealer-supplier-view.md) — business accounts see repairs other shops hold for them by SQL mobile match on active dealer rows; portal logins may graduate to own Shop (inactive-exempt).
 - [Technician access scoping](technician-scoping.md) — assigned-only gating REMOVED; techs get full shop view; repair-mutating subroutes must carry requireFeature('repairs_update').
 - [GitHub push via API fallback](github-push-api-fallback.md) — when auth() gives no token, push via proxyFetch Git Data API; local/remote SHAs then diverge, reconcile before next token push.
 - [GitHub connector vs Git transport](github-connector-git-transport.md) — an Active GitHub integration authorizes API calls, not shell Git; use a repo deploy key when normal HTTPS/SSH credentials are absent.

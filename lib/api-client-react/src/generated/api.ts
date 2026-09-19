@@ -91,11 +91,19 @@ import type {
   DealerInput,
   DealerPortalProfile,
   DealerProfile,
+  DealerTransactionInput,
+  DealerTransactionsCreate200,
+  DealerTransactionsGet200,
+  DealerTransactionsList200,
+  DealerTransactionsListParams,
+  DealerTransactionsReceive200,
   DealersCreate200,
   DealersDetect200,
   DealersDetectParams,
   DealersList200,
   DealersListParams,
+  DealersLookup200,
+  DealersLookupParams,
   DealersOverview200,
   DealersSuppliersList200,
   DealersSuppliersRepairsList200,
@@ -3975,6 +3983,397 @@ export const useDealersUpdate = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDealersUpdateMutationOptions(options));
+    }
+
+export const getDealersLookupUrl = (params: DealersLookupParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/dealers/lookup?${stringifiedParams}` : `/api/dealers/lookup`
+}
+
+/**
+ * Used when composing a dealer-to-dealer transaction: resolves a mobile number to the OTHER shop's identity (never the caller's own shop, never a dealer-portal login). Returns match: null when no active shop owner is registered with that mobile. The response only ever carries ids/names — never further account details.
+ * @summary Look up another shop's owner by their registered mobile number
+ */
+export const dealersLookup = async (params: DealersLookupParams, options?: Parameters<typeof customFetch>[1]): Promise<DealersLookup200> => {
+
+  return customFetch<DealersLookup200>(getDealersLookupUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDealersLookupQueryKey = (params?: DealersLookupParams,) => {
+    return [
+    `/api/dealers/lookup`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getDealersLookupQueryOptions = <TData = Awaited<ReturnType<typeof dealersLookup>>, TError = ErrorType<unknown>>(params: DealersLookupParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersLookup>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDealersLookupQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof dealersLookup>>> = ({ signal }) => dealersLookup(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof dealersLookup>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DealersLookupQueryResult = NonNullable<Awaited<ReturnType<typeof dealersLookup>>>
+export type DealersLookupQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Look up another shop's owner by their registered mobile number
+ */
+
+export function useDealersLookup<TData = Awaited<ReturnType<typeof dealersLookup>>, TError = ErrorType<unknown>>(
+ params: DealersLookupParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealersLookup>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDealersLookupQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDealerTransactionsListUrl = (params: DealerTransactionsListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/dealers/transactions?${stringifiedParams}` : `/api/dealers/transactions`
+}
+
+/**
+ * direction=incoming lists repairs in the caller's OWN shop that were sent in by another dealer shop. direction=outgoing lists repairs physically held in ANOTHER shop that the caller's shop sent there — a deliberate cross-shop read scoped strictly to rows the caller's shop is recorded as the sender of.
+ * @summary List dealer-to-dealer transactions involving the caller's shop
+ */
+export const dealerTransactionsList = async (params: DealerTransactionsListParams, options?: Parameters<typeof customFetch>[1]): Promise<DealerTransactionsList200> => {
+
+  return customFetch<DealerTransactionsList200>(getDealerTransactionsListUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDealerTransactionsListQueryKey = (params?: DealerTransactionsListParams,) => {
+    return [
+    `/api/dealers/transactions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getDealerTransactionsListQueryOptions = <TData = Awaited<ReturnType<typeof dealerTransactionsList>>, TError = ErrorType<unknown>>(params: DealerTransactionsListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealerTransactionsList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDealerTransactionsListQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof dealerTransactionsList>>> = ({ signal }) => dealerTransactionsList(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof dealerTransactionsList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DealerTransactionsListQueryResult = NonNullable<Awaited<ReturnType<typeof dealerTransactionsList>>>
+export type DealerTransactionsListQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List dealer-to-dealer transactions involving the caller's shop
+ */
+
+export function useDealerTransactionsList<TData = Awaited<ReturnType<typeof dealerTransactionsList>>, TError = ErrorType<unknown>>(
+ params: DealerTransactionsListParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealerTransactionsList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDealerTransactionsListQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDealerTransactionsCreateUrl = () => {
+
+
+
+
+  return `/api/dealers/transactions`
+}
+
+/**
+ * Creates the repair record directly inside the RECEIVING shop's own repairs table (goes through their normal intake/testing/delivery workflow), tagged with the sending shop as sourceDealer. The sending shop only ever gets a read-scoped view of this one row afterward.
+ * @summary Send a device to another registered shop for repair
+ */
+export const dealerTransactionsCreate = async (dealerTransactionInput: DealerTransactionInput, options?: Parameters<typeof customFetch>[1]): Promise<DealerTransactionsCreate200> => {
+
+  return customFetch<DealerTransactionsCreate200>(getDealerTransactionsCreateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(dealerTransactionInput)
+  }
+);}
+
+
+
+
+
+export const getDealerTransactionsCreateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dealerTransactionsCreate>>, TError,{data: BodyType<DealerTransactionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof dealerTransactionsCreate>>, TError,{data: BodyType<DealerTransactionInput>}, TContext> => {
+
+const mutationKey = ['dealerTransactionsCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof dealerTransactionsCreate>>, {data: BodyType<DealerTransactionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  dealerTransactionsCreate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DealerTransactionsCreateMutationResult = NonNullable<Awaited<ReturnType<typeof dealerTransactionsCreate>>>
+    export type DealerTransactionsCreateMutationBody = BodyType<DealerTransactionInput>
+    export type DealerTransactionsCreateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Send a device to another registered shop for repair
+ */
+export const useDealerTransactionsCreate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dealerTransactionsCreate>>, TError,{data: BodyType<DealerTransactionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof dealerTransactionsCreate>>,
+        TError,
+        {data: BodyType<DealerTransactionInput>},
+        TContext
+      > => {
+      return useMutation(getDealerTransactionsCreateMutationOptions(options));
+    }
+
+export const getDealerTransactionsGetUrl = (id: string,) => {
+
+
+
+
+  return `/api/dealers/transactions/${id}`
+}
+
+/**
+ * @summary Dealer-transaction detail, from either side
+ */
+export const dealerTransactionsGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<DealerTransactionsGet200> => {
+
+  return customFetch<DealerTransactionsGet200>(getDealerTransactionsGetUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDealerTransactionsGetQueryKey = (id: string,) => {
+    return [
+    `/api/dealers/transactions/${id}`
+    ] as const;
+    }
+
+
+export const getDealerTransactionsGetQueryOptions = <TData = Awaited<ReturnType<typeof dealerTransactionsGet>>, TError = ErrorType<void>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealerTransactionsGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDealerTransactionsGetQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof dealerTransactionsGet>>> = ({ signal }) => dealerTransactionsGet(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof dealerTransactionsGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DealerTransactionsGetQueryResult = NonNullable<Awaited<ReturnType<typeof dealerTransactionsGet>>>
+export type DealerTransactionsGetQueryError = ErrorType<void>
+
+
+/**
+ * @summary Dealer-transaction detail, from either side
+ */
+
+export function useDealerTransactionsGet<TData = Awaited<ReturnType<typeof dealerTransactionsGet>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof dealerTransactionsGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDealerTransactionsGetQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDealerTransactionsReceiveUrl = (id: string,) => {
+
+
+
+
+  return `/api/dealers/transactions/${id}/receive`
+}
+
+/**
+ * Only the receiving shop may call this. Idempotent — repeating after the first confirmation is a no-op that returns the same repair.
+ * @summary Receiving shop confirms the device has physically arrived
+ */
+export const dealerTransactionsReceive = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<DealerTransactionsReceive200> => {
+
+  return customFetch<DealerTransactionsReceive200>(getDealerTransactionsReceiveUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDealerTransactionsReceiveMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dealerTransactionsReceive>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof dealerTransactionsReceive>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['dealerTransactionsReceive'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof dealerTransactionsReceive>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  dealerTransactionsReceive(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DealerTransactionsReceiveMutationResult = NonNullable<Awaited<ReturnType<typeof dealerTransactionsReceive>>>
+
+    export type DealerTransactionsReceiveMutationError = ErrorType<void>
+
+    /**
+ * @summary Receiving shop confirms the device has physically arrived
+ */
+export const useDealerTransactionsReceive = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dealerTransactionsReceive>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof dealerTransactionsReceive>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDealerTransactionsReceiveMutationOptions(options));
     }
 
 export const getCustomersListUrl = () => {

@@ -773,6 +773,38 @@ export interface SupplierLink {
   stats: DealerStats;
 }
 
+/**
+ * The other shop resolved by mobile — never the caller's own.
+ */
+export interface DealerLookupMatch {
+  shopId: string;
+  businessName: string;
+  ownerUserId: string;
+  ownerName: string;
+  ownerMobile: string;
+}
+
+export interface DealerTransactionInput {
+  receiverShopId: string;
+  customerName?: string;
+  /** @pattern ^\d{10}$ */
+  customerMobile?: string;
+  /** @minLength 1 */
+  deviceType: string;
+  /** @minLength 1 */
+  brand: string;
+  /** @minLength 1 */
+  model: string;
+  imei?: string;
+  imei2?: string;
+  serialNumber?: string;
+  /** @minLength 1 */
+  problem: string;
+  expectedDate: string;
+  estimatedCost?: number;
+  notes?: string;
+}
+
 export interface DealerOverviewStats {
   totalDealerRepairs: number;
   activeRepairs: number;
@@ -1003,6 +1035,10 @@ export interface Repair {
   updatedByName?: string;
   updatedAt?: string;
   createdAt: string;
+  sourceDealerShopId?: string;
+  sourceDealerUserId?: string;
+  sourceDealerBusinessName?: string;
+  sourceDealerReceivedAt?: string;
 }
 
 export type RepairInputPhysicalCondition = {[key: string]: boolean};
@@ -1801,6 +1837,8 @@ export interface ChatRoom {
   providerRoomId?: string;
   /** The other member for a direct room, resolved for the current caller. */
   peerUserId?: string;
+  /** The other member's normalized mobile number, used to match against the caller's device contacts. */
+  peerMobile?: string;
   /** The other member's profile image for a direct room. */
   profilePhoto?: string;
   /** Deterministic sorted pair of participant user IDs for one-to-one rooms. */
@@ -2471,6 +2509,50 @@ export type DealersOverview200 = {
 
 export type DealersUpdate200 = {
   dealer: Dealer;
+};
+
+export type DealersLookupParams = {
+mobile: string;
+};
+
+export type DealersLookup200 = {
+  match: DealerLookupMatch | null;
+};
+
+export type DealerTransactionsListParams = {
+direction: DealerTransactionsListDirection;
+status?: string;
+page?: number;
+limit?: number;
+};
+
+export type DealerTransactionsListDirection = typeof DealerTransactionsListDirection[keyof typeof DealerTransactionsListDirection];
+
+
+export const DealerTransactionsListDirection = {
+  incoming: 'incoming',
+  outgoing: 'outgoing',
+} as const;
+
+export type DealerTransactionsList200 = {
+  repairs: Repair[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export type DealerTransactionsCreate200 = {
+  repair: Repair;
+};
+
+export type DealerTransactionsGet200 = {
+  repair: Repair;
+  /** The OTHER party to this transaction: the source dealer when viewed from the receiving shop, or the receiving shop when viewed from the sending shop. Used to open the dedicated dealer-to-dealer chat. */
+  counterpart: DealerLookupMatch;
+};
+
+export type DealerTransactionsReceive200 = {
+  repair: Repair;
 };
 
 export type CustomersList200 = {

@@ -16,29 +16,50 @@ import {
 } from '@/utils/tabVisibility';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AvarpusLoadingScreen, AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
+import { useChatCapabilities, useChatRoomsList, getChatRoomsListQueryKey } from '@workspace/api-client-react';
 
 const MAIN_TABS: Array<{
   name: PrimaryTabName;
   label: string;
   icon: React.ComponentProps<typeof Feather>['name'];
 }> = [
-  { name: 'index', label: 'Chat', icon: 'message-circle' as const },
+  { name: 'index', label: 'Chats', icon: 'message-circle' as const },
   { name: 'status', label: 'Status', icon: 'circle' as const },
-  { name: 'shop', label: 'Shop', icon: 'briefcase' as const },
+  { name: 'shop', label: 'Shop', icon: 'shopping-bag' as const },
   { name: 'calls', label: 'Calls', icon: 'phone' as const },
   { name: 'repairs', label: 'My Repairs', icon: 'tool' as const },
 ];
+
+function useChatsTabUnreadCount(): number {
+  // Shares the react-query cache/key with the Chat Home screen, so this adds
+  // no extra network traffic beyond what that screen already polls.
+  const { data: capData } = useChatCapabilities();
+  const providerConfigured = capData?.matrixAvailable === true;
+  const { data: roomsData } = useChatRoomsList({
+    query: {
+      enabled: providerConfigured,
+      queryKey: getChatRoomsListQueryKey(),
+      refetchInterval: providerConfigured ? 5_000 : false,
+      refetchIntervalInBackground: false,
+    },
+  });
+  return (roomsData?.rooms ?? [])
+    .filter((room) => room.kind === 'customer' || room.kind === 'direct')
+    .reduce((sum, room) => sum + (room.unreadCount ?? 0), 0);
+}
 
 function PremiumTabBar({
   state,
   descriptors,
   navigation,
   tabs,
+  chatsUnreadCount,
 }: {
   state: { index: number; routes: Array<{ key: string; name: string }> };
   descriptors: Record<string, { options: { href?: string | null; tabBarStyle?: unknown } }>;
   navigation: { navigate: (name: string) => void };
   tabs: typeof MAIN_TABS;
+  chatsUnreadCount: number;
 }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -94,6 +115,16 @@ function PremiumTabBar({
                 size={19}
                 color={focused ? activeColor : colors.mutedForeground}
               />
+              {tab.name === 'index' && chatsUnreadCount > 0 && (
+                <View
+                  style={[styles.tabUnreadBadge, { backgroundColor: colors.primary, borderColor: colors.card }]}
+                  accessibilityLabel={`${chatsUnreadCount} unread chats`}
+                >
+                  <Text style={styles.tabUnreadBadgeText}>
+                    {chatsUnreadCount > 99 ? '99+' : chatsUnreadCount}
+                  </Text>
+                </View>
+              )}
             </View>
             <Text
               style={[
@@ -119,10 +150,11 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
   const isWeb = Platform.OS === 'web';
   const visibleTabNames = getVisiblePrimaryTabs({ customer, portal, canAccess });
   const visibleTabs = MAIN_TABS.filter((tab) => visibleTabNames.includes(tab.name));
+  const chatsUnreadCount = useChatsTabUnreadCount();
 
   return (
     <Tabs
-      tabBar={(props) => <PremiumTabBar {...props} tabs={visibleTabs} />}
+      tabBar={(props) => <PremiumTabBar {...props} tabs={visibleTabs} chatsUnreadCount={chatsUnreadCount} />}
       screenOptions={{
         headerShown: false,
         tabBarHideOnKeyboard: true,
@@ -352,6 +384,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  tabUnreadBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  tabUnreadBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '700' },
   tabLabel: { fontSize: 10, letterSpacing: 0.1 },
   inactivePage: {
     flex: 1,

@@ -2860,6 +2860,7 @@ async function formatRoomForUser(
       .select({
         id: usersTable.id,
         name: usersTable.name,
+        mobile: usersTable.mobile,
         profilePhoto: usersTable.profilePhoto,
         lastSyncedAt: chatRoomMembersTable.lastSyncedAt,
       })
@@ -2896,6 +2897,7 @@ async function formatRoomForUser(
     ...base,
     name: peer?.name ?? base.name,
     peerUserId: peer?.id,
+    peerMobile: peer?.mobile ?? undefined,
     profilePhoto: peer?.profilePhoto ?? undefined,
     peerOnline:
       !!peer?.lastSyncedAt &&

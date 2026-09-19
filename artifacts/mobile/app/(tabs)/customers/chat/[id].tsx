@@ -53,6 +53,7 @@ import * as Location from 'expo-location';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import * as Sharing from 'expo-sharing';
 import { useColors } from '@/hooks/useColors';
+import { useDeviceContactNames } from '@/hooks/useDeviceContactNames';
 import { useConfirmDialog, type ConfirmAction } from '@/components/ui/ConfirmDialog';
 import { useAuth } from '@/context/AuthContext';
 import { Avatar } from '@/components/ui/Avatar';
@@ -1235,7 +1236,8 @@ export default function ChatScreen() {
     },
   });
   const room = roomData?.room;
-  const roomName = room?.name ?? name;
+  const deviceContactNames = useDeviceContactNames();
+  const roomName = deviceContactNames.nameFor(room?.peerMobile, room?.name ?? name);
   const presenceText = room?.peerOnline ? 'online' : formatLastSeen(room?.peerLastSeenAt);
   const isBlocked = room?.isBlocked === true;
   const blockedByMe = room?.blockedByMe === true;

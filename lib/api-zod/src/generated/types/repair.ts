@@ -88,4 +88,8 @@ export interface Repair {
   updatedByName?: string;
   updatedAt?: string;
   createdAt: string;
+  sourceDealerShopId?: string;
+  sourceDealerUserId?: string;
+  sourceDealerBusinessName?: string;
+  sourceDealerReceivedAt?: string;
 }

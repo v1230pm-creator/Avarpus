@@ -31,7 +31,7 @@ import { sendOtpEmail } from "../lib/mailer";
 import { recordPayment, voidPayment, PAYMENT_KINDS } from "../lib/repairPayments";
 import { isDealerPortalRole } from "../lib/dealerPortal";
 import { computeTotals, paymentStatusOf, portalRepairOut } from "../lib/repairProjection";
-import { notifyShop } from "../lib/notify";
+import { notifyShop, notifyUser } from "../lib/notify";
 import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
 import { ObjectStorageService } from "../lib/objectStorage";
 import {
@@ -1646,6 +1646,24 @@ router.patch(
         data: { repairId: updated.id },
         actorId: (req as AuthedRequest).user.id,
         extraUserIds: updated.technicianId ? [updated.technicianId] : [],
+      });
+    }
+    // A device sent in by another shop — tell the sending shop's owner too.
+    // Fired on every status move (including the void/restore paths), never
+    // for a same-status echo, and never for the receiving shop's own read.
+    if (
+      updated.sourceDealerUserId &&
+      patch.status !== undefined &&
+      updated.status !== existing.status
+    ) {
+      void notifyUser({
+        userId: updated.sourceDealerUserId,
+        shopId: updated.sourceDealerShopId,
+        type: "dealer_transaction_status",
+        title: `${updated.brand} ${updated.model}: ${String(updated.status).replace(/_/g, " ")}`,
+        body: `${updated.sourceDealerBusinessName ? "" : ""}Your device at ${updated.repairId} is now ${String(updated.status).replace(/_/g, " ")}.`,
+        data: { repairId: updated.id },
+        dedupeKey: `dealer-txn:${updated.id}:status:${updated.status}:${updated.updatedAt?.toISOString() ?? Date.now()}`,
       });
     }
     res.json({ repair: repairOut(updated) });

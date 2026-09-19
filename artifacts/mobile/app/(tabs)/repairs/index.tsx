@@ -355,6 +355,31 @@ export default function RepairsScreen() {
 
 
         {/* Offline Sync Banner */}
+        {/* Devices sent to/received from other registered Avarpus shops */}
+        {!isPortal && (
+          <TouchableOpacity
+            testID="dealer-transactions-entry"
+            accessibilityRole="button"
+            accessibilityLabel="Open Dealer Transactions"
+            onPress={() => router.push('/(tabs)/repairs/dealer-transactions')}
+            activeOpacity={0.8}
+          >
+            <FlatCard style={{ padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primary + '1A', alignItems: 'center', justifyContent: 'center' }}>
+                <Feather name="repeat" size={18} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }} numberOfLines={1}>
+                  Dealer Transactions
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>
+                  Devices sent to and received from other shops
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </FlatCard>
+          </TouchableOpacity>
+        )}
         {/* Repairs this person has sent to other shops as their dealer */}
         {!isPortal && supplierLinks.length > 0 && (
           <TouchableOpacity

@@ -78,6 +78,22 @@ export const repairsTable = pgTable("repairs", {
   // True when the dealer link was assigned automatically because the intake
   // mobile number exactly matched a single active dealer's registered mobile.
   dealerDetectedByPhone: boolean("dealer_detected_by_phone").notNull().default(false),
+  // ── Dealer-to-dealer transaction (separate concept from dealerId above) ──
+  // Set when ANOTHER registered shop sent this device to us for repair. The
+  // repair lives entirely in OUR repairs table and goes through our normal
+  // workflow; these columns only record who sent it so the sender can track
+  // it read-only from their own Shop → Dealer Transactions screen.
+  sourceDealerShopId: uuid("source_dealer_shop_id").references(() => shopsTable.id, {
+    onDelete: "set null",
+  }),
+  sourceDealerUserId: uuid("source_dealer_user_id").references(() => usersTable.id, {
+    onDelete: "set null",
+  }),
+  sourceDealerBusinessName: text("source_dealer_business_name"), // snapshot
+  // Physical handover confirmation — set only when the receiving shop
+  // explicitly acknowledges the device has arrived. Until then the sender's
+  // view shows "Sent" even though the row already exists in our workflow.
+  sourceDealerReceivedAt: timestamp("source_dealer_received_at", { withTimezone: true }),
   deviceType: text("device_type").notNull(),
   brand: text("brand").notNull(),
   model: text("model").notNull(),

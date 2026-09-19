@@ -1025,6 +1025,148 @@ paths:
                   dealer:
                     $ref: "#/components/schemas/Dealer"
                 required: [dealer]
+  /dealers/lookup:
+    get:
+      operationId: dealersLookup
+      tags: [business]
+      summary: Look up another shop's owner by their registered mobile number
+      description: >-
+        Used when composing a dealer-to-dealer transaction: resolves a
+        mobile number to the OTHER shop's identity (never the caller's own
+        shop, never a dealer-portal login). Returns match: null when no
+        active shop owner is registered with that mobile. The response only
+        ever carries ids/names — never further account details.
+      parameters:
+        - { name: mobile, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Lookup result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  match:
+                    nullable: true
+                    $ref: "#/components/schemas/DealerLookupMatch"
+                required: [match]
+  /dealers/transactions:
+    get:
+      operationId: dealerTransactionsList
+      tags: [business]
+      summary: List dealer-to-dealer transactions involving the caller's shop
+      description: >-
+        direction=incoming lists repairs in the caller's OWN shop that were
+        sent in by another dealer shop. direction=outgoing lists repairs
+        physically held in ANOTHER shop that the caller's shop sent there —
+        a deliberate cross-shop read scoped strictly to rows the caller's
+        shop is recorded as the sender of.
+      parameters:
+        - name: direction
+          in: query
+          required: true
+          schema: { type: string, enum: [incoming, outgoing] }
+        - { name: status, in: query, required: false, schema: { type: string } }
+        - { name: page, in: query, required: false, schema: { type: number } }
+        - { name: limit, in: query, required: false, schema: { type: number } }
+      responses:
+        "200":
+          description: Transactions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  repairs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Repair"
+                  total: { type: number }
+                  page: { type: number }
+                  limit: { type: number }
+                required: [repairs, total, page, limit]
+    post:
+      operationId: dealerTransactionsCreate
+      tags: [business]
+      summary: Send a device to another registered shop for repair
+      description: >-
+        Creates the repair record directly inside the RECEIVING shop's own
+        repairs table (goes through their normal intake/testing/delivery
+        workflow), tagged with the sending shop as sourceDealer. The sending
+        shop only ever gets a read-scoped view of this one row afterward.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DealerTransactionInput"
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  repair:
+                    $ref: "#/components/schemas/Repair"
+                required: [repair]
+  /dealers/transactions/{id}:
+    get:
+      operationId: dealerTransactionsGet
+      tags: [business]
+      summary: Dealer-transaction detail, from either side
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Transaction detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  repair:
+                    $ref: "#/components/schemas/Repair"
+                  counterpart:
+                    description: >-
+                      The OTHER party to this transaction: the source dealer
+                      when viewed from the receiving shop, or the receiving
+                      shop when viewed from the sending shop. Used to open the
+                      dedicated dealer-to-dealer chat.
+                    $ref: "#/components/schemas/DealerLookupMatch"
+                required: [repair, counterpart]
+        "404":
+          description: Not found or not a party to this transaction
+  /dealers/transactions/{id}/receive:
+    post:
+      operationId: dealerTransactionsReceive
+      tags: [business]
+      summary: Receiving shop confirms the device has physically arrived
+      description: >-
+        Only the receiving shop may call this. Idempotent — repeating after
+        the first confirmation is a no-op that returns the same repair.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  repair:
+                    $ref: "#/components/schemas/Repair"
+                required: [repair]
+        "404":
+          description: Not found in the caller's shop
   /customers:
     get:
       operationId: customersList
@@ -4544,6 +4686,33 @@ components:
         stats:
           $ref: "#/components/schemas/DealerStats"
       required: [dealerId, dealerCode, dealerName, shopId, supplier, stats]
+    DealerLookupMatch:
+      type: object
+      description: The other shop resolved by mobile — never the caller's own.
+      properties:
+        shopId: { type: string }
+        businessName: { type: string }
+        ownerUserId: { type: string }
+        ownerName: { type: string }
+        ownerMobile: { type: string }
+      required: [shopId, businessName, ownerUserId, ownerName, ownerMobile]
+    DealerTransactionInput:
+      type: object
+      properties:
+        receiverShopId: { type: string }
+        customerName: { type: string }
+        customerMobile: { type: string, pattern: '^\d{10}$' }
+        deviceType: { type: string, minLength: 1 }
+        brand: { type: string, minLength: 1 }
+        model: { type: string, minLength: 1 }
+        imei: { type: string }
+        imei2: { type: string }
+        serialNumber: { type: string }
+        problem: { type: string, minLength: 1 }
+        expectedDate: { type: string }
+        estimatedCost: { type: number }
+        notes: { type: string }
+      required: [receiverShopId, deviceType, brand, model, problem, expectedDate]
     DealerOverviewStats:
       type: object
       properties:
@@ -4730,6 +4899,10 @@ components:
         updatedByName: { type: string }
         updatedAt: { type: string }
         createdAt: { type: string }
+        sourceDealerShopId: { type: string }
+        sourceDealerUserId: { type: string }
+        sourceDealerBusinessName: { type: string }
+        sourceDealerReceivedAt: { type: string }
       required: [id, repairId, customerName, mobile, deviceType, brand, model, problem, status, priority, repairCharge, partsCharge, serviceCharge, otherCharge, discount, taxPercent, advance, simPresent, memoryCardPresent, totalAmount, paidAmount, balance, receiveDate, expectedDate, warrantyDays, isSample, createdAt]
     RepairInput:
       type: object
@@ -5285,6 +5458,9 @@ components:
         peerUserId:
           type: string
           description: The other member for a direct room, resolved for the current caller.
+        peerMobile:
+          type: string
+          description: The other member's normalized mobile number, used to match against the caller's device contacts.
         profilePhoto:
           type: string
           description: The other member's profile image for a direct room.
