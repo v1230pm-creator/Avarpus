@@ -127,44 +127,52 @@ async function run({ A, B, C, techA }) {
   const lookup = await api("GET", `/dealers/lookup?mobile=${A.mobile}`, B.token);
   check("B resolves A by owner mobile (explicit receiver choice)", lookup.status === 200 && lookup.json.match?.shopId === A.shopId, lookup);
 
-  const sent = await api("POST", "/dealers/transactions", B.token, {
-    receiverShopId: A.shopId,
+  // B already holds the device as ITS OWN repair (walk-in customer). It is
+  // offered to A with Send to Dealer; A's queue stays empty until A accepts.
+  const own = await api("POST", "/repairs", B.token, {
+    customerName: "Beta Walk-in",
+    mobile: "9198989898",
     deviceType: "mobile",
     brand: "Samsung",
     model: "Galaxy A15",
+    imei: "356789012345678",
     problem: "Display broken",
-    expectedDate: new Date(Date.now() + 7 * 864e5).toISOString().split("T")[0],
   });
-  check("B sends device to A", sent.status === 200 && sent.json.repair?.id, sent);
-  const txId = sent.json.repair.id;
-  check("shared transaction code assigned", typeof sent.json.repair.transactionCode === "string" && sent.json.repair.transactionCode.startsWith("DT-"), sent.json.repair);
+  check("B records the device as its own repair first", own.status === 200 && own.json.repair?.id, own);
+  const sourceId = own.json.repair.id;
+  const offer = await api("POST", `/repairs/${sourceId}/transfer`, B.token, { receiverShopId: A.shopId });
+  check("B offers the existing repair to A (pending request)", offer.status === 200 && offer.json.request?.status === "pending", offer);
+  const aBefore = await api("GET", "/repairs?limit=100", A.token);
+  check("nothing appears in A's repair list before acceptance", !(aBefore.json.repairs ?? []).some((r) => r.sourceRepairId === sourceId), { count: aBefore.json.total });
+  const bWaiting = await api("GET", `/repairs/${sourceId}`, B.token);
+  check("B's own row says waiting for A", bWaiting.json.repair?.transfer?.status === "pending" && bWaiting.json.repair.transfer.receiverShopId === A.shopId, bWaiting.json.repair?.transfer);
+  const bAccept = await api("POST", `/dealers/transfers/${offer.json.request.id}/accept`, B.token);
+  check("sender cannot accept on A's behalf", bAccept.status === 404, bAccept);
+  const accepted = await api("POST", `/dealers/transfers/${offer.json.request.id}/accept`, A.token);
+  check("A accepts: repair row created in A's shop", accepted.status === 200 && accepted.json.repair?.id && accepted.json.repair.sourceRepairId === sourceId, accepted);
+  const txId = accepted.json.repair.id;
+  check("shared transaction code assigned", typeof accepted.json.repair.transactionCode === "string" && accepted.json.repair.transactionCode.startsWith("DT-"), accepted.json.repair);
+  check("saved device facts imported (IMEI), sender's customer NOT imported", accepted.json.repair.imei === "356789012345678" && accepted.json.repair.customerName === `${B.businessName} (Dealer)` && accepted.json.repair.mobile === B.mobile, accepted.json.repair);
 
   // 5–6) Appears in A's normal repair list with Source Dealer = B.
   const aRepairs = await api("GET", "/repairs?limit=100", A.token);
   const inList = (aRepairs.json.repairs ?? []).find((r) => r.id === txId);
   check("device appears in A's normal repair list", Boolean(inList), { status: aRepairs.status });
   check("Source Dealer = B on A's repair row", inList?.sourceDealerShopId === B.shopId && inList?.sourceDealerBusinessName === B.businessName, inList);
+  check("A's row carries the sender's original ticket", inList?.sourceRepairTicket === own.json.repair.repairId, inList);
 
   // Both sides read the same transaction; C is not a party.
   let sides = await bothSides(A, B, txId);
   check("A reads as receiver, B as sender", sides.a.side === "receiver" && sides.b.side === "sender", { a: sides.a.side, b: sides.b.side });
   check("both sides see the same transaction code", sides.a.transactionCode === sides.b.transactionCode, sides);
-  check("acceptance = waiting before A confirms", sides.a.acceptance === "waiting" && sides.b.acceptance === "waiting", sides);
   const cView = await api("GET", `/dealers/transactions/${txId}`, C.token);
   check("unrelated shop C cannot read the transaction", cView.status === 404, cView);
   const cRepair = await api("GET", `/repairs/${txId}`, C.token);
   check("unrelated shop C cannot read it as a repair either", cRepair.status === 404 || cRepair.status === 403, cRepair);
 
-  // 4) Explicit accept/receive gate: A cannot start work before confirming receipt.
-  const early = await api("PATCH", `/repairs/${txId}`, A.token, { status: "diagnosing" });
-  check("status change blocked until A accepts (DEALER_RECEIPT_REQUIRED)", early.status === 409 && early.json.code === "DEALER_RECEIPT_REQUIRED", early);
-  const bReceive = await api("POST", `/dealers/transactions/${txId}/receive`, B.token);
-  check("sender cannot accept on A's behalf", bReceive.status === 404, bReceive);
-  const received = await api("POST", `/dealers/transactions/${txId}/receive`, A.token);
-  check("A accepts/receives the device", received.status === 200 && received.json.repair?.sourceDealerReceivedAt, received);
+  // 4) Accepting IS the receipt confirmation; the legacy receive call is a no-op.
   const receivedAgain = await api("POST", `/dealers/transactions/${txId}/receive`, A.token);
-  check("accepting twice is idempotent (same timestamp)", receivedAgain.status === 200 && receivedAgain.json.repair.sourceDealerReceivedAt === received.json.repair.sourceDealerReceivedAt, receivedAgain);
-  sides = await bothSides(A, B, txId);
+  check("legacy receive after accept is idempotent", receivedAgain.status === 200 && receivedAgain.json.repair.sourceDealerReceivedAt === accepted.json.repair.sourceDealerReceivedAt, receivedAgain);
   check("acceptance = received on both sides", sides.a.acceptance === "received" && sides.b.acceptance === "received", sides);
   check("timeline shows dealer_sent then dealer_received", sides.b.events?.some((e) => e.action === "dealer_sent") && sides.b.events?.some((e) => e.action === "dealer_received"), sides.b.events);
 
@@ -263,7 +271,7 @@ async function run({ A, B, C, techA }) {
   // 18) Only saved fields are present — no null/empty placeholders in JSON.
   const hasEmpty = Object.entries(sides.b.repair).filter(([, v]) => v === null || v === "" || v === "N/A");
   check("sender projection carries no null/empty/N-A values", hasEmpty.length === 0, hasEmpty);
-  check("unset IMEI/serial are omitted, not blank", !("imei" in sides.b.repair) && !("serialNumber" in sides.b.repair), Object.keys(sides.b.repair));
+  check("imported IMEI present, unset serial omitted (not blank)", sides.b.repair.imei === "356789012345678" && !("serialNumber" in sides.b.repair), Object.keys(sides.b.repair));
 
   // 24) Staff permissions: A's technician has no payments feature → no ledger.
   const techLedger = await api("GET", "/dealers/transactions/ledger", techA.token);
@@ -279,17 +287,19 @@ async function run({ A, B, C, techA }) {
   check("timeline events carry the declared repairId and userRole", sides.a.events.every((e) => e.repairId === txId && typeof e.userRole === "string" && e.userRole.length > 0), sides.a.events);
 
   // 25–26) Reverse direction: A sends a device to B — an independent ledger.
-  const rev = await api("POST", "/dealers/transactions", A.token, {
-    receiverShopId: B.shopId,
+  const revOwn = await api("POST", "/repairs", A.token, {
+    customerName: "Alpha Walk-in",
+    mobile: "9197979797",
     deviceType: "mobile",
     brand: "Redmi",
     model: "Note 12",
     problem: "Battery drain",
-    expectedDate: new Date(Date.now() + 5 * 864e5).toISOString().split("T")[0],
   });
+  const revOffer = await api("POST", `/repairs/${revOwn.json.repair.id}/transfer`, A.token, { receiverShopId: B.shopId });
+  const revAccepted = await api("POST", `/dealers/transfers/${revOffer.json.request.id}/accept`, B.token);
+  const rev = { status: revAccepted.status, json: revAccepted.json };
   check("A sends a device to B (roles swap)", rev.status === 200 && rev.json.repair?.id, rev);
   const revId = rev.json.repair.id;
-  await api("POST", `/dealers/transactions/${revId}/receive`, B.token);
   await api("PATCH", `/repairs/${revId}`, B.token, { status: "repairing" });
   await api("PATCH", `/repairs/${revId}`, B.token, { diagnosis: "Battery worn", workPerformed: "Battery replaced", repairCharge: 250 });
   await api("PATCH", `/repairs/${revId}`, B.token, { status: "testing" });

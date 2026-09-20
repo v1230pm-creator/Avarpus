@@ -16,7 +16,8 @@ export default function RepairsLayout() {
       <Stack.Screen name="suppliers" />
       <Stack.Screen name="supplier/[dealerId]" />
       <Stack.Screen name="dealer-transactions/index" />
-      <Stack.Screen name="dealer-transactions/create" />
+      <Stack.Screen name="dealer-transactions/send" />
+      <Stack.Screen name="dealer-transactions/request/[id]" />
       <Stack.Screen name="dealer-transactions/[id]" />
       <Stack.Screen name="[id]" />
     </Stack>

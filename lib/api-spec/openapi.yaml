@@ -1085,32 +1085,211 @@ paths:
                   page: { type: number }
                   limit: { type: number }
                 required: [repairs, total, page, limit]
-    post:
-      operationId: dealerTransactionsCreate
+  /dealers/directory:
+    get:
+      operationId: dealersDirectory
       tags: [business]
-      summary: Send a device to another registered shop for repair
+      summary: Search verified shop owners to send a device to
       description: >-
-        Creates the repair record directly inside the RECEIVING shop's own
-        repairs table (goes through their normal intake/testing/delivery
-        workflow), tagged with the sending shop as sourceDealer. The sending
-        shop only ever gets a read-scoped view of this one row afterward.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/DealerTransactionInput"
+        Returns OTHER registered shops (verified owner accounts only, never
+        dealer-portal or customer logins, never the caller's own shop).
+        Matches business name, owner name or Dealer ID by prefix/substring;
+        a full Indian mobile number (10 digits, optionally with +91/0 prefix,
+        spaces or dashes) matches the owner's registered mobile exactly —
+        partial numbers never match. Shops owned by a `dealer` or the
+        platform `super_admin` both count as verified. Results only carry
+        ids and names — the owner's mobile is never returned here.
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 80 } }
       responses:
         "200":
-          description: Created
+          description: Matching shops (empty when none)
           content:
             application/json:
               schema:
                 type: object
                 properties:
+                  dealers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DealerDirectoryEntry"
+                required: [dealers]
+  /repairs/{id}/transfer:
+    post:
+      operationId: repairsTransfer
+      tags: [business]
+      summary: Offer an existing repair to another registered shop (Send to Dealer)
+      description: >-
+        Creates a PENDING dealer transfer request for a repair the caller's
+        shop holds. Nothing is created in the receiving shop until they
+        accept. Rejected (409 TRANSFER_PENDING) while another request for the
+        same repair is still waiting, and (409 TRANSFER_ACTIVE) while an
+        accepted transfer is still being repaired by the other shop.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DealerTransferInput"
+      responses:
+        "200":
+          description: Request created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    $ref: "#/components/schemas/DealerTransferRequest"
+                required: [request]
+        "404":
+          description: Repair not found in the caller's shop / unknown receiving shop
+        "409":
+          description: A transfer for this repair is already pending or active
+  /dealers/transfers:
+    get:
+      operationId: dealerTransfersList
+      tags: [business]
+      summary: List dealer transfer requests involving the caller's shop
+      description: >-
+        direction=incoming lists requests other shops sent TO the caller's
+        shop; direction=outgoing lists requests the caller's shop sent.
+        Newest first. Optional status filter (pending|accepted|declined|cancelled).
+      parameters:
+        - name: direction
+          in: query
+          required: true
+          schema: { type: string, enum: [incoming, outgoing] }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [pending, accepted, declined, cancelled] } }
+        - { name: page, in: query, required: false, schema: { type: number } }
+        - { name: limit, in: query, required: false, schema: { type: number } }
+      responses:
+        "200":
+          description: Requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DealerTransferRequest"
+                  total: { type: number }
+                  page: { type: number }
+                  limit: { type: number }
+                required: [requests, total, page, limit]
+  /dealers/transfers/{id}:
+    get:
+      operationId: dealerTransfersGet
+      tags: [business]
+      summary: Dealer transfer request detail, from either side
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Request detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    $ref: "#/components/schemas/DealerTransferRequest"
+                required: [request]
+        "404":
+          description: Not found or not a party to this request
+  /dealers/transfers/{id}/accept:
+    post:
+      operationId: dealerTransfersAccept
+      tags: [business]
+      summary: Receiving shop accepts the device
+      description: >-
+        Only the receiving shop may call this, and only while the request is
+        pending. Creates the receiving shop's repair row in one transaction,
+        importing every saved (non-empty) device fact from the sender's
+        record, and marks the device as received. Idempotent for a request
+        this shop already accepted.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    $ref: "#/components/schemas/DealerTransferRequest"
                   repair:
                     $ref: "#/components/schemas/Repair"
-                required: [repair]
+                required: [request, repair]
+        "409":
+          description: Request is no longer pending (declined / cancelled)
+  /dealers/transfers/{id}/decline:
+    post:
+      operationId: dealerTransfersDecline
+      tags: [business]
+      summary: Receiving shop declines the device
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DealerTransferDeclineInput"
+      responses:
+        "200":
+          description: Declined
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    $ref: "#/components/schemas/DealerTransferRequest"
+                required: [request]
+        "409":
+          description: Request is no longer pending
+  /dealers/transfers/{id}/cancel:
+    post:
+      operationId: dealerTransfersCancel
+      tags: [business]
+      summary: Sending shop withdraws a pending request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    $ref: "#/components/schemas/DealerTransferRequest"
+                required: [request]
+        "409":
+          description: Request is no longer pending (already accepted / declined)
   /dealers/transactions/ledger:
     get:
       operationId: dealerTransactionsLedger
@@ -4859,21 +5038,116 @@ components:
         liveTotal: { type: number, description: Current charge total even before posting. }
         billPosted: { type: boolean }
       required: [billed, paid, refunded, balance, liveTotal, billPosted]
-    DealerTransactionInput:
+    DealerDirectoryEntry:
+      type: object
+      description: Another verified shop owner, as shown in the Send to Dealer picker.
+      properties:
+        shopId: { type: string }
+        dealerCode:
+          type: string
+          description: Short Dealer ID derived from the shop id (first 8 characters, upper-case).
+        businessName: { type: string }
+        ownerUserId: { type: string }
+        ownerName: { type: string }
+        address: { type: string }
+        matchedByMobile:
+          type: boolean
+          description: True when the query was the owner's exact registered mobile.
+      required: [shopId, dealerCode, businessName, ownerUserId, ownerName, matchedByMobile]
+    DealerTransferInput:
       type: object
       properties:
         receiverShopId: { type: string }
-        deviceType: { type: string, minLength: 1 }
-        brand: { type: string, minLength: 1 }
-        model: { type: string, minLength: 1 }
+        message: { type: string, maxLength: 500 }
+      required: [receiverShopId]
+    DealerTransferDeclineInput:
+      type: object
+      properties:
+        reason: { type: string, maxLength: 500 }
+    DealerTransferDevice:
+      type: object
+      description: >-
+        The device facts the receiving shop is allowed to preview before
+        accepting. Only saved (non-empty) values are present; the sender's
+        end-customer identity is never included.
+      properties:
+        sourceTicket: { type: string }
+        deviceType: { type: string }
+        brand: { type: string }
+        model: { type: string }
         imei: { type: string }
         imei2: { type: string }
         serialNumber: { type: string }
-        problem: { type: string, minLength: 1 }
+        color: { type: string }
+        storage: { type: string }
+        ram: { type: string }
+        problem: { type: string }
+        deviceCondition: { type: string }
+        accessories: { type: string }
+        accessoriesList:
+          type: array
+          items: { type: string }
+        priority: { type: string }
+        receiveDate: { type: string }
         expectedDate: { type: string }
-        estimatedCost: { type: number }
-        notes: { type: string }
-      required: [receiverShopId, deviceType, brand, model, problem, expectedDate]
+        photoCount: { type: number }
+      required: [sourceTicket, deviceType, brand, model, problem, priority, receiveDate, photoCount]
+    DealerTransferParty:
+      type: object
+      properties:
+        shopId: { type: string }
+        businessName: { type: string }
+        ownerUserId: { type: string }
+        ownerName: { type: string }
+      required: [shopId, businessName, ownerName]
+    DealerTransferRequest:
+      type: object
+      properties:
+        id: { type: string }
+        status:
+          type: string
+          enum: [pending, accepted, declined, cancelled]
+        side:
+          type: string
+          enum: [sender, receiver]
+          description: Which party the caller is.
+        sender:
+          $ref: "#/components/schemas/DealerTransferParty"
+        receiver:
+          $ref: "#/components/schemas/DealerTransferParty"
+        sentByName: { type: string }
+        message: { type: string }
+        device:
+          $ref: "#/components/schemas/DealerTransferDevice"
+        sourceRepairId:
+          type: string
+          description: Only returned to the sending shop (it is their own repair row).
+        resultRepairId:
+          type: string
+          description: The receiving shop's repair row, once accepted. Opens the shared transaction view.
+        resultStatus:
+          type: string
+          description: Live status of the receiving shop's repair, once accepted.
+        respondedByName: { type: string }
+        respondedAt: { type: string }
+        declineReason: { type: string }
+        createdAt: { type: string }
+      required: [id, status, side, sender, receiver, sentByName, device, createdAt]
+    RepairTransferSummary:
+      type: object
+      properties:
+        requestId: { type: string }
+        status:
+          type: string
+          enum: [pending, accepted, declined, cancelled]
+        receiverShopId: { type: string }
+        receiverBusinessName: { type: string }
+        receiverOwnerName: { type: string }
+        resultRepairId: { type: string }
+        resultStatus: { type: string }
+        createdAt: { type: string }
+        respondedAt: { type: string }
+      required: [requestId, status, receiverShopId, receiverBusinessName, createdAt]
     DealerOverviewStats:
       type: object
       properties:
@@ -5068,6 +5342,21 @@ components:
         transactionCode:
           type: string
           description: Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.
+        sourceRepairId:
+          type: string
+          description: The sender's original repair row when this row was created by accepting a dealer transfer.
+        sourceRepairTicket:
+          type: string
+          description: Human ticket number of the sender's original repair (e.g. VMC-014).
+        sourceReceiveDate:
+          type: string
+          description: The date the sender originally received the device from their customer.
+        transfer:
+          description: >-
+            Present on the SENDING shop's own repair when it has been offered
+            to another shop: the latest transfer request and, once accepted,
+            the linked repair's live status at the other shop.
+          $ref: "#/components/schemas/RepairTransferSummary"
       required: [id, repairId, customerName, mobile, deviceType, brand, model, problem, status, priority, repairCharge, partsCharge, serviceCharge, otherCharge, discount, taxPercent, advance, simPresent, memoryCardPresent, totalAmount, paidAmount, balance, receiveDate, expectedDate, warrantyDays, isSample, createdAt]
     RepairInput:
       type: object

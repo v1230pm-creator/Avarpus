@@ -60,7 +60,11 @@ const AuthContext = createContext<AuthContextType>({
 
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   super_admin: ['*'],
-  dealer: ['dashboard', 'repairs', 'inventory', 'customers', 'finance', 'payments', 'staff', 'reports', 'settings', 'purchases', 'attendance', 'backup', 'profit', 'income', 'expense'],
+  // A verified shop owner (role `dealer`) has full access to their own shop —
+  // including every repair mutation (`repairs_create`, `repairs_update`,
+  // approvals). The server scopes everything by shop id, so the client must
+  // not hold back capabilities the owner already has.
+  dealer: ['*'],
   reception: ['repairs', 'repairs_create', 'customers'],
   technician: ['repairs', 'repairs_update', 'customers'],
   store_manager: ['inventory', 'purchases'],

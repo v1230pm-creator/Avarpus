@@ -51,6 +51,7 @@
 - [Chat abuse controls](chat-abuse-controls.md) — pair blocks are bidirectional in effect; reports need server limits and stable client retry identities.
 - [Task-branch publishing isolation](task-branch-publishing.md) — Publishing from the parent workspace does not include an assigned task's isolated branch until that task is merged.
 - [React Native API caching](react-native-api-caching.md) — dynamic/authenticated API responses must not use HTTP validators; body-less 304 responses surface as client query failures.
+- [Expo web visual check](expo-web-visual-check.md) — screenshot logged-in mobile screens: DB-inserted session + localStorage token + Playwright route api.avarpus.com → dev API.
 - [Expo motion testing](expo-motion-testing.md) — Reanimated web previews may honor host reduced-motion despite browser emulation; verify normal-motion timing on-device or with direct visual sampling.
 - [Custom tab visibility](custom-tab-visibility.md) — Expo Router custom tab bars must derive visible routes from access state; descriptor `href` may not reliably hide forbidden tabs.
 - [Android 12 splash handoff](android-12-splash-handoff.md) — never feed full-screen art to the centered system icon; bridge with matching navy until the in-app splash is loaded.
@@ -85,4 +86,7 @@
 - [Voice-note recording](voice-note-recording.md) — pause = stop into ADTS segments joined by byte concat; native forDuration cap; wall-clock segment length; owned temp files deleted on every exit.
 - [Shared confirm dialog](confirm-dialog.md) — destructive prompts use ConfirmDialog, never Alert.alert; hosts inside Modals, return promises from onPress, `caption: null` when reversible.
 - [Dealer-to-dealer ledger](dealer-to-dealer-ledger.md) — repair row is the shared transaction; per-(shop,direction) books never netted; labels from balance sign + server side; money is a separate permission.
+- [Object entity paths](object-entity-paths.md) — build stored `/objects/…` paths from the written key, never `publicUrl()`; non-canonical rows are unloadable and the sweep deletes their objects.
 - [OTP throttle refunds](otp-throttle-refunds.md) — dead SMS provider surfaces as 429 after 3 tries; refund only per-mobile for provable pre-dispatch failures, release siblings on denial.
+- [Dealer directory search](dealer-directory-search.md) — verified owner = `dealer` OR `super_admin`; normalise typed mobiles then match exactly; gate by `repairs_update`; failed search ≠ "not found".
+- [Dealer transfer requests](dealer-transfer-requests.md) — sending a repair to another shop is an offer; receiver row exists only after accept; reads gated by `repairs`, mutations by `repairs_update`.

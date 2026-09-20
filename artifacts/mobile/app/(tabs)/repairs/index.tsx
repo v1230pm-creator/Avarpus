@@ -23,6 +23,7 @@ import { FlatCard } from '@/components/ui/FlatCard';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { Avatar } from '@/components/ui/Avatar';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
+import { useConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Repair, isDealerPortalRole, isLinkedCustomerPortalUser } from '@/types';
 import { formatDate, formatCurrency, getReturnStatusColor } from '@/utils/helpers';
 import * as Network from 'expo-network';
@@ -36,8 +37,22 @@ type Filter = (typeof FILTERS)[number];
 // Dealer-portal accounts see a simplified read-only view of their own repairs.
 const PORTAL_FILTERS = ['All', 'Received', 'Repair', 'Ready', 'Delivered'] as const;
 
-function RepairCard({ repair, onPress }: { repair: Repair; onPress: () => void; }) {
+function transferBadge(repair: Repair, colors: ReturnType<typeof useColors>) {
+  const t = repair.transfer;
+  if (!t) return null;
+  const who = t.receiverBusinessName || t.receiverOwnerName || 'the dealer';
+  if (t.status === 'pending') return { icon: 'clock' as const, color: colors.warning, label: `Waiting for ${who} to accept` };
+  if (t.status === 'accepted') {
+    const live = t.resultStatus ? ` · ${t.resultStatus.replace(/_/g, ' ')}` : '';
+    return { icon: 'check-circle' as const, color: colors.success, label: `Accepted by ${who}${live}` };
+  }
+  if (t.status === 'declined') return { icon: 'x-circle' as const, color: colors.destructive, label: `Declined by ${who} · you can send again` };
+  return null;
+}
+
+function RepairCard({ repair, onPress, onLongPress }: { repair: Repair; onPress: () => void; onLongPress?: () => void; }) {
   const colors = useColors();
+  const badge = transferBadge(repair, colors);
   const total = repair.totalAmount ?? repair.repairCharge + repair.partsCharge;
   const paid = repair.paidAmount ?? repair.advance ?? 0;
   const rawBalance = repair.balance ?? total - paid;
@@ -45,7 +60,14 @@ function RepairCard({ repair, onPress }: { repair: Repair; onPress: () => void; 
   const balanceColor = rawBalance > 0 ? colors.destructive : rawBalance < 0 ? colors.success : colors.mutedForeground;
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
+    <TouchableOpacity
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={350}
+      activeOpacity={0.8}
+      testID={`repair-card-${repair.id}`}
+      accessibilityHint={onLongPress ? 'Long press to send this device to another dealer' : undefined}
+    >
       <View style={{ padding: 14, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, marginBottom: 12, flexDirection: 'row' }}>
         
         {/* Left Icon */}
@@ -65,8 +87,16 @@ function RepairCard({ repair, onPress }: { repair: Repair; onPress: () => void; 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
               <Feather name="briefcase" size={11} color={colors.primary} />
               <Text style={{ fontSize: 12, color: colors.primary, fontFamily: 'Inter_500Medium', flexShrink: 1 }} numberOfLines={1}>
-                Source Dealer: {repair.sourceDealerBusinessName}
-                {repair.sourceDealerReceivedAt ? '' : ' · Waiting for acceptance'}
+                Received from {repair.sourceDealerBusinessName}
+                {repair.sourceRepairTicket ? ` · ${repair.sourceRepairTicket}` : ''}
+              </Text>
+            </View>
+          )}
+          {!!badge && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }} testID={`repair-transfer-badge-${repair.id}`}>
+              <Feather name={badge.icon} size={11} color={badge.color} />
+              <Text style={{ fontSize: 12, color: badge.color, fontFamily: 'Inter_500Medium', flexShrink: 1 }} numberOfLines={1}>
+                {badge.label}
               </Text>
             </View>
           )}
@@ -103,6 +133,37 @@ export default function RepairsScreen() {
   const isCustomerPortal = isLinkedCustomerPortalUser(user);
   const isPortal = isDealerPortal || isCustomerPortal;
   const isOwner = user?.role === 'dealer' || user?.role === 'super_admin';
+  const { confirm } = useConfirmDialog();
+  // "Send to Dealer" is a staff action on the shop's own open repairs: never
+  // for portal viewers, never without the repairs_update toggle, never on a
+  // row already waiting for (or held by) another dealer, never on closed rows.
+  const canSendToDealer = !isPortal && canAccess('repairs_update');
+  const sendToDealerFor = (repair: Repair): (() => void) | undefined => {
+    if (!canSendToDealer) return undefined;
+    if (repair.status === 'delivered' || repair.status === 'cancelled') return undefined;
+    const t = repair.transfer;
+    if (t?.status === 'pending') return undefined;
+    if (t?.status === 'accepted' && t.resultStatus && !['delivered', 'cancelled'].includes(t.resultStatus)) return undefined;
+    return () => {
+      confirm({
+        title: 'Send to Dealer',
+        message: `${repair.repairId} · ${repair.brand} ${repair.model}`,
+        caption: 'The other dealer must accept before it appears in their queue. Your record stays unchanged.',
+        icon: 'send',
+        actions: [
+          {
+            label: 'Choose dealer',
+            description: 'Search by name, shop, mobile or Dealer ID',
+            icon: 'search',
+            tone: 'neutral',
+            onPress: () => {
+              router.push({ pathname: '/(tabs)/repairs/dealer-transactions/send', params: { repairId: repair.id } } as any);
+            },
+          },
+        ],
+      });
+    };
+  };
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('Received');
@@ -714,7 +775,13 @@ export default function RepairsScreen() {
             // Portal accounts get a read-only card: variant derived from the
             // repair's own status, never the staff 'ready' variant (which
             // shows Notify/Payment/Hand Over actions).
-            return <RepairCard repair={item} onPress={() => router.push(`/(tabs)/repairs/${item.id}`)} />;
+            return (
+              <RepairCard
+                repair={item}
+                onPress={() => router.push(`/(tabs)/repairs/${item.id}`)}
+                onLongPress={sendToDealerFor(item)}
+              />
+            );
           }}
         />
       )}

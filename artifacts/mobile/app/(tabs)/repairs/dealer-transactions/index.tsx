@@ -9,8 +9,9 @@ import { FlatCard } from '@/components/ui/FlatCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState } from '@/components/ui/DataStates';
 import { RepairStatusBadge } from '@/components/ui/Badge';
-import { useDealerTransactionsList } from '@workspace/api-client-react';
-import type { DealerTransactionsListDirection } from '@workspace/api-client-react';
+import { TransferRequestCard } from '@/components/dealer/TransferRequestCard';
+import { useDealerTransactionsList, useDealerTransfersList } from '@workspace/api-client-react';
+import type { DealerTransactionsListDirection, DealerTransferRequest } from '@workspace/api-client-react';
 
 type Direction = 'incoming' | 'outgoing';
 type StatusFilter = 'all' | 'in_repair' | 'ready' | 'completed';
@@ -20,6 +21,10 @@ const IN_REPAIR_STATUSES = ['diagnosing', 'waiting_parts', 'repairing', 'testing
 // A private ledger of devices this shop sent to (or received from) another
 // registered shop. Direction is the real split in the data model — status
 // filter chips are a client-side view on top of whichever direction is open.
+//
+// Above the accepted transactions sit the transfer REQUESTS for the same
+// direction: Incoming = devices other dealers want to send us (accept /
+// decline); Outgoing = devices we offered and are waiting on (cancel).
 export default function DealerTransactionsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -29,11 +34,13 @@ export default function DealerTransactionsScreen() {
 
   const [direction, setDirection] = useState<Direction>('incoming');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [showHistory, setShowHistory] = useState(false);
 
   const { data, isLoading, error, refetch, isFetching } = useDealerTransactionsList({
     direction: direction as DealerTransactionsListDirection,
     limit: 50,
   });
+  const requestsQuery = useDealerTransfersList({ direction, limit: 50 });
   const allRepairs = data?.repairs ?? [];
 
   const repairs = useMemo(() => {
@@ -43,7 +50,21 @@ export default function DealerTransactionsScreen() {
     return allRepairs.filter((r: any) => r.status === 'delivered');
   }, [allRepairs, statusFilter]);
 
-  const canCreate = canAccess('repairs_update');
+  const requests = requestsQuery.data?.requests ?? [];
+  const pendingRequests = useMemo(() => requests.filter((r) => r.status === 'pending'), [requests]);
+  const settledRequests = useMemo(
+    () => requests.filter((r) => r.status === 'declined' || r.status === 'cancelled'),
+    [requests],
+  );
+  const canRespond = canAccess('repairs_update');
+
+  const refreshAll = () => {
+    void refetch();
+    void requestsQuery.refetch();
+  };
+
+  const openRequest = (r: DealerTransferRequest) =>
+    router.push(`/(tabs)/repairs/dealer-transactions/request/${r.id}` as any);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -66,22 +87,26 @@ export default function DealerTransactionsScreen() {
       </View>
 
       <View style={styles.segmentRow}>
-        {(['incoming', 'outgoing'] as Direction[]).map((d) => (
-          <TouchableOpacity
-            key={d}
-            testID={`dealer-txn-tab-${d}`}
-            accessibilityRole="button"
-            onPress={() => { setDirection(d); setStatusFilter('all'); }}
-            style={[
-              styles.segment,
-              { backgroundColor: direction === d ? colors.primary : colors.surface, borderColor: colors.border },
-            ]}
-          >
-            <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: direction === d ? '#fff' : colors.foreground }}>
-              {d === 'incoming' ? 'Incoming' : 'Outgoing'}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {(['incoming', 'outgoing'] as Direction[]).map((d) => {
+          const pendingCount = d === direction ? pendingRequests.length : 0;
+          return (
+            <TouchableOpacity
+              key={d}
+              testID={`dealer-txn-tab-${d}`}
+              accessibilityRole="button"
+              onPress={() => { setDirection(d); setStatusFilter('all'); setShowHistory(false); }}
+              style={[
+                styles.segment,
+                { backgroundColor: direction === d ? colors.primary : colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: direction === d ? '#fff' : colors.foreground }}>
+                {d === 'incoming' ? 'Incoming' : 'Outgoing'}
+                {pendingCount > 0 ? ` (${pendingCount})` : ''}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <View style={styles.chipRow}>
@@ -112,24 +137,63 @@ export default function DealerTransactionsScreen() {
       {isLoading && !data ? (
         <DataLoadingState />
       ) : error && !data ? (
-        <DataErrorState onRetry={() => { void refetch(); }} />
+        <DataErrorState onRetry={refreshAll} />
       ) : (
         <FlatList
           data={repairs}
           keyExtractor={(r: any) => r.id}
-          contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: insets.bottom + 120, gap: 10 }}
+          contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: insets.bottom + 40, gap: 10 }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={isFetching && !!data} onRefresh={() => { void refetch(); }} tintColor={colors.primary} />}
+          refreshControl={<RefreshControl refreshing={isFetching && !!data} onRefresh={refreshAll} tintColor={colors.primary} />}
+          ListHeaderComponent={
+            statusFilter === 'all' && (pendingRequests.length > 0 || settledRequests.length > 0) ? (
+              <View style={{ gap: 10, marginBottom: 6 }} testID={`transfer-requests-${direction}`}>
+                {pendingRequests.length > 0 && (
+                  <>
+                    <Text style={[styles.groupLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
+                      {direction === 'incoming' ? 'INCOMING REQUESTS · ACCEPT TO ADD TO YOUR QUEUE' : 'WAITING FOR THE OTHER DEALER'}
+                    </Text>
+                    {pendingRequests.map((r) => (
+                      <TransferRequestCard key={r.id} request={r} canRespond={canRespond} onPress={() => openRequest(r)} />
+                    ))}
+                  </>
+                )}
+                {settledRequests.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setShowHistory((v) => !v)}
+                    accessibilityRole="button"
+                    testID="transfer-history-toggle"
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 }}
+                  >
+                    <Feather name={showHistory ? 'chevron-down' : 'chevron-right'} size={14} color={colors.mutedForeground} />
+                    <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }}>
+                      {settledRequests.length} declined / cancelled request{settledRequests.length === 1 ? '' : 's'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {showHistory && settledRequests.map((r) => (
+                  <TransferRequestCard key={r.id} request={r} canRespond={false} onPress={() => openRequest(r)} />
+                ))}
+                {repairs.length > 0 && (
+                  <Text style={[styles.groupLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
+                    {direction === 'incoming' ? 'ACCEPTED · IN YOUR QUEUE' : 'ACCEPTED · WITH THE OTHER DEALER'}
+                  </Text>
+                )}
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
-            <EmptyState
-              icon="repeat"
-              title={direction === 'incoming' ? 'No devices sent to you yet' : 'No devices sent out yet'}
-              description={
-                direction === 'incoming'
-                  ? 'Devices other registered shops send you for repair appear here.'
-                  : 'Send a device to another registered shop to track it here.'
-              }
-            />
+            pendingRequests.length > 0 && statusFilter === 'all' ? null : (
+              <EmptyState
+                icon="repeat"
+                title={direction === 'incoming' ? 'No devices sent to you yet' : 'No devices sent out yet'}
+                description={
+                  direction === 'incoming'
+                    ? 'When another dealer sends you a device, it appears here as a request first. Nothing enters your queue until you accept.'
+                    : 'Long-press any repair in your Received or Repair list and choose “Send to Dealer”.'
+                }
+              />
+            )
           }
           renderItem={({ item }: { item: any }) => (
             <TouchableOpacity
@@ -160,35 +224,16 @@ export default function DealerTransactionsScreen() {
                     {item.problem}
                   </Text>
                 )}
-                {!item.sourceDealerReceivedAt ? (
-                  <View style={[styles.pendingBadge, { backgroundColor: colors.warning + '1A' }]}>
-                    <Feather name="clock" size={11} color={colors.warning} />
-                    <Text style={{ fontSize: 11, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>
-                      {direction === 'incoming' ? 'Waiting for Acceptance · confirm receipt' : 'Waiting for Acceptance'}
-                    </Text>
-                  </View>
-                ) : (
-                  <View style={[styles.pendingBadge, { backgroundColor: colors.success + '1A' }]}>
-                    <Feather name="check-circle" size={11} color={colors.success} />
-                    <Text style={{ fontSize: 11, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>Received</Text>
-                  </View>
-                )}
+                <View style={[styles.pendingBadge, { backgroundColor: colors.success + '1A' }]}>
+                  <Feather name="check-circle" size={11} color={colors.success} />
+                  <Text style={{ fontSize: 11, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>
+                    {direction === 'incoming' ? 'Accepted' : 'Accepted by the other dealer'}
+                  </Text>
+                </View>
               </FlatCard>
             </TouchableOpacity>
           )}
         />
-      )}
-
-      {direction === 'outgoing' && canCreate && (
-        <TouchableOpacity
-          testID="dealer-txn-fab"
-          accessibilityRole="button"
-          accessibilityLabel="Send a device to another shop"
-          onPress={() => router.push('/(tabs)/repairs/dealer-transactions/create')}
-          style={[styles.fab, { backgroundColor: colors.primary, bottom: insets.bottom + 24 }]}
-        >
-          <Feather name="plus" size={24} color="#fff" />
-        </TouchableOpacity>
       )}
     </View>
   );
@@ -204,7 +249,7 @@ const styles = StyleSheet.create({
   segment: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
   chipRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 12, marginBottom: 10, flexWrap: 'wrap' },
   chip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
+  groupLabel: { fontSize: 10, letterSpacing: 1, marginTop: 4 },
   avatar: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   pendingBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  fab: { position: 'absolute', right: 20, width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
 });

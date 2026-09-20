@@ -21,6 +21,17 @@ describe('notification navigation', () => {
       .toBe('/(tabs)/repairs/repair-1');
   });
 
+  it('routes transfer requests to the request screen, not a repair', () => {
+    // New / declined / cancelled requests: the receiver has no repair row yet.
+    expect(getNotificationRoute({ transferId: 'req-1', dealerTransfer: true }))
+      .toBe('/(tabs)/repairs/dealer-transactions/request/req-1');
+    expect(getNotificationRoute({ transferId: 'req-1', repairId: 'repair-1' }))
+      .toBe('/(tabs)/repairs/dealer-transactions/request/req-1');
+    // Accepted: the shared transaction view exists, prefer it.
+    expect(getNotificationRoute({ transferId: 'req-1', repairId: 'repair-2', dealerTransaction: true }))
+      .toBe('/(tabs)/repairs/dealer-transactions/repair-2');
+  });
+
   it('ignores malformed notification payloads', () => {
     expect(getNotificationRoute(null)).toBeNull();
     expect(getNotificationRoute({ roomId: 42 })).toBeNull();

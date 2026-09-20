@@ -12,3 +12,6 @@ description: How destructive confirmations work in the mobile app (ConfirmDialog
 - Pass `caption: null` for reversible actions (e.g. disconnect backup) so the "cannot be undone" line is not shown falsely.
 - Time-driven overlays (StatusViewer playback) must pause while the confirmation is open.
 - Tests mock `useConfirmDialog` at the boundary (`jest.mock('@/components/ui/ConfirmDialog', () => ({...requireActual, useConfirmDialog: () => ({ confirm: mockConfirm })}))`) and assert on the options' `actions` labels/descriptions.
+
+
+**Test fallout:** when a screen first adopts `useConfirmDialog`, every existing test that renders it directly must wrap it in `ConfirmDialogProvider` (or mock the hook) — the hook throws without the provider and the failure looks unrelated.

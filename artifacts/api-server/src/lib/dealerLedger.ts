@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNotNull, or } from "drizzle-orm";
 import {
   db,
+  dealerTransferRequestsTable,
   refundsTable,
   repairEventsTable,
   repairPaymentsTable,
@@ -403,6 +404,7 @@ const SHARED_EVENT_ACTIONS = new Set([
   "estimate_rejected",
   "delivery_otp_verified",
   "dealer_received",
+  "dealer_transfer_accepted",
 ]);
 
 export async function sharedTimeline(r: RepairRow) {
@@ -423,14 +425,23 @@ export async function sharedTimeline(r: RepairRow) {
       createdAt: e.createdAt.toISOString(),
     }));
   // Synthetic milestones that live on the repair row rather than in events.
+  // Rows created by accepting a transfer request were "sent" when the
+  // request was made (by whoever pressed Send), not when this row appeared.
+  const [request] = await db
+    .select()
+    .from(dealerTransferRequestsTable)
+    .where(and(eq(dealerTransferRequestsTable.resultRepairId, r.id), eq(dealerTransferRequestsTable.status, "accepted")))
+    .limit(1);
   events.unshift({
     id: `sent:${r.id}`,
     repairId: r.id,
     action: "dealer_sent",
-    details: undefined,
-    userName: r.createdByName ?? r.sourceDealerBusinessName ?? "",
+    details: request
+      ? { transferId: request.id, message: request.message ?? undefined }
+      : undefined,
+    userName: request?.sentByName ?? r.createdByName ?? r.sourceDealerBusinessName ?? "",
     userRole: "dealer",
-    createdAt: r.createdAt.toISOString(),
+    createdAt: (request?.createdAt ?? r.createdAt).toISOString(),
   });
   // Older rows were accepted before the acceptance event existed — derive
   // the milestone from the timestamp so the timeline stays complete.

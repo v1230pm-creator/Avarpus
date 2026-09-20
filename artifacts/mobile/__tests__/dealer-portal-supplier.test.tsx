@@ -71,13 +71,16 @@ jest.mock('expo-network', () => ({
 
 import { AuthProvider } from '@/context/AuthContext';
 import RepairsScreen from '@/app/(tabs)/repairs/index';
+import { ConfirmDialogProvider } from '@/components/ui/ConfirmDialog';
 
 async function renderRepairs() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const utils = render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <RepairsScreen />
+        <ConfirmDialogProvider>
+          <RepairsScreen />
+        </ConfirmDialogProvider>
       </AuthProvider>
     </QueryClientProvider>,
   );

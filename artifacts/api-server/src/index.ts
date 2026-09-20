@@ -5,6 +5,10 @@ import { cleanupExpiredAuthData } from "./lib/authUtils";
 import { warnIfMailFromUnset } from "./lib/mailer";
 import { cleanupAbandonedStatusUploads } from "./routes/status";
 import { cleanupAbandonedChatAndProfileUploads } from "./lib/pendingUploads";
+import {
+  repairLeftNoLegacyReferences,
+  repairLegacyProfilePhotoPaths,
+} from "./lib/profilePhotoRepair";
 
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // daily
 
@@ -71,10 +75,27 @@ function startServer(): void {
     runStatusUploadCleanup();
     setInterval(runStatusUploadCleanup, CLEANUP_INTERVAL_MS).unref();
 
-    // Reclaim private Chat/Profile objects that never became a durable
-    // message or active profile photo.
-    runChatAndProfileUploadCleanup();
-    setInterval(runChatAndProfileUploadCleanup, CLEANUP_INTERVAL_MS).unref();
+    // Rewrite profile photo rows stored with encoded bucket paths to their
+    // canonical entity paths, then reclaim private Chat/Profile objects that
+    // never became a durable message or active profile photo. The sweep only
+    // matches canonical paths, so it must not run while any legacy reference
+    // could still be misread as unattached; a failed or partial repair skips
+    // this boot's sweep and the daily timer retries the pair.
+    const repairThenCleanup = (): void => {
+      repairLegacyProfilePhotoPaths()
+        .then((result) => {
+          if (repairLeftNoLegacyReferences(result)) {
+            runChatAndProfileUploadCleanup();
+          } else {
+            logger.warn({ result }, "Legacy profile photo repair incomplete; skipping Chat/Profile upload cleanup this run");
+          }
+        })
+        .catch((err) => {
+          logger.error({ err }, "Legacy profile photo repair failed; skipping Chat/Profile upload cleanup this run");
+        });
+    };
+    repairThenCleanup();
+    setInterval(repairThenCleanup, CLEANUP_INTERVAL_MS).unref();
   });
 }
 

@@ -3,6 +3,7 @@ import {
   boolean,
   date,
   doublePrecision,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -94,6 +95,10 @@ export const repairsTable = pgTable("repairs", {
   // explicitly acknowledges the device has arrived. Until then the sender's
   // view shows "Sent" even though the row already exists in our workflow.
   sourceDealerReceivedAt: timestamp("source_dealer_received_at", { withTimezone: true }),
+  // When this row was created by ACCEPTING a dealer transfer request, the
+  // sender's original repair row (in THEIR shop). Never mutated afterwards;
+  // both directions stay traceable via dealer_transfer_requests too.
+  sourceRepairId: uuid("source_repair_id"),
   deviceType: text("device_type").notNull(),
   brand: text("brand").notNull(),
   model: text("model").notNull(),
@@ -275,6 +280,56 @@ export const repairEventsTable = pgTable("repair_events", {
     .notNull()
     .defaultNow(),
 });
+
+// Dealer-to-dealer transfer request: shop A offers an EXISTING repair row to
+// shop B. Nothing is created in B's repairs table until B accepts; on accept
+// the receiving row is inserted (importing the saved device facts) and
+// `resultRepairId` links the two. Rows are never deleted — they are the
+// audit trail of sent / accepted / declined / cancelled.
+export const dealerTransferRequestsTable = pgTable(
+  "dealer_transfer_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sourceShopId: uuid("source_shop_id")
+      .notNull()
+      .references(() => shopsTable.id, { onDelete: "cascade" }),
+    sourceRepairId: uuid("source_repair_id")
+      .notNull()
+      .references(() => repairsTable.id, { onDelete: "cascade" }),
+    // Owner of the sending shop (notification / chat / ledger identity) and
+    // the person who actually pressed Send (owner or authorised staff).
+    sourceOwnerUserId: uuid("source_owner_user_id").references(() => usersTable.id, {
+      onDelete: "set null",
+    }),
+    sentById: uuid("sent_by_id").references(() => usersTable.id, { onDelete: "set null" }),
+    sentByName: text("sent_by_name").notNull(),
+    receiverShopId: uuid("receiver_shop_id")
+      .notNull()
+      .references(() => shopsTable.id, { onDelete: "cascade" }),
+    receiverOwnerUserId: uuid("receiver_owner_user_id").references(() => usersTable.id, {
+      onDelete: "set null",
+    }),
+    status: text("status").notNull().default("pending"), // pending|accepted|declined|cancelled
+    message: text("message"), // optional note from the sender
+    // Set on accept: the repair row created in the receiving shop.
+    resultRepairId: uuid("result_repair_id").references(() => repairsTable.id, {
+      onDelete: "set null",
+    }),
+    respondedById: uuid("responded_by_id"),
+    respondedByName: text("responded_by_name"),
+    respondedAt: timestamp("responded_at", { withTimezone: true }),
+    declineReason: text("decline_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // A repair can only be offered to one shop at a time.
+    uniqueIndex("dealer_transfer_requests_pending_source_idx")
+      .on(table.sourceRepairId)
+      .where(sql`${table.status} = 'pending'`),
+    index("dealer_transfer_requests_receiver_idx").on(table.receiverShopId, table.status),
+    index("dealer_transfer_requests_source_idx").on(table.sourceShopId, table.status),
+  ],
+);
 
 // Backdated-entry approval workflow. Staff (non-dealer) creating/editing a
 // dated record with a past date must go through a pending request that the
@@ -575,6 +630,7 @@ export type DbRepairPart = typeof repairPartsTable.$inferSelect;
 export type DbRefund = typeof refundsTable.$inferSelect;
 
 export type DbApprovalRequest = typeof approvalRequestsTable.$inferSelect;
+export type DbDealerTransferRequest = typeof dealerTransferRequestsTable.$inferSelect;
 
 export type DbCustomer = typeof customersTable.$inferSelect;
 export type DbDealer = typeof dealersTable.$inferSelect;

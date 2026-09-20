@@ -100,6 +100,10 @@ args = "session-idle"
 task = "workflow.run"
 args = "dealer-transactions"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "dealer-transfers"
+
 [[workflows.workflow]]
 name = "typecheck"
 author = "agent"
@@ -327,6 +331,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-dealer-transactions.mjs"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "dealer-transfers"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-dealer-transfers.mjs"
 
 [workflows.workflow.metadata]
 isValidation = true

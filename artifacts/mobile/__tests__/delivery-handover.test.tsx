@@ -276,7 +276,10 @@ describe('delivery payment decision', () => {
     const dueRepair = { ...baseRepair, advance: 500, paidAmount: 500, balance: 2000 };
     const { unmount } = await renderDetail(dueRepair);
     await press('Continue to Deliver');
-    expect(screen.getAllByText('Due').length).toBeGreaterThanOrEqual(2);
+    // The summary card shows the outstanding amount as "Balance"; the delivery
+    // sheet is the only place offering a "Due" choice.
+    expect(screen.getAllByText('Balance').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Due').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Mark as Paid')).toBeTruthy();
     await press('Due');
 

@@ -108,6 +108,7 @@ jest.mock('expo-network', () => ({
 import { offlineQueue } from '@/utils/offlineQueue';
 import { AuthProvider } from '@/context/AuthContext';
 import RepairsScreen from '@/app/(tabs)/repairs/index';
+import { ConfirmDialogProvider } from '@/components/ui/ConfirmDialog';
 
 const QUEUE_KEY = 'vmc_offline_repairs_queue';
 
@@ -157,7 +158,9 @@ async function renderRepairs() {
   const utils = render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <RepairsScreen />
+        <ConfirmDialogProvider>
+          <RepairsScreen />
+        </ConfirmDialogProvider>
       </AuthProvider>
     </QueryClientProvider>,
   );

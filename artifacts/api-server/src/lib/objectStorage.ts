@@ -217,7 +217,36 @@ export class ObjectStorageService {
       resumable: false,
       metadata: { contentType },
     });
-    return this.normalizeObjectEntityPath(objectFile.publicUrl());
+    // Build the entity path from the key we just wrote. `objectFile.publicUrl()`
+    // percent-encodes the object name (`%2F` for `/`), which the normaliser
+    // does not recognise as living under the private dir, so deriving the path
+    // from it persisted raw bucket paths that no client could load.
+    return `/objects/uploads/${prefix}/${objectId}`;
+  }
+
+  /**
+   * Server-side copy of an existing private object into another namespace
+   * (e.g. a device photo handed from one shop's `uploads/<shopId>/` to
+   * another's on dealer transfer). Bytes never leave the bucket; the copy is
+   * a fresh, independently owned object under the target prefix.
+   */
+  async copyObjectEntityToPrefix(sourceObjectPath: string, prefix: string): Promise<string> {
+    if (
+      typeof prefix !== 'string' ||
+      !prefix ||
+      prefix.startsWith('/') ||
+      prefix.includes('..') ||
+      /[?#]/.test(prefix) ||
+      prefix.split('/').some((segment) => segment === '')
+    ) {
+      throw new Error(`Invalid prefix: ${prefix}`);
+    }
+    const source = await this.getObjectEntityFile(sourceObjectPath);
+    const objectId = randomUUID();
+    const fullPath = `${this.getPrivateObjectDir()}/uploads/${prefix}/${objectId}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    await source.copy(objectStorageClient.bucket(bucketName).file(objectName));
+    return `/objects/uploads/${prefix}/${objectId}`;
   }
 
   /**
@@ -295,7 +324,15 @@ export class ObjectStorageService {
     }
 
     const url = new URL(rawPath);
-    const rawObjectPath = url.pathname;
+    // Storage URLs may percent-encode the object name (e.g. `%2F` for `/`);
+    // compare against the private dir in decoded form.
+    let rawObjectPath = url.pathname;
+    try {
+      rawObjectPath = decodeURIComponent(rawObjectPath);
+    } catch {
+      // Leave malformed encodings untouched; the prefix check below will
+      // simply fail to match.
+    }
 
     let objectEntityDir = this.getPrivateObjectDir();
     if (!objectEntityDir.endsWith('/')) {

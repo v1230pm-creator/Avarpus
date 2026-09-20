@@ -75,6 +75,8 @@ export function dealerEventTitle(event: Pick<RepairEvent, 'action' | 'details'>)
       return 'Sent for repair';
     case 'dealer_received':
       return 'Received by repairing shop';
+    case 'dealer_transfer_accepted':
+      return 'Transfer request accepted';
     case 'created':
       return 'Repair created';
     case 'status_changed': {

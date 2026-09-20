@@ -58,6 +58,20 @@ export type RepairStatus =
 
 export type RepairPriority = 'low' | 'normal' | 'high' | 'urgent';
 
+export type RepairTransferStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';
+
+export interface RepairTransferSummary {
+  requestId: string;
+  status: RepairTransferStatus;
+  receiverShopId: string;
+  receiverBusinessName: string;
+  receiverOwnerName?: string;
+  resultRepairId?: string;
+  resultStatus?: string;
+  createdAt: string;
+  respondedAt?: string;
+}
+
 export interface Repair {
   id: string;
   repairId: string;
@@ -143,6 +157,15 @@ export interface Repair {
   sourceDealerReceivedAt?: string;
   /** Shared transaction code (DT-…) visible to both shops. */
   transactionCode?: string;
+  /**
+   * Receiving side of a dealer transfer: the sender's own repair row this
+   * one was created from (their ticket/receive date are copied for display).
+   */
+  sourceRepairId?: string;
+  sourceRepairTicket?: string;
+  sourceReceiveDate?: string;
+  /** Sending side: the latest "Send to Dealer" request made from this row. */
+  transfer?: RepairTransferSummary;
   createdById?: string;
   createdByName?: string;
   updatedById?: string;

@@ -887,22 +887,126 @@ export interface DealerTransactionFinancials {
   billPosted: boolean;
 }
 
-export interface DealerTransactionInput {
+/**
+ * Another verified shop owner, as shown in the Send to Dealer picker.
+ */
+export interface DealerDirectoryEntry {
+  shopId: string;
+  /** Short Dealer ID derived from the shop id (first 8 characters, upper-case). */
+  dealerCode: string;
+  businessName: string;
+  ownerUserId: string;
+  ownerName: string;
+  address?: string;
+  /** True when the query was the owner's exact registered mobile. */
+  matchedByMobile: boolean;
+}
+
+export interface DealerTransferInput {
   receiverShopId: string;
-  /** @minLength 1 */
+  /** @maxLength 500 */
+  message?: string;
+}
+
+export interface DealerTransferDeclineInput {
+  /** @maxLength 500 */
+  reason?: string;
+}
+
+/**
+ * The device facts the receiving shop is allowed to preview before accepting. Only saved (non-empty) values are present; the sender's end-customer identity is never included.
+ */
+export interface DealerTransferDevice {
+  sourceTicket: string;
   deviceType: string;
-  /** @minLength 1 */
   brand: string;
-  /** @minLength 1 */
   model: string;
   imei?: string;
   imei2?: string;
   serialNumber?: string;
-  /** @minLength 1 */
+  color?: string;
+  storage?: string;
+  ram?: string;
   problem: string;
-  expectedDate: string;
-  estimatedCost?: number;
-  notes?: string;
+  deviceCondition?: string;
+  accessories?: string;
+  accessoriesList?: string[];
+  priority: string;
+  receiveDate: string;
+  expectedDate?: string;
+  photoCount: number;
+}
+
+export interface DealerTransferParty {
+  shopId: string;
+  businessName: string;
+  ownerUserId?: string;
+  ownerName: string;
+}
+
+export type DealerTransferRequestStatus = typeof DealerTransferRequestStatus[keyof typeof DealerTransferRequestStatus];
+
+
+export const DealerTransferRequestStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+  cancelled: 'cancelled',
+} as const;
+
+/**
+ * Which party the caller is.
+ */
+export type DealerTransferRequestSide = typeof DealerTransferRequestSide[keyof typeof DealerTransferRequestSide];
+
+
+export const DealerTransferRequestSide = {
+  sender: 'sender',
+  receiver: 'receiver',
+} as const;
+
+export interface DealerTransferRequest {
+  id: string;
+  status: DealerTransferRequestStatus;
+  /** Which party the caller is. */
+  side: DealerTransferRequestSide;
+  sender: DealerTransferParty;
+  receiver: DealerTransferParty;
+  sentByName: string;
+  message?: string;
+  device: DealerTransferDevice;
+  /** Only returned to the sending shop (it is their own repair row). */
+  sourceRepairId?: string;
+  /** The receiving shop's repair row, once accepted. Opens the shared transaction view. */
+  resultRepairId?: string;
+  /** Live status of the receiving shop's repair, once accepted. */
+  resultStatus?: string;
+  respondedByName?: string;
+  respondedAt?: string;
+  declineReason?: string;
+  createdAt: string;
+}
+
+export type RepairTransferSummaryStatus = typeof RepairTransferSummaryStatus[keyof typeof RepairTransferSummaryStatus];
+
+
+export const RepairTransferSummaryStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+  cancelled: 'cancelled',
+} as const;
+
+export interface RepairTransferSummary {
+  requestId: string;
+  status: RepairTransferSummaryStatus;
+  receiverShopId: string;
+  receiverBusinessName: string;
+  receiverOwnerName?: string;
+  resultRepairId?: string;
+  resultStatus?: string;
+  createdAt: string;
+  respondedAt?: string;
 }
 
 export interface DealerOverviewStats {
@@ -1144,6 +1248,14 @@ export interface Repair {
   sourceDealerReceivedAt?: string;
   /** Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop. */
   transactionCode?: string;
+  /** The sender's original repair row when this row was created by accepting a dealer transfer. */
+  sourceRepairId?: string;
+  /** Human ticket number of the sender's original repair (e.g. VMC-014). */
+  sourceRepairTicket?: string;
+  /** The date the sender originally received the device from their customer. */
+  sourceReceiveDate?: string;
+  /** Present on the SENDING shop's own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair's live status at the other shop. */
+  transfer?: RepairTransferSummary;
 }
 
 export type RepairInputPhysicalCondition = {[key: string]: boolean};
@@ -2646,8 +2758,69 @@ export type DealerTransactionsList200 = {
   limit: number;
 };
 
-export type DealerTransactionsCreate200 = {
+export type DealersDirectoryParams = {
+/**
+ * @minLength 1
+ * @maxLength 80
+ */
+q: string;
+};
+
+export type DealersDirectory200 = {
+  dealers: DealerDirectoryEntry[];
+};
+
+export type RepairsTransfer200 = {
+  request: DealerTransferRequest;
+};
+
+export type DealerTransfersListParams = {
+direction: DealerTransfersListDirection;
+status?: DealerTransfersListStatus;
+page?: number;
+limit?: number;
+};
+
+export type DealerTransfersListDirection = typeof DealerTransfersListDirection[keyof typeof DealerTransfersListDirection];
+
+
+export const DealerTransfersListDirection = {
+  incoming: 'incoming',
+  outgoing: 'outgoing',
+} as const;
+
+export type DealerTransfersListStatus = typeof DealerTransfersListStatus[keyof typeof DealerTransfersListStatus];
+
+
+export const DealerTransfersListStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+  cancelled: 'cancelled',
+} as const;
+
+export type DealerTransfersList200 = {
+  requests: DealerTransferRequest[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export type DealerTransfersGet200 = {
+  request: DealerTransferRequest;
+};
+
+export type DealerTransfersAccept200 = {
+  request: DealerTransferRequest;
   repair: Repair;
+};
+
+export type DealerTransfersDecline200 = {
+  request: DealerTransferRequest;
+};
+
+export type DealerTransfersCancel200 = {
+  request: DealerTransferRequest;
 };
 
 export type DealerTransactionsLedger200Totals = {

@@ -9,6 +9,7 @@ import type { RepairChecklist } from './repairChecklist';
 import type { RepairPaymentStatus } from './repairPaymentStatus';
 import type { RepairPhysicalCondition } from './repairPhysicalCondition';
 import type { RepairTestingChecklist } from './repairTestingChecklist';
+import type { RepairTransferSummary } from './repairTransferSummary';
 
 export interface Repair {
   id: string;
@@ -94,4 +95,12 @@ export interface Repair {
   sourceDealerReceivedAt?: string;
   /** Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop. */
   transactionCode?: string;
+  /** The sender's original repair row when this row was created by accepting a dealer transfer. */
+  sourceRepairId?: string;
+  /** Human ticket number of the sender's original repair (e.g. VMC-014). */
+  sourceRepairTicket?: string;
+  /** The date the sender originally received the device from their customer. */
+  sourceReceiveDate?: string;
+  /** Present on the SENDING shop's own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair's live status at the other shop. */
+  transfer?: RepairTransferSummary;
 }

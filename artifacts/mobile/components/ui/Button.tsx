@@ -27,6 +27,7 @@ interface ButtonProps {
   style?: ViewStyle;
   textStyle?: TextStyle;
   fullWidth?: boolean;
+  testID?: string;
 }
 
 export function Button({
@@ -39,6 +40,7 @@ export function Button({
   style,
   textStyle,
   fullWidth = false,
+  testID,
 }: ButtonProps) {
   const colors = useColors();
   const scale = useSharedValue(1);
@@ -119,6 +121,7 @@ export function Button({
   return (
     <Animated.View style={[animStyle, fullWidth && { width: '100%' }, layoutStyle]}>
       <TouchableOpacity
+        testID={testID}
         onPress={handlePress}
         disabled={disabled || loading}
         activeOpacity={0.85}

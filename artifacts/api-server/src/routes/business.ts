@@ -32,6 +32,7 @@ import { recordPayment, voidPayment, PAYMENT_KINDS } from "../lib/repairPayments
 import { isDealerPortalRole } from "../lib/dealerPortal";
 import { computeTotals, paymentStatusOf, portalRepairOut } from "../lib/repairProjection";
 import { notifyShop, notifySourceDealer, notifyUser } from "../lib/notify";
+import { sourceRepairFacts, transferSummariesFor } from "../lib/dealerTransfers";
 import { transactionCodeOf } from "../lib/dealerLedger";
 import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -244,11 +245,12 @@ router.get(
       return;
     }
     const me = (req as AuthedRequest).user;
-    res.json({
-      repair: me.role === "customer" || isDealerPortalRole(me.role)
-        ? portalRepairOut(repair)
-        : repairOut(repair),
-    });
+    if (me.role === "customer" || isDealerPortalRole(me.role)) {
+      res.json({ repair: portalRepairOut(repair) });
+      return;
+    }
+    const [withContext] = await withTransferContext([repair], repairOut);
+    res.json({ repair: withContext });
   }),
 );
 
@@ -731,6 +733,7 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
     sourceDealerBusinessName: r.sourceDealerBusinessName ?? undefined,
     sourceDealerReceivedAt: r.sourceDealerReceivedAt ? iso(r.sourceDealerReceivedAt) : undefined,
     transactionCode: r.sourceDealerShopId ? transactionCodeOf(r) : undefined,
+    sourceRepairId: r.sourceRepairId ?? undefined,
     ...(() => {
       const t = computeTotals(r);
       return {
@@ -741,6 +744,29 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
       };
     })(),
   };
+}
+
+// Staff views of the shop's OWN repairs also carry dealer-transfer context:
+// on a row we offered to another shop, the latest request ("Waiting for X to
+// accept" / accepted / declined); on a row we accepted from another shop,
+// the sender's original ticket. Portal projections never include these.
+async function withTransferContext<T extends { id: string }>(
+  rows: (typeof repairsTable.$inferSelect)[],
+  out: (r: typeof repairsTable.$inferSelect) => T,
+) {
+  const [transfers, sources] = await Promise.all([
+    transferSummariesFor(rows.map((r) => r.id)),
+    sourceRepairFacts(rows),
+  ]);
+  return rows.map((r) => {
+    const src = r.sourceRepairId ? sources.get(r.sourceRepairId) : undefined;
+    return {
+      ...out(r),
+      transfer: transfers.get(r.id),
+      sourceRepairTicket: src?.ticket,
+      sourceReceiveDate: src?.receiveDate,
+    };
+  });
 }
 
 router.get(
@@ -876,8 +902,9 @@ router.get(
         });
       const total = mapped.length;
       const start = (page - 1) * limit;
-      const out = me.role === "customer" || isDealerPortalRole(me.role) ? portalRepairOut : repairOut;
-      const pageRows = mapped.slice(start, start + limit).map(({ r }) => out(r));
+      const isPortal = me.role === "customer" || isDealerPortalRole(me.role);
+      const pageRaw = mapped.slice(start, start + limit).map(({ r }) => r);
+      const pageRows = isPortal ? pageRaw.map(portalRepairOut) : await withTransferContext(pageRaw, repairOut);
       res.json({ repairs: pageRows, total, page, limit });
       return;
     }
@@ -893,8 +920,13 @@ router.get(
       .orderBy(...(receivedOnly ? [desc(repairsTable.createdAt), desc(repairsTable.id)] : [asc(repairsTable.createdAt), asc(repairsTable.id)]))
       .limit(limit)
       .offset((page - 1) * limit);
-    const out = me.role === "customer" || isDealerPortalRole(me.role) ? portalRepairOut : repairOut;
-    res.json({ repairs: rows.map(out), total, page, limit });
+    const isPortal = me.role === "customer" || isDealerPortalRole(me.role);
+    res.json({
+      repairs: isPortal ? rows.map(portalRepairOut) : await withTransferContext(rows, repairOut),
+      total,
+      page,
+      limit,
+    });
   }),
 );
 

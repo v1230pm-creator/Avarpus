@@ -1373,7 +1373,21 @@ export const DealersSuppliersRepairsListResponse = zod.object({
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
   "sourceDealerReceivedAt": zod.string().optional(),
-  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.'),
+  "sourceRepairId": zod.string().optional().describe('The sender\'s original repair row when this row was created by accepting a dealer transfer.'),
+  "sourceRepairTicket": zod.string().optional().describe('Human ticket number of the sender\'s original repair (e.g. VMC-014).'),
+  "sourceReceiveDate": zod.string().optional().describe('The date the sender originally received the device from their customer.'),
+  "transfer": zod.object({
+  "requestId": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "receiverShopId": zod.string(),
+  "receiverBusinessName": zod.string(),
+  "receiverOwnerName": zod.string().optional(),
+  "resultRepairId": zod.string().optional(),
+  "resultStatus": zod.string().optional(),
+  "createdAt": zod.string(),
+  "respondedAt": zod.string().optional()
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -1582,7 +1596,21 @@ export const DealerTransactionsListResponse = zod.object({
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
   "sourceDealerReceivedAt": zod.string().optional(),
-  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.'),
+  "sourceRepairId": zod.string().optional().describe('The sender\'s original repair row when this row was created by accepting a dealer transfer.'),
+  "sourceRepairTicket": zod.string().optional().describe('Human ticket number of the sender\'s original repair (e.g. VMC-014).'),
+  "sourceReceiveDate": zod.string().optional().describe('The date the sender originally received the device from their customer.'),
+  "transfer": zod.object({
+  "requestId": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "receiverShopId": zod.string(),
+  "receiverBusinessName": zod.string(),
+  "receiverOwnerName": zod.string().optional(),
+  "resultRepairId": zod.string().optional(),
+  "resultStatus": zod.string().optional(),
+  "createdAt": zod.string(),
+  "respondedAt": zod.string().optional()
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -1591,30 +1619,273 @@ export const DealerTransactionsListResponse = zod.object({
 
 
 /**
- * Creates the repair record directly inside the RECEIVING shop's own repairs table (goes through their normal intake/testing/delivery workflow), tagged with the sending shop as sourceDealer. The sending shop only ever gets a read-scoped view of this one row afterward.
- * @summary Send a device to another registered shop for repair
+ * Returns OTHER registered shops (verified owner accounts only, never dealer-portal or customer logins, never the caller's own shop). Matches business name, owner name or Dealer ID by prefix/substring; a full 10-digit mobile number matches the owner's registered mobile exactly. Results only carry ids and names — the owner's mobile is never returned here.
+ * @summary Search verified shop owners to send a device to
  */
+export const dealersDirectoryQueryQMax = 80;
 
 
 
+export const DealersDirectoryQueryParams = zod.object({
+  "q": zod.coerce.string().min(1).max(dealersDirectoryQueryQMax)
+})
+
+export const DealersDirectoryResponse = zod.object({
+  "dealers": zod.array(zod.object({
+  "shopId": zod.string(),
+  "dealerCode": zod.string().describe('Short Dealer ID derived from the shop id (first 8 characters, upper-case).'),
+  "businessName": zod.string(),
+  "ownerUserId": zod.string(),
+  "ownerName": zod.string(),
+  "address": zod.string().optional(),
+  "matchedByMobile": zod.boolean().describe('True when the query was the owner\'s exact registered mobile.')
+}).describe('Another verified shop owner, as shown in the Send to Dealer picker.'))
+})
+
+
+/**
+ * Creates a PENDING dealer transfer request for a repair the caller's shop holds. Nothing is created in the receiving shop until they accept. Rejected (409 TRANSFER_PENDING) while another request for the same repair is still waiting, and (409 TRANSFER_ACTIVE) while an accepted transfer is still being repaired by the other shop.
+ * @summary Offer an existing repair to another registered shop (Send to Dealer)
+ */
+export const RepairsTransferParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const repairsTransferBodyMessageMax = 500;
 
 
 
-export const DealerTransactionsCreateBody = zod.object({
+export const RepairsTransferBody = zod.object({
   "receiverShopId": zod.string(),
-  "deviceType": zod.string().min(1),
-  "brand": zod.string().min(1),
-  "model": zod.string().min(1),
+  "message": zod.string().max(repairsTransferBodyMessageMax).optional()
+})
+
+export const RepairsTransferResponse = zod.object({
+  "request": zod.object({
+  "id": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "side": zod.enum(['sender', 'receiver']).describe('Which party the caller is.'),
+  "sender": zod.object({
+  "shopId": zod.string(),
+  "businessName": zod.string(),
+  "ownerUserId": zod.string().optional(),
+  "ownerName": zod.string()
+}),
+  "receiver": zod.object({
+  "shopId": zod.string(),
+  "businessName": zod.string(),
+  "ownerUserId": zod.string().optional(),
+  "ownerName": zod.string()
+}),
+  "sentByName": zod.string(),
+  "message": zod.string().optional(),
+  "device": zod.object({
+  "sourceTicket": zod.string(),
+  "deviceType": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
   "imei": zod.string().optional(),
   "imei2": zod.string().optional(),
   "serialNumber": zod.string().optional(),
-  "problem": zod.string().min(1),
-  "expectedDate": zod.string(),
-  "estimatedCost": zod.number().optional(),
-  "notes": zod.string().optional()
+  "color": zod.string().optional(),
+  "storage": zod.string().optional(),
+  "ram": zod.string().optional(),
+  "problem": zod.string(),
+  "deviceCondition": zod.string().optional(),
+  "accessories": zod.string().optional(),
+  "accessoriesList": zod.array(zod.string()).optional(),
+  "priority": zod.string(),
+  "receiveDate": zod.string(),
+  "expectedDate": zod.string().optional(),
+  "photoCount": zod.number()
+}).describe('The device facts the receiving shop is allowed to preview before accepting. Only saved (non-empty) values are present; the sender\'s end-customer identity is never included.'),
+  "sourceRepairId": zod.string().optional().describe('Only returned to the sending shop (it is their own repair row).'),
+  "resultRepairId": zod.string().optional().describe('The receiving shop\'s repair row, once accepted. Opens the shared transaction view.'),
+  "resultStatus": zod.string().optional().describe('Live status of the receiving shop\'s repair, once accepted.'),
+  "respondedByName": zod.string().optional(),
+  "respondedAt": zod.string().optional(),
+  "declineReason": zod.string().optional(),
+  "createdAt": zod.string()
+})
 })
 
-export const DealerTransactionsCreateResponse = zod.object({
+
+/**
+ * direction=incoming lists requests other shops sent TO the caller's shop; direction=outgoing lists requests the caller's shop sent. Newest first. Optional status filter (pending|accepted|declined|cancelled).
+ * @summary List dealer transfer requests involving the caller's shop
+ */
+export const DealerTransfersListQueryParams = zod.object({
+  "direction": zod.enum(['incoming', 'outgoing']),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']).optional(),
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const DealerTransfersListResponse = zod.object({
+  "requests": zod.array(zod.object({
+  "id": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "side": zod.enum(['sender', 'receiver']).describe('Which party the caller is.'),
+  "sender": zod.object({
+  "shopId": zod.string(),
+  "businessName": zod.string(),
+  "ownerUserId": zod.string().optional(),
+  "ownerName": zod.string()
+}),
+  "receiver": zod.object({
+  "shopId": zod.string(),
+  "businessName": zod.string(),
+  "ownerUserId": zod.string().optional(),
+  "ownerName": zod.string()
+}),
+  "sentByName": zod.string(),
+  "message": zod.string().optional(),
+  "device": zod.object({
+  "sourceTicket": zod.string(),
+  "deviceType": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "imei": zod.string().optional(),
+  "imei2": zod.string().optional(),
+  "serialNumber": zod.string().optional(),
+  "color": zod.string().optional(),
+  "storage": zod.string().optional(),
+  "ram": zod.string().optional(),
+  "problem": zod.string(),
+  "deviceCondition": zod.string().optional(),
+  "accessories": zod.string().optional(),
+  "accessoriesList": zod.array(zod.string()).optional(),
+  "priority": zod.string(),
+  "receiveDate": zod.string(),
+  "expectedDate": zod.string().optional(),
+  "photoCount": zod.number()
+}).describe('The device facts the receiving shop is allowed to preview before accepting. Only saved (non-empty) values are present; the sender\'s end-customer identity is never included.'),
+  "sourceRepairId": zod.string().optional().describe('Only returned to the sending shop (it is their own repair row).'),
+  "resultRepairId": zod.string().optional().describe('The receiving shop\'s repair row, once accepted. Opens the shared transaction view.'),
+  "resultStatus": zod.string().optional().describe('Live status of the receiving shop\'s repair, once accepted.'),
+  "respondedByName": zod.string().optional(),
+  "respondedAt": zod.string().optional(),
+  "declineReason": zod.string().optional(),
+  "createdAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Dealer transfer request detail, from either side
+ */
+export const DealerTransfersGetParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DealerTransfersGetResponse = zod.object({
+  "request": zod.object({
+  "id": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "side": zod.enum(['sender', 'receiver']).describe('Which party the caller is.'),
+  "sender": zod.object({
+  "shopId": zod.string(),
+  "businessName": zod.string(),
+  "ownerUserId": zod.string().optional(),
+  "ownerName": zod.string()
+}),
+  "receiver": zod.object({
+  "shopId": zod.string(),
+  "businessName": zod.string(),
+  "ownerUserId": zod.string().optional(),
+  "ownerName": zod.string()
+}),
+  "sentByName": zod.string(),
+  "message": zod.string().optional(),
+  "device": zod.object({
+  "sourceTicket": zod.string(),
+  "deviceType": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "imei": zod.string().optional(),
+  "imei2": zod.string().optional(),
+  "serialNumber": zod.string().optional(),
+  "color": zod.string().optional(),
+  "storage": zod.string().optional(),
+  "ram": zod.string().optional(),
+  "problem": zod.string(),
+  "deviceCondition": zod.string().optional(),
+  "accessories": zod.string().optional(),
+  "accessoriesList": zod.array(zod.string()).optional(),
+  "priority": zod.string(),
+  "receiveDate": zod.string(),
+  "expectedDate": zod.string().optional(),
+  "photoCount": zod.number()
+}).describe('The device facts the receiving shop is allowed to preview before accepting. Only saved (non-empty) values are present; the sender\'s end-customer identity is never included.'),
+  "sourceRepairId": zod.string().optional().describe('Only returned to the sending shop (it is their own repair row).'),
+  "resultRepairId": zod.string().optional().describe('The receiving shop\'s repair row, once accepted. Opens the shared transaction view.'),
+  "resultStatus": zod.string().optional().describe('Live status of the receiving shop\'s repair, once accepted.'),
+  "respondedByName": zod.string().optional(),
+  "respondedAt": zod.string().optional(),
+  "declineReason": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * Only the receiving shop may call this, and only while the request is pending. Creates the receiving shop's repair row in one transaction, importing every saved (non-empty) device fact from the sender's record, and marks the device as received. Idempotent for a request this shop already accepted.
+ * @summary Receiving shop accepts the device
+ */
+export const DealerTransfersAcceptParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DealerTransfersAcceptResponse = zod.object({
+  "request": zod.object({
+  "id": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "side": zod.enum(['sender', 'receiver']).describe('Which party the caller is.'),
+  "sender": zod.object({
+  "shopId": zod.string(),
+  "businessName": zod.string(),
+  "ownerUserId": zod.string().optional(),
+  "ownerName": zod.string()
+}),
+  "receiver": zod.object({
+  "shopId": zod.string(),
+  "businessName": zod.string(),
+  "ownerUserId": zod.string().optional(),
+  "ownerName": zod.string()
+}),
+  "sentByName": zod.string(),
+  "message": zod.string().optional(),
+  "device": zod.object({
+  "sourceTicket": zod.string(),
+  "deviceType": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "imei": zod.string().optional(),
+  "imei2": zod.string().optional(),
+  "serialNumber": zod.string().optional(),
+  "color": zod.string().optional(),
+  "storage": zod.string().optional(),
+  "ram": zod.string().optional(),
+  "problem": zod.string(),
+  "deviceCondition": zod.string().optional(),
+  "accessories": zod.string().optional(),
+  "accessoriesList": zod.array(zod.string()).optional(),
+  "priority": zod.string(),
+  "receiveDate": zod.string(),
+  "expectedDate": zod.string().optional(),
+  "photoCount": zod.number()
+}).describe('The device facts the receiving shop is allowed to preview before accepting. Only saved (non-empty) values are present; the sender\'s end-customer identity is never included.'),
+  "sourceRepairId": zod.string().optional().describe('Only returned to the sending shop (it is their own repair row).'),
+  "resultRepairId": zod.string().optional().describe('The receiving shop\'s repair row, once accepted. Opens the shared transaction view.'),
+  "resultStatus": zod.string().optional().describe('Live status of the receiving shop\'s repair, once accepted.'),
+  "respondedByName": zod.string().optional(),
+  "respondedAt": zod.string().optional(),
+  "declineReason": zod.string().optional(),
+  "createdAt": zod.string()
+}),
   "repair": zod.object({
   "id": zod.string(),
   "repairId": zod.string(),
@@ -1697,7 +1968,143 @@ export const DealerTransactionsCreateResponse = zod.object({
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
   "sourceDealerReceivedAt": zod.string().optional(),
-  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.'),
+  "sourceRepairId": zod.string().optional().describe('The sender\'s original repair row when this row was created by accepting a dealer transfer.'),
+  "sourceRepairTicket": zod.string().optional().describe('Human ticket number of the sender\'s original repair (e.g. VMC-014).'),
+  "sourceReceiveDate": zod.string().optional().describe('The date the sender originally received the device from their customer.'),
+  "transfer": zod.object({
+  "requestId": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "receiverShopId": zod.string(),
+  "receiverBusinessName": zod.string(),
+  "receiverOwnerName": zod.string().optional(),
+  "resultRepairId": zod.string().optional(),
+  "resultStatus": zod.string().optional(),
+  "createdAt": zod.string(),
+  "respondedAt": zod.string().optional()
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
+})
+})
+
+
+/**
+ * @summary Receiving shop declines the device
+ */
+export const DealerTransfersDeclineParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const dealerTransfersDeclineBodyReasonMax = 500;
+
+
+
+export const DealerTransfersDeclineBody = zod.object({
+  "reason": zod.string().max(dealerTransfersDeclineBodyReasonMax).optional()
+})
+
+export const DealerTransfersDeclineResponse = zod.object({
+  "request": zod.object({
+  "id": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "side": zod.enum(['sender', 'receiver']).describe('Which party the caller is.'),
+  "sender": zod.object({
+  "shopId": zod.string(),
+  "businessName": zod.string(),
+  "ownerUserId": zod.string().optional(),
+  "ownerName": zod.string()
+}),
+  "receiver": zod.object({
+  "shopId": zod.string(),
+  "businessName": zod.string(),
+  "ownerUserId": zod.string().optional(),
+  "ownerName": zod.string()
+}),
+  "sentByName": zod.string(),
+  "message": zod.string().optional(),
+  "device": zod.object({
+  "sourceTicket": zod.string(),
+  "deviceType": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "imei": zod.string().optional(),
+  "imei2": zod.string().optional(),
+  "serialNumber": zod.string().optional(),
+  "color": zod.string().optional(),
+  "storage": zod.string().optional(),
+  "ram": zod.string().optional(),
+  "problem": zod.string(),
+  "deviceCondition": zod.string().optional(),
+  "accessories": zod.string().optional(),
+  "accessoriesList": zod.array(zod.string()).optional(),
+  "priority": zod.string(),
+  "receiveDate": zod.string(),
+  "expectedDate": zod.string().optional(),
+  "photoCount": zod.number()
+}).describe('The device facts the receiving shop is allowed to preview before accepting. Only saved (non-empty) values are present; the sender\'s end-customer identity is never included.'),
+  "sourceRepairId": zod.string().optional().describe('Only returned to the sending shop (it is their own repair row).'),
+  "resultRepairId": zod.string().optional().describe('The receiving shop\'s repair row, once accepted. Opens the shared transaction view.'),
+  "resultStatus": zod.string().optional().describe('Live status of the receiving shop\'s repair, once accepted.'),
+  "respondedByName": zod.string().optional(),
+  "respondedAt": zod.string().optional(),
+  "declineReason": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Sending shop withdraws a pending request
+ */
+export const DealerTransfersCancelParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DealerTransfersCancelResponse = zod.object({
+  "request": zod.object({
+  "id": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "side": zod.enum(['sender', 'receiver']).describe('Which party the caller is.'),
+  "sender": zod.object({
+  "shopId": zod.string(),
+  "businessName": zod.string(),
+  "ownerUserId": zod.string().optional(),
+  "ownerName": zod.string()
+}),
+  "receiver": zod.object({
+  "shopId": zod.string(),
+  "businessName": zod.string(),
+  "ownerUserId": zod.string().optional(),
+  "ownerName": zod.string()
+}),
+  "sentByName": zod.string(),
+  "message": zod.string().optional(),
+  "device": zod.object({
+  "sourceTicket": zod.string(),
+  "deviceType": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "imei": zod.string().optional(),
+  "imei2": zod.string().optional(),
+  "serialNumber": zod.string().optional(),
+  "color": zod.string().optional(),
+  "storage": zod.string().optional(),
+  "ram": zod.string().optional(),
+  "problem": zod.string(),
+  "deviceCondition": zod.string().optional(),
+  "accessories": zod.string().optional(),
+  "accessoriesList": zod.array(zod.string()).optional(),
+  "priority": zod.string(),
+  "receiveDate": zod.string(),
+  "expectedDate": zod.string().optional(),
+  "photoCount": zod.number()
+}).describe('The device facts the receiving shop is allowed to preview before accepting. Only saved (non-empty) values are present; the sender\'s end-customer identity is never included.'),
+  "sourceRepairId": zod.string().optional().describe('Only returned to the sending shop (it is their own repair row).'),
+  "resultRepairId": zod.string().optional().describe('The receiving shop\'s repair row, once accepted. Opens the shared transaction view.'),
+  "resultStatus": zod.string().optional().describe('Live status of the receiving shop\'s repair, once accepted.'),
+  "respondedByName": zod.string().optional(),
+  "respondedAt": zod.string().optional(),
+  "declineReason": zod.string().optional(),
+  "createdAt": zod.string()
 })
 })
 
@@ -1877,7 +2284,21 @@ export const DealerTransactionsGetResponse = zod.object({
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
   "sourceDealerReceivedAt": zod.string().optional(),
-  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.'),
+  "sourceRepairId": zod.string().optional().describe('The sender\'s original repair row when this row was created by accepting a dealer transfer.'),
+  "sourceRepairTicket": zod.string().optional().describe('Human ticket number of the sender\'s original repair (e.g. VMC-014).'),
+  "sourceReceiveDate": zod.string().optional().describe('The date the sender originally received the device from their customer.'),
+  "transfer": zod.object({
+  "requestId": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "receiverShopId": zod.string(),
+  "receiverBusinessName": zod.string(),
+  "receiverOwnerName": zod.string().optional(),
+  "resultRepairId": zod.string().optional(),
+  "resultStatus": zod.string().optional(),
+  "createdAt": zod.string(),
+  "respondedAt": zod.string().optional()
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
 }),
   "counterpart": zod.object({
   "shopId": zod.string(),
@@ -2041,7 +2462,21 @@ export const DealerTransactionsReceiveResponse = zod.object({
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
   "sourceDealerReceivedAt": zod.string().optional(),
-  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.'),
+  "sourceRepairId": zod.string().optional().describe('The sender\'s original repair row when this row was created by accepting a dealer transfer.'),
+  "sourceRepairTicket": zod.string().optional().describe('Human ticket number of the sender\'s original repair (e.g. VMC-014).'),
+  "sourceReceiveDate": zod.string().optional().describe('The date the sender originally received the device from their customer.'),
+  "transfer": zod.object({
+  "requestId": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "receiverShopId": zod.string(),
+  "receiverBusinessName": zod.string(),
+  "receiverOwnerName": zod.string().optional(),
+  "resultRepairId": zod.string().optional(),
+  "resultStatus": zod.string().optional(),
+  "createdAt": zod.string(),
+  "respondedAt": zod.string().optional()
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
 })
 })
 
@@ -2306,7 +2741,21 @@ export const RepairsListResponse = zod.object({
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
   "sourceDealerReceivedAt": zod.string().optional(),
-  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.'),
+  "sourceRepairId": zod.string().optional().describe('The sender\'s original repair row when this row was created by accepting a dealer transfer.'),
+  "sourceRepairTicket": zod.string().optional().describe('Human ticket number of the sender\'s original repair (e.g. VMC-014).'),
+  "sourceReceiveDate": zod.string().optional().describe('The date the sender originally received the device from their customer.'),
+  "transfer": zod.object({
+  "requestId": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "receiverShopId": zod.string(),
+  "receiverBusinessName": zod.string(),
+  "receiverOwnerName": zod.string().optional(),
+  "resultRepairId": zod.string().optional(),
+  "resultStatus": zod.string().optional(),
+  "createdAt": zod.string(),
+  "respondedAt": zod.string().optional()
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
 })),
   "total": zod.number().optional(),
   "page": zod.number().optional(),
@@ -2446,7 +2895,21 @@ export const RepairsCreateResponse = zod.object({
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
   "sourceDealerReceivedAt": zod.string().optional(),
-  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.'),
+  "sourceRepairId": zod.string().optional().describe('The sender\'s original repair row when this row was created by accepting a dealer transfer.'),
+  "sourceRepairTicket": zod.string().optional().describe('Human ticket number of the sender\'s original repair (e.g. VMC-014).'),
+  "sourceReceiveDate": zod.string().optional().describe('The date the sender originally received the device from their customer.'),
+  "transfer": zod.object({
+  "requestId": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "receiverShopId": zod.string(),
+  "receiverBusinessName": zod.string(),
+  "receiverOwnerName": zod.string().optional(),
+  "resultRepairId": zod.string().optional(),
+  "resultStatus": zod.string().optional(),
+  "createdAt": zod.string(),
+  "respondedAt": zod.string().optional()
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
 })
 })
 
@@ -2544,7 +3007,21 @@ export const RepairsGetResponse = zod.object({
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
   "sourceDealerReceivedAt": zod.string().optional(),
-  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.'),
+  "sourceRepairId": zod.string().optional().describe('The sender\'s original repair row when this row was created by accepting a dealer transfer.'),
+  "sourceRepairTicket": zod.string().optional().describe('Human ticket number of the sender\'s original repair (e.g. VMC-014).'),
+  "sourceReceiveDate": zod.string().optional().describe('The date the sender originally received the device from their customer.'),
+  "transfer": zod.object({
+  "requestId": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "receiverShopId": zod.string(),
+  "receiverBusinessName": zod.string(),
+  "receiverOwnerName": zod.string().optional(),
+  "resultRepairId": zod.string().optional(),
+  "resultStatus": zod.string().optional(),
+  "createdAt": zod.string(),
+  "respondedAt": zod.string().optional()
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
 })
 })
 
@@ -2685,7 +3162,21 @@ export const RepairsUpdateResponse = zod.object({
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
   "sourceDealerReceivedAt": zod.string().optional(),
-  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.'),
+  "sourceRepairId": zod.string().optional().describe('The sender\'s original repair row when this row was created by accepting a dealer transfer.'),
+  "sourceRepairTicket": zod.string().optional().describe('Human ticket number of the sender\'s original repair (e.g. VMC-014).'),
+  "sourceReceiveDate": zod.string().optional().describe('The date the sender originally received the device from their customer.'),
+  "transfer": zod.object({
+  "requestId": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "receiverShopId": zod.string(),
+  "receiverBusinessName": zod.string(),
+  "receiverOwnerName": zod.string().optional(),
+  "resultRepairId": zod.string().optional(),
+  "resultStatus": zod.string().optional(),
+  "createdAt": zod.string(),
+  "respondedAt": zod.string().optional()
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
 })
 })
 
@@ -3140,7 +3631,21 @@ export const RepairAssignTechnicianResponse = zod.object({
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
   "sourceDealerReceivedAt": zod.string().optional(),
-  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.'),
+  "sourceRepairId": zod.string().optional().describe('The sender\'s original repair row when this row was created by accepting a dealer transfer.'),
+  "sourceRepairTicket": zod.string().optional().describe('Human ticket number of the sender\'s original repair (e.g. VMC-014).'),
+  "sourceReceiveDate": zod.string().optional().describe('The date the sender originally received the device from their customer.'),
+  "transfer": zod.object({
+  "requestId": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "receiverShopId": zod.string(),
+  "receiverBusinessName": zod.string(),
+  "receiverOwnerName": zod.string().optional(),
+  "resultRepairId": zod.string().optional(),
+  "resultStatus": zod.string().optional(),
+  "createdAt": zod.string(),
+  "respondedAt": zod.string().optional()
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
 })
 })
 
@@ -3240,7 +3745,21 @@ export const RepairTestingResponse = zod.object({
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
   "sourceDealerReceivedAt": zod.string().optional(),
-  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.'),
+  "sourceRepairId": zod.string().optional().describe('The sender\'s original repair row when this row was created by accepting a dealer transfer.'),
+  "sourceRepairTicket": zod.string().optional().describe('Human ticket number of the sender\'s original repair (e.g. VMC-014).'),
+  "sourceReceiveDate": zod.string().optional().describe('The date the sender originally received the device from their customer.'),
+  "transfer": zod.object({
+  "requestId": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "receiverShopId": zod.string(),
+  "receiverBusinessName": zod.string(),
+  "receiverOwnerName": zod.string().optional(),
+  "resultRepairId": zod.string().optional(),
+  "resultStatus": zod.string().optional(),
+  "createdAt": zod.string(),
+  "respondedAt": zod.string().optional()
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
 })
 })
 
@@ -3465,7 +3984,21 @@ export const RepairNotifyReadyResponse = zod.object({
   "sourceDealerUserId": zod.string().optional(),
   "sourceDealerBusinessName": zod.string().optional(),
   "sourceDealerReceivedAt": zod.string().optional(),
-  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.')
+  "transactionCode": zod.string().optional().describe('Shared dealer-to-dealer transaction code (DT-<ticket>); only on rows sent in by another shop.'),
+  "sourceRepairId": zod.string().optional().describe('The sender\'s original repair row when this row was created by accepting a dealer transfer.'),
+  "sourceRepairTicket": zod.string().optional().describe('Human ticket number of the sender\'s original repair (e.g. VMC-014).'),
+  "sourceReceiveDate": zod.string().optional().describe('The date the sender originally received the device from their customer.'),
+  "transfer": zod.object({
+  "requestId": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'cancelled']),
+  "receiverShopId": zod.string(),
+  "receiverBusinessName": zod.string(),
+  "receiverOwnerName": zod.string().optional(),
+  "resultRepairId": zod.string().optional(),
+  "resultStatus": zod.string().optional(),
+  "createdAt": zod.string(),
+  "respondedAt": zod.string().optional()
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
 })
 })
 

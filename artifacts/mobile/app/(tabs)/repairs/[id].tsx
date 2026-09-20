@@ -13,8 +13,10 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
 import QRCode from 'react-native-qrcode-svg';
@@ -45,8 +47,8 @@ import {
   useStaffList, getStaffListQueryKey, repairAssignTechnician,
   repairNotesAdd, useEstimateApprovalsList, getEstimateApprovalsListQueryKey, estimateApprovalsCreate,
   estimateApprovalsDecide, repairNotifyReady, estimateApprovalsSendOtp,
-  repairsUpdate, useRepairsGet, getRepairsGetQueryKey, type UploadUrlRequestContentType } from '@workspace/api-client-react';
-import { AvarpusLoadingScreen } from '@/components/ui/AvarpusSpinner';
+  repairsUpdate, useRepairsGet, getRepairsGetQueryKey, UploadUrlRequestContentType } from '@workspace/api-client-react';
+import { AvarpusLoadingScreen, AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { fetch as expoFetch } from 'expo/fetch';
 import { File as ExpoFile } from 'expo-file-system';
 
@@ -218,8 +220,13 @@ export default function RepairDetailScreen() {
 
   // More details sheet
   const [showMore, setShowMore] = useState(false);
+  // Photos sheet (view + add) and the copy-mobile confirmation tick.
+  const [showPhotos, setShowPhotos] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState<'camera' | 'library' | null>(null);
+  const [mobileCopied, setMobileCopied] = useState(false);
 
-  // Work notes (free text, append-only)
+  // Work notes (free text, append-only) — composed inside a sheet
+  const [showNotes, setShowNotes] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
 
@@ -376,6 +383,10 @@ export default function RepairDetailScreen() {
   const payRemaining = repair.balance !== undefined ? Math.max(0, repair.balance) : Math.max(0, payTotal - payPaid);
   // Money math in integer paise to avoid floating-point boundary bugs
   const payRemainingCents = Math.round(payRemaining * 100);
+  // Owner-only corrections surfaced in the "more" sheet next to Invoice.
+  // Same gates the bottom action bar used to apply.
+  const canMarkUnpaid = repair.status === 'delivered' && isDealer && canSeeFinance && payPaid > 0;
+  const canDeleteRepair = isDealer && (repair.status === 'delivered' || repair.status === 'cancelled' || repair.status === 'cannot_repair');
   const parseAmountCents = (s: string): number | null => {
     const t = s.trim();
     if (!/^\d+(\.\d{1,2})?$/.test(t)) return null;
@@ -743,6 +754,9 @@ export default function RepairDetailScreen() {
     ...(repair.diagnosis?.trim() ? [{ id: 'legacy-diagnosis', kind: 'legacy' as const, label: 'DIAGNOSIS', text: repair.diagnosis.trim() }] : []),
     ...(repair.notes?.trim() ? [{ id: 'intake-note', kind: 'intake' as const, label: 'INTAKE NOTE', text: repair.notes.trim() }] : []),
   ];
+  // The compact row only renders when there is something to read or add;
+  // it never shows an empty "no notes" placeholder.
+  const showNotesRow = canAddNote || workNotes.length > 0;
 
   // Dealer/owner only — permanently remove this repair and all its records.
   const confirmDeleteRepair = () => {
@@ -857,24 +871,160 @@ export default function RepairDetailScreen() {
     }
   };
 
+
+  // ── Redesigned header cards: derived display state ──
+  const isTerminalStatus = repair.status === 'cancelled' || repair.status === 'cannot_repair';
+  const statusTone =
+    isTerminalStatus ? colors.destructive
+    : repair.status === 'delivered' ? colors.success
+    : repair.status === 'ready' ? colors.warning
+    : repair.status === 'received' ? colors.primary
+    : colors.warning;
+  const paymentStatusLabel = (payRemaining <= 0 && payTotal > 0) ? 'Paid' : payPaid > 0 ? 'Partially Paid' : 'Pending';
+  const paymentTone = (payRemaining <= 0 && payTotal > 0) ? colors.success : colors.warning;
+
+  // First moment a stage was reached, from the append-only event log; the
+  // repair row's own timestamps are the fallback for older jobs.
+  const statusEvents = (eventsData?.events ?? [])
+    .filter((ev) => ev.action === 'status_changed')
+    .slice()
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  const stageReachedAt = (targets: string[], fallback?: string): string | undefined => {
+    const hit = statusEvents.find((ev) => targets.includes(String(ev.details?.to ?? '')));
+    return hit?.createdAt ?? fallback;
+  };
+  // Date-only values (receiveDate / deliveryDate) never get an invented time.
+  const formatStamp = (iso?: string) => {
+    if (!iso) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return formatDate(iso);
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return formatDate(iso);
+    const time = d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+    return `${formatDate(iso)}\n${time}`;
+  };
+  // A backdated intake shows its booked receive date; otherwise the exact creation moment.
+  const receivedStamp = repair.receiveDate && formatDate(repair.receiveDate) !== formatDate(repair.createdAt) ? repair.receiveDate : repair.createdAt;
+  // For a cancelled / cannot-repair job, only the stops actually reached
+  // before the stop are ticked — taken from the terminal transition's origin.
+  const stopForStatus = (status: string | undefined): number =>
+    status === 'received' ? 0
+    : ['diagnosing', 'waiting_parts', 'repairing', 'testing', 'customer_approval'].includes(status ?? '') ? 1
+    : status === 'ready' ? 2
+    : status === 'delivered' ? 3
+    : 0;
+  const terminalEvent = isTerminalStatus
+    ? statusEvents.slice().reverse().find((ev) => ['cancelled', 'cannot_repair'].includes(String(ev.details?.to ?? '')))
+    : undefined;
+  const lastReachedStop = isTerminalStatus ? stopForStatus(terminalEvent ? String(terminalEvent.details?.from ?? '') : undefined) : -1;
+  // Four visible stops over the five internal stages: testing is folded into
+  // "In Progress" and terminal failures replace the Delivered stop.
+  const currentStop = stageIndex <= 1 ? stageIndex : stageIndex === 2 ? 1 : stageIndex === 3 ? 2 : 3;
+  const stageSteps = ([
+    { key: 'received', label: 'Received', color: colors.success, reached: receivedStamp },
+    { key: 'repairing', label: 'In Progress', color: colors.primary, reached: stageReachedAt(['diagnosing', 'waiting_parts', 'repairing'], repair.repairStartedAt) },
+    { key: 'ready', label: 'Ready', color: colors.warning, reached: stageReachedAt(['ready'], repair.readyAt) },
+    { key: 'delivered', label: 'Delivered', color: colors.purple, reached: stageReachedAt(['delivered'], repair.deliveryDate) },
+  ] as const).map((step, index, arr) => {
+    let state: 'completed' | 'current' | 'upcoming' | 'error' = 'upcoming';
+    let label: string = step.label;
+    if (isTerminalStatus) {
+      if (index === arr.length - 1) { state = 'error'; label = repair.status === 'cancelled' ? 'Cancelled' : 'Failed'; }
+      else state = index <= lastReachedStop ? 'completed' : 'upcoming';
+    } else if (currentStop > index || (index === arr.length - 1 && repair.status === 'delivered')) state = 'completed';
+    else if (currentStop === index) state = 'current';
+    const sub =
+      state === 'error' ? 'Stopped'
+      : state === 'completed' ? (formatStamp(step.reached) || 'Done')
+      : state === 'current' ? (index === 0 ? (formatStamp(step.reached) || 'Current Stage') : 'Current Stage')
+      : 'Pending';
+    return { ...step, label, state, sub };
+  });
+
+  // Device thumbnail: prefer the front shot, else the first photo on file.
+  const devicePhoto = photosData?.photos?.find(p => p.kind === 'front') ?? photosData?.photos?.[0];
+  // Anyone who may update the repair may attach photos to it.
+  const canAddPhoto = canUpdateStatus;
+
+  const copyMobile = async () => {
+    if (!repair.mobile) return;
+    try {
+      await Clipboard.setStringAsync(repair.mobile);
+      setMobileCopied(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setTimeout(() => setMobileCopied(false), 1500);
+    } catch {
+      Alert.alert('Copy failed', 'Could not copy the mobile number.');
+    }
+  };
+
+  const openPhotoFromSheet = (photo: { objectPath: string; kind: string }) => {
+    // Sibling native Modals do not stack reliably on iOS: dismiss the sheet
+    // first, then present the fullscreen viewer.
+    setShowPhotos(false);
+    setTimeout(() => setViewerImage({ uri: getAbsoluteUrl(photo.objectPath), label: photo.kind.replace(/_/g, ' ') }), 350);
+  };
+
+  const handleAddPhoto = async (source: 'camera' | 'library') => {
+    if (photoUploading) return;
+    // The native picker must not be presented on top of the sheet Modal.
+    setShowPhotos(false);
+    await new Promise<void>((resolve) => setTimeout(resolve, 350));
+    try {
+      const perm = source === 'camera'
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', source === 'camera' ? 'Allow camera access to take a photo.' : 'Allow photo library access to pick a photo.');
+        return;
+      }
+      const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.7 };
+      const result = source === 'camera'
+        ? await ImagePicker.launchCameraAsync(options)
+        : await ImagePicker.launchImageLibraryAsync(options);
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      const asset = result.assets[0];
+      setPhotoUploading(source);
+      setShowPhotos(true);
+      // Upload the bytes under their real type; the server re-verifies them.
+      const mime = (asset.mimeType && asset.mimeType in UploadUrlRequestContentType && asset.mimeType !== 'application/pdf'
+        ? asset.mimeType
+        : 'image/jpeg') as UploadUrlRequestContentType;
+      const objectPath = await uploadToGcs(asset.uri, mime);
+      if (!objectPath) throw new Error('Upload failed. Please try again.');
+      await repairPhotosAdd(repair.id, { kind: 'other', objectPath });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getRepairPhotosListQueryKey(repair.id) }),
+        queryClient.invalidateQueries({ queryKey: getRepairEventsListQueryKey(repair.id) }),
+      ]);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      setShowPhotos(true);
+      Alert.alert('Photo not added', e?.message || 'Could not add the photo. Please try again.');
+    } finally {
+      setPhotoUploading(null);
+    }
+  };
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
 
-            {/* HEADER: back | title | more */}
-      <View style={[styles.header, { paddingTop: topPad + 14, paddingBottom: 14 }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Feather name="arrow-left" size={22} color={colors.foreground} />
+      {/* HEADER: back | title + subtitle | edit · more */}
+      <View style={[styles.header, { paddingTop: topPad + 6, paddingBottom: 10 }]}>
+        <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back" onPress={() => router.back()} style={[styles.roundBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="arrow-left" size={20} color={colors.foreground} />
           </TouchableOpacity>
-          <Text style={{ fontSize: 18, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Repair Details</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ fontSize: 22, lineHeight: 26, color: colors.foreground, fontFamily: 'Inter_700Bold' }} numberOfLines={1}>Repair Details</Text>
+            <Text style={{ fontSize: 13, lineHeight: 16, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }} numberOfLines={1}>Track and manage repair process</Text>
+          </View>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <TouchableOpacity onPress={() => setShowMore(true)} style={styles.backBtn}>
-            <Feather name="edit-2" size={18} color={colors.foreground} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Edit repair" onPress={() => setShowMore(true)} style={[styles.roundBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="edit-2" size={16} color={colors.foreground} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowMore(true)} style={styles.backBtn}>
-            <Feather name="more-vertical" size={22} color={colors.foreground} />
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="More actions" onPress={() => setShowMore(true)} style={[styles.roundBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="more-vertical" size={20} color={colors.foreground} />
             {/* Hidden QR Code for PDF Generation */}
             <View style={{ position: 'absolute', opacity: 0 }} pointerEvents="none">
                <QRCode value={repair.id} size={150} getRef={(c) => (qrRef.current = c)} />
@@ -883,260 +1033,345 @@ export default function RepairDetailScreen() {
         </View>
       </View>
 
-      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight + 24, paddingHorizontal: 16 }]} bottomOffset={24}>
+      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingTop: 6, paddingBottom: tabBarHeight + 16, paddingHorizontal: 16, gap: 10 }]} bottomOffset={24}>
 
-        <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 16, marginBottom: 20 }}>
-          
-          {/* Header Block */}
-          <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <Text style={{ fontSize: 18, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{repair.repairId}</Text>
-              <View style={{ backgroundColor: colors.warning + '22', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-                <Text style={{ fontSize: 12, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>{REPAIR_STATUS_LABELS[repair.status] || repair.status}</Text>
-              </View>
+        {/* ── CARD 1: status · customer · device ── */}
+        <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+
+          {/* Header band: status pill on the left, job code + created date right. */}
+          <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.border + '55', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <View style={{ flexShrink: 1, minWidth: 0, backgroundColor: statusTone + '33', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999 }}>
+              <Text style={{ fontSize: 13, lineHeight: 17, color: statusTone, fontFamily: 'Inter_600SemiBold' }} numberOfLines={1}>{REPAIR_STATUS_LABELS[repair.status] || repair.status}</Text>
             </View>
-            <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
-              Created: {formatDate(repair.createdAt)}
+            <Text style={{ flexShrink: 0, fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>
+              {repair.repairId} · {formatDate(repair.createdAt)}
             </Text>
           </View>
 
-          {/* Customer Block */}
-          <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-            <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 12 }}>Customer</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.info + '22', alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 16, color: colors.info, fontFamily: 'Inter_600SemiBold' }}>{repair.customerName?.charAt(0).toUpperCase() || 'U'}</Text>
-                </View>
-                <View>
-                  <Text style={{ fontSize: 15, color: colors.foreground, fontFamily: 'Inter_500Medium', marginBottom: 2 }}>{repair.customerName}</Text>
-                  <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>{repair.mobile}</Text>
+          {/* Customer: avatar, name + Dealer/Customer tag, mobile + copy, call + chat */}
+          <View style={{ paddingHorizontal: 12, paddingTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 22, color: '#FFFFFF', fontFamily: 'Inter_700Bold' }}>{repair.customerName?.charAt(0).toUpperCase() || 'U'}</Text>
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ flexShrink: 1, fontSize: 16, lineHeight: 20, color: colors.foreground, fontFamily: 'Inter_700Bold' }} numberOfLines={1}>{repair.customerName}</Text>
+                <View style={{ flexShrink: 0, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, backgroundColor: repair.dealerId ? colors.primary + '33' : colors.muted + '55' }}>
+                  <Text style={{ fontSize: 10, lineHeight: 12, color: repair.dealerId ? colors.primary : colors.mutedForeground, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 }}>
+                    {repair.dealerId ? 'DEALER' : 'CUSTOMER'}
+                  </Text>
                 </View>
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <TouchableOpacity onPress={() => Linking.openURL(`tel:${repair.mobile}`)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary + '15', alignItems: 'center', justifyContent: 'center' }}>
-                  <Feather name="phone" size={16} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => Linking.openURL(`sms:${repair.mobile}`)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary + '15', alignItems: 'center', justifyContent: 'center' }}>
-                  <Feather name="message-square" size={16} color={colors.primary} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3 }}>
+                <Text style={{ flexShrink: 1, fontSize: 13, lineHeight: 16, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>{repair.mobile}</Text>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Copy mobile number" onPress={copyMobile} hitSlop={8}>
+                  <Feather name={mobileCopied ? 'check' : 'copy'} size={14} color={mobileCopied ? colors.success : colors.mutedForeground} />
                 </TouchableOpacity>
               </View>
             </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Call customer" onPress={() => Linking.openURL(`tel:${repair.mobile}`)} style={[styles.contactBtn, { backgroundColor: colors.primary + '1F', borderColor: colors.primary + '55' }]}>
+                <Feather name="phone" size={17} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Message customer" onPress={() => Linking.openURL(`sms:${repair.mobile}`)} style={[styles.contactBtn, { backgroundColor: colors.primary + '1F', borderColor: colors.primary + '55' }]}>
+                <Feather name="message-square" size={17} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {/* Source Dealer (dealer-to-dealer transaction) */}
+          {/* Received From (dealer-to-dealer transfer, receiving side) */}
           {!!repair.sourceDealerShopId && (
             <TouchableOpacity
               onPress={() => router.push(`/(tabs)/repairs/dealer-transactions/${repair.id}` as any)}
               activeOpacity={0.75}
               accessibilityRole="button"
               accessibilityLabel="Open dealer transaction"
-              style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+              testID="repair-received-from"
+              style={{ marginHorizontal: 12, marginTop: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.background + '66', flexDirection: 'row', alignItems: 'center', gap: 10 }}
             >
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary + '1A', alignItems: 'center', justifyContent: 'center' }}>
-                <Feather name="briefcase" size={18} color={colors.primary} />
+              <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary + '1A', alignItems: 'center', justifyContent: 'center' }}>
+                <Feather name="briefcase" size={15} color={colors.primary} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 2 }}>Source Dealer</Text>
-                <Text style={{ fontSize: 15, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>{repair.sourceDealerBusinessName}</Text>
-                <Text style={{ fontSize: 12, color: repair.sourceDealerReceivedAt ? colors.success : colors.warning, fontFamily: 'Inter_600SemiBold', marginTop: 2 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', letterSpacing: 0.3 }}>RECEIVED FROM</Text>
+                <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }} numberOfLines={1}>
+                  {repair.sourceDealerBusinessName}
+                  {repair.sourceRepairTicket ? ` · their ticket ${repair.sourceRepairTicket}` : ''}
+                </Text>
+                <Text style={{ fontSize: 11, color: repair.sourceDealerReceivedAt ? colors.success : colors.warning, fontFamily: 'Inter_600SemiBold', marginTop: 1 }} numberOfLines={2}>
                   {repair.sourceDealerReceivedAt
-                    ? `Received on ${formatDate(repair.sourceDealerReceivedAt)}`
+                    ? `Received by ${repair.receivedByName ?? 'your shop'} on ${formatDate(repair.sourceDealerReceivedAt)}`
                     : 'Waiting for acceptance — confirm receipt before starting work'}
                   {repair.transactionCode ? ` · ${repair.transactionCode}` : ''}
                 </Text>
               </View>
-              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+              <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
             </TouchableOpacity>
           )}
 
-          {/* Device & Problem */}
-          <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: 'row', justifyContent: 'space-between' }}>
-            <View style={{ flex: 1, paddingRight: 16 }}>
-              <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 4 }}>Device</Text>
-              <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>{repair.brand} {repair.model}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 4 }}>Problem</Text>
-              <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>{repair.problem}</Text>
-            </View>
-          </View>
-
-          {/* Technician */}
-          <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>Technician</Text>
-            <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>{repair.technicianName || 'Unassigned'}</Text>
-          </View>
-
-          {/* Money Block */}
-          {canSeeFinance && (
-            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: 'row', justifyContent: 'space-between' }}>
-              <View>
-                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 4 }}>Bill Amount</Text>
-                <Text style={{ fontSize: 16, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(payTotal)}</Text>
+          {/* Sent to another dealer (sending side) */}
+          {!!repair.transfer && (
+            <TouchableOpacity
+              onPress={() => router.push(`/(tabs)/repairs/dealer-transactions/request/${repair.transfer!.requestId}` as any)}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Open transfer request"
+              testID="repair-transfer-state"
+              style={{ marginHorizontal: 12, marginTop: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.background + '66', flexDirection: 'row', alignItems: 'center', gap: 10 }}
+            >
+              <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary + '1A', alignItems: 'center', justifyContent: 'center' }}>
+                <Feather name="send" size={15} color={colors.primary} />
               </View>
-              <View>
-                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 4 }}>Paid</Text>
-                <Text style={{ fontSize: 16, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(payPaid)}</Text>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', letterSpacing: 0.3 }}>SENT TO DEALER</Text>
+                <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }} numberOfLines={1}>{repair.transfer.receiverBusinessName}</Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    color: repair.transfer.status === 'pending' ? colors.warning : repair.transfer.status === 'accepted' ? colors.success : colors.destructive,
+                    fontFamily: 'Inter_600SemiBold',
+                    marginTop: 1,
+                  }}
+                  numberOfLines={2}
+                >
+                  {repair.transfer.status === 'pending'
+                    ? `Waiting for ${repair.transfer.receiverBusinessName} to accept`
+                    : repair.transfer.status === 'accepted'
+                      ? `Accepted${repair.transfer.resultStatus ? ` · ${repair.transfer.resultStatus.replace(/_/g, ' ')}` : ''}`
+                      : repair.transfer.status === 'declined'
+                        ? 'Declined — you can send it again'
+                        : 'Request cancelled'}
+                </Text>
               </View>
-              <View>
-                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 4 }}>Due</Text>
-                <Text style={{ fontSize: 16, color: colors.destructive, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(payRemaining)}</Text>
-              </View>
-            </View>
+              <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
           )}
 
-          {/* Repair Status Progress */}
-          <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-            <Text style={{ fontSize: 12, color: colors.foreground, fontFamily: 'Inter_500Medium', marginBottom: 16 }}>Repair Status</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-              {[
-                { label: 'Received', key: 'received' },
-                { label: 'In Progress', key: 'repairing' },
-                { label: 'Ready', key: 'ready' },
-                { label: 'Delivered', key: 'delivered' }
-              ].map((step, index, arr) => {
-                const isTerminal = repair.status === 'cancelled' || repair.status === 'cannot_repair';
-                const currentMappedIndex = stageIndex <= 1 ? stageIndex : stageIndex === 2 ? 1 : stageIndex === 3 ? 2 : 3;
-
-                let label = step.label;
-                let state: 'completed' | 'current' | 'upcoming' | 'error' = 'upcoming';
-                if (isTerminal) {
-                  if (index === arr.length - 1) {
-                    state = 'error';
-                    label = repair.status === 'cancelled' ? 'Cancelled' : 'Failed';
-                  }
-                } else if (currentMappedIndex > index) state = 'completed';
-                else if (currentMappedIndex === index) state = 'current';
-
-                const isCompleted = state === 'completed';
-                const isCurrent = state === 'current';
-                const isError = state === 'error';
-                const circleColor = isError ? colors.destructive : isCompleted || isCurrent ? colors.primary : 'transparent';
-
-                return (
-                  <View key={step.label} style={{ flex: 1, alignItems: 'center' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
-                      <View style={{ flex: 1, height: 2, backgroundColor: index === 0 ? 'transparent' : (isCompleted || isCurrent ? colors.primary : colors.border) }} />
-                      <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: circleColor, borderWidth: isCompleted || isCurrent || isError ? 0 : 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>
-                        {isCompleted ? <Feather name="check" size={12} color="#FFF" /> : isError ? <Feather name="x" size={12} color="#FFF" /> : isCurrent ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFF' }} /> : null}
-                      </View>
-                      <View style={{ flex: 1, height: 2, backgroundColor: index === arr.length - 1 ? 'transparent' : (isCompleted ? colors.primary : colors.border) }} />
-                    </View>
-                    <Text style={{ fontSize: 10, color: isError ? colors.destructive : isCurrent ? colors.foreground : colors.mutedForeground, marginTop: 8, fontFamily: isCurrent || isError ? 'Inter_500Medium' : 'Inter_400Regular' }} numberOfLines={1}>{label}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Notes */}
-          <View style={{ padding: 16 }}>
-            <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 6 }}>Notes</Text>
-            <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_400Regular' }}>{workNotes[0]?.text || 'No notes provided.'}</Text>
-          </View>
-          
-          {/* Secondary actions */}
-          <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
-            <TouchableOpacity onPress={() => setShowMore(true)} style={{ backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingVertical: 12, alignItems: 'center' }}>
-              <Text style={{ color: colors.foreground, fontSize: 14, fontFamily: 'Inter_500Medium' }}>More Actions</Text>
+          {/* Device sub-card: thumbnail · DEVICE / Model / IMEI | PROBLEM · View Details */}
+          <View style={{ margin: 12, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background + '66', flexDirection: 'row', alignItems: 'stretch', gap: 12 }}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={devicePhoto ? 'View device photo' : 'Device photos'}
+              onPress={() => (devicePhoto ? setViewerImage({ uri: getAbsoluteUrl(devicePhoto.objectPath), label: devicePhoto.kind.replace(/_/g, ' ') }) : setShowPhotos(true))}
+              activeOpacity={0.8}
+              style={{ width: 50, height: 82, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.muted + '44', borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}
+            >
+              {devicePhoto ? (
+                <Image source={{ uri: getAbsoluteUrl(devicePhoto.objectPath), headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+              ) : (
+                <Feather name="smartphone" size={24} color={colors.mutedForeground} />
+              )}
             </TouchableOpacity>
+            <View style={{ flex: 1, minWidth: 0, flexDirection: 'row' }}>
+              <View style={{ flex: 1.3, minWidth: 0, paddingRight: 6, justifyContent: 'space-between' }}>
+                <View>
+                  <Text style={{ fontSize: 11, lineHeight: 14, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.5 }}>DEVICE</Text>
+                  <Text style={{ fontSize: 18, lineHeight: 22, color: colors.foreground, fontFamily: 'Inter_700Bold', marginTop: 4 }} numberOfLines={1}>{[repair.brand, repair.model].filter(Boolean).join(' ') || repair.deviceType || '—'}</Text>
+                </View>
+                {/* Model on its own line, IMEI directly beneath it (never side by side). */}
+                <View style={{ gap: 2 }}>
+                  <Text style={{ fontSize: 12, lineHeight: 15, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }} numberOfLines={1}>
+                    Model <Text style={{ color: colors.foreground, fontFamily: 'Inter_500Medium' }}>{repair.model?.trim() || '—'}</Text>
+                  </Text>
+                  <Text style={{ fontSize: 12, lineHeight: 15, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }} numberOfLines={1} testID="device-imei">
+                    IMEI <Text style={{ color: colors.foreground, fontFamily: 'Inter_500Medium' }}>{repair.imei?.trim() || '—'}</Text>
+                  </Text>
+                </View>
+              </View>
+              <View style={{ width: 1, backgroundColor: colors.border, marginRight: 10 }} />
+              <View style={{ flex: 1, minWidth: 0, justifyContent: 'space-between' }}>
+                <View>
+                  <Text style={{ fontSize: 11, lineHeight: 14, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.5 }}>PROBLEM</Text>
+                  <Text style={{ fontSize: 16, lineHeight: 20, color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginTop: 4 }} numberOfLines={1}>{repair.problem?.trim() || '—'}</Text>
+                </View>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="View full device details"
+                  onPress={() => setShowMore(true)}
+                  style={{ alignSelf: 'flex-start', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.background }}
+                >
+                  <Text style={{ flexShrink: 1, fontSize: 12, lineHeight: 15, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }} numberOfLines={1}>View Details</Text>
+                  <Feather name="chevron-right" size={13} color={colors.foreground} />
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
 
-        {/* 4. WORK NOTES — the only place staff describe what was done */}
-        <Card>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>WORK NOTES</Text>
-            {workNotes.length > 0 && (
-              <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{workNotes.length}</Text>
+        {/* ── CARD 2: repair status timeline ── */}
+        <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 30, marginBottom: 12 }}>
+            <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_700Bold', letterSpacing: 0.3 }}>REPAIR STATUS</Text>
+            {canUpdateStatus && nextStep && (
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Update status"
+                testID="update-status-button"
+                onPress={() => setShowStatusPicker(true)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.primary + '1F', borderWidth: 1, borderColor: colors.primary + '66' }}
+              >
+                <Feather name="edit-2" size={12} color={colors.primary} />
+                <Text style={{ fontSize: 12, lineHeight: 15, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Update Status</Text>
+              </TouchableOpacity>
             )}
           </View>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+            {stageSteps.map((step, index, arr) => {
+              const isCompleted = step.state === 'completed';
+              const isCurrent = step.state === 'current';
+              const isError = step.state === 'error';
+              const tone = isError ? colors.destructive : step.color;
+              const leftFilled = index > 0 && (isCompleted || isCurrent);
+              const rightFilled = index < arr.length - 1 && isCompleted;
+              return (
+                <View key={step.key} style={{ flex: 1, alignItems: 'center' }} testID={`stage-${step.key}-${step.state}`}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
+                    <View style={{ flex: 1, height: 2.5, borderRadius: 2, backgroundColor: index === 0 ? 'transparent' : leftFilled ? arr[index - 1].color : colors.border }} />
+                    {/* Outer ring in the stage colour; reached stages get a filled
+                        centre with a white glyph (check = done, dot = current). */}
+                    <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card, borderWidth: 2, borderColor: tone }}>
+                      {(isCompleted || isCurrent || isError) && (
+                        <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: tone, alignItems: 'center', justifyContent: 'center' }}>
+                          {isCompleted ? <Feather name="check" size={12} color="#FFFFFF" />
+                            : isError ? <Feather name="x" size={12} color="#FFFFFF" />
+                            : <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#FFFFFF' }} />}
+                        </View>
+                      )}
+                    </View>
+                    <View style={{ flex: 1, height: 2.5, borderRadius: 2, backgroundColor: index === arr.length - 1 ? 'transparent' : rightFilled ? tone : colors.border }} />
+                  </View>
+                  <Text style={{ fontSize: 12.5, lineHeight: 15, color: isError ? colors.destructive : colors.foreground, marginTop: 7, fontFamily: 'Inter_600SemiBold', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{step.label}</Text>
+                  <Text style={{ fontSize: 11, lineHeight: 14, color: isCurrent ? colors.primary : isCompleted ? colors.mutedForeground : isError ? colors.destructive : tone, marginTop: 2, fontFamily: 'Inter_500Medium', textAlign: 'center' }} numberOfLines={2}>{step.sub}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
 
-          {canAddNote && (
-            <View style={{ marginBottom: workNotes.length > 0 ? 14 : 4 }}>
-              <TextInput
-                testID="work-note-input"
-                value={noteDraft}
-                onChangeText={setNoteDraft}
-                placeholder="Phone mein kya kaam hua? Yahan likhein…"
-                placeholderTextColor={colors.mutedForeground}
-                multiline
-                maxLength={2000}
-                editable={!noteSaving}
-                style={[styles.input, { color: colors.foreground, borderColor: colors.border, minHeight: 72, textAlignVertical: 'top', marginBottom: 8 }]}
-              />
-              <Button
-                title="Add Note"
-                onPress={handleAddNote}
-                loading={noteSaving}
-                disabled={!noteDraft.trim()}
-                fullWidth
-              />
+        {/* ── CARD 3: estimate & payment (warranty for staff who cannot see money) ── */}
+        {canSeeFinance ? (
+          <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 30, marginBottom: 10 }}>
+              <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 8 }}>
+                <Text style={{ flexShrink: 1, fontSize: 14, color: colors.foreground, fontFamily: 'Inter_700Bold', letterSpacing: 0.3 }} numberOfLines={1}>ESTIMATE & PAYMENT</Text>
+                <View style={{ flexShrink: 0, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: paymentTone + '33' }}>
+                  <Text style={{ fontSize: 12, lineHeight: 15, fontFamily: 'Inter_600SemiBold', color: paymentTone }}>{paymentStatusLabel}</Text>
+                </View>
+              </View>
+              {/* Charges on a delivered/closed job may only be corrected by the
+                  dealer/owner — the server rejects staff edits there anyway. */}
+              {(isActiveRepair || isDealer) && (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit estimate"
+                  onPress={() => {
+                    setEditRepairCharge(repair.repairCharge.toString());
+                    setEditServiceCharge((repair.serviceCharge || 0).toString());
+                    setEditOtherCharge((repair.otherCharge || 0).toString());
+                    setEditDiscount((repair.discount || 0).toString());
+                    setEditTaxPercent((repair.taxPercent || 0).toString());
+                    setShowFinancialEdit(true);
+                  }}
+                  hitSlop={8}
+                  style={{ flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 5 }}
+                >
+                  <Feather name="edit-2" size={14} color={colors.primary} />
+                  <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Edit Estimate</Text>
+                </TouchableOpacity>
+              )}
             </View>
-          )}
-
-          {workNotes.length === 0 ? (
-            <Text style={{ fontSize: 13, color: colors.mutedForeground, lineHeight: 19 }}>
-              {canAddNote ? 'Abhi koi note nahi. Har kaam ke baad ek chhota note add karein.' : 'No work notes yet.'}
-            </Text>
-          ) : (
-            <View style={{ gap: 12 }}>
-              {workNotes.map((n) => (
-                <View key={n.id} style={{ paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: n.kind === 'note' ? colors.primary + '66' : colors.border }}>
-                  {n.kind !== 'note' && (
-                    <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.6, marginBottom: 2 }}>{n.label}</Text>
-                  )}
-                  <Text style={{ fontSize: 14, color: colors.foreground, lineHeight: 20 }}>{n.text}</Text>
-                  {!!n.meta && (
-                    <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 3 }}>{n.meta}</Text>
-                  )}
+            <View style={{ flexDirection: 'row', alignItems: 'stretch' }}>
+              {[
+                { label: 'Estimate', value: formatCurrency(payTotal), color: colors.foreground, icon: colors.primary },
+                { label: 'Paid', value: formatCurrency(payPaid), color: colors.success, icon: colors.success },
+                { label: 'Balance', value: formatCurrency(payRemaining), color: payRemaining > 0 ? colors.warning : colors.primary, icon: payRemaining > 0 ? colors.warning : colors.primary },
+              ].map((cell, idx) => (
+                <View key={cell.label} style={{ flex: 1, minWidth: 0, alignItems: idx === 0 ? 'flex-start' : idx === 1 ? 'center' : 'flex-end', borderLeftWidth: idx === 0 ? 0 : 1, borderLeftColor: colors.border, paddingLeft: idx === 0 ? 0 : 8 }}>
+                  <Text style={{ fontSize: 12, lineHeight: 15, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 6 }}>{cell.label}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '100%' }}>
+                    <MaterialCommunityIcons name="database" size={20} color={cell.icon} />
+                    <Text style={{ flexShrink: 1, fontSize: 20, lineHeight: 24, color: cell.color, fontFamily: 'Inter_700Bold' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{cell.value}</Text>
+                  </View>
                 </View>
               ))}
             </View>
-          )}
-        </Card>
-
-        {/* 6. ESTIMATE & PAYMENT */}
-        {canSeeFinance ? (
-          <Card>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>ESTIMATE & PAYMENT</Text>
-              <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: (payRemaining <= 0 && payTotal > 0) ? colors.success + '22' : payPaid > 0 ? colors.warning + '22' : colors.muted + '33' }}>
-                <Text style={{ fontSize: 11, fontFamily: 'Inter_600SemiBold', color: (payRemaining <= 0 && payTotal > 0) ? colors.success : payPaid > 0 ? colors.warning : colors.mutedForeground }}>
-                  {(payRemaining <= 0 && payTotal > 0) ? 'Paid' : payPaid > 0 ? 'Partially Paid' : 'Pending'}
-                </Text>
-              </View>
-            </View>
-            <InfoRow label="Estimate" value={formatCurrency(payTotal)} bold />
-            <InfoRow label="Paid" value={formatCurrency(payPaid)} color={colors.success} />
-            <InfoRow label="Balance" value={formatCurrency(payRemaining)} color={payRemaining > 0 ? colors.warning : colors.success} bold />
-            {/* Charges on a delivered/closed job may only be corrected by the
-                dealer/owner — the server rejects staff edits there anyway. */}
-            {(isActiveRepair || isDealer) && (
-              <TouchableOpacity
-                onPress={() => {
-                  setEditRepairCharge(repair.repairCharge.toString());
-                  setEditServiceCharge((repair.serviceCharge || 0).toString());
-                  setEditOtherCharge((repair.otherCharge || 0).toString());
-                  setEditDiscount((repair.discount || 0).toString());
-                  setEditTaxPercent((repair.taxPercent || 0).toString());
-                  setShowFinancialEdit(true);
-                }}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}
-              >
-                <Feather name="edit-2" size={13} color={colors.primary} />
-                <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_500Medium' }}>Edit Estimate</Text>
-              </TouchableOpacity>
-            )}
-          </Card>
+          </View>
         ) : (
-          <Card>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>WARRANTY</Text>
-            <InfoRow label="Warranty Offered" value={`${repair.warrantyDays || 0} Days`} />
-            {repair.warrantyExpiry && <InfoRow label="Warranty Expiry" value={formatDate(repair.warrantyExpiry)} />}
-          </Card>
+          <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+            <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_700Bold', letterSpacing: 0.3 }}>WARRANTY</Text>
+            <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>
+              {`${repair.warrantyDays || 0} Days`}{repair.warrantyExpiry ? ` · till ${formatDate(repair.warrantyExpiry)}` : ''}
+            </Text>
+          </View>
         )}
+
+        {/* ── Quick tiles: Work Notes | Photos | Details & History ── */}
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          {showNotesRow && (
+            <TouchableOpacity
+              testID="work-notes-row"
+              accessibilityRole="button"
+              accessibilityLabel={workNotes.length > 0 ? `Work Notes, ${workNotes.length}` : 'Work Notes'}
+              onPress={() => setShowNotes(true)}
+              activeOpacity={0.8}
+              style={[styles.tile, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <View style={[styles.tileIcon, { backgroundColor: colors.primary + '1F' }]}>
+                <MaterialCommunityIcons name="file-document-edit-outline" size={26} color={colors.primary} />
+                {workNotes.length > 0 && (
+                  <View style={[styles.tileBadge, { backgroundColor: colors.primary, borderColor: colors.card }]}>
+                    <Text style={{ fontSize: 10, lineHeight: 12, color: '#FFF', fontFamily: 'Inter_700Bold' }}>{workNotes.length}</Text>
+                  </View>
+                )}
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, maxWidth: '100%' }}>
+                <Text style={{ flexShrink: 1, fontSize: 12, lineHeight: 15, letterSpacing: -0.2, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Work Notes</Text>
+                <Feather name="chevron-right" size={13} color={colors.foreground} />
+              </View>
+              <Text style={{ fontSize: 11, lineHeight: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }} numberOfLines={1}>{canAddNote ? 'Add / View notes' : 'View notes'}</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            testID="photos-tile"
+            accessibilityRole="button"
+            accessibilityLabel={photosData?.photos?.length ? `Photos, ${photosData.photos.length}` : 'Photos'}
+            onPress={() => setShowPhotos(true)}
+            activeOpacity={0.8}
+            style={[styles.tile, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <View style={[styles.tileIcon, { backgroundColor: colors.primary + '1F' }]}>
+              <MaterialCommunityIcons name="image-outline" size={26} color={colors.primary} />
+              {!!photosData?.photos?.length && (
+                <View style={[styles.tileBadge, { backgroundColor: colors.primary, borderColor: colors.card }]}>
+                  <Text style={{ fontSize: 10, lineHeight: 12, color: '#FFF', fontFamily: 'Inter_700Bold' }}>{photosData.photos.length}</Text>
+                </View>
+              )}
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, maxWidth: '100%' }}>
+              <Text style={{ flexShrink: 1, fontSize: 12, lineHeight: 15, letterSpacing: -0.2, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Photos</Text>
+              <Feather name="chevron-right" size={13} color={colors.foreground} />
+            </View>
+            <Text style={{ fontSize: 11, lineHeight: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }} numberOfLines={1}>{canAddPhoto ? 'View / Add photos' : 'View photos'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            testID="details-history-tile"
+            accessibilityRole="button"
+            accessibilityLabel="Details & History"
+            onPress={() => setShowMore(true)}
+            activeOpacity={0.8}
+            style={[styles.tile, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <View style={[styles.tileIcon, { backgroundColor: colors.primary + '1F' }]}>
+              <MaterialCommunityIcons name="history" size={26} color={colors.primary} />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, maxWidth: '100%' }}>
+              <Text style={{ flexShrink: 1, fontSize: 12, lineHeight: 15, letterSpacing: -0.2, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Details & History</Text>
+              <Feather name="chevron-right" size={13} color={colors.foreground} />
+            </View>
+            <Text style={{ fontSize: 11, lineHeight: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }} numberOfLines={1}>View timeline</Text>
+          </TouchableOpacity>
+        </View>
+
 
         {/* 7. CUSTOMER APPROVAL — only when actually required */}
         {canSeeFinance && (approvals.length > 0 || repair.status === 'customer_approval') && (
@@ -1240,136 +1475,40 @@ export default function RepairDetailScreen() {
           </Card>
         )}
 
-        {/* 9. Photos / More links */}
-        <Card style={{ paddingVertical: 4 }}>
-          <TouchableOpacity onPress={() => setShowMore(true)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Feather name="image" size={16} color={colors.primary} />
-              <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>Photos{photosData?.photos?.length ? ` (${photosData.photos.length})` : ''}</Text>
-            </View>
-            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-          </TouchableOpacity>
-          <View style={{ height: 1, backgroundColor: colors.border + '55' }} />
-          <TouchableOpacity onPress={() => setShowMore(true)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Feather name="list" size={16} color={colors.primary} />
-              <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>Full Details & History</Text>
-            </View>
-            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        </Card>
       {/* PRIMARY ACTION — intentionally at the end of the scroll content */}
-      <View style={[styles.actionBar, { backgroundColor: colors.background, borderTopColor: colors.border, paddingHorizontal: 0, paddingBottom: 12 }]}>
-        {repair.status === 'delivered' ? (
-          isDealer ? (
-            <View>
-              <View style={[styles.doneBar, { backgroundColor: colors.success + '18', borderColor: colors.success + '44' }]}>
-                <Feather name="check-circle" size={18} color={colors.success} />
-                <Text style={{ fontSize: 15, color: colors.success, fontFamily: 'Inter_700Bold' }}>JOB COMPLETED ✓</Text>
-              </View>
-              {/* Dealer/owner corrections on a delivered job: money, details,
-                  payment status, or delete. Staff see none of this. */}
-              {canSeeFinance && (
-                <View style={{ marginTop: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', letterSpacing: 0.5 }}>
-                      OWNER CONTROLS
-                    </Text>
-                    <Text style={{ fontSize: 11, color: (payRemaining <= 0 && payTotal > 0) ? colors.success : payPaid > 0 ? colors.warning : colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }}>
-                      {(payRemaining <= 0 && payTotal > 0) ? 'PAID' : payPaid > 0 ? 'PARTIALLY PAID' : 'UNPAID'}
-                    </Text>
-                  </View>
-                  <InfoRow label="Total" value={formatCurrency(payTotal)} bold />
-                  <InfoRow label="Paid" value={formatCurrency(payPaid)} color={colors.success} />
-                  <InfoRow label="Balance" value={formatCurrency(payRemaining)} color={payRemaining > 0 ? colors.warning : colors.success} bold />
-                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-                    {payRemainingCents > 0 && (
-                      <View style={{ flex: 1 }}>
-                        <Button title="Mark as Paid" variant="outline" onPress={openPaymentModal} />
-                      </View>
-                    )}
-                    {payPaid > 0 && (
-                      <View style={{ flex: 1 }}>
-                        <Button
-                          title="Mark as Unpaid"
-                          variant="outline"
-                          onPress={() => {
-                            setMarkUnpaidReason('');
-                            setShowMarkUnpaid(true);
-                          }}
-                        />
-                      </View>
-                    )}
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setEditRepairCharge(repair.repairCharge.toString());
-                      setEditServiceCharge((repair.serviceCharge || 0).toString());
-                      setEditOtherCharge((repair.otherCharge || 0).toString());
-                      setEditDiscount((repair.discount || 0).toString());
-                      setEditTaxPercent((repair.taxPercent || 0).toString());
-                      setShowFinancialEdit(true);
-                    }}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}
-                  >
-                    <Feather name="edit-2" size={13} color={colors.primary} />
-                    <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_500Medium' }}>Edit Price & Charges</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setShowMore(true)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}
-                  >
-                    <Feather name="list" size={13} color={colors.primary} />
-                    <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_500Medium' }}>Payment History & Single Void</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-              <View style={{ marginTop: 10 }}>
-                <Button
-                  title="Delete Repair"
-                  variant="outline"
-                  onPress={() => {
-                    confirmDeleteRepair();
-                  }}
-                />
-              </View>
-            </View>
-          ) : (
-            <View style={[styles.doneBar, { backgroundColor: colors.success + '18', borderColor: colors.success + '44' }]}>
-              <Feather name="check-circle" size={18} color={colors.success} />
-              <Text style={{ fontSize: 15, color: colors.success, fontFamily: 'Inter_700Bold' }}>JOB COMPLETED ✓</Text>
-            </View>
-          )
-        ) : (repair.status === 'cancelled' || repair.status === 'cannot_repair') ? (
-          <View>
-            <View style={[styles.doneBar, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '44' }]}>
-              <Feather name="x-circle" size={18} color={colors.destructive} />
-              <Text style={{ fontSize: 15, color: colors.destructive, fontFamily: 'Inter_700Bold' }}>{repair.status === 'cancelled' ? 'CANCELLED' : 'CANNOT REPAIR'}</Text>
-            </View>
-            {/* Dealer/owner can permanently remove a cancelled / cannot-repair job. */}
-            {isDealer && (
-              <View style={{ marginTop: 10 }}>
-                <Button
-                  title="Delete Repair"
-                  variant="outline"
-                  onPress={() => {
-                    confirmDeleteRepair();
-                  }}
-                />
-              </View>
-            )}
+      {/* Delivered jobs show nothing here: owner corrections (money, charges,
+          mark unpaid, delete) live in the pencil sheet. */}
+      {repair.status !== 'delivered' && (
+      <View>
+        {(repair.status === 'cancelled' || repair.status === 'cannot_repair') ? (
+          <View style={[styles.doneBar, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '44' }]}>
+            <Feather name="x-circle" size={18} color={colors.destructive} />
+            <Text style={{ fontSize: 15, color: colors.destructive, fontFamily: 'Inter_700Bold' }}>{repair.status === 'cancelled' ? 'CANCELLED' : 'CANNOT REPAIR'}</Text>
           </View>
         ) : (
           canUpdateStatus && nextStep ? (
-            <Button
-              title={continueButtonLabel}
-              onPress={handleContinue}
-              loading={updating}
-              fullWidth
-            />
+            <TouchableOpacity
+              testID="continue-button"
+              accessibilityRole="button"
+              accessibilityLabel={continueButtonLabel}
+              accessibilityState={{ busy: updating, disabled: updating }}
+              onPress={() => { if (!updating) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); handleContinue(); } }}
+              activeOpacity={0.85}
+              style={[styles.primaryCta, { backgroundColor: colors.primary, opacity: updating ? 0.85 : 1 }]}
+            >
+              {/* Icon + label sit centred as one group; the chevron hugs the right edge. */}
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40 }}>
+                <MaterialCommunityIcons name="cog" size={22} color="#FFFFFF" />
+                <Text style={{ flexShrink: 1, fontSize: 17, lineHeight: 21, color: '#FFFFFF', fontFamily: 'Inter_700Bold' }} numberOfLines={1}>{continueButtonLabel}</Text>
+              </View>
+              <View style={{ position: 'absolute', right: 20, top: 0, bottom: 0, justifyContent: 'center' }}>
+                {updating ? <AvarpusSpinner size={22} color="#FFFFFF" /> : <Feather name="chevron-right" size={22} color="#FFFFFF" />}
+              </View>
+            </TouchableOpacity>
           ) : null
         )}
       </View>
+      )}
       </KeyboardAwareScrollViewCompat>
 
       {/* Update Status — next step only */}
@@ -1469,6 +1608,43 @@ export default function RepairDetailScreen() {
               <SummaryRow icon="tool" label="Technician" value={repair.technicianName || 'Unassigned'} rightElement={((user?.role === 'dealer' || user?.role === 'super_admin') && isActiveRepair) ? <TouchableOpacity onPress={() => { setShowMore(false); setTimeout(() => setShowAssign(true), 350); }}><Feather name="edit" size={14} color={colors.primary}/></TouchableOpacity> : null} />
               <SummaryRow icon="shield" label="Warranty" value={`${repair.warrantyDays || 0} Days${repair.warrantyExpiry ? ` (Till ${formatDate(repair.warrantyExpiry)})` : ''}`} />
             </Card>
+
+            {/* Owner controls on a delivered job: money summary, mark paid,
+                edit charges. Mark-unpaid and delete sit beside Invoice below.
+                Staff never see this card. */}
+            {repair.status === 'delivered' && isDealer && canSeeFinance && (
+              <Card>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>OWNER CONTROLS</Text>
+                  <Text style={{ fontSize: 11, color: (payRemaining <= 0 && payTotal > 0) ? colors.success : payPaid > 0 ? colors.warning : colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }}>
+                    {(payRemaining <= 0 && payTotal > 0) ? 'PAID' : payPaid > 0 ? 'PARTIALLY PAID' : 'UNPAID'}
+                  </Text>
+                </View>
+                <InfoRow label="Total" value={formatCurrency(payTotal)} bold />
+                <InfoRow label="Paid" value={formatCurrency(payPaid)} color={colors.success} />
+                <InfoRow label="Balance" value={formatCurrency(payRemaining)} color={payRemaining > 0 ? colors.warning : colors.success} bold />
+                {payRemainingCents > 0 && (
+                  <View style={{ marginTop: 10 }}>
+                    <Button title="Mark as Paid" variant="outline" onPress={() => { setShowMore(false); setTimeout(openPaymentModal, 350); }} />
+                  </View>
+                )}
+                <TouchableOpacity
+                  onPress={() => {
+                    setEditRepairCharge(repair.repairCharge.toString());
+                    setEditServiceCharge((repair.serviceCharge || 0).toString());
+                    setEditOtherCharge((repair.otherCharge || 0).toString());
+                    setEditDiscount((repair.discount || 0).toString());
+                    setEditTaxPercent((repair.taxPercent || 0).toString());
+                    setShowMore(false);
+                    setTimeout(() => setShowFinancialEdit(true), 350);
+                  }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}
+                >
+                  <Feather name="edit-2" size={13} color={colors.primary} />
+                  <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_500Medium' }}>Edit Price & Charges</Text>
+                </TouchableOpacity>
+              </Card>
+            )}
 
             {/* Full Device Details */}
             <Card>
@@ -1777,14 +1953,99 @@ export default function RepairDetailScreen() {
               <Button title="Request Customer Approval" variant="outline" onPress={() => { setShowMore(false); setTimeout(() => setShowApproval(true), 350); }} />
             )}
 
-            <TouchableOpacity onPress={generatePDF} style={[styles.pdfBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '33', marginTop: 4 }]}>
-              <Feather name="file-text" size={18} color={colors.primary} />
-              <Text style={[styles.pdfBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Invoice</Text>
-            </TouchableOpacity>
+            {/* Invoice + owner-only corrections (mark unpaid / delete) side by side.
+                Both open their own prompt, so the sheet closes first. */}
+            <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: 10, marginTop: 4 }}>
+              <TouchableOpacity onPress={generatePDF} style={[styles.pdfBtn, { flex: 1, backgroundColor: colors.primary + '15', borderColor: colors.primary + '33' }]}>
+                <Feather name="file-text" size={18} color={colors.primary} />
+                <Text style={[styles.pdfBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Invoice</Text>
+              </TouchableOpacity>
+              {canMarkUnpaid && (
+                <TouchableOpacity
+                  testID="repair-mark-unpaid"
+                  accessibilityLabel="Mark as Unpaid"
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setShowMore(false);
+                    setMarkUnpaidReason('');
+                    setTimeout(() => setShowMarkUnpaid(true), 350);
+                  }}
+                  style={[styles.iconActionBtn, { backgroundColor: colors.warning + '15', borderColor: colors.warning + '44' }]}
+                >
+                  <Feather name="rotate-ccw" size={18} color={colors.warning} />
+                </TouchableOpacity>
+              )}
+              {canDeleteRepair && (
+                <TouchableOpacity
+                  testID="repair-delete"
+                  accessibilityLabel="Delete Repair"
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setShowMore(false);
+                    setTimeout(() => confirmDeleteRepair(), 350);
+                  }}
+                  style={[styles.iconActionBtn, { backgroundColor: colors.destructive + '12', borderColor: colors.destructive + '44' }]}
+                >
+                  <Feather name="trash-2" size={18} color={colors.destructive} />
+                </TouchableOpacity>
+              )}
+            </View>
           </ScrollView>
         </View>
       </Modal>
 
+
+      {/* Photos — view the gallery, add more from camera / gallery */}
+      <Modal visible={showPhotos} animationType="slide" transparent onRequestClose={() => setShowPhotos(false)}>
+        <View style={styles.sheetOverlay}>
+          <View style={[styles.sheetContent, { backgroundColor: colors.background, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, 16), maxHeight: '85%' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <View>
+                <Text style={[styles.modalTitle, { color: colors.foreground, marginBottom: 0 }]}>Photos</Text>
+                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 2 }}>
+                  {photosData?.photos?.length ? `${photosData.photos.length} photo${photosData.photos.length === 1 ? '' : 's'} on this job` : 'No photos yet'}
+                </Text>
+              </View>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close photos" onPress={() => setShowPhotos(false)} style={[styles.sigCloseBtn, { borderColor: colors.border }]}>
+                <Feather name="x" size={18} color={colors.foreground} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
+              {photosData?.photos && photosData.photos.length > 0 ? (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                  {photosData.photos.map(p => (
+                    <TouchableOpacity
+                      key={p.id}
+                      testID={`photo-thumb-${p.id}`}
+                      accessibilityRole="imagebutton"
+                      accessibilityLabel={`Open ${p.kind.replace(/_/g, ' ')} photo`}
+                      style={{ width: '31%' }}
+                      activeOpacity={0.7}
+                      onPress={() => openPhotoFromSheet(p)}
+                    >
+                      <View style={{ aspectRatio: 1, borderRadius: 12, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', marginBottom: 4 }}>
+                        <Image source={{ uri: getAbsoluteUrl(p.objectPath), headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                      </View>
+                      <Text style={{ fontSize: 10, color: colors.mutedForeground, textAlign: 'center', textTransform: 'capitalize' }} numberOfLines={1}>{p.kind.replace(/_/g, ' ')}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : (
+                <View style={{ alignItems: 'center', paddingVertical: 24, gap: 8 }}>
+                  <Feather name="image" size={28} color={colors.mutedForeground} />
+                  <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>Device photos will appear here.</Text>
+                </View>
+              )}
+            </ScrollView>
+            {canAddPhoto && (
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                <Button title="Take Photo" variant="outline" onPress={() => handleAddPhoto('camera')} loading={photoUploading === 'camera'} disabled={!!photoUploading} style={{ flex: 1 }} testID="add-photo-camera" />
+                <Button title="From Gallery" onPress={() => handleAddPhoto('library')} loading={photoUploading === 'library'} disabled={!!photoUploading} style={{ flex: 1 }} testID="add-photo-library" />
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
       {/* Fullscreen photo/signature viewer */}
       <Modal visible={!!viewerImage} animationType="fade" transparent onRequestClose={() => setViewerImage(null)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)' }}>
@@ -2310,6 +2571,72 @@ export default function RepairDetailScreen() {
         </KeyboardAvoidingCompat>
       </Modal>
 
+      {/* Work Notes sheet — the only place staff describe what was done.
+          Notes are append-only timeline events; the sheet shows the composer
+          (when allowed) above the newest-first history. */}
+      <Modal visible={showNotes} animationType="slide" transparent onRequestClose={() => setShowNotes(false)}>
+        <KeyboardAvoidingCompat style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border, maxHeight: '85%' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text style={[styles.modalTitle, { color: colors.foreground, marginBottom: 0 }]}>
+                Work Notes{workNotes.length > 0 ? ` (${workNotes.length})` : ''}
+              </Text>
+              <TouchableOpacity onPress={() => setShowNotes(false)} accessibilityRole="button" accessibilityLabel="Close work notes" hitSlop={8}>
+                <Feather name="x" size={20} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+
+            {canAddNote && (
+              <View style={{ marginBottom: workNotes.length > 0 ? 14 : 4 }}>
+                <TextInput
+                  testID="work-note-input"
+                  value={noteDraft}
+                  onChangeText={setNoteDraft}
+                  placeholder="Phone mein kya kaam hua? Yahan likhein…"
+                  placeholderTextColor={colors.mutedForeground}
+                  multiline
+                  maxLength={2000}
+                  editable={!noteSaving}
+                  autoFocus={workNotes.length === 0}
+                  style={[styles.input, { color: colors.foreground, borderColor: colors.border, minHeight: 72, textAlignVertical: 'top', marginBottom: 8 }]}
+                />
+                <Button
+                  title="Add Note"
+                  onPress={handleAddNote}
+                  loading={noteSaving}
+                  disabled={!noteDraft.trim()}
+                  fullWidth
+                />
+              </View>
+            )}
+
+            {workNotes.length === 0 ? (
+              canAddNote ? (
+                <Text style={{ fontSize: 13, color: colors.mutedForeground, lineHeight: 19 }}>
+                  Har kaam ke baad ek chhota note add karein.
+                </Text>
+              ) : null
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <View style={{ gap: 12, paddingBottom: 4 }}>
+                  {workNotes.map((n) => (
+                    <View key={n.id} style={{ paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: n.kind === 'note' ? colors.primary + '66' : colors.border }}>
+                      {n.kind !== 'note' && (
+                        <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.6, marginBottom: 2 }}>{n.label}</Text>
+                      )}
+                      <Text style={{ fontSize: 14, color: colors.foreground, lineHeight: 20 }}>{n.text}</Text>
+                      {!!n.meta && (
+                        <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 3 }}>{n.meta}</Text>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </KeyboardAvoidingCompat>
+      </Modal>
+
       {/* Assign Technician Modal */}
       <Modal visible={showAssign} animationType="slide" transparent onRequestClose={() => setShowAssign(false)}>
         <View style={styles.modalOverlay}>
@@ -2357,6 +2684,13 @@ const styles = StyleSheet.create({
   },
   detailTitle: { fontSize: 18, fontFamily: 'Inter_700Bold' },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  roundBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  contactBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  panel: { borderWidth: 1, borderRadius: 18, overflow: 'hidden' },
+  tile: { flex: 1, minWidth: 0, borderWidth: 1, borderRadius: 18, paddingVertical: 10, paddingHorizontal: 4, alignItems: 'center', gap: 2 },
+  tileIcon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  tileBadge: { position: 'absolute', top: -2, right: -2, minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  primaryCta: { flexDirection: 'row', alignItems: 'center', height: 54, borderRadius: 27, paddingHorizontal: 16 },
   headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   repairId: { fontSize: 20 },
   notFound: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -2376,6 +2710,7 @@ const styles = StyleSheet.create({
   problemText: { fontSize: 13, lineHeight: 20, marginTop: 4 },
   pdfBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: 12, borderWidth: 1 },
   pdfBtnText: { fontSize: 15 },
+  iconActionBtn: { width: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1 },
   checkBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   galleryThumb: { width: 100, height: 100, borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
   galleryImg: { width: '100%', height: '100%' },

@@ -258,6 +258,9 @@ describe('failed update alerts and keeps edited values', () => {
     mockRepairNotesAdd.mockRejectedValue(new Error('boom'));
     const { unmount } = await renderDetail();
 
+    // The composer lives in the Work Notes sheet behind the compact row.
+    expect(screen.queryByPlaceholderText(NOTE_PLACEHOLDER)).toBeNull();
+    await press('Work Notes');
     fireEvent.changeText(screen.getByPlaceholderText(NOTE_PLACEHOLDER), 'Replaced battery, phone charging now');
     await press('Add Note');
 
@@ -353,15 +356,23 @@ describe('successful update replaces the record in the list', () => {
     ];
     const { unmount } = await renderDetail();
 
-    // Existing note and legacy structured fields are readable in the card.
-    // (The newest note is also echoed as the summary card's Notes line.)
-    expect(screen.getAllByText('Opened back panel').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Old diagnosis')).toBeTruthy();
-    expect(screen.getByText('Old work')).toBeTruthy();
+    // The summary card no longer echoes notes, technician or More Actions;
+    // the compact Work Notes row shows only a count.
+    expect(screen.queryByText('Opened back panel')).toBeNull();
+    expect(screen.queryByText('No notes provided.')).toBeNull();
+    expect(screen.queryByText('More Actions')).toBeNull();
+    expect(screen.queryByText('Unassigned')).toBeNull();
+    expect(screen.getByLabelText('Work Notes, 3')).toBeTruthy();
     // The old Complaint / Diagnosis / Repairing / Testing tab card is gone.
     expect(screen.queryByText('Complaint')).toBeNull();
     expect(screen.queryByText('Update Repair Work')).toBeNull();
     expect(screen.queryByText('Edit Service Details')).toBeNull();
+
+    // Existing note and legacy structured fields are readable in the sheet.
+    await press('Work Notes');
+    expect(screen.getByText('Opened back panel')).toBeTruthy();
+    expect(screen.getByText('Old diagnosis')).toBeTruthy();
+    expect(screen.getByText('Old work')).toBeTruthy();
 
     fireEvent.changeText(screen.getByPlaceholderText(NOTE_PLACEHOLDER), '  Replaced battery  ');
     await press('Add Note');
@@ -482,6 +493,73 @@ describe('GET-backed detail stays correct across mutations and route changes', (
     await act(async () => {});
     await waitFor(() => expect(screen.getByText('Repair not found')).toBeTruthy());
     expect(screen.queryByText('Asha Kumar')).toBeNull();
+    unmount();
+  });
+});
+
+// ── Redesigned detail header cards ───────────────────────────────────────
+describe('redesigned repair detail cards', () => {
+  it('shows the four-stop timeline from real status, and Update Status opens the next-step picker', async () => {
+    mockEvents.events = [
+      { id: 'ev-status', repairId: 'r1', userName: 'Owner', userRole: 'dealer', action: 'status_changed', details: { from: 'received', to: 'repairing' }, createdAt: '2026-09-10T10:00:00.000Z' },
+    ];
+    const { unmount } = await renderDetail();
+
+    expect(screen.getByText('Track and manage repair process')).toBeTruthy();
+    expect(screen.getByTestId('stage-received-completed')).toBeTruthy();
+    expect(screen.getByTestId('stage-repairing-current')).toBeTruthy();
+    expect(screen.getByTestId('stage-ready-upcoming')).toBeTruthy();
+    expect(screen.getByTestId('stage-delivered-upcoming')).toBeTruthy();
+    expect(screen.getByText('Current Stage')).toBeTruthy();
+    expect(screen.getAllByText('Pending').length).toBeGreaterThanOrEqual(2);
+
+    // Update Status opens the picker, which names the same next step as the primary button.
+    expect(screen.queryByText('Update Status')).toBeTruthy();
+    await press('Update Status');
+    await waitFor(() => expect(screen.getByText('Move job to testing')).toBeTruthy());
+
+    // Photos tile opens the gallery sheet with add actions for staff who may update the repair.
+    await act(async () => { fireEvent.press(screen.getByTestId('photos-tile')); });
+    await waitFor(() => expect(screen.getByText('No photos yet')).toBeTruthy());
+    expect(screen.getByText('Take Photo')).toBeTruthy();
+    expect(screen.getByText('From Gallery')).toBeTruthy();
+
+    // The primary CTA is still the stage-named continue button.
+    expect(screen.getByTestId('continue-button')).toBeTruthy();
+    expect(screen.getByText('Continue as Testing')).toBeTruthy();
+    unmount();
+  });
+});
+
+describe('timeline for terminal and delivered jobs', () => {
+  it('a job cancelled while in progress ticks only the stops it actually reached', async () => {
+    mockLists.repairs = [{ ...baseRepair, status: 'cancelled' }];
+    mockEvents.events = [
+      { id: 'ev-2', repairId: 'r1', userName: 'Owner', userRole: 'dealer', action: 'status_changed', details: { from: 'repairing', to: 'cancelled' }, createdAt: '2026-09-11T10:00:00.000Z' },
+      { id: 'ev-1', repairId: 'r1', userName: 'Owner', userRole: 'dealer', action: 'status_changed', details: { from: 'received', to: 'repairing' }, createdAt: '2026-09-10T10:00:00.000Z' },
+    ];
+    const { unmount } = await renderDetail();
+    expect(screen.getByTestId('stage-received-completed')).toBeTruthy();
+    expect(screen.getByTestId('stage-repairing-completed')).toBeTruthy();
+    expect(screen.getByTestId('stage-ready-upcoming')).toBeTruthy();
+    expect(screen.getByTestId('stage-delivered-error')).toBeTruthy();
+    // Status pill + timeline stop both read Cancelled.
+    expect(screen.getAllByText('Cancelled').length).toBe(2);
+    expect(screen.queryByText('Update Status')).toBeNull();
+    expect(screen.queryByTestId('continue-button')).toBeNull();
+    unmount();
+  });
+
+  it('a delivered job shows every stop completed with no primary action', async () => {
+    mockLists.repairs = [{ ...baseRepair, status: 'delivered', deliveryDate: '2026-09-12' }];
+    mockEvents.events = [];
+    const { unmount } = await renderDetail();
+    expect(screen.getByTestId('stage-received-completed')).toBeTruthy();
+    expect(screen.getByTestId('stage-repairing-completed')).toBeTruthy();
+    expect(screen.getByTestId('stage-ready-completed')).toBeTruthy();
+    expect(screen.getByTestId('stage-delivered-completed')).toBeTruthy();
+    expect(screen.queryByTestId('continue-button')).toBeNull();
+    expect(screen.queryByText('Update Status')).toBeNull();
     unmount();
   });
 });

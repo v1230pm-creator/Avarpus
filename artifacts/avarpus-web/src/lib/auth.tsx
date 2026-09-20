@@ -9,8 +9,8 @@ import { useAuthMe, getAuthMeQueryKey, useRoleFeaturesGet } from "@workspace/api
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 
-const AUTH_KEY = "avarpus_auth_token";
-const API_BASE_URL = import.meta.env.VITE_API_URL?.trim() || null;
+export const AUTH_KEY = "avarpus_auth_token";
+export const API_BASE_URL = import.meta.env.VITE_API_URL?.trim() || null;
 const apiConfigurationError =
   import.meta.env.PROD && !API_BASE_URL
     ? "This web build is missing VITE_API_URL. Rebuild it with the public Avarpus API origin."

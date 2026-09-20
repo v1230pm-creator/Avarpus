@@ -5,8 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { Repair } from './repair';
 
-export type DealerTransactionsCreate200 = {
-  repair: Repair;
-};
+export interface DealerTransferDeclineInput {
+  /** @maxLength 500 */
+  reason?: string;
+}

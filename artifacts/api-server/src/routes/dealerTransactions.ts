@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
 import type { Request, Response } from "express";
-import { and, desc, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import {
   db,
+  dealerTransferRequestsTable,
   refundsTable,
   repairEventsTable,
   repairPaymentsTable,
@@ -12,14 +13,18 @@ import {
   type DbUser,
 } from "@workspace/db";
 import {
+  DealersDirectoryQueryParams,
   DealersLookupQueryParams,
-  DealerTransactionsCreateBody,
   DealerTransactionsListQueryParams,
+  DealerTransfersDeclineBody,
+  DealerTransfersListQueryParams,
+  RepairsTransferBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
-import { requireFeature, userHasFeature } from "../lib/roleFeatures";
+import { OWNER_ROLES, requireFeature, userHasFeature } from "../lib/roleFeatures";
 import { asyncHandler } from "../lib/asyncHandler";
 import { parseBody, parseQuery, uuidParam } from "../lib/validate";
+import { normaliseIndianMobile } from "../lib/hanuOtp";
 import { computeTotals, paymentStatusOf, portalRepairOut } from "../lib/repairProjection";
 import { notifyShop, notifyUser } from "../lib/notify";
 import {
@@ -33,6 +38,14 @@ import {
   transactionCodeOf,
   type LedgerDirection,
 } from "../lib/dealerLedger";
+import {
+  ACTIVE_RESULT_STATUSES,
+  dealerCodeOf,
+  importTransferPhotos,
+  importedRepairFields,
+  transferRequestsOut,
+  type TransferRow,
+} from "../lib/dealerTransfers";
 
 // ── Dealer-to-dealer transactions ───────────────────────────────────────────
 // A registered shop (the "source dealer") sends a device to ANOTHER
@@ -107,6 +120,18 @@ function fullRepairOut(r: typeof repairsTable.$inferSelect) {
     balance: t.balance,
     paymentStatus: paymentStatusOf(t.totalAmount, t.paidAmount),
     transactionCode: r.sourceDealerShopId ? transactionCodeOf(r) : undefined,
+    sourceRepairId: r.sourceRepairId ?? undefined,
+    sourceDealerUserId: r.sourceDealerUserId ?? undefined,
+    // Imported device facts + who accepted, so the receiving shop's screens
+    // can show "Received From / Received By" straight from the accept reply.
+    color: r.color ?? undefined,
+    storage: r.storage ?? undefined,
+    ram: r.ram ?? undefined,
+    accessories: r.accessories ?? undefined,
+    accessoriesList: Array.isArray(r.accessoriesList) ? (r.accessoriesList as string[]) : undefined,
+    deviceCondition: r.deviceCondition ?? undefined,
+    receivedById: r.receivedById ?? undefined,
+    receivedByName: r.receivedByName ?? undefined,
   };
 }
 
@@ -182,12 +207,16 @@ function parseDirection(raw: unknown): LedgerDirection | null {
 router.get(
   "/dealers/lookup",
   requireAuth,
+  // Resolving a mobile to a shop owner is only needed to start a transfer /
+  // dealer transaction, so it carries the same bar as those mutations —
+  // otherwise any staff login could probe owner mobiles.
+  requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
     const query = parseQuery(DealersLookupQueryParams, req, res);
     if (!query) return;
-    const mobile = query.mobile.trim();
+    const mobile = normaliseIndianMobile(query.mobile) ?? "";
     if (!/^\d{10}$/.test(mobile)) {
       res.status(400).json({ message: "Enter a valid 10-digit mobile number." });
       return;
@@ -204,7 +233,7 @@ router.get(
       .innerJoin(shopsTable, eq(shopsTable.dealerId, usersTable.id))
       .where(and(
         eq(usersTable.mobile, mobile),
-        eq(usersTable.role, "dealer"),
+        inArray(usersTable.role, [...OWNER_ROLES]),
         eq(usersTable.isActive, true),
         ne(shopsTable.id, shopId),
       ))
@@ -247,18 +276,597 @@ router.get(
   }),
 );
 
+// ── Send to Dealer: transfer requests ───────────────────────────────────────
+// Shop A offers one of ITS OWN repair rows to shop B. Until B accepts, the
+// only thing that exists is the request row; B's repair queue is untouched.
+
+router.get(
+  "/dealers/directory",
+  requireAuth,
+  // The only thing the directory is for is sending a repair to another shop,
+  // so discovery carries the same bar as POST /repairs/:id/transfer. Staff
+  // who cannot send must not be able to confirm mobile → owner/shop links.
+  requireFeature("repairs_update"),
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const query = parseQuery(DealersDirectoryQueryParams, req, res);
+    if (!query) return;
+    const q = query.q.trim();
+    if (!q) {
+      res.json({ dealers: [] });
+      return;
+    }
+    // Owners paste numbers from contacts as "+91 98765 43210" / "098765…";
+    // treat anything that normalises to a valid Indian mobile as an exact
+    // owner-mobile lookup (never a prefix search — mobiles must not be
+    // enumerable through this endpoint).
+    const mobile = normaliseIndianMobile(q);
+    const isMobile = mobile !== null;
+    const like = `%${q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+    const codeLike = /^[0-9a-f-]{3,36}$/i.test(q) ? `${q.toLowerCase()}%` : null;
+    const match = isMobile
+      ? eq(usersTable.mobile, mobile)
+      : or(
+          ilike(shopsTable.businessName, like),
+          ilike(usersTable.name, like),
+          ...(codeLike ? [sql`${shopsTable.id}::text ILIKE ${codeLike}`] : []),
+        );
+    const rows = await db
+      .select({
+        shopId: shopsTable.id,
+        businessName: shopsTable.businessName,
+        address: shopsTable.address,
+        ownerUserId: usersTable.id,
+        ownerName: usersTable.name,
+      })
+      .from(shopsTable)
+      .innerJoin(usersTable, eq(usersTable.id, shopsTable.dealerId))
+      .where(and(
+        // Verified shop owners only: the owner account itself must be an
+        // active owner login (`dealer`, or the platform `super_admin` who
+        // also runs a shop) — never portal/customer logins.
+        inArray(usersTable.role, [...OWNER_ROLES]),
+        eq(usersTable.isActive, true),
+        ne(shopsTable.id, shopId),
+        match,
+      ))
+      .orderBy(shopsTable.businessName)
+      .limit(20);
+    res.json({
+      dealers: rows.map((r) => ({
+        shopId: r.shopId,
+        dealerCode: dealerCodeOf(r.shopId),
+        businessName: r.businessName,
+        ownerUserId: r.ownerUserId,
+        ownerName: r.ownerName,
+        address: r.address ?? undefined,
+        matchedByMobile: isMobile,
+      })),
+    });
+  }),
+);
+
+async function transferOut(row: TransferRow, callerShopId: string) {
+  const [out] = await transferRequestsOut([row], callerShopId);
+  return out;
+}
+
 router.post(
-  "/dealers/transactions",
+  "/repairs/:id/transfer",
   requireAuth,
   requireFeature("repairs_update"),
   asyncHandler(async (req, res) => {
     const shopId = shopIdOr403(req, res);
     if (!shopId) return;
     const me = (req as AuthedRequest).user;
-    const body = parseBody(DealerTransactionsCreateBody, req, res);
+    const id = String(req.params.id ?? "");
+    const body = parseBody(RepairsTransferBody, req, res);
     if (!body) return;
     if (body.receiverShopId === shopId) {
       res.status(400).json({ message: "Cannot send a device to your own shop." });
+      return;
+    }
+    const [repair] = await db
+      .select()
+      .from(repairsTable)
+      .where(and(eq(repairsTable.id, id), eq(repairsTable.shopId, shopId)))
+      .limit(1);
+    if (!repair) {
+      res.status(404).json({ message: "Repair not found" });
+      return;
+    }
+    if (repair.status === "delivered" || repair.status === "cancelled") {
+      res.status(409).json({
+        message: "This repair is already closed; only a device still with your shop can be sent to a dealer.",
+        code: "REPAIR_CLOSED",
+      });
+      return;
+    }
+    const [receiver] = await db
+      .select({
+        shopId: shopsTable.id,
+        businessName: shopsTable.businessName,
+        ownerUserId: usersTable.id,
+      })
+      .from(shopsTable)
+      .innerJoin(usersTable, eq(usersTable.id, shopsTable.dealerId))
+      .where(and(
+        eq(shopsTable.id, body.receiverShopId),
+        inArray(usersTable.role, [...OWNER_ROLES]),
+        eq(usersTable.isActive, true),
+      ))
+      .limit(1);
+    if (!receiver) {
+      res.status(404).json({ message: "That shop could not be found or is not a verified dealer." });
+      return;
+    }
+    const [source] = await db
+      .select({ businessName: shopsTable.businessName, ownerUserId: shopsTable.dealerId })
+      .from(shopsTable)
+      .where(eq(shopsTable.id, shopId))
+      .limit(1);
+    if (!source) {
+      res.status(500).json({ message: "Could not resolve your shop." });
+      return;
+    }
+    // Fast path for the common case; the partial unique index below is the
+    // real guarantee against two concurrent sends.
+    const [pendingReq] = await db
+      .select({ id: dealerTransferRequestsTable.id, businessName: shopsTable.businessName })
+      .from(dealerTransferRequestsTable)
+      .innerJoin(shopsTable, eq(shopsTable.id, dealerTransferRequestsTable.receiverShopId))
+      .where(and(eq(dealerTransferRequestsTable.sourceRepairId, repair.id), eq(dealerTransferRequestsTable.status, "pending")))
+      .limit(1);
+    if (pendingReq) {
+      res.status(409).json({
+        message: `This repair is already waiting for ${pendingReq.businessName} to accept. Cancel that request first.`,
+        code: "TRANSFER_PENDING",
+      });
+      return;
+    }
+    // An accepted transfer still being repaired elsewhere holds the device.
+    const [active] = await db
+      .select({ id: dealerTransferRequestsTable.id, businessName: shopsTable.businessName })
+      .from(dealerTransferRequestsTable)
+      .innerJoin(repairsTable, eq(repairsTable.id, dealerTransferRequestsTable.resultRepairId))
+      .innerJoin(shopsTable, eq(shopsTable.id, dealerTransferRequestsTable.receiverShopId))
+      .where(and(
+        eq(dealerTransferRequestsTable.sourceRepairId, repair.id),
+        eq(dealerTransferRequestsTable.status, "accepted"),
+        inArray(repairsTable.status, ACTIVE_RESULT_STATUSES),
+      ))
+      .limit(1);
+    if (active) {
+      res.status(409).json({
+        message: `This device is currently with ${active.businessName}. It can be sent again once that repair is delivered.`,
+        code: "TRANSFER_ACTIVE",
+      });
+      return;
+    }
+    let created: TransferRow;
+    try {
+      created = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(dealerTransferRequestsTable)
+          .values({
+            sourceShopId: shopId,
+            sourceRepairId: repair.id,
+            sourceOwnerUserId: source.ownerUserId,
+            sentById: me.id,
+            sentByName: me.name,
+            receiverShopId: receiver.shopId,
+            receiverOwnerUserId: receiver.ownerUserId,
+            status: "pending",
+            message: body.message?.trim() || null,
+          })
+          .returning();
+        await tx.insert(repairEventsTable).values({
+          shopId,
+          repairId: repair.id,
+          userId: me.id,
+          userName: me.name,
+          userRole: me.role,
+          action: "dealer_transfer_sent",
+          details: {
+            transferId: row.id,
+            receiverShopId: receiver.shopId,
+            receiverBusinessName: receiver.businessName,
+          },
+        });
+        return row;
+      });
+    } catch (err) {
+      // Partial unique index: one pending request per repair. Drizzle may
+      // surface the pg error directly or wrapped as `cause`.
+      const pgCode = (err as { code?: string })?.code ?? ((err as { cause?: { code?: string } })?.cause?.code);
+      if (pgCode === "23505") {
+        res.status(409).json({
+          message: "This repair is already waiting for another dealer to accept. Cancel that request first.",
+          code: "TRANSFER_PENDING",
+        });
+        return;
+      }
+      throw err;
+    }
+    void notifyShop({
+      shopId: receiver.shopId,
+      type: "dealer_transfer_request",
+      title: `Incoming device from ${source.businessName}`,
+      body: `${repair.brand} ${repair.model} — ${repair.problem}. Accept or decline in Dealer Transactions.`,
+      data: { transferId: created.id, dealerTransfer: true },
+    });
+    res.json({ request: await transferOut(created, shopId) });
+  }),
+);
+
+router.get(
+  "/dealers/transfers",
+  requireAuth,
+  // Same read bar as GET /repairs: device details (IMEI, serial, problem)
+  // are visible to staff who can see repairs, never to finance-only roles.
+  requireFeature("repairs"),
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const query = parseQuery(DealerTransfersListQueryParams, req, res);
+    if (!query) return;
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
+    const scope =
+      query.direction === "incoming"
+        ? eq(dealerTransferRequestsTable.receiverShopId, shopId)
+        : eq(dealerTransferRequestsTable.sourceShopId, shopId);
+    const where = query.status ? and(scope, eq(dealerTransferRequestsTable.status, query.status)) : scope;
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(dealerTransferRequestsTable)
+      .where(where);
+    const rows = await db
+      .select()
+      .from(dealerTransferRequestsTable)
+      .where(where)
+      .orderBy(desc(dealerTransferRequestsTable.createdAt))
+      .limit(limit)
+      .offset((page - 1) * limit);
+    res.json({ requests: await transferRequestsOut(rows, shopId), total: count, page, limit });
+  }),
+);
+
+async function loadTransferForParty(id: string, shopId: string): Promise<TransferRow | null> {
+  const [row] = await db
+    .select()
+    .from(dealerTransferRequestsTable)
+    .where(and(
+      eq(dealerTransferRequestsTable.id, id),
+      or(
+        eq(dealerTransferRequestsTable.sourceShopId, shopId),
+        eq(dealerTransferRequestsTable.receiverShopId, shopId),
+      ),
+    ))
+    .limit(1);
+  return row ?? null;
+}
+
+router.get(
+  "/dealers/transfers/:id",
+  requireAuth,
+  // Same read bar as GET /repairs: device details (IMEI, serial, problem)
+  // are visible to staff who can see repairs, never to finance-only roles.
+  requireFeature("repairs"),
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const row = await loadTransferForParty(String(req.params.id ?? ""), shopId);
+    if (!row) {
+      res.status(404).json({ message: "Not found" });
+      return;
+    }
+    res.json({ request: await transferOut(row, shopId) });
+  }),
+);
+
+router.post(
+  "/dealers/transfers/:id/accept",
+  requireAuth,
+  requireFeature("repairs_update"),
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    const id = String(req.params.id ?? "");
+    const existing = await loadTransferForParty(id, shopId);
+    if (!existing || existing.receiverShopId !== shopId) {
+      res.status(404).json({ message: "Not found" });
+      return;
+    }
+    if (existing.status === "accepted" && existing.resultRepairId) {
+      const [repair] = await db.select().from(repairsTable).where(eq(repairsTable.id, existing.resultRepairId));
+      res.json({ request: await transferOut(existing, shopId), repair: repair ? fullRepairOut(repair) : undefined });
+      return;
+    }
+    if (existing.status !== "pending") {
+      res.status(409).json({ message: `This request was already ${existing.status}.`, code: "TRANSFER_NOT_PENDING" });
+      return;
+    }
+    const [senderShop] = await db
+      .select({ businessName: shopsTable.businessName, ownerUserId: shopsTable.dealerId })
+      .from(shopsTable)
+      .where(eq(shopsTable.id, existing.sourceShopId))
+      .limit(1);
+    const [receiverShop] = await db
+      .select({ businessName: shopsTable.businessName })
+      .from(shopsTable)
+      .where(eq(shopsTable.id, shopId))
+      .limit(1);
+    if (!senderShop || !receiverShop) {
+      res.status(409).json({ message: "The sending shop no longer exists.", code: "TRANSFER_NOT_PENDING" });
+      return;
+    }
+    const [senderOwner] = await db
+      .select({ id: usersTable.id, name: usersTable.name, mobile: usersTable.mobile })
+      .from(usersTable)
+      .where(eq(usersTable.id, senderShop.ownerUserId))
+      .limit(1);
+    const now = new Date();
+    const today = now.toISOString().split("T")[0];
+    const outcome = await db.transaction(async (tx) => {
+      // Conditional claim: the first accept wins; a concurrent decline/cancel
+      // or a second tap sees zero rows and leaves the queue untouched.
+      const [claimed] = await tx
+        .update(dealerTransferRequestsTable)
+        .set({ status: "accepted", respondedById: me.id, respondedByName: me.name, respondedAt: now })
+        .where(and(
+          eq(dealerTransferRequestsTable.id, id),
+          eq(dealerTransferRequestsTable.receiverShopId, shopId),
+          eq(dealerTransferRequestsTable.status, "pending"),
+        ))
+        .returning();
+      if (!claimed) return null;
+      const [source] = await tx
+        .select()
+        .from(repairsTable)
+        .where(eq(repairsTable.id, claimed.sourceRepairId))
+        .for("update")
+        .limit(1);
+      if (!source) throw new Error("TRANSFER_SOURCE_MISSING");
+      const [{ count }] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(repairsTable)
+        .where(eq(repairsTable.shopId, shopId));
+      const ticket = `VMC-${String(count + 1).padStart(3, "0")}`;
+      const expectedDate =
+        source.expectedDate && source.expectedDate >= today
+          ? source.expectedDate
+          : new Date(now.getTime() + 7 * 86400000).toISOString().split("T")[0];
+      const [repair] = await tx
+        .insert(repairsTable)
+        .values({
+          shopId,
+          repairId: ticket,
+          // The repairing shop's "customer" is the SENDING SHOP, never the
+          // sender's end customer — their identity stays in the sender's books.
+          customerName: `${senderShop.businessName} (Dealer)`,
+          mobile: senderOwner?.mobile ?? "",
+          ...importedRepairFields(source),
+          status: "received",
+          receiveDate: today,
+          expectedDate,
+          createdById: me.id,
+          createdByName: me.name,
+          receivedById: me.id,
+          receivedByName: me.name,
+          sourceDealerShopId: claimed.sourceShopId,
+          sourceDealerUserId: senderOwner?.id ?? claimed.sourceOwnerUserId,
+          sourceDealerBusinessName: senderShop.businessName,
+          // Accepting IS the physical handover confirmation.
+          sourceDealerReceivedAt: now,
+          sourceRepairId: source.id,
+        })
+        .returning();
+      const [linked] = await tx
+        .update(dealerTransferRequestsTable)
+        .set({ resultRepairId: repair.id })
+        .where(eq(dealerTransferRequestsTable.id, claimed.id))
+        .returning();
+      await tx.insert(repairEventsTable).values([
+        {
+          shopId,
+          repairId: repair.id,
+          userId: me.id,
+          userName: me.name,
+          userRole: me.role,
+          action: "dealer_transfer_accepted",
+          details: {
+            transferId: claimed.id,
+            sourceShopId: claimed.sourceShopId,
+            sourceBusinessName: senderShop.businessName,
+            sourceTicket: source.repairId,
+          },
+        },
+        {
+          shopId,
+          repairId: repair.id,
+          userId: me.id,
+          userName: me.name,
+          userRole: me.role,
+          action: "dealer_received",
+          details: { sourceDealerShopId: claimed.sourceShopId, transferId: claimed.id },
+        },
+        {
+          shopId: claimed.sourceShopId,
+          repairId: source.id,
+          userId: me.id,
+          userName: me.name,
+          userRole: me.role,
+          action: "dealer_transfer_accepted",
+          details: {
+            transferId: claimed.id,
+            receiverShopId: shopId,
+            receiverBusinessName: receiverShop.businessName,
+            resultRepairId: repair.id,
+            resultTicket: repair.repairId,
+          },
+        },
+      ]);
+      return { request: linked, repair, source };
+    });
+    if (!outcome) {
+      const fresh = await loadTransferForParty(id, shopId);
+      res.status(409).json({
+        message: `This request was already ${fresh?.status ?? "handled"}.`,
+        code: "TRANSFER_NOT_PENDING",
+      });
+      return;
+    }
+    // Device photos travel with the device — copied into OUR namespace so
+    // shop-scoped storage rules keep holding. Best-effort; never blocks accept.
+    const importedPhotos = await importTransferPhotos({
+      sourceRepairId: outcome.source.id,
+      targetRepair: { id: outcome.repair.id, shopId },
+      importedByName: `${senderShop.businessName} (transfer)`,
+    });
+    void notifyShop({
+      shopId: outcome.request.sourceShopId,
+      type: "dealer_transfer_accepted",
+      title: `${receiverShop.businessName} accepted your device`,
+      body: `${outcome.repair.brand} ${outcome.repair.model} (${outcome.source.repairId}) is now with ${receiverShop.businessName}.`,
+      data: { repairId: outcome.repair.id, dealerTransaction: true, transferId: outcome.request.id },
+    });
+    res.json({
+      request: await transferOut(outcome.request, shopId),
+      repair: fullRepairOut(outcome.repair),
+      importedPhotos,
+    });
+  }),
+);
+
+router.post(
+  "/dealers/transfers/:id/decline",
+  requireAuth,
+  requireFeature("repairs_update"),
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    const id = String(req.params.id ?? "");
+    // Body is optional: an empty decline carries no reason.
+    const hasBody = !!req.body && typeof req.body === "object" && Object.keys(req.body as object).length > 0;
+    const body = hasBody ? parseBody(DealerTransfersDeclineBody, req, res) : {};
+    if (!body) return;
+    const existing = await loadTransferForParty(id, shopId);
+    if (!existing || existing.receiverShopId !== shopId) {
+      res.status(404).json({ message: "Not found" });
+      return;
+    }
+    if (existing.status === "declined") {
+      res.json({ request: await transferOut(existing, shopId) });
+      return;
+    }
+    const now = new Date();
+    const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
+    const [receiverShop] = await db
+      .select({ businessName: shopsTable.businessName })
+      .from(shopsTable)
+      .where(eq(shopsTable.id, shopId))
+      .limit(1);
+    const declined = await db.transaction(async (tx) => {
+      const [claimed] = await tx
+        .update(dealerTransferRequestsTable)
+        .set({ status: "declined", respondedById: me.id, respondedByName: me.name, respondedAt: now, declineReason: reason })
+        .where(and(
+          eq(dealerTransferRequestsTable.id, id),
+          eq(dealerTransferRequestsTable.receiverShopId, shopId),
+          eq(dealerTransferRequestsTable.status, "pending"),
+        ))
+        .returning();
+      if (!claimed) return null;
+      await tx.insert(repairEventsTable).values({
+        shopId: claimed.sourceShopId,
+        repairId: claimed.sourceRepairId,
+        userId: me.id,
+        userName: me.name,
+        userRole: me.role,
+        action: "dealer_transfer_declined",
+        details: {
+          transferId: claimed.id,
+          receiverShopId: shopId,
+          receiverBusinessName: receiverShop?.businessName ?? "",
+          reason: reason ?? undefined,
+        },
+      });
+      return claimed;
+    });
+    if (!declined) {
+      const fresh = await loadTransferForParty(id, shopId);
+      res.status(409).json({ message: `This request was already ${fresh?.status ?? "handled"}.`, code: "TRANSFER_NOT_PENDING" });
+      return;
+    }
+    const [source] = await db
+      .select({ brand: repairsTable.brand, model: repairsTable.model, repairId: repairsTable.repairId })
+      .from(repairsTable)
+      .where(eq(repairsTable.id, declined.sourceRepairId))
+      .limit(1);
+    void notifyShop({
+      shopId: declined.sourceShopId,
+      type: "dealer_transfer_declined",
+      title: `${receiverShop?.businessName ?? "The dealer"} declined your device`,
+      body: `${source ? `${source.brand} ${source.model} (${source.repairId})` : "Your device"} was not accepted${reason ? `: ${reason}` : "."} You can send it to another dealer.`,
+      data: { repairId: declined.sourceRepairId, transferId: declined.id },
+    });
+    res.json({ request: await transferOut(declined, shopId) });
+  }),
+);
+
+router.post(
+  "/dealers/transfers/:id/cancel",
+  requireAuth,
+  requireFeature("repairs_update"),
+  asyncHandler(async (req, res) => {
+    const shopId = shopIdOr403(req, res);
+    if (!shopId) return;
+    const me = (req as AuthedRequest).user;
+    const id = String(req.params.id ?? "");
+    const existing = await loadTransferForParty(id, shopId);
+    if (!existing || existing.sourceShopId !== shopId) {
+      res.status(404).json({ message: "Not found" });
+      return;
+    }
+    if (existing.status === "cancelled") {
+      res.json({ request: await transferOut(existing, shopId) });
+      return;
+    }
+    const now = new Date();
+    const cancelled = await db.transaction(async (tx) => {
+      const [claimed] = await tx
+        .update(dealerTransferRequestsTable)
+        .set({ status: "cancelled", respondedById: me.id, respondedByName: me.name, respondedAt: now })
+        .where(and(
+          eq(dealerTransferRequestsTable.id, id),
+          eq(dealerTransferRequestsTable.sourceShopId, shopId),
+          eq(dealerTransferRequestsTable.status, "pending"),
+        ))
+        .returning();
+      if (!claimed) return null;
+      await tx.insert(repairEventsTable).values({
+        shopId,
+        repairId: claimed.sourceRepairId,
+        userId: me.id,
+        userName: me.name,
+        userRole: me.role,
+        action: "dealer_transfer_cancelled",
+        details: { transferId: claimed.id, receiverShopId: claimed.receiverShopId },
+      });
+      return claimed;
+    });
+    if (!cancelled) {
+      const fresh = await loadTransferForParty(id, shopId);
+      res.status(409).json({
+        message: fresh?.status === "accepted"
+          ? "The dealer already accepted this device; it can no longer be withdrawn."
+          : `This request was already ${fresh?.status ?? "handled"}.`,
+        code: "TRANSFER_NOT_PENDING",
+      });
       return;
     }
     const [sourceShop] = await db
@@ -266,75 +874,14 @@ router.post(
       .from(shopsTable)
       .where(eq(shopsTable.id, shopId))
       .limit(1);
-    const [receiverShop] = await db
-      .select({ id: shopsTable.id, ownerUserId: shopsTable.dealerId })
-      .from(shopsTable)
-      .where(eq(shopsTable.id, body.receiverShopId))
-      .limit(1);
-    if (!sourceShop || !receiverShop) {
-      res.status(404).json({ message: "That shop could not be found." });
-      return;
-    }
-    // Resolve the source shop's owner (needed as the notification/chat
-    // target) directly via shops.dealerId — never by mobile matching.
-    const [owner] = await db
-      .select({ id: usersTable.id, name: usersTable.name, mobile: usersTable.mobile })
-      .from(shopsTable)
-      .innerJoin(usersTable, eq(usersTable.id, shopsTable.dealerId))
-      .where(eq(shopsTable.id, shopId))
-      .limit(1);
-    if (!owner) {
-      res.status(500).json({ message: "Could not resolve your shop's owner account." });
-      return;
-    }
-    // The repairing shop's "customer" for this row is always the SOURCE
-    // SHOP, never the sender's end customer — their name and mobile stay in
-    // the sender's own books and are not transferred across shops.
-    const customerName = `${sourceShop.businessName} (Dealer)`;
-    const customerMobile = owner.mobile;
-    const created = await db.transaction(async (tx) => {
-      const [{ count }] = await tx
-        .select({ count: sql<number>`count(*)::int` })
-        .from(repairsTable)
-        .where(eq(repairsTable.shopId, receiverShop.id));
-      const repairId = `VMC-${String(count + 1).padStart(3, "0")}`;
-      const [row] = await tx
-        .insert(repairsTable)
-        .values({
-          shopId: receiverShop.id,
-          repairId,
-          customerName,
-          mobile: customerMobile,
-          deviceType: body.deviceType,
-          brand: body.brand,
-          model: body.model,
-          imei: body.imei ?? null,
-          imei2: body.imei2 ?? null,
-          serialNumber: body.serialNumber ?? null,
-          problem: body.problem,
-          status: "received",
-          priority: "normal",
-          estimatedCost: body.estimatedCost ?? null,
-          receiveDate: new Date().toISOString().split("T")[0],
-          expectedDate: body.expectedDate,
-          notes: body.notes ?? null,
-          createdById: me.id,
-          createdByName: me.name,
-          sourceDealerShopId: shopId,
-          sourceDealerUserId: owner.id,
-          sourceDealerBusinessName: sourceShop.businessName,
-        })
-        .returning();
-      return row;
-    });
     void notifyShop({
-      shopId: receiverShop.id,
-      type: "dealer_transaction_incoming",
-      title: `New device from ${sourceShop.businessName}`,
-      body: `${created.brand} ${created.model} — ${created.problem}`,
-      data: { repairId: created.id, dealerTransaction: true },
+      shopId: cancelled.receiverShopId,
+      type: "dealer_transfer_cancelled",
+      title: `${sourceShop?.businessName ?? "The sender"} withdrew a device request`,
+      body: "The incoming device request was cancelled before you responded.",
+      data: { transferId: cancelled.id, dealerTransfer: true },
     });
-    res.json({ repair: fullRepairOut(created) });
+    res.json({ request: await transferOut(cancelled, shopId) });
   }),
 );
 

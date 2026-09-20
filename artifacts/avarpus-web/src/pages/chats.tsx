@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { SectionLoader } from "@/components/ui/spinner";
+import { ChatAvatar } from "@/components/chat/ChatAvatar";
 
 export function ChatsPage() {
   const { data, isLoading } = useChatRoomsList();
@@ -262,23 +263,26 @@ export function ChatsPage() {
                         setShowReport(false);
                         pendingReportRef.current = null;
                       }}
-                      className="min-w-0 flex-1 p-4 text-left"
+                      className="min-w-0 flex-1 p-4 text-left flex items-center gap-3"
                     >
-                      <div className="flex justify-between items-start mb-1">
-                        <h4 className="font-semibold text-sm truncate">{room.name}</h4>
-                        <span className="ml-2 flex items-center gap-1 text-muted-foreground">
-                          {room.isPinned && <Pin className="h-3 w-3" aria-label="Pinned" />}
-                          {room.isMuted && <BellOff className="h-3 w-3" aria-label="Muted" />}
-                          {room.lastMessageAt && (
-                            <span className="text-[10px] whitespace-nowrap">
-                              {format(new Date(room.lastMessageAt), "MMM d")}
-                            </span>
-                          )}
-                        </span>
+                      <ChatAvatar name={room.name} photoPath={room.profilePhoto} className="h-9 w-9 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex justify-between items-start mb-1">
+                          <h4 className="font-semibold text-sm truncate">{room.name}</h4>
+                          <span className="ml-2 flex items-center gap-1 text-muted-foreground">
+                            {room.isPinned && <Pin className="h-3 w-3" aria-label="Pinned" />}
+                            {room.isMuted && <BellOff className="h-3 w-3" aria-label="Muted" />}
+                            {room.lastMessageAt && (
+                              <span className="text-[10px] whitespace-nowrap">
+                                {format(new Date(room.lastMessageAt), "MMM d")}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        {room.lastMessageBody && (
+                          <p className="text-xs text-muted-foreground truncate">{room.lastMessageBody}</p>
+                        )}
                       </div>
-                      {room.lastMessageBody && (
-                        <p className="text-xs text-muted-foreground truncate">{room.lastMessageBody}</p>
-                      )}
                     </button>
                   </div>
                 ))}
