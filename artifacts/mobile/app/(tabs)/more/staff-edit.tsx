@@ -12,7 +12,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { staffUpdate } from '@workspace/api-client-react';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
+import { staffReject, staffUpdate } from '@workspace/api-client-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
@@ -43,6 +44,7 @@ export default function EditStaffScreen() {
     designation?: string;
   }>();
 
+  const [removing, setRemoving] = useState(false);
   const [name, setName] = useState(params.name ?? '');
   const [mobile, setMobile] = useState(params.mobile ?? '');
   const [designation, setDesignation] = useState(params.designation ?? '');
@@ -80,6 +82,28 @@ export default function EditStaffScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // One tap removes immediately (owner's request: no confirmation step).
+  const handleRemove = async () => {
+    if (removing) return;
+    setRemoving(true);
+    try {
+      await staffReject(String(params.id));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    } catch (err: any) {
+      if (err?.status === 404) {
+        // Already removed elsewhere: nothing left to refuse.
+        router.back();
+        return;
+      }
+      const msg = err?.data?.message ?? 'Could not remove this staff member. Please try again.';
+      Alert.alert('Removal failed', msg);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -158,6 +182,27 @@ export default function EditStaffScreen() {
 
           <Button title="Save Changes" onPress={handleSave} loading={loading} fullWidth size="lg" />
         </FadeInView>
+
+        <FadeInView animValue={anims[2]} style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>REMOVE ACCESS</Text>
+          <TouchableOpacity
+            onPress={handleRemove}
+            disabled={loading || removing}
+            accessibilityRole="button"
+            accessibilityLabel="Remove from Shop"
+            style={[styles.removeBtn, { backgroundColor: colors.destructive + '10', borderColor: colors.destructive + '33', borderRadius: 16 }]}
+            activeOpacity={0.8}
+          >
+            {removing ? <AvarpusSpinner size={18} /> : <Feather name="user-x" size={18} color={colors.destructive} />}
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.removeTitle, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>Remove from Shop</Text>
+              <Text style={[styles.removeText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                Removes immediately: their Staff ID and all permissions for this Shop. Their personal account is kept; you can invite the number again.
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        </FadeInView>
       </KeyboardAwareScrollViewCompat>
     </View>
   );
@@ -177,4 +222,7 @@ const styles = StyleSheet.create({
   roleName: { fontSize: 13 },
   infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, padding: 12 },
   infoText: { fontSize: 12, flex: 1, lineHeight: 18 },
+  removeBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, padding: 14 },
+  removeTitle: { fontSize: 14 },
+  removeText: { fontSize: 12, lineHeight: 17, marginTop: 2 },
 });

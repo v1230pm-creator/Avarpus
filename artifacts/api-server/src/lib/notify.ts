@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db, notificationsTable, usersTable } from "@workspace/db";
 import { dispatchPushToUsers } from "./push";
-import { shopOwnerUserIds } from "./shopOwners";
+import { activeShopMemberIds, shopOwnerUserIds } from "./shopOwners";
 
 export type NotifyInput = {
   shopId: string;
@@ -32,9 +32,10 @@ export async function notifyShop(input: NotifyInput): Promise<void> {
     // Every active owner of the Shop (co-owners included), whichever
     // workspace they currently have selected.
     const ids = new Set(await shopOwnerUserIds(input.shopId, { excludeUserId: input.actorId }));
-    for (const id of input.extraUserIds ?? []) {
-      if (id && id !== input.actorId) ids.add(id);
-    }
+    // Extra recipients (e.g. the technician a repair names) only if they are
+    // still on this Shop's team — removed staff must not keep hearing about it.
+    const extras = (input.extraUserIds ?? []).filter((id) => id && id !== input.actorId);
+    for (const id of await activeShopMemberIds(input.shopId, extras)) ids.add(id);
     if (ids.size === 0) return;
     const inserted = await db
       .insert(notificationsTable)

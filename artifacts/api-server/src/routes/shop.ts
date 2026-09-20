@@ -1,6 +1,7 @@
+import crypto from "node:crypto";
 import { Router, type IRouter } from "express";
 import type { Request } from "express";
-import { and, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import {
   db,
   shopMembershipsTable,
@@ -23,6 +24,7 @@ import {
   ShopWorkspaceSwitchBody,
 } from "@workspace/api-zod";
 import { parseBody } from "../lib/validate";
+import { workspaceMirror } from "../lib/workspaceMirror";
 import { isDealerPortalRole } from "../lib/dealerPortal";
 
 const router: IRouter = Router();
@@ -34,33 +36,39 @@ const STAFF_ROLES = ["reception", "technician", "store_manager", "accountant"] a
 const INVITABLE_ROLES = [...STAFF_ROLES, "owner"] as const;
 type AuthedRequest = Request & { user: DbUser };
 
+// Activation codes are typed by hand on a phone: 8 characters from an
+// alphabet without look-alikes (0/O, 1/I), shown as XXXX-XXXX. Only the
+// invited account (matched by its OTP-verified mobile) can redeem one, so the
+// code never has to identify the person — it only proves the owner handed it
+// over. Once redeemed the membership is permanent; nothing is re-verified.
+const ACTIVATION_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const ACTIVATION_CODE_LENGTH = 8;
+const ACTIVATION_CODE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+// Wrong guesses per account before the claim endpoint pauses (40-bit codes,
+// bound to one account: brute force is hopeless, but keep it honest).
+const CLAIM_ATTEMPTS_PER_WINDOW = 10;
+const CLAIM_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+
+function generateActivationCode(): string {
+  const bytes = crypto.randomBytes(ACTIVATION_CODE_LENGTH);
+  let code = "";
+  for (const byte of bytes) code += ACTIVATION_ALPHABET[byte % ACTIVATION_ALPHABET.length];
+  return code;
+}
+
+// Dashes, spaces and case are presentation only; the stored hash is over the
+// bare uppercase characters so both old (Staff ID + claim code) and new
+// (activation code) clients hash identically.
+function normaliseActivationCode(raw: string): string {
+  return raw.replace(/[^a-z0-9]/gi, "").toUpperCase();
+}
+
+function formatActivationCode(code: string): string {
+  return `${code.slice(0, 4)}-${code.slice(4)}`;
+}
+
 function me(req: Request): DbUser {
   return (req as AuthedRequest).user;
-}
-
-// users.role is the legacy compatibility mirror of the active membership; an
-// owner membership is represented there as "dealer".
-function mirroredUserRole(membershipRole: string): string {
-  return membershipRole === "owner" ? "dealer" : membershipRole;
-}
-
-// Fields mirrored onto the users row when a membership becomes the active
-// workspace (what /shop/setup writes for the creating owner).
-// Owner-only fields (GSTIN printed on documents, the "Owner" designation)
-// follow the workspace: they are set when an owner membership is selected and
-// cleared again when a staff membership is, so a co-owner of Shop A who also
-// works at Shop B never issues B's documents with A's GSTIN.
-function workspaceMirror(shop: typeof shopsTable.$inferSelect, membershipRole: string) {
-  return {
-    shopId: shop.id,
-    role: mirroredUserRole(membershipRole),
-    isActive: true,
-    businessName: shop.businessName,
-    shopAddress: shop.address,
-    ...(membershipRole === "owner"
-      ? { gstNumber: shop.gstNumber, designation: "Owner" }
-      : { gstNumber: null, designation: sql`case when ${usersTable.designation} = 'Owner' then null else ${usersTable.designation} end` }),
-  };
 }
 
 function defaultSettings() {
@@ -70,6 +78,18 @@ function defaultSettings() {
     notifications: { email: true, sms: false },
     workingHours: { open: "10:00", close: "20:00" },
   };
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type Membership = typeof shopMembershipsTable.$inferSelect;
+
+// Make `membership` the account's active workspace. Must run inside the
+// transaction that locked or changed the membership row so that selection and
+// membership state commit as one.
+async function selectWorkspace(tx: Tx, userId: string, membership: Membership) {
+  const [shop] = await tx.select().from(shopsTable).where(eq(shopsTable.id, membership.shopId)).limit(1);
+  const [user] = await tx.update(usersTable).set(workspaceMirror(shop, membership.role)).where(eq(usersTable.id, userId)).returning();
+  return { shop, membership, user };
 }
 
 async function membershipFor(userId: string, shopId: string) {
@@ -366,83 +386,115 @@ router.post("/shop/invitations", requireAuth, asyncHandler(async (req, res) => {
     return;
   }
   const staffId = `STF-${generateToken().slice(0, 8).toUpperCase()}`;
-  const claimCode = generateToken().slice(0, 10).toUpperCase();
-  const inviteExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+  const activationCode = generateActivationCode();
+  const inviteExpiresAt = new Date(Date.now() + ACTIVATION_CODE_TTL_MS);
   const [membership] = await db.insert(shopMembershipsTable).values({
     shopId: owner.shopId,
     userId: target.id,
     role,
     staffId,
     status: "pending",
-    inviteCodeHash: sha256(claimCode),
+    inviteCodeHash: sha256(activationCode),
     inviteExpiresAt,
   }).onConflictDoUpdate({
     target: [shopMembershipsTable.shopId, shopMembershipsTable.userId],
-    set: { role, staffId, status: "pending", inviteCodeHash: sha256(claimCode), inviteExpiresAt, updatedAt: new Date() },
+    set: { role, staffId, status: "pending", inviteCodeHash: sha256(activationCode), inviteExpiresAt, updatedAt: new Date() },
   }).returning();
-  res.json({ staffId: membership.staffId, claimCode, status: membership.status });
+  // staffId/claimCode remain for app builds that still show the two-part
+  // handshake; the activation code is the same secret, presented once.
+  res.json({
+    staffId: membership.staffId,
+    claimCode: activationCode,
+    activationCode: formatActivationCode(activationCode),
+    status: membership.status,
+  });
 }));
 
 router.post("/shop/claim", requireAuth, asyncHandler(async (req, res) => {
   const user = me(req);
   const body = parseBody(ShopInvitationClaimBody, req, res);
   if (!body) return;
-  const { staffId, claimCode } = body;
+  const { staffId, claimCode, activationCode } = body;
+  const code = normaliseActivationCode(activationCode ?? claimCode ?? "");
+  // New clients send the activation code alone; older builds send the Staff
+  // ID together with the same secret as "claimCode".
+  if (!code || (!activationCode && !staffId)) {
+    res.status(400).json({ message: "Enter the activation code the Shop owner shared with you." });
+    return;
+  }
+  const attempts = checkWindowLimit(`shop-claim:${user.id}`, CLAIM_ATTEMPTS_PER_WINDOW, CLAIM_ATTEMPT_WINDOW_MS);
+  if (attempts.limited) {
+    res.status(429).json({ message: `Too many attempts. Try again in ${retryAfterText(attempts.retryAfterMs)}.` });
+    return;
+  }
+  const codeHash = sha256(code);
+  // The code is only ever looked up inside the caller's own invitations: the
+  // OTP-verified mobile is the identity, the code is the owner's consent.
   const [membership] = await db.select().from(shopMembershipsTable)
     .where(and(
       eq(shopMembershipsTable.userId, user.id),
-      eq(shopMembershipsTable.staffId, staffId),
+      eq(shopMembershipsTable.inviteCodeHash, codeHash),
       gt(shopMembershipsTable.inviteExpiresAt, new Date()),
+      ...(staffId ? [eq(shopMembershipsTable.staffId, staffId)] : []),
     ))
     .limit(1);
-  if (!membership || !membership.inviteCodeHash || membership.inviteCodeHash !== sha256(claimCode.trim().toUpperCase())) {
-    res.status(403).json({ message: "Staff ID or claim code is invalid." });
+  if (!membership) {
+    res.status(403).json({ message: "This activation code is invalid, expired, or was issued to a different mobile number." });
     return;
   }
+  attempts.release();
   if (membership.status === "active") {
     // Legacy state: an owner "approved" the invitation before the codes were
     // entered. The codes still prove the handshake, so finish the join by
     // selecting the workspace and retiring the one-time code. The retire is
     // a compare-and-set so a concurrent replay of the same codes loses.
-    const [retired] = await db.update(shopMembershipsTable).set({
-      inviteCodeHash: null, inviteExpiresAt: null, updatedAt: new Date(),
-    }).where(and(
-      eq(shopMembershipsTable.id, membership.id),
-      eq(shopMembershipsTable.status, "active"),
-      eq(shopMembershipsTable.inviteCodeHash, sha256(claimCode.trim().toUpperCase())),
-      gt(shopMembershipsTable.inviteExpiresAt, new Date()),
-    )).returning();
-    if (!retired) {
+    const joined = await db.transaction(async (tx) => {
+      const [retired] = await tx.update(shopMembershipsTable).set({
+        inviteCodeHash: null, inviteExpiresAt: null, updatedAt: new Date(),
+      }).where(and(
+        eq(shopMembershipsTable.id, membership.id),
+        eq(shopMembershipsTable.status, "active"),
+        eq(shopMembershipsTable.inviteCodeHash, codeHash),
+        gt(shopMembershipsTable.inviteExpiresAt, new Date()),
+      )).returning();
+      if (!retired) return null;
+      return selectWorkspace(tx, user.id, retired);
+    });
+    if (!joined) {
       res.status(409).json({ message: "This staff invitation was already claimed." });
       return;
     }
-    const [shop] = await db.select().from(shopsTable).where(eq(shopsTable.id, membership.shopId)).limit(1);
-    const [joined] = await db.update(usersTable).set(workspaceMirror(shop, membership.role)).where(eq(usersTable.id, user.id)).returning();
     res.json({
       message: "You joined the shop workspace.",
-      shop: { id: shop.id, businessName: shop.businessName, role: membership.role, staffId: membership.staffId },
-      user: publicUser(joined),
+      shop: { id: joined.shop.id, businessName: joined.shop.businessName, role: membership.role, staffId: membership.staffId },
+      user: publicUser(joined.user),
     });
     return;
   }
-  const [updated] = await db.update(shopMembershipsTable).set({
-    status: "active", inviteCodeHash: null, inviteExpiresAt: null, updatedAt: new Date(),
-  }).where(and(
-    eq(shopMembershipsTable.id, membership.id),
-    eq(shopMembershipsTable.status, "pending"),
-    eq(shopMembershipsTable.inviteCodeHash, sha256(claimCode.trim().toUpperCase())),
-    gt(shopMembershipsTable.inviteExpiresAt, new Date()),
-  )).returning();
-  if (!updated) {
+  // Activation and the workspace selection commit together: the row lock the
+  // compare-and-set takes is held until the users mirror is written, so a
+  // concurrent removal cannot slip between the two and leave a mirror that
+  // points at a membership that no longer exists.
+  const joined = await db.transaction(async (tx) => {
+    const [updated] = await tx.update(shopMembershipsTable).set({
+      status: "active", inviteCodeHash: null, inviteExpiresAt: null, updatedAt: new Date(),
+    }).where(and(
+      eq(shopMembershipsTable.id, membership.id),
+      eq(shopMembershipsTable.status, "pending"),
+      eq(shopMembershipsTable.inviteCodeHash, codeHash),
+      gt(shopMembershipsTable.inviteExpiresAt, new Date()),
+    )).returning();
+    if (!updated) return null;
+    return selectWorkspace(tx, user.id, updated);
+  });
+  if (!joined) {
     res.status(409).json({ message: "This staff invitation was already claimed." });
     return;
   }
-  const [shop] = await db.select().from(shopsTable).where(eq(shopsTable.id, updated.shopId)).limit(1);
-  const [joined] = await db.update(usersTable).set(workspaceMirror(shop, updated.role)).where(eq(usersTable.id, user.id)).returning();
   res.json({
     message: "You joined the shop workspace.",
-    shop: { id: shop.id, businessName: shop.businessName, role: updated.role, staffId: updated.staffId },
-    user: publicUser(joined),
+    shop: { id: joined.shop.id, businessName: joined.shop.businessName, role: joined.membership.role, staffId: joined.membership.staffId },
+    user: publicUser(joined.user),
   });
 }));
 
@@ -451,14 +503,29 @@ router.post("/shop/switch", requireAuth, asyncHandler(async (req, res) => {
   const body = parseBody(ShopWorkspaceSwitchBody, req, res);
   if (!body) return;
   const shopId = body.shopId;
-  const membership = await membershipFor(user.id, shopId);
-  if (!membership) {
+  // Lock the membership for the duration of the switch: a removal that is
+  // running at the same time either finishes first (then there is no row to
+  // lock and the switch is refused) or waits and clears the mirror we set.
+  // Without this a switch could re-point users.shopId at a Shop the account
+  // was just removed from, and the compatibility backfill in requireAuth
+  // would then recreate the membership.
+  const selected = await db.transaction(async (tx) => {
+    const [membership] = await tx.select().from(shopMembershipsTable)
+      .where(and(
+        eq(shopMembershipsTable.userId, user.id),
+        eq(shopMembershipsTable.shopId, shopId),
+        eq(shopMembershipsTable.status, "active"),
+      ))
+      .limit(1)
+      .for("update");
+    if (!membership) return null;
+    return selectWorkspace(tx, user.id, membership);
+  });
+  if (!selected) {
     res.status(403).json({ message: "You are not an active member of this workspace." });
     return;
   }
-  const [shop] = await db.select().from(shopsTable).where(eq(shopsTable.id, shopId)).limit(1);
-  const [updated] = await db.update(usersTable).set(workspaceMirror(shop, membership.role)).where(eq(usersTable.id, user.id)).returning();
-  res.json({ shop: { id: shop.id, businessName: shop.businessName, role: membership.role }, user: publicUser(updated) });
+  res.json({ shop: { id: selected.shop.id, businessName: selected.shop.businessName, role: selected.membership.role }, user: publicUser(selected.user) });
 }));
 
 export default router;

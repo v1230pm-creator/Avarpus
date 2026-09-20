@@ -93,3 +93,4 @@
 - [Co-owners](co-owners.md) — many `owner` memberships per Shop via the owner invite + claim; mirrored as `dealer`; owners resolved from memberships, not users.shopId; co-owners unmanageable by each other.
 - [Staff invite onboarding](staff-invite-onboarding.md) — invited accounts join only via their own claim; owner Approve must 409; recovery-code prompt is owner-only, staff get direct Open buttons.
 - [Chat attachments — any file type](chat-attachments-any-type.md) — no allow-list; server sniffs stored bytes and demotes spoofed viewer MIME; queue ref is sole authority; owned temp files deleted on every exit.
+- [Staff removal & activation codes](staff-removal-and-activation.md) — one code bound to the invitee account, never re-verified; removal is one tx; switch/claim lock the membership or backfill resurrects access.

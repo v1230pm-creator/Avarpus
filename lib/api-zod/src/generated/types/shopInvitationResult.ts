@@ -9,5 +9,7 @@
 export interface ShopInvitationResult {
   staffId: string;
   claimCode: string;
+  /** One-time activation code (XXXX-XXXX) the invited number enters once to link permanently. Same secret as claimCode, formatted for sharing. */
+  activationCode: string;
   status: string;
 }

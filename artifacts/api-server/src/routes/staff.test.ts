@@ -11,6 +11,7 @@ import {
   loginEventsTable,
   pool,
   sessionsTable,
+  shopMembershipsTable,
   shopsTable,
   usersTable,
 } from "@workspace/db";
@@ -200,13 +201,18 @@ describe("DELETE /api/staff/:id — rejection email", () => {
     expect(rows).toHaveLength(0);
   });
 
-  it("does not send a decline email when rejecting an active account is refused", async () => {
+  it("removes an active account from the Shop without a decline email and keeps the person's account", async () => {
     const staff = await createPendingStaff("reject-active", "86");
     await db.update(usersTable).set({ isActive: true }).where(eq(usersTable.id, staff.id));
     const res = await auth(request(app).delete(`/api/staff/${staff.id}`));
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
     await flush();
+    // A removal is not a rejected registration: no decline email, no deleted user.
     expect(sendStaffRejectedEmailMock).not.toHaveBeenCalled();
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, staff.id));
+    expect(user).toMatchObject({ shopId: null, role: "customer", isActive: true });
+    const memberships = await db.select().from(shopMembershipsTable).where(eq(shopMembershipsTable.userId, staff.id));
+    expect(memberships).toEqual([]);
   });
 });
 

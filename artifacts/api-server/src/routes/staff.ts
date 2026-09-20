@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
-import { and, eq, ne, or } from "drizzle-orm";
+import { and, desc, eq, ne, or, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
   dealersTable,
   shopMembershipsTable,
+  shopsTable,
   userFeatureSettingsTable,
   type DbUser,
 } from "@workspace/db";
@@ -20,6 +21,7 @@ import { asyncHandler } from "../lib/asyncHandler";
 import { sendStaffApprovedEmail, sendStaffRejectedEmail } from "../lib/mailer";
 import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
 import { parseBody, uuidParam } from "../lib/validate";
+import { clearedWorkspaceMirror, workspaceMirror } from "../lib/workspaceMirror";
 import type { Request } from "express";
 import {
   CONFIGURABLE_ROLES,
@@ -532,7 +534,55 @@ router.patch(
   }),
 );
 
-// ── Reject (delete) a pending staff account ───────────────────────────────
+// Remove a member's link to this Shop — pending or active — in one
+// transaction: the membership row (and with it the Staff ID and any unused
+// activation code), every per-user permission override for this Shop, and —
+// if this Shop is the workspace the account has selected — the users-row
+// mirror that grants request-time authority. The account itself stays: it is
+// a personal OTP login that may belong to other Shops (then the mirror moves
+// to one of them) or simply return to being a plain personal account.
+//
+// The row is locked first so the outcome is decided by its state at that
+// moment rather than by what the owner's screen showed: an invitation that
+// was claimed in the meantime is revoked as an active member, and one that is
+// already gone is reported as such instead of failing. Removal must never be
+// refused for a stuck or half-finished invitation.
+type MembershipRemoval = "pending_removed" | "active_removed" | "already_gone" | "owner";
+
+async function removeMembership(shopId: string, membershipId: string, userId: string): Promise<MembershipRemoval> {
+  const outcome = await db.transaction(async (tx): Promise<MembershipRemoval> => {
+    const [membership] = await tx.select().from(shopMembershipsTable).where(and(
+      eq(shopMembershipsTable.id, membershipId),
+      eq(shopMembershipsTable.shopId, shopId),
+      eq(shopMembershipsTable.userId, userId),
+    )).limit(1).for("update");
+    if (!membership) return "already_gone";
+    if (membership.status === "active" && membership.role === "owner") return "owner";
+    await tx.delete(shopMembershipsTable).where(eq(shopMembershipsTable.id, membership.id));
+    await tx.delete(userFeatureSettingsTable).where(and(
+      eq(userFeatureSettingsTable.userId, userId),
+      eq(userFeatureSettingsTable.shopId, shopId),
+    ));
+    const [remaining] = await tx
+      .select({ membership: shopMembershipsTable, shop: shopsTable })
+      .from(shopMembershipsTable)
+      .innerJoin(shopsTable, eq(shopsTable.id, shopMembershipsTable.shopId))
+      .where(and(eq(shopMembershipsTable.userId, userId), eq(shopMembershipsTable.status, "active")))
+      // Prefer a workspace they own, then the most recent one.
+      .orderBy(sql`case when ${shopMembershipsTable.role} = 'owner' then 0 else 1 end`, desc(shopMembershipsTable.createdAt))
+      .limit(1);
+    // Also repairs a stuck pending row whose account somehow already points
+    // at this Shop: the mirror never outlives the membership.
+    await tx.update(usersTable)
+      .set(remaining ? workspaceMirror(remaining.shop, remaining.membership.role) : clearedWorkspaceMirror())
+      .where(and(eq(usersTable.id, userId), eq(usersTable.shopId, shopId)));
+    return membership.status === "active" ? "active_removed" : "pending_removed";
+  });
+  if (outcome === "active_removed" || outcome === "pending_removed") invalidateUserFeatureCache(userId);
+  return outcome;
+}
+
+// ── Remove a staff member (cancel a pending invite, or revoke an active one) ─
 router.delete(
   "/staff/:id",
   requireAuth,
@@ -544,28 +594,28 @@ router.delete(
       res.status(check.status).json({ message: check.message });
       return;
     }
-    if (check.target.isActive) {
-      res.status(400).json({
-        message: "Only pending (inactive) accounts can be rejected",
+    if (check.membershipId && (check.target.isActive || check.personalAccountMembership)) {
+      const outcome = await removeMembership(me.shopId!, check.membershipId, check.target.id);
+      if (outcome === "owner") {
+        res.status(403).json({ message: "This account cannot be managed" });
+        return;
+      }
+      res.json({
+        message: outcome === "active_removed"
+          ? "Staff member removed. Their Staff ID and all permissions for this Shop are gone; their personal Avarpus account is not affected."
+          : outcome === "pending_removed"
+            ? "Invitation removed. Their personal Avarpus account is not affected."
+            : "This person is no longer part of your Shop.",
       });
       return;
     }
-    if (check.membershipId && check.personalAccountMembership) {
-      // Conditional delete: if the staff member claimed the invitation in the
-      // meantime, the membership is active and the cancellation must lose.
-      const removed = await db.delete(shopMembershipsTable).where(and(
-        eq(shopMembershipsTable.id, check.membershipId),
-        eq(shopMembershipsTable.status, "pending"),
-      )).returning({ id: shopMembershipsTable.id });
-      if (removed.length === 0) {
-        res.status(409).json({ message: "This person already joined the workspace; the invitation can no longer be cancelled." });
-        return;
-      }
-      res.json({ message: "Pending workspace membership removed" });
+    if (check.target.isActive) {
+      res.status(400).json({ message: "Only pending (inactive) accounts can be rejected" });
       return;
     }
-    // Capture recipient details, delete first, then notify asynchronously.
-    // Email failures are logged but never block (or precede) the rejection.
+    // Legacy self-registered (email) account that never became a personal
+    // login: capture recipient details, delete first, then notify
+    // asynchronously. Email failures are logged but never block the rejection.
     const { email: targetEmail, name: targetName } = check.target;
     await db.delete(usersTable).where(eq(usersTable.id, check.target.id));
     sendStaffRejectedEmail(targetEmail, targetName).catch((err) => {

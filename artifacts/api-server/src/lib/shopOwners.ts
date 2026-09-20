@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { db, shopMembershipsTable, usersTable } from "@workspace/db";
 
 // Legacy compatibility roles: users.role mirrors the *currently selected*
@@ -22,19 +22,52 @@ export async function shopOwnerUserIds(
   const rows = await executor
     .selectDistinct({ id: usersTable.id })
     .from(usersTable)
+    // Join every membership row for this Shop, whatever its status: the
+    // users-row fallback is only for accounts that have *no* membership row
+    // at all. A pending or revoked row must not fall through to the mirror.
     .leftJoin(shopMembershipsTable, and(
       eq(shopMembershipsTable.userId, usersTable.id),
       eq(shopMembershipsTable.shopId, shopId),
-      eq(shopMembershipsTable.status, "active"),
-      eq(shopMembershipsTable.role, "owner"),
     ))
     .where(and(
       eq(usersTable.isActive, true),
       or(
-        eq(shopMembershipsTable.role, "owner"),
-        and(eq(usersTable.shopId, shopId), inArray(usersTable.role, OWNER_MIRROR_ROLES)),
+        and(eq(shopMembershipsTable.status, "active"), eq(shopMembershipsTable.role, "owner")),
+        and(isNull(shopMembershipsTable.id), eq(usersTable.shopId, shopId), inArray(usersTable.role, OWNER_MIRROR_ROLES)),
       ),
       ...(options.excludeUserId ? [ne(usersTable.id, options.excludeUserId)] : []),
     ));
   return rows.map((row) => row.id);
+}
+
+/**
+ * The subset of `candidateIds` that currently belong to the Shop: an active
+ * membership, or (rows that predate memberships) the users mirror pointing at
+ * it. Used so a targeted notification never reaches someone who has since
+ * been removed from the team, even if a repair still names them.
+ */
+export async function activeShopMemberIds(
+  shopId: string,
+  candidateIds: string[],
+  options: { executor?: Executor } = {},
+): Promise<string[]> {
+  const ids = [...new Set(candidateIds.filter(Boolean))];
+  if (ids.length === 0) return [];
+  const executor = options.executor ?? db;
+  const rows = await executor
+    .selectDistinct({ id: usersTable.id })
+    .from(usersTable)
+    .leftJoin(shopMembershipsTable, and(
+      eq(shopMembershipsTable.userId, usersTable.id),
+      eq(shopMembershipsTable.shopId, shopId),
+    ))
+    .where(and(
+      inArray(usersTable.id, ids),
+      eq(usersTable.isActive, true),
+      or(
+        eq(shopMembershipsTable.status, "active"),
+        and(isNull(shopMembershipsTable.id), eq(usersTable.shopId, shopId)),
+      ),
+    ));
+  return rows.map((row: { id: string }) => row.id);
 }

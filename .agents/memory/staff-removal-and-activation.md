@@ -1,0 +1,13 @@
+---
+name: Staff removal & activation codes
+description: Rules for revoking an active Shop member and for the one-time activation code that links an invited number; why membership writes must be transactional.
+---
+**Activation code (invite → join):** one 8-char code (no 0/O/1/I), displayed `XXXX-XXXX`, hashed on the membership row; the claim endpoint looks it up only inside the *authenticated caller's own* invitations (OTP-verified mobile = identity, code = owner consent). Legacy `{staffId, claimCode}` is the same secret and still hashes identically after normalising (strip non-alphanumerics, uppercase). Once claimed the membership is permanent: there is no client-side "recover backup" flow any more — every active membership (owners included) opens via `/shop/switch`. Server recovery endpoints still exist but the app does not call them.
+
+**Removing an active member:** `DELETE /staff/:id` on an active non-owner membership deletes the membership row + the per-user feature overrides for that Shop and re-points/clears the users-row mirror in ONE transaction. Never delete the users row (chat identity, FK history); the account returns to `role: customer, shopId: null` and can be re-invited. Co-owners (`owner` role) stay 403.
+
+**Removal is never refused (user requirement):** a pending/stuck invite (expired code, half-finished join with the mirror already pointing at the Shop, claimed while the owner's list was stale) must still remove cleanly — one `FOR UPDATE` path decides by the row's *current* state (pending → drop; active → revoke; gone → success). The app treats a 404 on remove as "already gone" and just refreshes; never surface a 409 for a stale pending entry. Owner also asked that Remove be ONE tap — no ConfirmDialog for staff removal / invite removal (only the legacy "Reject registration", which deletes the account, keeps its two-tap confirm). Do not reintroduce a confirm here.
+
+**Why transactional locks matter:** `requireAuth` still has a compatibility backfill that recreates a membership whenever `users.shopId` points at a Shop with no active row. So `/shop/switch` must `SELECT … FOR UPDATE` the membership and write the mirror in the same tx, and `/shop/claim` must activate + mirror in one tx — otherwise a switch racing a removal re-points the mirror and the backfill resurrects access. A test hammers this interleaving.
+
+**How to apply:** any new code that writes `users.shopId/role` from a membership must go through `selectWorkspace(tx, …)` inside the tx that locked the membership. Legacy users-row fallbacks in owner/member lookups (`shopOwners.ts`) are only valid when the account has *no* membership row at all (`membership.id IS NULL`), never for a pending/revoked row.

@@ -102,7 +102,22 @@ describe.sequential("optional Shop workspace", () => {
       .send({ mobile: staffMobile, role: "technician" });
     expect(invite.status).toBe(200);
     expect(invite.body.staffId).toMatch(/^STF-/);
-    expect(invite.body.claimCode).toHaveLength(10);
+    expect(invite.body.claimCode).toHaveLength(8);
+    expect(invite.body.activationCode).toMatch(/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+    expect(invite.body.activationCode.replace("-", "")).toBe(invite.body.claimCode);
+
+    // A wrong code (or one issued to another number) is refused without
+    // revealing which; the right one still works afterwards.
+    const wrong = await request(app)
+      .post("/api/shop/claim")
+      .set("Authorization", `Bearer ${staffToken}`)
+      .send({ activationCode: "AAAA-AAAA" });
+    expect(wrong.status).toBe(403);
+    const empty = await request(app)
+      .post("/api/shop/claim")
+      .set("Authorization", `Bearer ${staffToken}`)
+      .send({ claimCode: invite.body.claimCode });
+    expect(empty.status).toBe(400);
 
     const claim = await request(app)
       .post("/api/shop/claim")
@@ -206,9 +221,17 @@ describe.sequential("optional Shop workspace", () => {
       .set("Authorization", `Bearer ${ownerToken}`).send({ role: "reception" });
     expect(edit.status).toBe(403);
 
+    // Someone else holding the code cannot use it: it is bound to the invited
+    // mobile number's own account.
+    const stolen = await request(app).post("/api/shop/claim")
+      .set("Authorization", `Bearer ${staffToken}`)
+      .send({ activationCode: invite.body.activationCode });
+    expect(stolen.status).toBe(403);
+    // The single activation code (typed with or without the dash, any case)
+    // is all the co-owner enters — no Staff ID, nothing to re-verify later.
     const claim = await request(app).post("/api/shop/claim")
       .set("Authorization", `Bearer ${partnerToken}`)
-      .send({ staffId: invite.body.staffId, claimCode: invite.body.claimCode });
+      .send({ activationCode: ` ${invite.body.activationCode.toLowerCase()} ` });
     expect(claim.status).toBe(200);
     // The legacy compatibility mirror is "dealer", never a raw "owner" role.
     expect(claim.body.user).toMatchObject({ id: partner.id, role: "dealer", shopId });
@@ -253,6 +276,143 @@ describe.sequential("optional Shop workspace", () => {
     const back = await request(app).post("/api/shop/switch").set("Authorization", `Bearer ${partnerToken}`).send({ shopId });
     expect(back.body.user).toMatchObject({ role: "dealer", designation: "Owner" });
     await db.delete(shopsTable).where(eq(shopsTable.id, sideShop.id));
+  });
+
+  it("lets an owner remove an active staff member: Staff ID, permissions and access all go", async () => {
+    const { userFeatureSettingsTable } = await import("@workspace/db");
+    // Give the technician a custom permission so removal has something to clear.
+    await db.insert(userFeatureSettingsTable).values({ userId: staffId, shopId, features: { inventory: true } })
+      .onConflictDoNothing();
+    const before = await request(app).get("/api/repairs").set("Authorization", `Bearer ${staffToken}`);
+    expect(before.status).toBe(200);
+
+    // A co-owner cannot be removed this way; an active technician can.
+    const [coOwner] = await db.select({ userId: shopMembershipsTable.userId }).from(shopMembershipsTable)
+      .where(and(eq(shopMembershipsTable.shopId, shopId), eq(shopMembershipsTable.role, "owner"), eq(shopMembershipsTable.userId, extraUserIds[extraUserIds.length - 1])));
+    expect(coOwner).toBeTruthy();
+    const ownerAttempt = await request(app).delete(`/api/staff/${coOwner.userId}`).set("Authorization", `Bearer ${ownerToken}`);
+    expect(ownerAttempt.status).toBe(403);
+
+    const removed = await request(app).delete(`/api/staff/${staffId}`).set("Authorization", `Bearer ${ownerToken}`);
+    expect(removed.status).toBe(200);
+
+    const memberships = await db.select().from(shopMembershipsTable)
+      .where(and(eq(shopMembershipsTable.shopId, shopId), eq(shopMembershipsTable.userId, staffId)));
+    expect(memberships).toEqual([]);
+    const overrides = await db.select().from(userFeatureSettingsTable)
+      .where(and(eq(userFeatureSettingsTable.shopId, shopId), eq(userFeatureSettingsTable.userId, staffId)));
+    expect(overrides).toEqual([]);
+    // Back to a plain personal account: no workspace, no shop authority.
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, staffId));
+    expect(user).toMatchObject({ shopId: null, role: "customer", isActive: true });
+    const after = await request(app).get("/api/repairs").set("Authorization", `Bearer ${staffToken}`);
+    expect(after.status).toBeGreaterThanOrEqual(400);
+    const status = await request(app).get("/api/shop/me").set("Authorization", `Bearer ${staffToken}`);
+    expect(status.body).toMatchObject({ shop: null, memberships: [], backupDetected: false });
+    const list = await request(app).get("/api/staff").set("Authorization", `Bearer ${ownerToken}`);
+    expect(list.body.staff.map((row: { id: string }) => row.id)).not.toContain(staffId);
+    // Targeted notifications no longer reach them either.
+    const { activeShopMemberIds } = await import("../lib/shopOwners");
+    expect(await activeShopMemberIds(shopId, [staffId, ownerId])).toEqual([ownerId]);
+
+    // Re-inviting later starts a fresh handshake.
+    const again = await request(app).post("/api/shop/invitations")
+      .set("Authorization", `Bearer ${ownerToken}`).send({ mobile: staffMobile, role: "reception" });
+    expect(again.status).toBe(200);
+    const rejoin = await request(app).post("/api/shop/claim")
+      .set("Authorization", `Bearer ${staffToken}`).send({ activationCode: again.body.activationCode });
+    expect(rejoin.status).toBe(200);
+    expect(rejoin.body.user).toMatchObject({ id: staffId, role: "reception", shopId });
+  });
+
+  it("never lets a workspace switch racing a removal resurrect the membership", async () => {
+    const { activeShopMemberIds } = await import("../lib/shopOwners");
+    // A revoked (non-active) membership row must not fall through to the
+    // legacy users-row fallback either.
+    await db.update(shopMembershipsTable).set({ status: "revoked" })
+      .where(and(eq(shopMembershipsTable.shopId, shopId), eq(shopMembershipsTable.userId, staffId)));
+    expect(await activeShopMemberIds(shopId, [staffId])).toEqual([]);
+    await db.update(shopMembershipsTable).set({ status: "active" })
+      .where(and(eq(shopMembershipsTable.shopId, shopId), eq(shopMembershipsTable.userId, staffId)));
+
+    for (let round = 0; round < 5; round += 1) {
+      const [removal, ...switches] = await Promise.all([
+        request(app).delete(`/api/staff/${staffId}`).set("Authorization", `Bearer ${ownerToken}`),
+        ...Array.from({ length: 4 }, () => request(app).post("/api/shop/switch")
+          .set("Authorization", `Bearer ${staffToken}`).send({ shopId })),
+      ]);
+      expect(removal.status).toBe(200);
+      for (const attempt of switches) expect([200, 403]).toContain(attempt.status);
+      // Whatever the interleaving, the mirror never outlives the membership —
+      // and a business request afterwards must not recreate it.
+      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, staffId));
+      expect(user).toMatchObject({ shopId: null, role: "customer" });
+      const after = await request(app).get("/api/repairs").set("Authorization", `Bearer ${staffToken}`);
+      expect(after.status).toBeGreaterThanOrEqual(400);
+      const rows = await db.select().from(shopMembershipsTable)
+        .where(and(eq(shopMembershipsTable.shopId, shopId), eq(shopMembershipsTable.userId, staffId)));
+      expect(rows).toEqual([]);
+
+      const invite = await request(app).post("/api/shop/invitations")
+        .set("Authorization", `Bearer ${ownerToken}`).send({ mobile: staffMobile, role: "reception" });
+      const rejoin = await request(app).post("/api/shop/claim")
+        .set("Authorization", `Bearer ${staffToken}`).send({ activationCode: invite.body.activationCode });
+      expect(rejoin.status).toBe(200);
+    }
+  });
+
+  it("always lets the owner remove a stuck or half-finished invitation without a refusal", async () => {
+    // Staff is active from the previous test; remove them and reinvite so we
+    // start from a pending row.
+    expect((await request(app).delete(`/api/staff/${staffId}`).set("Authorization", `Bearer ${ownerToken}`)).status).toBe(200);
+    const reinvite = async () => {
+      const invite = await request(app).post("/api/shop/invitations")
+        .set("Authorization", `Bearer ${ownerToken}`).send({ mobile: staffMobile, role: "reception" });
+      expect(invite.status).toBe(200);
+      return invite.body.activationCode as string;
+    };
+
+    // 1. Expired activation code: the invite is stuck, removal still succeeds.
+    await reinvite();
+    await db.update(shopMembershipsTable).set({ inviteExpiresAt: new Date(Date.now() - 60_000) })
+      .where(and(eq(shopMembershipsTable.shopId, shopId), eq(shopMembershipsTable.userId, staffId)));
+    let removal = await request(app).delete(`/api/staff/${staffId}`).set("Authorization", `Bearer ${ownerToken}`);
+    expect(removal.status).toBe(200);
+
+    // 2. A pending row whose account already points at the Shop (half-finished
+    //    join): removal clears the mirror instead of refusing.
+    await reinvite();
+    await db.update(usersTable).set({ shopId, role: "reception" }).where(eq(usersTable.id, staffId));
+    removal = await request(app).delete(`/api/staff/${staffId}`).set("Authorization", `Bearer ${ownerToken}`);
+    expect(removal.status).toBe(200);
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, staffId));
+    expect(user).toMatchObject({ shopId: null, role: "customer" });
+
+    // 3. Claimed while the owner's screen still showed it pending: the
+    //    removal revokes the now-active member rather than failing with 409.
+    const code = await reinvite();
+    expect((await request(app).post("/api/shop/claim")
+      .set("Authorization", `Bearer ${staffToken}`).send({ activationCode: code })).status).toBe(200);
+    removal = await request(app).delete(`/api/staff/${staffId}`).set("Authorization", `Bearer ${ownerToken}`);
+    expect(removal.status).toBe(200);
+    expect(await db.select().from(shopMembershipsTable)
+      .where(and(eq(shopMembershipsTable.shopId, shopId), eq(shopMembershipsTable.userId, staffId)))).toEqual([]);
+
+    // 4. Two removals racing each other: both come back clean.
+    await reinvite();
+    const [a, b] = await Promise.all([
+      request(app).delete(`/api/staff/${staffId}`).set("Authorization", `Bearer ${ownerToken}`),
+      request(app).delete(`/api/staff/${staffId}`).set("Authorization", `Bearer ${ownerToken}`),
+    ]);
+    // The loser of the race finds no membership left (404, which the app
+    // treats as "already removed"); neither gets a 409/500 refusal.
+    expect([a.status, b.status].filter((status) => status === 200).length).toBeGreaterThanOrEqual(1);
+    for (const status of [a.status, b.status]) expect([200, 404]).toContain(status);
+
+    // Leave the staff member active for the following tests.
+    const fresh = await reinvite();
+    expect((await request(app).post("/api/shop/claim")
+      .set("Authorization", `Bearer ${staffToken}`).send({ activationCode: fresh })).status).toBe(200);
   });
 
   it("detects and restores an owner's business backup with mobile auth plus business email", async () => {

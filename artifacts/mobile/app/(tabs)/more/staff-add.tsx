@@ -3,6 +3,7 @@ import {
   Platform,
   Alert,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -96,9 +97,15 @@ export default function AddStaffScreen() {
           mobile: mobile.trim(),
           role: role as InviteRole,
         });
+        const who = role === 'owner' ? 'the co-owner' : 'the staff member';
+        const shareText = `Avarpus activation code: ${invitation.activationCode}\n\nSign in to Avarpus with your mobile number, open Shop and enter this code once. Valid for 7 days.`;
         Alert.alert(
-          role === 'owner' ? 'Co-owner invitation ready' : 'Staff invitation ready',
-          `Share these once with ${role === 'owner' ? 'the co-owner' : 'the staff member'}:\n\nStaff ID: ${invitation.staffId}\nClaim code: ${invitation.claimCode}\n\nThey can sign in with mobile OTP, open Shop, and choose “Join with Staff ID”.${role === 'owner' ? '\n\nOnce joined they have the same full access as you.' : ''}`,
+          role === 'owner' ? 'Co-owner activation code' : 'Staff activation code',
+          `${invitation.activationCode}\n\nShare this once with ${who}. They sign in with their mobile OTP, open Shop and enter the code — one time only. Their number stays linked after that; nothing is verified again.${role === 'owner' ? '\n\nOnce joined they have the same full access as you.' : ''}`,
+          [
+            { text: 'Share code', onPress: () => { void Share.share({ message: shareText }); } },
+            { text: 'Done', style: 'default' },
+          ],
         );
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -229,8 +236,8 @@ export default function AddStaffScreen() {
               {isPortalRole
                 ? 'This creates a restricted B2B dealer portal login.'
                 : role === 'owner'
-                  ? 'A co-owner gets the same full access as you — repairs, Khata, finance, staff and permissions. The number must already have a personal Avarpus account; you will receive a one-time Staff ID and claim code to share securely.'
-                  : 'The mobile number must already have a personal Avarpus account. You will receive a one-time Staff ID and claim code to share securely.'}
+                  ? 'A co-owner gets the same full access as you — repairs, Khata, finance, staff and permissions. The number must already have a personal Avarpus account; you will receive a one-time activation code to share. They enter it once and stay linked.'
+                  : 'The mobile number must already have a personal Avarpus account. You will receive a one-time activation code to share; they enter it once and stay linked.'}
             </Text>
           </View>
 

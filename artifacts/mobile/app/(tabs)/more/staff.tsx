@@ -9,6 +9,7 @@ import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { FlatCard, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
 
@@ -33,7 +34,7 @@ type StaffUser = {
   isActive: boolean;
   designation?: string;
   profilePhoto?: string | null;
-  /** Invited with a Staff ID + claim code; joins on their own, never approved here. */
+  /** Invited with a one-time activation code; joins on their own, never approved here. */
   invitePending?: boolean;
 };
 
@@ -41,10 +42,14 @@ function StaffCard({
   staff,
   onEdit,
   onPermissions,
+  onRemove,
+  removing,
 }: {
   staff: StaffUser;
   onEdit?: () => void;
   onPermissions?: () => void;
+  onRemove?: () => void;
+  removing?: boolean;
 }) {
   const colors = useColors();
   const roleColor = ROLE_COLORS[staff.role] ?? colors.primary;
@@ -69,7 +74,7 @@ function StaffCard({
           )}
         </View>
       </View>
-      {(onEdit || onPermissions) && (
+      {(onEdit || onPermissions || onRemove) && (
         <View style={styles.cardActions}>
           {onPermissions && (
             <TouchableOpacity
@@ -89,6 +94,17 @@ function StaffCard({
               activeOpacity={0.8}
             >
               <Feather name="edit-2" size={16} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+          {onRemove && (
+            <TouchableOpacity
+              onPress={onRemove}
+              disabled={removing}
+              accessibilityLabel={`Remove ${staff.name} from Shop`}
+              style={[styles.editBtn, { backgroundColor: colors.destructive + '12', borderColor: colors.destructive + '22', opacity: removing ? 0.5 : 1 }]}
+              activeOpacity={0.8}
+            >
+              {removing ? <AvarpusSpinner size={16} /> : <Feather name="user-x" size={16} color={colors.destructive} />}
             </TouchableOpacity>
           )}
         </View>
@@ -150,7 +166,7 @@ function PendingCard({
           </View>
           {staff.invitePending && (
             <Text style={[styles.mobile, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-              Waiting for them to join: they sign in with mobile OTP, open Shop and enter the Staff ID and claim code you shared. No approval is needed. Add them again to issue fresh codes.
+              Waiting for them to join: they sign in with mobile OTP, open Shop and enter the activation code you shared — once. No approval is needed. Add them again to issue a fresh code.
             </Text>
           )}
           <View style={styles.actionRow}>
@@ -168,7 +184,7 @@ function PendingCard({
             <TouchableOpacity
               disabled={busy}
               onPress={() => {
-                if (confirmReject) { onReject(); } else { setConfirmReject(true); }
+                if (staff.invitePending || confirmReject) { onReject(); } else { setConfirmReject(true); }
               }}
               style={[
                 styles.actionBtn,
@@ -185,15 +201,13 @@ function PendingCard({
                   { fontFamily: 'Inter_600SemiBold', color: confirmReject ? '#FFFFFF' : colors.destructive },
                 ]}
               >
-                {confirmReject ? (staff.invitePending ? 'Confirm cancel' : 'Confirm Reject') : (staff.invitePending ? 'Cancel invite' : 'Reject')}
+                {staff.invitePending ? 'Remove invite' : (confirmReject ? 'Confirm Reject' : 'Reject')}
               </Text>
             </TouchableOpacity>
           </View>
-          {confirmReject && (
+          {confirmReject && !staff.invitePending && (
             <Text style={[styles.rejectHint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-              {staff.invitePending
-                ? 'Cancelling withdraws the invitation. Their personal Avarpus account is not affected.'
-                : 'Rejecting permanently removes this registration.'}
+              Rejecting permanently removes this registration.
             </Text>
           )}
         </View>
@@ -273,6 +287,26 @@ export default function StaffScreen() {
     }
   }, [load]);
 
+  // Revoke an active member (any non-owner role, dealer-portal logins
+  // included): Staff ID, permissions and access for this Shop go at once; the
+  // person's own Avarpus account is untouched.
+  // One tap removes immediately (owner's request: no confirmation step).
+  // Reversible in practice: the number can be invited again.
+  const handleRemove = useCallback(async (member: StaffUser) => {
+    if (busyId) return;
+    setBusyId(member.id);
+    setActionError('');
+    try {
+      await staffReject(member.id);
+      await load();
+    } catch (err: any) {
+      if (err?.status === 404) { await load(); return; }
+      setActionError(err?.data?.message ?? 'Could not remove this staff member. Please try again.');
+    } finally {
+      setBusyId(null);
+    }
+  }, [busyId, load]);
+
   const handleReject = useCallback(async (id: string) => {
     setBusyId(id);
     setActionError('');
@@ -280,7 +314,12 @@ export default function StaffScreen() {
       await staffReject(id);
       await load();
     } catch (err: any) {
-      setActionError(err?.data?.message ?? 'Could not reject this account. Please try again.');
+      if (err?.status === 404) {
+        // Already gone (a second tap or a stale list): nothing to refuse.
+        await load();
+        return;
+      }
+      setActionError(err?.data?.message ?? 'Could not remove this account. Please try again.');
     } finally {
       setBusyId(null);
     }
@@ -342,7 +381,11 @@ export default function StaffScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.mutedForeground} />}
         ListHeaderComponent={
-          canManage && pending.length > 0 ? (
+          <>
+          {!!actionError && (canManage && pending.length === 0) && (
+            <Text style={[styles.actionErrorText, { color: colors.destructive, fontFamily: 'Inter_400Regular', marginBottom: 8 }]}>{actionError}</Text>
+          )}
+          {canManage && pending.length > 0 ? (
             <View style={styles.pendingSection}>
               <Text style={[styles.sectionTitle, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>
                 {pending.every((u) => u.invitePending) ? 'Invited' : 'Pending Approvals'} ({pending.length})
@@ -365,7 +408,8 @@ export default function StaffScreen() {
                 </Text>
               )}
             </View>
-          ) : null
+          ) : null}
+          </>
         }
         ListEmptyComponent={
           <EmptyState
@@ -384,6 +428,12 @@ export default function StaffScreen() {
                       pathname: '/(tabs)/more/staff-permissions',
                       params: { id: item.id, name: item.name },
                     })
+                : undefined
+            }
+            removing={busyId === item.id}
+            onRemove={
+              canManage && item.isActive && ['reception', 'technician', 'store_manager', 'accountant', 'dealer_owner', 'dealer_staff'].includes(item.role)
+                ? () => handleRemove(item)
                 : undefined
             }
             onEdit={

@@ -6,7 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Send `activationCode` alone. `staffId` + `claimCode` is the older two-part form of the same handshake.
+ */
 export interface ShopClaimInput {
-  staffId: string;
-  claimCode: string;
+  activationCode?: string;
+  staffId?: string;
+  claimCode?: string;
 }

@@ -667,12 +667,18 @@ export interface ShopInvitationInput {
 export interface ShopInvitationResult {
   staffId: string;
   claimCode: string;
+  /** One-time activation code (XXXX-XXXX) the invited number enters once to link permanently. Same secret as claimCode, formatted for sharing. */
+  activationCode: string;
   status: string;
 }
 
+/**
+ * Send `activationCode` alone. `staffId` + `claimCode` is the older two-part form of the same handshake.
+ */
 export interface ShopClaimInput {
-  staffId: string;
-  claimCode: string;
+  activationCode?: string;
+  staffId?: string;
+  claimCode?: string;
 }
 
 export interface ShopSwitchInput {

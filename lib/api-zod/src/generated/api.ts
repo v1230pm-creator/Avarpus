@@ -612,6 +612,7 @@ export const ShopInvitationCreateBody = zod.object({
 export const ShopInvitationCreateResponse = zod.object({
   "staffId": zod.string(),
   "claimCode": zod.string(),
+  "activationCode": zod.string().describe('One-time activation code (XXXX-XXXX) the invited number enters once to link permanently. Same secret as claimCode, formatted for sharing.'),
   "status": zod.string()
 })
 
@@ -620,9 +621,10 @@ export const ShopInvitationCreateResponse = zod.object({
  * @summary Claim a pending staff invitation
  */
 export const ShopInvitationClaimBody = zod.object({
-  "staffId": zod.string(),
-  "claimCode": zod.string()
-})
+  "activationCode": zod.string().optional(),
+  "staffId": zod.string().optional(),
+  "claimCode": zod.string().optional()
+}).describe('Send `activationCode` alone. `staffId` + `claimCode` is the older two-part form of the same handshake.')
 
 export const ShopInvitationClaimResponse = zod.object({
   "message": zod.string(),
@@ -1054,7 +1056,7 @@ export const StaffUpdateResponse = zod.object({
 
 
 /**
- * @summary Reject and remove a pending staff account (dealer/super_admin only)
+ * @summary Remove a staff member from the Shop (dealer/super_admin only) — cancels a pending invitation, or revokes an active member's Staff ID and every permission
  */
 export const StaffRejectParams = zod.object({
   "id": zod.coerce.string()

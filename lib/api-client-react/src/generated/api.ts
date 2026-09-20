@@ -2857,7 +2857,7 @@ export const getStaffRejectUrl = (id: string,) => {
 }
 
 /**
- * @summary Reject and remove a pending staff account (dealer/super_admin only)
+ * @summary Remove a staff member from the Shop (dealer/super_admin only) — cancels a pending invitation, or revokes an active member's Staff ID and every permission
  */
 export const staffReject = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
 
@@ -2906,7 +2906,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type StaffRejectMutationError = ErrorType<unknown>
 
     /**
- * @summary Reject and remove a pending staff account (dealer/super_admin only)
+ * @summary Remove a staff member from the Shop (dealer/super_admin only) — cancels a pending invitation, or revokes an active member's Staff ID and every permission
  */
 export const useStaffReject = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof staffReject>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}

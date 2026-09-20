@@ -16,8 +16,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   shopClaim,
   shopMe,
-  shopRecoveryRequest,
-  shopRecoveryVerify,
   shopSetupRequest,
   shopSetupVerify,
   shopSwitch,
@@ -28,7 +26,7 @@ import { useColors } from '@/hooks/useColors';
 import { AvarpusLoadingScreen, AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { isDealerPortalRole } from '@/types';
 
-type Mode = 'overview' | 'setup' | 'claim' | 'recovery';
+type Mode = 'overview' | 'setup' | 'claim';
 
 function messageOf(error: unknown, fallback: string) {
   const data = (error as { data?: { message?: string } })?.data;
@@ -53,12 +51,7 @@ export default function ShopScreen() {
   const [gstNumber, setGstNumber] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [verificationSent, setVerificationSent] = useState(false);
-  const [staffId, setStaffId] = useState('');
-  const [claimCode, setClaimCode] = useState('');
-  const [recoveryEmail, setRecoveryEmail] = useState('');
-  const [recoveryCode, setRecoveryCode] = useState('');
-  const [recoveryShopId, setRecoveryShopId] = useState('');
-  const [recoveryMessage, setRecoveryMessage] = useState('');
+  const [activationCode, setActivationCode] = useState('');
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
   const load = useCallback(async () => {
@@ -126,7 +119,10 @@ export default function ShopScreen() {
     setSaving(true);
     setError(null);
     try {
-      await shopClaim({ staffId: staffId.trim().toUpperCase(), claimCode: claimCode.trim().toUpperCase() });
+      // One code, entered once: the server binds it to this signed-in mobile
+      // number, and the membership stays linked from then on.
+      await shopClaim({ activationCode: activationCode.trim().toUpperCase() });
+      setActivationCode('');
       await resetBusinessQueries();
       await refreshUser();
       await refreshFeatures();
@@ -140,48 +136,10 @@ export default function ShopScreen() {
     }
   };
 
-  // Memberships the signed-in account can simply open (no code involved).
-  const teamMemberships = (workspace?.memberships ?? []).filter((membership) => membership.role !== 'owner');
-
-  const beginRecovery = async () => {
-    // Recovery codes go to the business mailbox, which only an owner holds.
-    const target = workspace?.memberships.find((membership) => membership.role === 'owner');
-    if (!target) return;
-    setMode('recovery');
-    setSaving(true);
-    setError(null);
-    setRecoveryShopId(target.id);
-    try {
-      const result = await shopRecoveryRequest(target.id);
-      setRecoveryMessage(result.message);
-    } catch (err) {
-      setError(messageOf(err, 'Could not send the recovery code.'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const verifyRecovery = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      await shopRecoveryVerify({
-        shopId: recoveryShopId,
-        email: recoveryEmail.trim().toLowerCase(),
-        code: recoveryCode.trim(),
-      });
-      await resetBusinessQueries();
-      await refreshUser();
-      await refreshFeatures();
-      setMode('overview');
-      setLoading(true);
-      await load();
-    } catch (err) {
-      setError(messageOf(err, 'Could not restore this workspace.'));
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Every active membership — owner or staff — opens directly. A linked
+  // account is never asked to verify anything again.
+  const teamMemberships = workspace?.memberships ?? [];
+  const ownsAShop = teamMemberships.some((membership) => membership.role === 'owner');
 
   const switchWorkspace = async (shopId: string) => {
     if (shopId === workspace?.activeShopId || saving) return;
@@ -265,43 +223,23 @@ export default function ShopScreen() {
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.cardTitle, { color: colors.foreground }]}>Join a Shop</Text>
             <Text style={[styles.body, { color: colors.mutedForeground }]}>
-              Ask the Shop owner for your Staff ID and one-time claim code. This connects your existing mobile-verified personal account.
+              Enter the one-time activation code the Shop owner shared with you. It only works for the mobile number you signed in with, and you will never be asked for it again.
             </Text>
-            <Field label="Staff ID" value={staffId} onChangeText={setStaffId} colors={colors} autoCapitalize="characters" />
-            <Field label="Claim code" value={claimCode} onChangeText={setClaimCode} colors={colors} autoCapitalize="characters" />
-            <PrimaryButton label="Join workspace" onPress={claimWorkspace} busy={saving} disabled={!staffId.trim() || !claimCode.trim()} colors={colors} />
-          </View>
-        )}
-
-        {mode === 'recovery' && (
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.cardTitle, { color: colors.foreground }]}>Recover Shop backup</Text>
-            <Text style={[styles.body, { color: colors.mutedForeground }]}>
-              Your signed-in mobile account and a one-time code sent to the verified business email are both required.
-            </Text>
-            {!!recoveryMessage && <Text style={[styles.body, { color: colors.primary }]}>{recoveryMessage}</Text>}
-            <Field label="Verified business email" value={recoveryEmail} onChangeText={setRecoveryEmail} colors={colors} keyboardType="email-address" autoCapitalize="none" />
-            <Field label="Recovery code" value={recoveryCode} onChangeText={setRecoveryCode} colors={colors} keyboardType="number-pad" maxLength={6} />
-            <PrimaryButton
-              label="Verify and restore"
-              onPress={verifyRecovery}
-              busy={saving}
-              disabled={!recoveryShopId || !recoveryEmail.trim() || recoveryCode.trim().length !== 6}
-              colors={colors}
-            />
+            <Field label="Activation code" value={activationCode} onChangeText={setActivationCode} colors={colors} autoCapitalize="characters" autoCorrect={false} placeholder="XXXX-XXXX" />
+            <PrimaryButton label="Activate and join" onPress={claimWorkspace} busy={saving} disabled={activationCode.replace(/[^a-z0-9]/gi, '').length < 8} colors={colors} />
           </View>
         )}
 
         {mode === 'overview' && !workspace?.shop && teamMemberships.length > 0 && (
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.cardTitle, { color: colors.foreground }]}>You are on a Shop team</Text>
+            <Text style={[styles.cardTitle, { color: colors.foreground }]}>{ownsAShop ? 'Your Shop is linked to this number' : 'You are on a Shop team'}</Text>
             <Text style={[styles.body, { color: colors.mutedForeground }]}>
               Open the workspace to continue. No code is needed — your membership is already active.
             </Text>
             {teamMemberships.map((membership) => (
               <PrimaryButton
                 key={membership.id}
-                label={`Open ${membership.businessName}`}
+                label={`Open ${membership.businessName}${membership.role === 'owner' ? ' (Owner)' : ''}`}
                 onPress={() => switchWorkspace(membership.id)}
                 busy={saving}
                 colors={colors}
@@ -316,27 +254,17 @@ export default function ShopScreen() {
               <View style={[styles.heroIcon, { backgroundColor: `${colors.primary}14` }]}>
                 <Feather name="briefcase" size={34} color={colors.primary} />
               </View>
-              <Text style={[styles.heroTitle, { color: colors.foreground }]}>
-                {workspace?.backupDetected ? 'Business backup detected' : 'Run your Shop on Avarpus'}
-              </Text>
+              <Text style={[styles.heroTitle, { color: colors.foreground }]}>Run your Shop on Avarpus</Text>
               <Text style={[styles.heroText, { color: colors.mutedForeground }]}>
-                {workspace?.backupDetected
-                  ? 'Restore your protected workspace with your mobile-authenticated account and verified business email.'
-                  : isDealerPortal
-                    ? 'You are listed as a dealer at another shop. Set up your own Shop here; their repairs for you stay visible under Repairs.'
-                    : 'Repairs, Khata, customers, staff and reports stay protected inside a separate business workspace.'}
+                {isDealerPortal
+                  ? 'You are listed as a dealer at another shop. Set up your own Shop here; their repairs for you stay visible under Repairs.'
+                  : 'Repairs, Khata, customers, staff and reports stay protected inside a separate business workspace.'}
               </Text>
-              {workspace?.backupDetected ? (
-                <PrimaryButton label="Recover Shop backup" onPress={beginRecovery} busy={saving} colors={colors} />
-              ) : (
-                <>
-                  <PrimaryButton label="Set up your Shop" onPress={() => { setMode('setup'); setError(null); }} colors={colors} />
-                  {!isDealerPortal && (
-                    <TouchableOpacity onPress={() => setMode('claim')} style={[styles.secondaryButton, { borderColor: colors.border }]}>
-                      <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Join with Staff ID</Text>
-                    </TouchableOpacity>
-                  )}
-                </>
+              <PrimaryButton label="Set up your Shop" onPress={() => { setMode('setup'); setError(null); }} colors={colors} />
+              {!isDealerPortal && (
+                <TouchableOpacity onPress={() => setMode('claim')} style={[styles.secondaryButton, { borderColor: colors.border }]}>
+                  <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Join with activation code</Text>
+                </TouchableOpacity>
               )}
             </View>
             <View style={styles.securityNote}>

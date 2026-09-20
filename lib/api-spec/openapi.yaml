@@ -739,7 +739,7 @@ paths:
     delete:
       operationId: staffReject
       tags: [auth]
-      summary: Reject and remove a pending staff account (dealer/super_admin only)
+      summary: Remove a staff member from the Shop (dealer/super_admin only) — cancels a pending invitation, or revokes an active member's Staff ID and every permission
       parameters:
         - name: id
           in: path
@@ -4839,14 +4839,18 @@ components:
       properties:
         staffId: { type: string }
         claimCode: { type: string }
+        activationCode:
+          type: string
+          description: One-time activation code (XXXX-XXXX) the invited number enters once to link permanently. Same secret as claimCode, formatted for sharing.
         status: { type: string }
-      required: [staffId, claimCode, status]
+      required: [staffId, claimCode, activationCode, status]
     ShopClaimInput:
       type: object
+      description: Send `activationCode` alone. `staffId` + `claimCode` is the older two-part form of the same handshake.
       properties:
+        activationCode: { type: string }
         staffId: { type: string }
         claimCode: { type: string }
-      required: [staffId, claimCode]
     ShopSwitchInput:
       type: object
       properties:
