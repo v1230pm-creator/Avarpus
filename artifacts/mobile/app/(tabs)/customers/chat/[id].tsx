@@ -39,6 +39,15 @@ import {
 import { useVoiceRecorder, deleteVoiceTempFile } from '@/hooks/useVoiceRecorder';
 import { VoiceRecorderPanel } from '@/components/chat/VoiceRecorderPanel';
 import { ImageViewer } from '@/components/chat/ImageViewer';
+import { VideoViewer } from '@/components/chat/VideoViewer';
+import {
+  fileExtension,
+  fileTypeVisual,
+  isViewableImageMime,
+  messageKindFor,
+  receivedMimeType,
+  resolveContentType,
+} from '@/components/chat/attachments';
 import {
   MessageSelectionHeader,
   QuotedMessage,
@@ -49,6 +58,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
+import * as IntentLauncher from 'expo-intent-launcher';
 import * as Location from 'expo-location';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import * as Sharing from 'expo-sharing';
@@ -85,71 +95,15 @@ import type {
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
-const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB
+const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB — matches the API's per-attachment cap
 const MAX_RECORDING_MS = 10 * 60 * 1000; // 10 minutes
 const DELETE_FOR_EVERYONE_WINDOW_MS = 24 * 60 * 60 * 1000; // sender may retract from everyone only within 24 hours
-
-/**
- * Server-allowlisted content types. Map raw picker MIME → normalised value.
- * NOTE: no fallback to octet-stream — server rejects it.
- */
-const ALLOWED_CONTENT_TYPES: Record<string, string> = {
-  'image/jpeg': 'image/jpeg',
-  'image/jpg': 'image/jpeg',
-  'image/png': 'image/png',
-  'image/gif': 'image/gif',
-  'image/webp': 'image/webp',
-  'image/heic': 'image/heic',
-  'video/mp4': 'video/mp4',
-  'video/quicktime': 'video/quicktime',
-  'application/pdf': 'application/pdf',
-  'audio/mp4': 'audio/mp4',
-  'audio/m4a': 'audio/mp4',
-  'audio/aac': 'audio/mp4',
-  'audio/x-m4a': 'audio/mp4',
-  'audio/webm': 'audio/webm',
-};
-
-/**
- * Resolve content type from file extension when MIME is absent or unknown.
- * Returns null if the extension maps to nothing in the allowlist.
- */
-const EXT_TO_CONTENT_TYPE: Record<string, string> = {
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  heic: 'image/heic',
-  mp4: 'video/mp4',
-  mov: 'video/quicktime',
-  pdf: 'application/pdf',
-  m4a: 'audio/mp4',
-  aac: 'audio/mp4',
-};
 
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'bmp']);
 /** Keep the original image extension when saving so the gallery classifies it correctly. */
 function imageExtensionFor(filename: string | null | undefined): string {
-  const ext = (filename ?? '').split('?')[0].split('.').pop()?.toLowerCase() ?? '';
+  const ext = fileExtension(filename);
   return IMAGE_EXTENSIONS.has(ext) ? ext : 'jpg';
-}
-
-function resolveContentType(mimeType: string | null | undefined, filename: string): string | null {
-  if (mimeType) {
-    const normalised = ALLOWED_CONTENT_TYPES[mimeType.toLowerCase()];
-    if (normalised) return normalised;
-  }
-  // Fall back to extension
-  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
-  return EXT_TO_CONTENT_TYPE[ext] ?? null;
-}
-
-/** Message kind from server-normalised content type. */
-function messageKindFromContentType(ct: string): 'image' | 'file' | 'audio' {
-  if (ct.startsWith('image/')) return 'image';
-  if (ct.startsWith('audio/')) return 'audio';
-  return 'file';
 }
 
 /** Sanitise a filename for local cache paths — allow only safe chars. */
@@ -325,35 +279,80 @@ function ImageAttachment({
 }
 
 function FileAttachment({
-  roomId,
-  messageId,
-  body,
+  msg,
   token,
   colors,
-  onDownload,
+  isMine,
+  opening,
+  onOpen,
 }: {
-  roomId: string;
-  messageId: string;
-  body: string;
+  msg: ChatMessage;
   token: string | null;
   colors: any;
-  onDownload: (roomId: string, messageId: string, filename: string, token: string | null) => void;
+  isMine: boolean;
+  opening: boolean;
+  onOpen: (msg: ChatMessage, token: string | null) => void;
 }) {
+  const mime = receivedMimeType(msg);
+  const visual = fileTypeVisual(mime, msg.body);
+  const meta = [visual.label, msg.sizeBytes ? formatBytes(msg.sizeBytes) : null].filter(Boolean).join(' · ');
   return (
     <TouchableOpacity
       style={[styles.fileRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
-      onPress={() => onDownload(roomId, messageId, body, token)}
-      accessibilityLabel={`Download ${body}`}
-      testID={`file-attachment-${messageId}`}
+      onPress={() => onOpen(msg, token)}
+      disabled={opening}
+      accessibilityLabel={`Open ${msg.body}`}
+      testID={`file-attachment-${msg.id}`}
     >
-      <Feather name="file" size={18} color={colors.mutedForeground} />
-      <Text
-        style={[styles.fileRowName, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
-        numberOfLines={1}
-      >
-        {body}
-      </Text>
-      <Feather name="download" size={16} color={colors.primary} />
+      <View style={[styles.fileIconBadge, { backgroundColor: colors.primary + '1A' }]}>
+        <Feather name={visual.icon} size={18} color={colors.primary} />
+      </View>
+      <View style={styles.fileRowCopy}>
+        <Text
+          style={[styles.fileRowName, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}
+          numberOfLines={2}
+        >
+          {msg.body}
+        </Text>
+        <Text style={[styles.fileRowMeta, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+          {meta}
+        </Text>
+      </View>
+      {opening ? (
+        <AvarpusSpinner size={16} />
+      ) : (
+        <Feather name="external-link" size={16} color={isMine ? colors.primary : colors.mutedForeground} />
+      )}
+    </TouchableOpacity>
+  );
+}
+
+/** Video bubble: dark tile with a play badge; the clip streams on tap. */
+function VideoAttachment({
+  msg,
+  onOpen,
+}: {
+  msg: ChatMessage;
+  onOpen: (msg: ChatMessage) => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={styles.videoAttachment}
+      onPress={() => onOpen(msg)}
+      accessibilityLabel={`Play video ${msg.body}`}
+      testID={`video-attachment-${msg.id}`}
+    >
+      <View style={styles.videoPlayBadge}>
+        <Feather name="play" size={26} color="#FFFFFF" />
+      </View>
+      <View style={styles.videoMetaRow}>
+        <Feather name="video" size={12} color="#FFFFFF" />
+        <Text style={styles.videoMetaText} numberOfLines={1}>
+          {[msg.durationMs ? formatDuration(msg.durationMs) : null, msg.sizeBytes ? formatBytes(msg.sizeBytes) : 'Video']
+            .filter(Boolean)
+            .join(' · ')}
+        </Text>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -446,13 +445,15 @@ function MessageBubble({
   isMine,
   colors,
   token,
-  onDownload,
+  onOpenFile,
+  openingFile = false,
   selectable = true,
   selected = false,
   selectionMode = false,
   onSelectStart,
   onToggleSelect,
   onOpenImage,
+  onOpenVideo,
   onOpenQuote,
   quoteSenderLabel,
 }: {
@@ -460,7 +461,9 @@ function MessageBubble({
   isMine: boolean;
   colors: any;
   token: string | null;
-  onDownload: (roomId: string, messageId: string, filename: string, token: string | null) => void;
+  onOpenFile: (msg: ChatMessage, token: string | null) => void;
+  /** True while this file's bytes are being fetched for opening. */
+  openingFile?: boolean;
   /** Optimistic (not yet persisted) rows cannot be selected. */
   selectable?: boolean;
   selected?: boolean;
@@ -469,6 +472,7 @@ function MessageBubble({
   onSelectStart?: (msg: ChatMessage) => void;
   onToggleSelect?: (msg: ChatMessage) => void;
   onOpenImage?: (msg: ChatMessage) => void;
+  onOpenVideo?: (msg: ChatMessage) => void;
   onOpenQuote?: (quoteId: string) => void;
   quoteSenderLabel?: string;
 }) {
@@ -494,6 +498,7 @@ function MessageBubble({
   }
 
   const isImage = msg.kind === 'image';
+  const isVideo = msg.kind === 'video';
   const isFile = msg.kind === 'file';
   const isAudio = msg.kind === 'audio';
   const canSelect = selectable && !!onSelectStart;
@@ -504,12 +509,13 @@ function MessageBubble({
       return;
     }
     if (isImage) onOpenImage?.(msg);
+    else if (isVideo) onOpenVideo?.(msg);
   };
 
   return (
     <Pressable
       onLongPress={canSelect ? () => onSelectStart?.(msg) : undefined}
-      onPress={selectionMode || isImage ? handlePress : undefined}
+      onPress={selectionMode || isImage || isVideo ? handlePress : undefined}
       delayLongPress={450}
       style={styles.selectableRow}
       accessibilityLabel={selected ? 'Selected message' : undefined}
@@ -523,7 +529,7 @@ function MessageBubble({
             isMine
               ? [styles.bubbleMine, { backgroundColor: colors.primary }]
               : [styles.bubbleTheirs, { backgroundColor: colors.card, borderColor: colors.border }],
-            (isImage || isFile || isAudio) && styles.bubbleMedia,
+            (isImage || isVideo || isFile || isAudio) && styles.bubbleMedia,
           ]}
         >
           {msg.forwarded && (
@@ -558,14 +564,16 @@ function MessageBubble({
           )}
           {isImage ? (
             <ImageAttachment roomId={msg.roomId} messageId={msg.id} token={token} />
+          ) : isVideo ? (
+            <VideoAttachment msg={msg} onOpen={(m) => (selectionMode ? handlePress() : onOpenVideo?.(m))} />
           ) : isFile ? (
             <FileAttachment
-              roomId={msg.roomId}
-              messageId={msg.id}
-              body={msg.body}
+              msg={msg}
               token={token}
               colors={colors}
-              onDownload={onDownload}
+              isMine={isMine}
+              opening={openingFile}
+              onOpen={(m, t) => (selectionMode ? handlePress() : onOpenFile(m, t))}
             />
           ) : isAudio ? (
             <AudioAttachment
@@ -684,7 +692,12 @@ interface AttachmentSheetProps {
   onRetryRecents: () => void;
   onOpenSettings: () => void;
   onLoadMoreRecents: () => void;
-  onSelectRecent: (asset: MediaLibrary.Asset) => void;
+  /** Ids of recents the user has ticked; tapping toggles membership. */
+  selectedRecentIds: ReadonlyMap<string, unknown>;
+  onToggleRecent: (asset: MediaLibrary.Asset) => void;
+  /** Send every ticked recent. Only rendered while at least one is ticked. */
+  onSendSelectedRecents: () => void;
+  onClearSelectedRecents: () => void;
   onSelectContact: (contact: Contacts.ExistingContact) => void;
 }
 
@@ -712,9 +725,13 @@ function AttachmentSheet({
   onRetryRecents,
   onOpenSettings,
   onLoadMoreRecents,
-  onSelectRecent,
+  selectedRecentIds,
+  onToggleRecent,
+  onSendSelectedRecents,
+  onClearSelectedRecents,
   onSelectContact,
 }: AttachmentSheetProps) {
+  const selectedCount = selectedRecentIds.size;
   const sheetProgress = useRef(new Animated.Value(expanded ? 1 : 0)).current;
   const { height: windowHeight } = useWindowDimensions();
   const sheetHeight = Math.max(430, windowHeight - 104);
@@ -799,9 +816,25 @@ function AttachmentSheet({
                 { color: colors.foreground, fontFamily: 'Inter_700Bold' },
               ]}
             >
-              {contactsMode ? 'Choose contact' : expanded ? 'Recents' : 'Attach'}
+              {contactsMode
+                ? 'Choose contact'
+                : selectedCount > 0
+                ? `${selectedCount} selected`
+                : expanded
+                ? 'Recents'
+                : 'Attach'}
             </Text>
-            <View style={styles.attachmentSheetHeaderSpacer} />
+            {!contactsMode && selectedCount > 0 ? (
+              <TouchableOpacity
+                onPress={onClearSelectedRecents}
+                style={styles.attachmentSheetClose}
+                accessibilityLabel="Clear selection"
+              >
+                <Text style={[styles.attachmentSeeAllText, { color: colors.primary }]}>Clear</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.attachmentSheetHeaderSpacer} />
+            )}
           </View>
         </View>
 
@@ -992,25 +1025,43 @@ function AttachmentSheet({
                   expanded ? styles.attachmentGrid : styles.attachmentStrip
                 }
               >
-                {recentAssets.map((asset) => (
-                  <TouchableOpacity
-                    key={asset.id}
-                    onPress={() => onSelectRecent(asset)}
-                    style={expanded ? styles.attachmentGridItem : styles.attachmentStripItem}
-                    accessibilityLabel={`Select ${asset.filename}`}
-                  >
-                    <Image
-                      source={{ uri: asset.uri }}
-                      style={styles.attachmentRecentImage}
-                      contentFit="cover"
-                    />
-                    {asset.mediaType === 'video' ? (
-                      <View style={styles.attachmentVideoBadge}>
-                        <Feather name="play" size={11} color="#FFFFFF" />
-                      </View>
-                    ) : null}
-                  </TouchableOpacity>
-                ))}
+                {recentAssets.map((asset) => {
+                  const isSelected = selectedRecentIds.has(asset.id);
+                  return (
+                    <TouchableOpacity
+                      key={asset.id}
+                      onPress={() => onToggleRecent(asset)}
+                      style={expanded ? styles.attachmentGridItem : styles.attachmentStripItem}
+                      accessibilityLabel={`${isSelected ? 'Deselect' : 'Select'} ${asset.filename}`}
+                      accessibilityState={{ selected: isSelected }}
+                      testID={`attachment-recent-${asset.id}`}
+                    >
+                      <Image
+                        source={{ uri: asset.uri }}
+                        style={styles.attachmentRecentImage}
+                        contentFit="cover"
+                      />
+                      {asset.mediaType === 'video' ? (
+                        <View style={styles.attachmentVideoBadge}>
+                          <Feather name="play" size={11} color="#FFFFFF" />
+                        </View>
+                      ) : null}
+                      {isSelected ? (
+                        <View
+                          pointerEvents="none"
+                          style={[styles.attachmentSelectedOverlay, { borderColor: colors.primary }]}
+                          testID={`attachment-recent-selected-${asset.id}`}
+                        >
+                          <View style={[styles.attachmentSelectedCheck, { backgroundColor: colors.primary }]}>
+                            <Feather name="check" size={13} color="#FFFFFF" />
+                          </View>
+                        </View>
+                      ) : (
+                        <View pointerEvents="none" style={styles.attachmentSelectCircle} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
                 {expanded && recentLoadingMore ? (
                   <View style={styles.attachmentPageLoader}>
                     <AvarpusSpinner size={20} />
@@ -1023,6 +1074,20 @@ function AttachmentSheet({
                 ) : null}
               </ScrollView>
             )}
+            {selectedCount > 0 ? (
+              <TouchableOpacity
+                onPress={onSendSelectedRecents}
+                style={[styles.attachmentSendFab, { backgroundColor: colors.primary }]}
+                accessibilityRole="button"
+                accessibilityLabel={`Send ${selectedCount} selected`}
+                testID="attachment-send-selected"
+              >
+                <Feather name="send" size={18} color="#FFFFFF" />
+                <View style={styles.attachmentSendFabBadge}>
+                  <Text style={[styles.attachmentSendFabBadgeText, { color: colors.primary }]}>{selectedCount}</Text>
+                </View>
+              </TouchableOpacity>
+            ) : null}
           </>
         )}
       </Animated.View>
@@ -1140,25 +1205,43 @@ export default function ChatScreen() {
   const pendingSendRef = useRef<{ body: string; replyToId: string | null; clientRequestId: string } | null>(null);
 
   // ── Shared upload/send state (file attachments + voice notes) ──────────
-  const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
-  const pendingUploadRef = useRef<PendingUpload | null>(null);
-  pendingUploadRef.current = pendingUpload;
-  /** Single exit for a pending attachment: disposes app-owned temp files. */
+  /**
+   * Outgoing attachment queue. Items are sent strictly in order; the head is
+   * the one currently previewed / uploading. A failure stops the queue with
+   * the failed item still at the head so Retry resumes exactly there.
+   */
+  const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
+  // The ref is the single queue authority: every queue operation writes it
+  // first and mirrors into state for rendering. It is never re-derived from
+  // state, so an in-flight render cannot roll back an imperative update.
+  const pendingUploadsRef = useRef<PendingUpload[]>([]);
+  const pendingUpload = pendingUploads[0] ?? null;
+  /** Total size of the batch when it was queued, for "n of N" progress. */
+  const [pendingBatchTotal, setPendingBatchTotal] = useState(0);
+  /** Single exit for pending attachments: disposes app-owned temp files. */
   const clearPendingUpload = useCallback(() => {
-    const current = pendingUploadRef.current;
-    if (current?.ownedTempFile) deleteVoiceTempFile(current.uri);
-    pendingUploadRef.current = null;
-    setPendingUpload(null);
+    for (const item of pendingUploadsRef.current) {
+      if (item.ownedTempFile) deleteVoiceTempFile(item.uri);
+    }
+    pendingUploadsRef.current = [];
+    setPendingUploads([]);
+    setPendingBatchTotal(0);
   }, []);
   useEffect(() => {
     return () => {
-      const current = pendingUploadRef.current;
-      if (current?.ownedTempFile) deleteVoiceTempFile(current.uri);
+      for (const item of pendingUploadsRef.current) {
+        if (item.ownedTempFile) deleteVoiceTempFile(item.uri);
+      }
     };
   }, []);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isSendingUpload, setIsSendingUpload] = useState(false);
+  /** Message id whose file bytes are currently being fetched for opening. */
+  const [openingFileId, setOpeningFileId] = useState<string | null>(null);
+  const [videoMessage, setVideoMessage] = useState<ChatMessage | null>(null);
+  /** Recents ticked in the attachment sheet, keyed by MediaLibrary asset id. */
+  const [selectedRecents, setSelectedRecents] = useState<Map<string, MediaLibrary.Asset>>(new Map());
 
   // ── Attachment sheet state ──────────────────────────────────────────────
   const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
@@ -1546,97 +1629,91 @@ export default function ChatScreen() {
   const uploadUrlMutation = useChatUploadUrl();
 
   // ── Shared upload → send ────────────────────────────────────────────────
-  /**
-   * Upload pendingUpload to S3 (unless already uploaded) then send the chat
-   * message. If upload already succeeded (uploadedObjectPath set) on a
-   * prior attempt, skip straight to the send step.
-   */
-  const handleSendUpload = useCallback(async (upload?: PendingUpload) => {
-    const target = upload ?? pendingUpload;
-    if (!target || !resolvedRoomId) return;
-    // queueUpload resolves this before presenting Send, but do not ever ask
+  /** Upload one queued item (unless already uploaded) and send its message. */
+  const uploadAndSendOne = useCallback(async (target: PendingUpload) => {
+    if (!resolvedRoomId) throw new Error('Chat is not ready yet.');
+    // queueUploads resolves this before presenting Send, but do not ever ask
     // the API for a presigned URL with an invalid content length.
     if (!Number.isFinite(target.size) || target.size <= 0) {
-      setUploadError('Could not read the selected file. Please choose it again.');
-      return;
+      throw new Error('Could not read the selected file. Please choose it again.');
     }
-
-    setUploadError(null);
     setUploadProgress(target.uploadedObjectPath ? 1 : 0);
 
-    try {
-      let objectPath = target.uploadedObjectPath ?? null;
+    let objectPath = target.uploadedObjectPath ?? null;
 
-      if (!objectPath) {
-        // 1) Request a presigned upload URL
-        const uploadResult = await new Promise<{ uploadURL: string; objectPath: string }>(
-          (resolve, reject) => {
-            uploadUrlMutation.mutate(
-              {
-                roomId: resolvedRoomId,
-                data: { name: target.name, size: target.size, contentType: target.contentType },
-              },
-              { onSuccess: resolve, onError: reject },
-            );
-          },
-        );
+    if (!objectPath) {
+      // 1) Request a presigned upload URL
+      const uploadResult = await new Promise<{ uploadURL: string; objectPath: string }>(
+        (resolve, reject) => {
+          uploadUrlMutation.mutate(
+            {
+              roomId: resolvedRoomId,
+              data: { name: target.name, size: target.size, contentType: target.contentType },
+            },
+            { onSuccess: resolve, onError: reject },
+          );
+        },
+      );
 
-        objectPath = uploadResult.objectPath;
+      objectPath = uploadResult.objectPath;
 
-        // 2) PUT the bytes to presigned URL
-        if (Platform.OS === 'web') {
-          const fetchResp = await fetch(target.uri);
-          const blob = await fetchResp.blob();
-          const putResp = await fetch(uploadResult.uploadURL, {
-            method: 'PUT',
-            headers: { 'Content-Type': target.contentType },
-            body: blob,
-          });
-          if (!putResp.ok) throw new Error(`Upload failed (HTTP ${putResp.status})`);
-          setUploadProgress(1);
-        } else {
-          await new Promise<void>((resolve, reject) => {
-            const task = FileSystem.createUploadTask(
-              uploadResult.uploadURL,
-              target.uri,
-              {
-                httpMethod: 'PUT',
-                headers: { 'Content-Type': target.contentType },
-                uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-              },
-              (progress) => {
-                if (progress.totalBytesExpectedToSend > 0) {
-                  setUploadProgress(
-                    progress.totalBytesSent / progress.totalBytesExpectedToSend,
-                  );
-                }
-              },
-            );
-            task
-              .uploadAsync()
-              .then((result) => {
-                if (!result || result.status < 200 || result.status >= 300) {
-                  reject(new Error(`Upload failed (HTTP ${result?.status ?? 'unknown'})`));
-                } else {
-                  setUploadProgress(1);
-                  resolve();
-                }
-              })
-              .catch(reject);
-          });
-        }
-
-        // Upload done — persist objectPath so a failed send can retry without re-uploading
-        setPendingUpload((prev) =>
-          prev && prev.clientRequestId === target.clientRequestId
-            ? { ...prev, uploadedObjectPath: objectPath! }
-            : prev,
-        );
+      // 2) PUT the bytes to presigned URL
+      if (Platform.OS === 'web') {
+        const fetchResp = await fetch(target.uri);
+        const blob = await fetchResp.blob();
+        const putResp = await fetch(uploadResult.uploadURL, {
+          method: 'PUT',
+          headers: { 'Content-Type': target.contentType },
+          body: blob,
+        });
+        if (!putResp.ok) throw new Error(`Upload failed (HTTP ${putResp.status})`);
+        setUploadProgress(1);
+      } else {
+        await new Promise<void>((resolve, reject) => {
+          const task = FileSystem.createUploadTask(
+            uploadResult.uploadURL,
+            target.uri,
+            {
+              httpMethod: 'PUT',
+              headers: { 'Content-Type': target.contentType },
+              uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+            },
+            (progress) => {
+              if (progress.totalBytesExpectedToSend > 0) {
+                setUploadProgress(
+                  progress.totalBytesSent / progress.totalBytesExpectedToSend,
+                );
+              }
+            },
+          );
+          task
+            .uploadAsync()
+            .then((result) => {
+              if (!result || result.status < 200 || result.status >= 300) {
+                reject(new Error(`Upload failed (HTTP ${result?.status ?? 'unknown'})`));
+              } else {
+                setUploadProgress(1);
+                resolve();
+              }
+            })
+            .catch(reject);
+        });
       }
 
-      // 3) Send the chat message (no optimistic — wait for server)
-      setIsSendingUpload(true);
-      const kind = messageKindFromContentType(target.contentType);
+      // Upload done — persist objectPath so a failed send can retry without re-uploading
+      const uploaded = objectPath;
+      const persist = (items: PendingUpload[]) =>
+        items.map((item) =>
+          item.clientRequestId === target.clientRequestId ? { ...item, uploadedObjectPath: uploaded } : item,
+        );
+      pendingUploadsRef.current = persist(pendingUploadsRef.current);
+      setPendingUploads(persist);
+    }
+
+    // 3) Send the chat message (no optimistic — wait for server)
+    setIsSendingUpload(true);
+    try {
+      const kind = messageKindFor(target.contentType, target.durationMs !== undefined);
       await new Promise<void>((resolve, reject) => {
         const sendData: Parameters<typeof sendMutation.mutate>[0]['data'] = {
           kind,
@@ -1652,24 +1729,67 @@ export default function ChatScreen() {
           { onSuccess: () => resolve(), onError: reject },
         );
       });
-
-      // Done — clear and refresh
-      if (target.ownedTempFile) deleteVoiceTempFile(target.uri);
-      pendingUploadRef.current = null;
-      setPendingUpload(null);
-      setUploadProgress(null);
+    } finally {
       setIsSendingUpload(false);
-      msgsRefetch();
-      void queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
-      void queryClient.invalidateQueries({ queryKey: getChatRoomsGetQueryKey(resolvedRoomId) });
+    }
+
+    // Done — drop this item from the queue
+    if (target.ownedTempFile) deleteVoiceTempFile(target.uri);
+    const remaining = pendingUploadsRef.current.filter(
+      (item) => item.clientRequestId !== target.clientRequestId,
+    );
+    pendingUploadsRef.current = remaining;
+    setPendingUploads(remaining);
+    setUploadProgress(null);
+  }, [resolvedRoomId, uploadUrlMutation, sendMutation]);
+
+  const sendingQueueRef = useRef(false);
+  /**
+   * Send the queue head-first. Stops at the first failure and leaves the
+   * failed item (and everything behind it) queued so Retry resumes there.
+   */
+  const handleSendUpload = useCallback(async () => {
+    if (sendingQueueRef.current || !resolvedRoomId) return;
+    sendingQueueRef.current = true;
+    setUploadError(null);
+    let sentAny = false;
+    try {
+      while (pendingUploadsRef.current.length > 0) {
+        const target = pendingUploadsRef.current[0];
+        await uploadAndSendOne(target);
+        sentAny = true;
+        // Show each sent item as soon as it lands rather than after the batch.
+        if (pendingUploadsRef.current.length > 0) msgsRefetch();
+      }
+      setPendingBatchTotal(0);
     } catch (err: any) {
       setUploadProgress(null);
-      setIsSendingUpload(false);
       setUploadError(
         err?.data?.message ?? err?.message ?? 'Failed to send. Tap Retry.',
       );
+    } finally {
+      sendingQueueRef.current = false;
     }
-  }, [pendingUpload, resolvedRoomId, uploadUrlMutation, sendMutation, msgsRefetch, queryClient]);
+    if (sentAny) {
+      msgsRefetch();
+      void queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getChatRoomsGetQueryKey(resolvedRoomId) });
+    }
+  }, [resolvedRoomId, uploadAndSendOne, msgsRefetch, queryClient]);
+
+  /** Append prepared items to the queue; optionally start sending at once. */
+  const queueUploads = useCallback(
+    (items: PendingUpload[], options?: { sendNow?: boolean }) => {
+      if (items.length === 0) return;
+      const next = [...pendingUploadsRef.current, ...items];
+      pendingUploadsRef.current = next;
+      setPendingUploads(next);
+      setPendingBatchTotal((total) => Math.max(total, 0) + items.length);
+      setUploadError(null);
+      if (options?.sendNow) void handleSendUpload();
+    },
+    [handleSendUpload],
+  );
 
   const attachEnabled =
     providerAvailable &&
@@ -1680,23 +1800,23 @@ export default function ChatScreen() {
     recordingPhase === 'idle';
 
   // ── Attachment sheet and native pickers ──────────────────────────────────
-  const queueUpload = useCallback(
+  /**
+   * Materialise a picked file into something createUploadTask can read and
+   * verify its size. Never rejects a file for its type — the server accepts
+   * any MIME and re-derives the real one from the stored bytes.
+   */
+  const prepareUpload = useCallback(
     async (
       uri: string,
       name: string,
       mimeType: string | null | undefined,
       fileSize?: number | null,
-    ) => {
-      const contentType = resolveContentType(mimeType, name);
-      if (!contentType) {
-        setUploadError(
-          `Unsupported file type "${mimeType ?? name.split('.').pop()}". ` +
-          'Allowed: images (JPEG/PNG/GIF/WebP/HEIC), video (MP4/MOV), PDF.',
-        );
-        return;
-      }
+      mediaClass?: 'image' | 'video' | null,
+    ): Promise<PendingUpload> => {
+      const contentType = resolveContentType(mimeType, name, mediaClass);
 
       let uploadUri = uri;
+      let ownedTempFile = false;
       let size = Number.isFinite(fileSize) && (fileSize ?? 0) > 0 ? fileSize! : 0;
 
       if (Platform.OS === 'web') {
@@ -1721,13 +1841,14 @@ export default function ChatScreen() {
         // private cache copy and use that same path for preview and upload.
         if (!uri.startsWith('file://')) {
           const cacheDirectory = FileSystem.cacheDirectory;
-          if (!cacheDirectory) throw new Error('Could not read the selected file.');
+          if (!cacheDirectory) throw new Error(`Could not read ${name}.`);
           const cachedName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${sanitiseFilename(name)}`;
           uploadUri = `${cacheDirectory}${cachedName}`;
           try {
             await FileSystem.copyAsync({ from: uri, to: uploadUri });
+            ownedTempFile = true;
           } catch {
-            throw new Error('Could not read the selected file.');
+            throw new Error(`Could not read ${name}.`);
           }
           size = await readSize(uploadUri);
         } else if (size <= 0) {
@@ -1738,6 +1859,7 @@ export default function ChatScreen() {
               uploadUri = `${cacheDirectory}${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${sanitiseFilename(name)}`;
               try {
                 await FileSystem.copyAsync({ from: uri, to: uploadUri });
+                ownedTempFile = true;
                 size = await readSize(uploadUri);
               } catch {
                 // Surface the single useful error below.
@@ -1747,24 +1869,53 @@ export default function ChatScreen() {
         }
       }
 
-      if (!Number.isFinite(size) || size <= 0) {
-        throw new Error('Could not read the selected file.');
-      }
-      if (size > MAX_FILE_BYTES) {
-        setUploadError(`File is too large (${formatBytes(size)}). Maximum is 50 MB.`);
-        return;
+      if (!Number.isFinite(size) || size <= 0 || size > MAX_FILE_BYTES) {
+        if (ownedTempFile) deleteVoiceTempFile(uploadUri);
+        throw new Error(
+          size > MAX_FILE_BYTES
+            ? `${name} is too large (${formatBytes(size)}). Maximum is 100 MB.`
+            : `Could not read ${name}.`,
+        );
       }
 
-      setPendingUpload({
+      return {
         uri: uploadUri,
         name,
         size,
         contentType,
         clientRequestId: makeClientRequestId('attach'),
-      });
-      setUploadError(null);
+        ...(ownedTempFile ? { ownedTempFile: true } : {}),
+      };
     },
     [],
+  );
+
+  /** Prepare a batch; if any file cannot be read, nothing is queued. */
+  const prepareAll = useCallback(
+    async (
+      picks: Array<{
+        uri: string;
+        name: string;
+        mimeType?: string | null;
+        size?: number | null;
+        mediaClass?: 'image' | 'video' | null;
+      }>,
+    ): Promise<PendingUpload[] | null> => {
+      const prepared: PendingUpload[] = [];
+      try {
+        for (const pick of picks) {
+          prepared.push(await prepareUpload(pick.uri, pick.name, pick.mimeType, pick.size, pick.mediaClass));
+        }
+        return prepared;
+      } catch (error: any) {
+        for (const item of prepared) {
+          if (item.ownedTempFile) deleteVoiceTempFile(item.uri);
+        }
+        setUploadError(error?.message ?? 'Could not read the selected file.');
+        return null;
+      }
+    },
+    [prepareUpload],
   );
 
   const loadRecentAssets = useCallback(async () => {
@@ -1842,6 +1993,7 @@ export default function ChatScreen() {
     setAttachmentSheetOpen(false);
     setAttachmentSheetExpanded(false);
     setContactsMode(false);
+    setSelectedRecents(new Map());
   }, []);
 
   const handleOpenMediaSettings = useCallback(() => {
@@ -1855,6 +2007,7 @@ export default function ChatScreen() {
     Keyboard.dismiss();
     setContactsMode(false);
     setAttachmentSheetExpanded(false);
+    setSelectedRecents(new Map());
     setAttachmentSheetOpen(true);
     void loadRecentAssets();
   }, [attachEnabled, loadRecentAssets]);
@@ -1863,84 +2016,113 @@ export default function ChatScreen() {
     if (!attachEnabled) return;
     closeAttachmentSheet();
     try {
+      // WhatsApp-style: the photo picker shows photos and videos only.
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        mediaTypes: ['images', 'videos'],
         quality: 0.9,
-        videoMaxDuration: 60,
-        allowsMultipleSelection: false,
+        allowsMultipleSelection: true,
+        selectionLimit: 30,
+        orderedSelection: true,
       });
       if (result.canceled || !result.assets?.length) return;
-      const asset = result.assets[0];
-      const fallbackName = `${asset.type === 'video' ? 'video' : 'photo'}-${Date.now()}.${asset.type === 'video' ? 'mp4' : 'jpg'}`;
-      await queueUpload(
-        asset.uri,
-        asset.fileName ?? fallbackName,
-        asset.mimeType,
-        asset.fileSize,
+      const prepared = await prepareAll(
+        result.assets.map((asset) => {
+          const isVideo = asset.type === 'video';
+          return {
+            uri: asset.uri,
+            name: asset.fileName ?? `${isVideo ? 'video' : 'photo'}-${Date.now()}.${isVideo ? 'mp4' : 'jpg'}`,
+            mimeType: asset.mimeType,
+            size: asset.fileSize,
+            mediaClass: isVideo ? 'video' : 'image',
+          } as const;
+        }),
       );
+      if (prepared) queueUploads(prepared);
     } catch (error: any) {
       setUploadError(error?.message ?? 'Could not open the photo gallery.');
     }
-  }, [attachEnabled, closeAttachmentSheet, queueUpload]);
+  }, [attachEnabled, closeAttachmentSheet, prepareAll, queueUploads]);
 
   const handlePickDocument = useCallback(async () => {
     if (!attachEnabled) return;
     closeAttachmentSheet();
     try {
+      // Every file type is allowed here: photos, videos, PDFs, ZIP/RAR, APK…
       const result = await DocumentPicker.getDocumentAsync({
-        type: [
-          'image/jpeg',
-          'image/png',
-          'image/gif',
-          'image/webp',
-          'image/heic',
-          'video/mp4',
-          'video/quicktime',
-          'application/pdf',
-        ],
+        type: '*/*',
         copyToCacheDirectory: true,
-        multiple: false,
+        multiple: true,
       });
       if (result.canceled || !result.assets?.length) return;
-      const asset = result.assets[0];
-      await queueUpload(asset.uri, asset.name, asset.mimeType, asset.size);
+      const prepared = await prepareAll(
+        result.assets.map((asset) => ({
+          uri: asset.uri,
+          name: asset.name,
+          mimeType: asset.mimeType,
+          size: asset.size,
+        })),
+      );
+      if (prepared) queueUploads(prepared);
     } catch (error: any) {
       setUploadError(error?.message ?? 'Could not open the document picker.');
     }
-  }, [attachEnabled, closeAttachmentSheet, queueUpload]);
+  }, [attachEnabled, closeAttachmentSheet, prepareAll, queueUploads]);
 
-  const handleSelectRecent = useCallback(
-    async (asset: MediaLibrary.Asset) => {
-      if (!attachEnabled) return;
-      closeAttachmentSheet();
-      try {
-        // SDK 57's native bridge reliably accepts the stable asset id here.
-        // Passing the full JS object can be rejected on Android devices.
-        let selectedUri = asset.uri;
-        let selectedSize: number | null | undefined = (asset as any).fileSize ?? (asset as any).size;
-        try {
-          const info = await MediaLibrary.getAssetInfoAsync(asset.id);
-          selectedUri = info.localUri ?? info.uri ?? asset.uri;
-          selectedSize = (info as any).fileSize ?? (info as any).size ?? (asset as any).fileSize;
-        } catch {
-          // MediaLibrary may reject metadata lookup for provider-backed or
-          // limited-access items even though their returned content URI is usable.
-          if (!selectedUri) throw new Error('Could not prepare that photo.');
-        }
-        const name = asset.filename || `${asset.mediaType === 'video' ? 'video' : 'photo'}-${Date.now()}`;
-        const fallbackType = asset.mediaType === 'video' ? 'video/mp4' : 'image/jpeg';
-        await queueUpload(
-          selectedUri,
-          name,
-          resolveContentType(undefined, name) ?? fallbackType,
-          selectedSize,
-        );
-      } catch (error: any) {
-        setUploadError(error?.message ?? 'Could not prepare that photo.');
-      }
-    },
-    [attachEnabled, closeAttachmentSheet, queueUpload],
-  );
+  /** Tapping a recent toggles its tick; nothing is sent until Send. */
+  const handleToggleRecent = useCallback((asset: MediaLibrary.Asset) => {
+    setSelectedRecents((current) => {
+      const next = new Map(current);
+      if (next.has(asset.id)) next.delete(asset.id);
+      else next.set(asset.id, asset);
+      return next;
+    });
+  }, []);
+
+  const handleClearSelectedRecents = useCallback(() => {
+    setSelectedRecents(new Map());
+  }, []);
+
+  /** Resolve a MediaLibrary asset to a readable URI + size. */
+  const resolveRecentAsset = useCallback(async (asset: MediaLibrary.Asset) => {
+    // SDK 57's native bridge reliably accepts the stable asset id here.
+    // Passing the full JS object can be rejected on Android devices.
+    let selectedUri = asset.uri;
+    let selectedSize: number | null | undefined = (asset as any).fileSize ?? (asset as any).size;
+    try {
+      const info = await MediaLibrary.getAssetInfoAsync(asset.id);
+      selectedUri = info.localUri ?? info.uri ?? asset.uri;
+      selectedSize = (info as any).fileSize ?? (info as any).size ?? (asset as any).fileSize;
+    } catch {
+      // MediaLibrary may reject metadata lookup for provider-backed or
+      // limited-access items even though their returned content URI is usable.
+      if (!selectedUri) throw new Error(`Could not prepare ${asset.filename || 'that item'}.`);
+    }
+    const isVideo = asset.mediaType === 'video';
+    const name = asset.filename || `${isVideo ? 'video' : 'photo'}-${Date.now()}.${isVideo ? 'mp4' : 'jpg'}`;
+    return {
+      uri: selectedUri,
+      name,
+      mimeType: null,
+      size: selectedSize,
+      mediaClass: isVideo ? ('video' as const) : ('image' as const),
+    };
+  }, []);
+
+  /** Send every ticked recent, in the order they were ticked. */
+  const handleSendSelectedRecents = useCallback(async () => {
+    if (!attachEnabled) return;
+    const picked = Array.from(selectedRecents.values());
+    closeAttachmentSheet();
+    if (picked.length === 0) return;
+    try {
+      const resolved = [];
+      for (const asset of picked) resolved.push(await resolveRecentAsset(asset));
+      const prepared = await prepareAll(resolved);
+      if (prepared) queueUploads(prepared, { sendNow: true });
+    } catch (error: any) {
+      setUploadError(error?.message ?? 'Could not prepare the selected items.');
+    }
+  }, [attachEnabled, selectedRecents, closeAttachmentSheet, resolveRecentAsset, prepareAll, queueUploads]);
 
   const handleLocation = useCallback(async () => {
     if (!attachEnabled) return;
@@ -2034,15 +2216,88 @@ export default function ChatScreen() {
         durationMs: recording.durationMs,
         ownedTempFile: true,
       };
-      setPendingUpload(upload);
-      setUploadError(null);
-      await handleSendUpload(upload);
+      queueUploads([upload]);
+      await handleSendUpload();
     } finally {
       setVoiceSending(false);
     }
-  }, [voice, voiceSending, handleSendUpload]);
+  }, [voice, voiceSending, queueUploads, handleSendUpload]);
 
   // ── Download / open / share ─────────────────────────────────────────────
+  /**
+   * Fetch a file message's bytes to the private cache, then hand it to the
+   * OS: Android opens it in the app registered for its type (PDF reader,
+   * package installer, archive manager…); elsewhere the share sheet offers
+   * the same choice.
+   */
+  const handleOpenFile = useCallback(
+    async (message: ChatMessage, authToken: string | null) => {
+      if (openingFileId) return;
+      const mime = receivedMimeType(message);
+      const safe = sanitiseFilename(message.body);
+      const filename = fileExtension(safe) ? safe : `${safe}.${fileExtension(message.body) || 'bin'}`;
+      setOpeningFileId(message.id);
+      try {
+        if (Platform.OS === 'web') {
+          const resp = await fetch(chatMediaUri(message.roomId, message.id), {
+            headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+          });
+          if (!resp.ok) throw new Error(`Download failed (HTTP ${resp.status})`);
+          const blob = await resp.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          return;
+        }
+        const dest = `${FileSystem.cacheDirectory}chat_media_${message.id}_${filename}`;
+        const dlResult = await FileSystem.downloadAsync(chatMediaUri(message.roomId, message.id), dest, {
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+        });
+        if (dlResult.status && dlResult.status !== 200) {
+          throw new Error(`Download failed (HTTP ${dlResult.status})`);
+        }
+        if (Platform.OS === 'android') {
+          try {
+            const contentUri = await FileSystem.getContentUriAsync(dlResult.uri);
+            await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+              data: contentUri,
+              flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+              type: mime,
+            });
+            return;
+          } catch {
+            // No app handles this type — fall through to the share sheet so
+            // the user can still save or pass it to another app.
+          }
+        }
+        if (await Sharing.isAvailableAsync()) {
+          try {
+            await Sharing.shareAsync(dlResult.uri, { dialogTitle: message.body, mimeType: mime, UTI: undefined });
+          } finally {
+            // The share sheet has copied or handed off the bytes by now. (The
+            // Android VIEW path above keeps its copy because the target app
+            // may still be reading the content URI; its deterministic name
+            // means a re-open overwrites rather than accumulates.)
+            deleteVoiceTempFile(dlResult.uri);
+          }
+        } else {
+          deleteVoiceTempFile(dlResult.uri);
+          throw new Error('No app on this device can open this file.');
+        }
+      } catch (err: any) {
+        setSendError(err?.message ?? 'Could not open attachment.');
+      } finally {
+        setOpeningFileId(null);
+      }
+    },
+    [openingFileId],
+  );
+
   const handleDownloadAttachment = useCallback(
     async (roomId: string, messageId: string, filename: string, authToken: string | null) => {
       try {
@@ -2104,6 +2359,34 @@ export default function ChatScreen() {
       throw new Error('Allow photo access to save this image.');
     }
     const dest = `${FileSystem.cacheDirectory}chat_photo_${message.id}.${extension}`;
+    const result = await FileSystem.downloadAsync(chatMediaUri(message.roomId, message.id), dest, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (result.status && result.status !== 200) {
+      throw new Error(`Download failed (HTTP ${result.status})`);
+    }
+    try {
+      await MediaLibrary.saveToLibraryAsync(result.uri);
+    } finally {
+      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+    }
+  }, [handleDownloadAttachment, token]);
+
+  // ── Save a video to the device gallery (video viewer download) ──────────
+  const handleSaveVideo = useCallback(async (message: ChatMessage) => {
+    const extension = fileExtension(message.body) || 'mp4';
+    if (Platform.OS === 'web') {
+      await handleDownloadAttachment(message.roomId, message.id, `video-${message.id}.${extension}`, token);
+      return;
+    }
+    const current = await MediaLibrary.getPermissionsAsync(true, ['video']);
+    const permission = current.granted || !current.canAskAgain
+      ? current
+      : await MediaLibrary.requestPermissionsAsync(true, ['video']);
+    if (!permission.granted) {
+      throw new Error('Allow media access to save this video.');
+    }
+    const dest = `${FileSystem.cacheDirectory}chat_video_${message.id}.${extension}`;
     const result = await FileSystem.downloadAsync(chatMediaUri(message.roomId, message.id), dest, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
@@ -2281,6 +2564,7 @@ export default function ChatScreen() {
   // A row that vanished (deleted for me elsewhere) or was tombstoned closes
   // the viewer and drops the quote instead of lingering on stale data.
   const liveViewerMessage = viewerMessage ? serverMessageById.get(viewerMessage.id) ?? null : null;
+  const liveVideoMessage = videoMessage ? serverMessageById.get(videoMessage.id) ?? null : null;
   const viewerGone = !!viewerMessage && (!liveViewerMessage || !!liveViewerMessage.deletedAt);
   useEffect(() => {
     if (viewerGone) setViewerMessage(null);
@@ -2299,7 +2583,7 @@ export default function ChatScreen() {
     uploadProgress === null &&
     !isSendingUpload &&
     recordingPhase === 'idle' &&
-    !pendingUpload;
+    pendingUploads.length === 0;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -2335,7 +2619,7 @@ export default function ChatScreen() {
         >
           <Feather name="arrow-left" size={20} color={colors.foreground} />
         </TouchableOpacity>
-        <Avatar name={roomName} size={34} />
+        <Avatar name={roomName} size={34} url={room?.profilePhoto} />
         <View style={styles.headerTitleContainer}>
           <Text
             style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold', fontSize: 15 }]}
@@ -2360,7 +2644,7 @@ export default function ChatScreen() {
           disabled={!callEnabled}
           onPress={() =>
             router.push(
-              `/(tabs)/customers/chat/call/${resolvedRoomId}?mode=audio&name=${encodeURIComponent(roomName)}`,
+              `/(tabs)/customers/chat/call/${resolvedRoomId}?mode=audio&name=${encodeURIComponent(roomName)}${room?.profilePhoto ? `&photo=${encodeURIComponent(room.profilePhoto)}` : ''}`,
             )
           }
         >
@@ -2376,7 +2660,7 @@ export default function ChatScreen() {
           disabled={!callEnabled}
           onPress={() =>
             router.push(
-              `/(tabs)/customers/chat/call/${resolvedRoomId}?mode=video&name=${encodeURIComponent(roomName)}`,
+              `/(tabs)/customers/chat/call/${resolvedRoomId}?mode=video&name=${encodeURIComponent(roomName)}${room?.profilePhoto ? `&photo=${encodeURIComponent(room.profilePhoto)}` : ''}`,
             )
           }
         >
@@ -2554,13 +2838,15 @@ export default function ChatScreen() {
                     isMine={item.senderId === user?.id}
                     colors={colors}
                     token={token}
-                    onDownload={handleDownloadAttachment}
+                    onOpenFile={handleOpenFile}
+                    openingFile={openingFileId === item.id}
                     selectable={!item.id.startsWith('opt-')}
                     selected={selectedIds.has(item.id)}
                     selectionMode={selectionMode}
                     onSelectStart={handleLongPressMessage}
                     onToggleSelect={handleToggleSelect}
                     onOpenImage={setViewerMessage}
+                    onOpenVideo={setVideoMessage}
                     onOpenQuote={openQuotedMessage}
                     quoteSenderLabel={
                       item.replyTo ? senderLabelFor(item.replyTo.senderId, item.replyTo.senderName) : undefined
@@ -2619,140 +2905,152 @@ export default function ChatScreen() {
       )}
 
       {/* Pending upload preview (file attachments + voice notes after stop) */}
-      {!isRecording && pendingUpload && (
-        <View
-          style={[
-            styles.attachmentPreview,
-            pendingUpload.contentType.startsWith('image/') && styles.imageAttachmentPreview,
-            { backgroundColor: colors.card, borderTopColor: colors.border },
-          ]}
-        >
-          {pendingUpload.contentType.startsWith('image/') ? (
-            <>
-              <View style={[styles.attachmentImageFrame, { backgroundColor: colors.backgroundSecondary }]}>
-                <Image
-                  source={{ uri: pendingUpload.uri }}
-                  contentFit="contain"
-                  style={styles.attachmentImagePreviewImage}
-                  accessibilityLabel={`Attachment preview: ${pendingUpload.name}`}
-                />
-              </View>
-              <View style={styles.attachmentImageFooter}>
-                <View style={styles.attachmentPreviewInfo}>
-                  <Text
-                    style={[
-                      styles.attachmentPreviewName,
-                      { color: colors.foreground, fontFamily: 'Inter_500Medium' },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {pendingUpload.name}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.attachmentPreviewSize,
-                      { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-                    ]}
-                  >
-                    {formatBytes(pendingUpload.size)}
-                    {uploadProgress !== null && uploadProgress < 1
-                      ? `  ·  Uploading ${Math.round(uploadProgress * 100)}%`
-                      : isSendingUpload
-                      ? '  ·  Sending…'
-                      : ''}
-                  </Text>
+      {!isRecording && pendingUpload && (() => {
+        const busy = uploadProgress !== null || isSendingUpload;
+        const isImagePreview = isViewableImageMime(pendingUpload.contentType);
+        const isVideoPreview = pendingUpload.contentType.startsWith('video/');
+        const visual = fileTypeVisual(pendingUpload.contentType, pendingUpload.name);
+        const queuedCount = pendingUploads.length;
+        const batchTotal = Math.max(pendingBatchTotal, queuedCount);
+        const positionLabel =
+          batchTotal > 1 ? `${batchTotal - queuedCount + 1} of ${batchTotal}` : null;
+        const statusLabel =
+          uploadProgress !== null && uploadProgress < 1
+            ? `Uploading ${Math.round(uploadProgress * 100)}%`
+            : isSendingUpload || uploadProgress !== null
+            ? 'Sending…'
+            : null;
+        const metaLabel = [
+          pendingUpload.durationMs ? formatDuration(pendingUpload.durationMs) : formatBytes(pendingUpload.size),
+          !busy && queuedCount > 1 ? `${queuedCount} items` : null,
+          busy && positionLabel ? `Sending ${positionLabel}` : null,
+          statusLabel,
+        ]
+          .filter(Boolean)
+          .join('  ·  ');
+        const controls = !busy ? (
+          <>
+            <TouchableOpacity
+              onPress={() => void handleSendUpload()}
+              style={[styles.attachSendBtn, { backgroundColor: colors.primary }]}
+              accessibilityLabel={queuedCount > 1 ? `Send ${queuedCount} attachments` : 'Send attachment'}
+              testID="pending-upload-send"
+            >
+              <Feather name="send" size={15} color="#fff" />
+              {queuedCount > 1 ? (
+                <View style={styles.attachSendCount}>
+                  <Text style={[styles.attachSendCountText, { color: colors.primary }]}>{queuedCount}</Text>
                 </View>
-                {uploadProgress === null && !isSendingUpload ? (
-                  <>
-                    <TouchableOpacity
-                      onPress={() => handleSendUpload()}
-                      style={[styles.attachSendBtn, { backgroundColor: colors.primary }]}
-                      accessibilityLabel="Send attachment"
-                      disabled={uploadProgress !== null || isSendingUpload}
+              ) : null}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                clearPendingUpload();
+                setUploadError(null);
+              }}
+              style={styles.attachCancelBtn}
+              accessibilityLabel="Cancel attachment"
+            >
+              <Feather name="x" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </>
+        ) : (
+          <AvarpusSpinner size={20} />
+        );
+        const info = (
+          <View style={styles.attachmentPreviewInfo}>
+            <Text
+              style={[styles.attachmentPreviewName, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}
+              numberOfLines={1}
+            >
+              {pendingUpload.name}
+            </Text>
+            <Text
+              style={[styles.attachmentPreviewSize, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}
+              numberOfLines={1}
+              testID="pending-upload-meta"
+            >
+              {metaLabel}
+            </Text>
+          </View>
+        );
+        return (
+          <View
+            style={[
+              styles.attachmentPreview,
+              isImagePreview && styles.imageAttachmentPreview,
+              { backgroundColor: colors.card, borderTopColor: colors.border },
+            ]}
+            testID="pending-upload-preview"
+          >
+            {isImagePreview ? (
+              <>
+                <View style={[styles.attachmentImageFrame, { backgroundColor: colors.backgroundSecondary }]}>
+                  <Image
+                    source={{ uri: pendingUpload.uri }}
+                    contentFit="contain"
+                    style={styles.attachmentImagePreviewImage}
+                    accessibilityLabel={`Attachment preview: ${pendingUpload.name}`}
+                  />
+                </View>
+                <View style={styles.attachmentImageFooter}>
+                  {info}
+                  {controls}
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={[styles.attachmentIcon, { backgroundColor: colors.primary + '1A' }]}>
+                  <Feather
+                    name={
+                      pendingUpload.durationMs
+                        ? 'mic'
+                        : isVideoPreview
+                        ? 'video'
+                        : visual.icon
+                    }
+                    size={18}
+                    color={colors.primary}
+                  />
+                </View>
+                {info}
+                {controls}
+              </>
+            )}
+            {queuedCount > 1 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.attachmentQueueRow}
+                style={styles.attachmentQueueScroll}
+              >
+                {pendingUploads.slice(1).map((item) => {
+                  const itemVisual = fileTypeVisual(item.contentType, item.name);
+                  return (
+                    <View
+                      key={item.clientRequestId}
+                      style={[styles.attachmentQueueChip, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+                      testID={`pending-upload-queued-${item.clientRequestId}`}
                     >
-                      <Feather name="send" size={15} color="#fff" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => {
-                        clearPendingUpload();
-                        setUploadError(null);
-                      }}
-                      style={styles.attachCancelBtn}
-                      accessibilityLabel="Cancel attachment"
-                      disabled={uploadProgress !== null || isSendingUpload}
-                    >
-                      <Feather name="x" size={18} color={colors.mutedForeground} />
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <AvarpusSpinner size={20} />
-                )}
-              </View>
-            </>
-          ) : (
-            <>
-              <View style={styles.attachmentIcon}>
-                <Feather
-                  name={pendingUpload.contentType.startsWith('audio/') ? 'mic' : 'file'}
-                  size={18}
-                  color={colors.primary}
-                />
-              </View>
-              <View style={styles.attachmentPreviewInfo}>
-                <Text
-                  style={[
-                    styles.attachmentPreviewName,
-                    { color: colors.foreground, fontFamily: 'Inter_500Medium' },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {pendingUpload.name}
-                </Text>
-                <Text
-                  style={[
-                    styles.attachmentPreviewSize,
-                    { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-                  ]}
-                >
-                  {pendingUpload.durationMs
-                    ? formatDuration(pendingUpload.durationMs)
-                    : formatBytes(pendingUpload.size)}
-                  {uploadProgress !== null && uploadProgress < 1
-                    ? `  ·  Uploading ${Math.round(uploadProgress * 100)}%`
-                    : isSendingUpload
-                    ? '  ·  Sending…'
-                    : ''}
-                </Text>
-              </View>
-              {uploadProgress === null && !isSendingUpload ? (
-                <>
-                  <TouchableOpacity
-                    onPress={() => handleSendUpload()}
-                    style={[styles.attachSendBtn, { backgroundColor: colors.primary }]}
-                    accessibilityLabel="Send attachment"
-                    disabled={uploadProgress !== null || isSendingUpload}
-                  >
-                    <Feather name="send" size={15} color="#fff" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => {
-                      clearPendingUpload();
-                      setUploadError(null);
-                    }}
-                    style={styles.attachCancelBtn}
-                    accessibilityLabel="Cancel attachment"
-                    disabled={uploadProgress !== null || isSendingUpload}
-                  >
-                    <Feather name="x" size={18} color={colors.mutedForeground} />
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <AvarpusSpinner size={20} />
-              )}
-            </>
-          )}
-        </View>
-      )}
+                      {isViewableImageMime(item.contentType) ? (
+                        <Image source={{ uri: item.uri }} style={styles.attachmentQueueThumb} contentFit="cover" />
+                      ) : (
+                        <Feather name={itemVisual.icon} size={13} color={colors.primary} />
+                      )}
+                      <Text
+                        style={[styles.attachmentQueueName, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+                        numberOfLines={1}
+                      >
+                        {item.name}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            ) : null}
+          </View>
+        );
+      })()}
 
       {/* Voice recorder panel replaces the composer while a note is in progress */}
       {isRecording && (
@@ -2931,7 +3229,7 @@ export default function ChatScreen() {
           <TouchableOpacity
             onPress={() => {
               setUploadError(null);
-              if (pendingUpload) void handleSendUpload();
+              if (pendingUploadsRef.current.length > 0) void handleSendUpload();
             }}
           >
             <Text
@@ -3015,7 +3313,10 @@ export default function ChatScreen() {
         onRetryRecents={() => void loadRecentAssets()}
         onOpenSettings={handleOpenMediaSettings}
         onLoadMoreRecents={() => void loadMoreRecentAssets()}
-        onSelectRecent={handleSelectRecent}
+        selectedRecentIds={selectedRecents}
+        onToggleRecent={handleToggleRecent}
+        onSendSelectedRecents={() => void handleSendSelectedRecents()}
+        onClearSelectedRecents={handleClearSelectedRecents}
         onSelectContact={handleSelectContact}
       />
 
@@ -3032,6 +3333,22 @@ export default function ChatScreen() {
           onForward={(message) => openForward([message])}
           onDelete={(message) => confirmDelete([message])}
           onDownload={handleSaveToGallery}
+        />
+      )}
+
+      {/* Full-screen video player */}
+      {resolvedRoomId && (
+        <VideoViewer
+          visible={!!liveVideoMessage}
+          message={liveVideoMessage}
+          token={token}
+          senderLabel={liveVideoMessage ? senderLabelFor(liveVideoMessage.senderId, liveVideoMessage.senderName) : ''}
+          onClose={() => setVideoMessage(null)}
+          onForward={(message) => {
+            setVideoMessage(null);
+            openForward([message]);
+          }}
+          onDownload={handleSaveVideo}
         />
       )}
     </KeyboardAvoidingView>
@@ -3179,7 +3496,47 @@ const styles = StyleSheet.create({
     minWidth: 160,
     maxWidth: 260,
   },
-  fileRowName: { flex: 1, fontSize: 13 },
+  fileRowCopy: { flex: 1, minWidth: 0 },
+  fileRowName: { fontSize: 13 },
+  fileRowMeta: { fontSize: 11, marginTop: 2 },
+  fileIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoAttachment: {
+    width: 220,
+    height: 160,
+    borderRadius: 10,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  videoPlayBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: 4,
+  },
+  videoMetaRow: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  videoMetaText: { color: '#FFFFFF', fontSize: 11, fontFamily: 'Inter_500Medium' },
   audioRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3244,9 +3601,37 @@ const styles = StyleSheet.create({
   attachmentIcon: {
     width: 36,
     height: 36,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  attachSendCount: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    minWidth: 17,
+    height: 17,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachSendCountText: { fontSize: 10, fontFamily: 'Inter_700Bold' },
+  attachmentQueueScroll: { width: '100%', marginTop: 2 },
+  attachmentQueueRow: { flexDirection: 'row', gap: 6, paddingRight: 8 },
+  attachmentQueueChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    maxWidth: 160,
+  },
+  attachmentQueueThumb: { width: 20, height: 20, borderRadius: 4 },
+  attachmentQueueName: { fontSize: 11, flexShrink: 1 },
   attachmentPreviewInfo: { flex: 1 },
   attachmentPreviewName: { fontSize: 13 },
   attachmentPreviewSize: { fontSize: 11, marginTop: 2 },
@@ -3425,6 +3810,67 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   attachmentRecentImage: { width: '100%', height: '100%', backgroundColor: '#E2E8F0' },
+  attachmentSelectedOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: 3,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  attachmentSelectedCheck: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  attachmentSelectCircle: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'rgba(0,0,0,0.18)',
+  },
+  attachmentSendFab: {
+    position: 'absolute',
+    right: 18,
+    bottom: 22,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  attachmentSendFabBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachmentSendFabBadgeText: { fontSize: 11, fontFamily: 'Inter_700Bold' },
   attachmentVideoBadge: {
     position: 'absolute',
     right: 6,

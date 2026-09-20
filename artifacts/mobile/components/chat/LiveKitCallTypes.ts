@@ -13,6 +13,8 @@ export interface LiveKitCallProps {
   mode: CallMode;
   /** Display name of the remote party */
   remoteName: string;
+  /** Profile photo of the remote party (server entity path or URL), if any */
+  remotePhoto?: string | null;
   /** Called when the user taps hang-up or the room disconnects */
   onHangup: () => void;
 }

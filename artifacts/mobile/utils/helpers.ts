@@ -42,6 +42,7 @@ export const getNextWeekStr = (): string => {
 export const ROLE_LABELS: Record<string, string> = {
   super_admin: 'Super Admin',
   dealer: 'Dealer / Owner',
+  owner: 'Co-owner',
   reception: 'Reception Staff',
   technician: 'Technician',
   store_manager: 'Store Manager',

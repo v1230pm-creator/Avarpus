@@ -626,7 +626,7 @@ paths:
                   staff:
                     type: array
                     items:
-                      $ref: "#/components/schemas/AuthUser"
+                      $ref: "#/components/schemas/StaffListItem"
                 required: [staff]
     post:
       operationId: staffCreate
@@ -4718,6 +4718,18 @@ components:
         dealerId: { type: string }
         needsDisplayName: { type: boolean }
       required: [id, name, email, mobile, role, isActive, needsDisplayName]
+    StaffListItem:
+      allOf:
+        - $ref: "#/components/schemas/AuthUser"
+        - type: object
+          properties:
+            invitePending:
+              type: boolean
+              description: >-
+                True while a personal account has been invited with a Staff ID and
+                claim code but has not yet joined. Such accounts are never approved
+                by the owner; they join themselves from Shop → Join with Staff ID.
+          required: [invitePending]
     StaffCreateInput:
       type: object
       properties:
@@ -4819,7 +4831,8 @@ components:
           pattern: "^\\d{10}$"
         role:
           type: string
-          enum: [reception, technician, store_manager, accountant]
+          description: Staff role, or `owner` to add a co-owner with full access.
+          enum: [reception, technician, store_manager, accountant, owner]
       required: [mobile, role]
     ShopInvitationResult:
       type: object
@@ -6321,9 +6334,17 @@ components:
         shopId: { type: ["string", "null"] }
         senderId: { type: string }
         senderName: { type: string }
-        kind: { type: string, enum: [text, image, file, audio, system] }
+        kind: { type: string, enum: [text, image, video, file, audio, system] }
         body: { type: string }
         objectPath: { type: string }
+        mimeType:
+          type: string
+          description: >
+            MIME type of the stored attachment as verified by the server at send
+            time (image/video/file/audio kinds). Absent for text and legacy rows.
+        sizeBytes:
+          type: number
+          description: Integer byte size of the stored attachment, when known.
         durationMs:
           type: number
           description: >
@@ -6344,13 +6365,13 @@ components:
     ChatMessageQuote:
       type: object
       description: >
-        Snapshot of the message being replied to. Media for a quoted image/file/
-        audio is served from the quoted message's own media endpoint.
+        Snapshot of the message being replied to. Media for a quoted image/video/
+        file/audio is served from the quoted message's own media endpoint.
       properties:
         id: { type: string }
         senderId: { type: string }
         senderName: { type: string }
-        kind: { type: string, enum: [text, image, file, audio, system] }
+        kind: { type: string, enum: [text, image, video, file, audio, system] }
         body: { type: string }
         deleted:
           type: boolean
@@ -6378,7 +6399,7 @@ components:
         durationMs must be omitted. replyToMessageId must name a visible
         message in the same room; it cannot be combined with forwardOf.
       properties:
-        kind: { type: string, enum: [text, image, file, audio] }
+        kind: { type: string, enum: [text, image, video, file, audio] }
         body: { type: string }
         objectPath: { type: string }
         durationMs:
@@ -6414,6 +6435,11 @@ components:
       required: [messageId]
     ChatUploadUrlInput:
       type: object
+      description: >
+        Any file type may be attached (photos, videos, documents, archives, APKs,
+        ...). contentType is a syntactically valid MIME type; unknown types should
+        be sent as application/octet-stream. size must be a positive integer of
+        at most 100 MiB.
       properties:
         name: { type: string }
         size: { type: number }

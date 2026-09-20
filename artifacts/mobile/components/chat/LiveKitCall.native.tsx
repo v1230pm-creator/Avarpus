@@ -55,6 +55,7 @@ import {
 import type { TrackReference } from '@livekit/react-native';
 import { Track, ConnectionState } from 'livekit-client';
 import { useColors } from '@/hooks/useColors';
+import { Avatar } from '@/components/ui/Avatar';
 import type { LiveKitCallProps } from './LiveKitCallTypes';
 
 /**
@@ -87,10 +88,11 @@ function ensureGlobalsRegistered() {
 interface CallUIProps {
   mode: 'audio' | 'video';
   remoteName: string;
+  remotePhoto?: string | null;
   nav: NavCoordination;
 }
 
-function CallControls({ mode, remoteName, nav }: CallUIProps) {
+function CallControls({ mode, remoteName, remotePhoto, nav }: CallUIProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const room = useRoomContext();
@@ -226,7 +228,7 @@ function CallControls({ mode, remoteName, nav }: CallUIProps) {
               style={[styles.remoteVideoStyle, styles.videoPlaceholder, { backgroundColor: colors.background }]}
               testID="remote-video-placeholder"
             >
-              <Feather name="user" size={64} color={colors.mutedForeground} />
+              <Avatar name={remoteName} size={96} url={remotePhoto} />
               <Text style={[styles.placeholderName, { color: colors.foreground }]} numberOfLines={1}>
                 {remoteNames}
               </Text>
@@ -252,7 +254,7 @@ function CallControls({ mode, remoteName, nav }: CallUIProps) {
       {mode === 'audio' && (
         <View style={[styles.audioScreen, { backgroundColor: colors.background }]} testID="audio-screen">
           <View style={[styles.audioAvatar, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
-            <Feather name="user" size={56} color={colors.primary} />
+            <Avatar name={remoteName} size={104} url={remotePhoto} />
           </View>
           <Text style={[styles.audioRemoteName, { color: colors.foreground }]} numberOfLines={1}>
             {remoteNames}
@@ -391,6 +393,7 @@ export function LiveKitCall({
   token,
   mode,
   remoteName,
+  remotePhoto,
   onHangup,
 }: LiveKitCallProps) {
   const colors = useColors();
@@ -491,7 +494,7 @@ export function LiveKitCall({
       onDisconnected={handleDisconnect}
       onError={handleError}
     >
-      <CallControls mode={mode} remoteName={remoteName} nav={nav} />
+      <CallControls mode={mode} remoteName={remoteName} remotePhoto={remotePhoto} nav={nav} />
     </LiveKitRoom>
   );
 }

@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Any file type may be attached (photos, videos, documents, archives, APKs, ...). contentType is a syntactically valid MIME type; unknown types should be sent as application/octet-stream. size must be a positive integer of at most 100 MiB.
+ */
 export interface ChatUploadUrlInput {
   name: string;
   size: number;

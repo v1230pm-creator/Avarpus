@@ -109,7 +109,7 @@ export default function MoreScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
         {/* User Card */}
         <View style={[styles.userCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Avatar name={user?.name ?? 'User'} size={52} />
+          <Avatar name={user?.name ?? 'User'} url={user?.profilePhoto} size={52} />
           <View style={styles.userInfo}>
             <Text style={[styles.userName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{user?.name}</Text>
             <Text style={[styles.userEmail, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{user?.email}</Text>

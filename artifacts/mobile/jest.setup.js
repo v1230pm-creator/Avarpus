@@ -78,3 +78,27 @@ jest.mock('react-native-safe-area-context', () => {
     useSafeAreaFrame: () => ({ x: 0, y: 0, width: 390, height: 844 }),
   };
 });
+
+// expo-video and expo-intent-launcher touch native modules at import time;
+// the chat room screen imports both, so every suite that mounts it needs
+// these inert defaults. Focused suites override them with jest.mock as needed.
+jest.mock('expo-video', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    useVideoPlayer: (source, setup) => {
+      const player = React.useMemo(
+        () => ({ loop: false, play: jest.fn(), pause: jest.fn() }),
+        [],
+      );
+      React.useEffect(() => {
+        setup?.(player);
+      }, [player, source]);
+      return player;
+    },
+    VideoView: (props) => React.createElement(View, { ...props, testID: 'video-view' }),
+  };
+});
+jest.mock('expo-intent-launcher', () => ({
+  startActivityAsync: jest.fn().mockResolvedValue({ resultCode: 0 }),
+}));

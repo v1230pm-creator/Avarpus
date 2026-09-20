@@ -20,15 +20,18 @@ import { useColors } from '@/hooks/useColors';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
 
-// Roles a dealer can assign — dealer/admin accounts can never be created here.
-// dealer_owner / dealer_staff are read-only B2B dealer-portal logins that must
-// be linked to a dealer profile.
-const STAFF_ROLES = ['reception', 'technician', 'store_manager', 'accountant', 'dealer_owner', 'dealer_staff'] as const;
+// Roles an owner can assign. "owner" invites a co-owner (partner, brother,
+// second proprietor) with the same full access; super_admin can never be
+// created here. dealer_owner / dealer_staff are read-only B2B dealer-portal
+// logins that must be linked to a dealer profile.
+const STAFF_ROLES = ['owner', 'reception', 'technician', 'store_manager', 'accountant', 'dealer_owner', 'dealer_staff'] as const;
 type StaffRole = (typeof STAFF_ROLES)[number];
 
 const PORTAL_ROLES: StaffRole[] = ['dealer_owner', 'dealer_staff'];
+type InviteRole = Exclude<StaffRole, 'dealer_owner' | 'dealer_staff'>;
 
 const ROLE_ICONS: Record<StaffRole, keyof typeof Feather.glyphMap> = {
+  owner: 'key',
   reception: 'phone',
   technician: 'tool',
   store_manager: 'package',
@@ -38,6 +41,7 @@ const ROLE_ICONS: Record<StaffRole, keyof typeof Feather.glyphMap> = {
 };
 
 const ROLE_PERMISSION_HINTS: Record<StaffRole, string> = {
+  owner: 'Co-owner — full access to everything, same as you',
   reception: 'Inbox, repairs & customers',
   technician: 'Assigned repairs & status updates',
   store_manager: 'Inventory & purchases',
@@ -83,25 +87,27 @@ export default function AddStaffScreen() {
           name: name.trim(),
           email: email.trim().toLowerCase(),
           mobile: mobile.trim(),
-          role,
+          role: role as 'dealer_owner' | 'dealer_staff',
           designation: designation.trim() || undefined,
           dealerId: dealerId ?? undefined,
         });
       } else {
         const invitation = await shopInvite({
           mobile: mobile.trim(),
-          role: role as 'reception' | 'technician' | 'store_manager' | 'accountant',
+          role: role as InviteRole,
         });
         Alert.alert(
-          'Staff invitation ready',
-          `Share these once with the staff member:\n\nStaff ID: ${invitation.staffId}\nClaim code: ${invitation.claimCode}\n\nThey can sign in with mobile OTP, open Shop, and choose “Join with Staff ID”.`,
+          role === 'owner' ? 'Co-owner invitation ready' : 'Staff invitation ready',
+          `Share these once with ${role === 'owner' ? 'the co-owner' : 'the staff member'}:\n\nStaff ID: ${invitation.staffId}\nClaim code: ${invitation.claimCode}\n\nThey can sign in with mobile OTP, open Shop, and choose “Join with Staff ID”.${role === 'owner' ? '\n\nOnce joined they have the same full access as you.' : ''}`,
         );
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     } catch (err: any) {
       const msg = err?.data?.message ?? 'Could not create the staff account. Please try again.';
-      setErrors({ email: msg });
+      // Server refusals (duplicate member, number already runs a Shop, …)
+      // apply to the whole form, not to a field that may not be rendered.
+      setErrors({ form: msg });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
@@ -222,11 +228,22 @@ export default function AddStaffScreen() {
             <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
               {isPortalRole
                 ? 'This creates a restricted B2B dealer portal login.'
-                : 'The mobile number must already have a personal Avarpus account. You will receive a one-time Staff ID and claim code to share securely.'}
+                : role === 'owner'
+                  ? 'A co-owner gets the same full access as you — repairs, Khata, finance, staff and permissions. The number must already have a personal Avarpus account; you will receive a one-time Staff ID and claim code to share securely.'
+                  : 'The mobile number must already have a personal Avarpus account. You will receive a one-time Staff ID and claim code to share securely.'}
             </Text>
           </View>
 
-          <Button title={isPortalRole ? 'Create Portal Account' : 'Create Staff Invitation'} onPress={handleCreate} loading={loading} fullWidth size="lg" />
+          {errors.form ? (
+            <Text accessibilityRole="alert" style={{ fontSize: 13, color: colors.destructive, fontFamily: 'Inter_500Medium' }}>{errors.form}</Text>
+          ) : null}
+          <Button
+            title={isPortalRole ? 'Create Portal Account' : role === 'owner' ? 'Create Co-owner Invitation' : 'Create Staff Invitation'}
+            onPress={handleCreate}
+            loading={loading}
+            fullWidth
+            size="lg"
+          />
           </FadeInView>
         </KeyboardAwareScrollViewCompat>
     </View>

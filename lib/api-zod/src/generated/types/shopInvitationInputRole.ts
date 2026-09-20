@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Staff role, or `owner` to add a co-owner with full access.
+ */
 export type ShopInvitationInputRole = typeof ShopInvitationInputRole[keyof typeof ShopInvitationInputRole];
 
 
@@ -14,4 +17,5 @@ export const ShopInvitationInputRole = {
   technician: 'technician',
   store_manager: 'store_manager',
   accountant: 'accountant',
+  owner: 'owner',
 } as const;

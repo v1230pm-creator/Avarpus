@@ -4183,7 +4183,7 @@ export const getDealersDirectoryUrl = (params: DealersDirectoryParams,) => {
 }
 
 /**
- * Returns OTHER registered shops (verified owner accounts only, never dealer-portal or customer logins, never the caller's own shop). Matches business name, owner name or Dealer ID by prefix/substring; a full 10-digit mobile number matches the owner's registered mobile exactly. Results only carry ids and names — the owner's mobile is never returned here.
+ * Returns OTHER registered shops (verified owner accounts only, never dealer-portal or customer logins, never the caller's own shop). Matches business name, owner name or Dealer ID by prefix/substring; a full Indian mobile number (10 digits, optionally with +91/0 prefix, spaces or dashes) matches the owner's registered mobile exactly — partial numbers never match. Shops owned by a `dealer` or the platform `super_admin` both count as verified. Results only carry ids and names — the owner's mobile is never returned here.
  * @summary Search verified shop owners to send a device to
  */
 export const dealersDirectory = async (params: DealersDirectoryParams, options?: Parameters<typeof customFetch>[1]): Promise<DealersDirectory200> => {

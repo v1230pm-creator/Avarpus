@@ -89,6 +89,12 @@ async function issueContactMatchGrant(callerUserId: string, targetUserId: string
   return rawToken;
 }
 
+// Leading bytes for the stored-object mocks: the server sniffs these to
+// confirm viewer-safe media really is what its Content-Type claims.
+const ADTS_HEAD = Buffer.from([0xff, 0xf1, 0x50, 0x80, 0x01, 0x7f, 0xfc, 0x00]);
+const MP4_HEAD = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from("ftypisom", "latin1"), Buffer.alloc(8)]);
+const ZIP_HEAD = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00]);
+
 const RUN = Date.now().toString().slice(-8);
 const mob = (n: string | number) => `9${RUN}${n}`.slice(0, 10);
 // Guaranteed-unique 10-digit mobile for test-local users (avoids collisions
@@ -1150,7 +1156,10 @@ describe("Provider-mocked room creation + idempotent send", () => {
     const objectPath = `/objects/uploads/${shopA.id}/chat/${createdRoomId}/${randomUUID()}`;
     await registerPendingUpload({ objectPath, ownerUserId: dealerA.id, purpose: "chat" });
     const getFile = vi.spyOn(ObjectStorageService.prototype, "getObjectEntityFile")
-      .mockResolvedValue({} as never);
+      .mockResolvedValue({
+        getMetadata: async () => [{ contentType: "audio/mp4", size: 4096 }],
+        download: async () => [ADTS_HEAD],
+      } as never);
     try {
       const res = await request(app)
         .post(`/api/chat/rooms/${createdRoomId}/messages`)
@@ -1179,6 +1188,130 @@ describe("Provider-mocked room creation + idempotent send", () => {
       ));
     expect(row.durationMs).toBe(4200);
     expect(row.kind).toBe("audio");
+  });
+
+  // ── Any-file attachments: stored MIME/size are server-verified ─────────────
+
+  it("video send: stores verified mimeType/sizeBytes and sends Matrix m.video", async () => {
+    const crid = `video-ok-${RUN}`;
+    const objectPath = `/objects/uploads/${shopA.id}/chat/${createdRoomId}/${randomUUID()}`;
+    await registerPendingUpload({ objectPath, ownerUserId: dealerA.id, purpose: "chat" });
+    const getFile = vi.spyOn(ObjectStorageService.prototype, "getObjectEntityFile")
+      .mockResolvedValue({
+        getMetadata: async () => [{ contentType: "video/mp4; codecs=avc1", size: "123456" }],
+        download: async () => [MP4_HEAD],
+      } as never);
+    try {
+      const res = await request(app)
+        .post(`/api/chat/rooms/${createdRoomId}/messages`)
+        .set("Authorization", `Bearer ${dealerTokenA}`)
+        .send({ kind: "video", body: "clip.mp4", objectPath, clientRequestId: crid });
+      expect(res.status).toBe(200);
+      expect(res.body.message.kind).toBe("video");
+      expect(res.body.message.mimeType).toBe("video/mp4");
+      expect(res.body.message.sizeBytes).toBe(123456);
+    } finally {
+      getFile.mockRestore();
+    }
+    expect(lastSendContent!.msgtype).toBe("m.video");
+    expect((lastSendContent!.info as Record<string, unknown>)?.mimetype).toBe("video/mp4");
+    expect((lastSendContent!.info as Record<string, unknown>)?.size).toBe(123456);
+  });
+
+  it("file send of an APK/archive is accepted with its real MIME type", async () => {
+    const crid = `apk-ok-${RUN}`;
+    const objectPath = `/objects/uploads/${shopA.id}/chat/${createdRoomId}/${randomUUID()}`;
+    await registerPendingUpload({ objectPath, ownerUserId: dealerA.id, purpose: "chat" });
+    const getFile = vi.spyOn(ObjectStorageService.prototype, "getObjectEntityFile")
+      .mockResolvedValue({
+        getMetadata: async () => [{ contentType: "application/vnd.android.package-archive", size: 2048 }],
+        download: async () => [ZIP_HEAD],
+      } as never);
+    try {
+      const res = await request(app)
+        .post(`/api/chat/rooms/${createdRoomId}/messages`)
+        .set("Authorization", `Bearer ${dealerTokenA}`)
+        .send({ kind: "file", body: "avarpus.apk", objectPath, clientRequestId: crid });
+      expect(res.status).toBe(200);
+      expect(res.body.message.kind).toBe("file");
+      expect(res.body.message.mimeType).toBe("application/vnd.android.package-archive");
+      expect(res.body.message.sizeBytes).toBe(2048);
+    } finally {
+      getFile.mockRestore();
+    }
+    expect(lastSendContent!.msgtype).toBe("m.file");
+  });
+
+  it("declared kind must match the stored bytes (image kind over a ZIP → 400, no row)", async () => {
+    const crid = `kind-mismatch-${RUN}`;
+    const objectPath = `/objects/uploads/${shopA.id}/chat/${createdRoomId}/${randomUUID()}`;
+    await registerPendingUpload({ objectPath, ownerUserId: dealerA.id, purpose: "chat" });
+    const getFile = vi.spyOn(ObjectStorageService.prototype, "getObjectEntityFile")
+      .mockResolvedValue({
+        getMetadata: async () => [{ contentType: "application/zip", size: 10 }],
+        download: async () => [ZIP_HEAD],
+      } as never);
+    const sendBefore = matrixCallCount.send;
+    try {
+      const res = await request(app)
+        .post(`/api/chat/rooms/${createdRoomId}/messages`)
+        .set("Authorization", `Bearer ${dealerTokenA}`)
+        .send({ kind: "image", body: "photo.jpg", objectPath, clientRequestId: crid });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("CHAT_MEDIA_KIND_MISMATCH");
+    } finally {
+      getFile.mockRestore();
+      await db.delete(pendingUploadsTable).where(eq(pendingUploadsTable.objectPath, objectPath));
+    }
+    expect(matrixCallCount.send).toBe(sendBefore);
+    const rows = await db.select().from(chatMessagesTable)
+      .where(and(
+        eq(chatMessagesTable.roomId, createdRoomId!),
+        eq(chatMessagesTable.clientRequestId, crid),
+      ));
+    expect(rows.length).toBe(0);
+  });
+
+  it("declared image MIME over non-image bytes is demoted, so kind=image → 400 and kind=file stores octet-stream", async () => {
+    // A ZIP uploaded with Content-Type: image/jpeg (the PUT header is client
+    // controlled). The bytes decide: it is not an image.
+    const spoofed = () =>
+      vi.spyOn(ObjectStorageService.prototype, "getObjectEntityFile").mockResolvedValue({
+        getMetadata: async () => [{ contentType: "image/jpeg", size: 4096 }],
+        download: async () => [ZIP_HEAD],
+      } as never);
+
+    const cridImage = `spoof-image-${RUN}`;
+    const imagePath = `/objects/uploads/${shopA.id}/chat/${createdRoomId}/${randomUUID()}`;
+    await registerPendingUpload({ objectPath: imagePath, ownerUserId: dealerA.id, purpose: "chat" });
+    let getFile = spoofed();
+    try {
+      const res = await request(app)
+        .post(`/api/chat/rooms/${createdRoomId}/messages`)
+        .set("Authorization", `Bearer ${dealerTokenA}`)
+        .send({ kind: "image", body: "photo.jpg", objectPath: imagePath, clientRequestId: cridImage });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("CHAT_MEDIA_KIND_MISMATCH");
+    } finally {
+      getFile.mockRestore();
+      await db.delete(pendingUploadsTable).where(eq(pendingUploadsTable.objectPath, imagePath));
+    }
+
+    const cridFile = `spoof-file-${RUN}`;
+    const filePath = `/objects/uploads/${shopA.id}/chat/${createdRoomId}/${randomUUID()}`;
+    await registerPendingUpload({ objectPath: filePath, ownerUserId: dealerA.id, purpose: "chat" });
+    getFile = spoofed();
+    try {
+      const res = await request(app)
+        .post(`/api/chat/rooms/${createdRoomId}/messages`)
+        .set("Authorization", `Bearer ${dealerTokenA}`)
+        .send({ kind: "file", body: "photo.jpg", objectPath: filePath, clientRequestId: cridFile });
+      expect(res.status).toBe(200);
+      // Never served inline as an image: the stored MIME is the opaque one.
+      expect(res.body.message.mimeType).toBe("application/octet-stream");
+    } finally {
+      getFile.mockRestore();
+    }
   });
 
   it("audio send with invalid durationMs (0) → 400, no row, no provider event", async () => {
@@ -1243,7 +1376,10 @@ describe("Provider-mocked room creation + idempotent send", () => {
     const objectPath = `/objects/uploads/${shopA.id}/chat/${createdRoomId}/${randomUUID()}`;
     await registerPendingUpload({ objectPath, ownerUserId: dealerA.id, purpose: "chat" });
     const getFile = vi.spyOn(ObjectStorageService.prototype, "getObjectEntityFile")
-      .mockResolvedValue({} as never);
+      .mockResolvedValue({
+        getMetadata: async () => [{ contentType: "audio/mp4", size: 4096 }],
+        download: async () => [ADTS_HEAD],
+      } as never);
     sendFailStatus = 403;
     try {
       const res = await request(app)
@@ -1434,6 +1570,70 @@ describe("Chat media download: access control", () => {
     expect([200, 404]).toContain(res.status);
     expect(res.status).not.toBe(403);
     expect(res.status).not.toBe(500);
+  });
+
+  it("media endpoint serves non-inline types as nosniff downloads with the verified MIME", async () => {
+    const [fileMsg] = await db.insert(chatMessagesTable).values({
+      roomId: roomA.id,
+      shopId: shopA.id,
+      senderId: dealerA.id,
+      senderName: "Dealer A",
+      kind: "file",
+      body: "रिपोर्ट \"final\".html",
+      objectPath: `/objects/uploads/${shopA.id}/chat/${roomA.id}/fake-html`,
+      mimeType: "text/html",
+      sizeBytes: 12,
+      providerEventId: "$fake-html-event",
+    }).returning();
+    const getFile = vi.spyOn(ObjectStorageService.prototype, "getObjectEntityFile").mockResolvedValue({} as never);
+    const download = vi.spyOn(ObjectStorageService.prototype, "downloadObject").mockResolvedValue(
+      new Response("<script>1</script>", { status: 200, headers: { "content-type": "text/html; charset=utf-8" } }),
+    );
+    try {
+      const res = await request(app)
+        .get(`/api/chat/rooms/${roomA.id}/messages/${fileMsg.id}/media`)
+        .set("Authorization", `Bearer ${dealerTokenA}`);
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toBe("text/html");
+      expect(res.headers["x-content-type-options"]).toBe("nosniff");
+      expect(res.headers["content-disposition"]).toMatch(/^attachment; filename="[^"]*"; filename\*=UTF-8''/);
+      expect(res.headers["content-disposition"]).not.toContain('"final"');
+    } finally {
+      getFile.mockRestore();
+      download.mockRestore();
+      await db.delete(chatMessagesTable).where(eq(chatMessagesTable.id, fileMsg.id));
+    }
+  });
+
+  it("media endpoint serves images inline with the stored MIME", async () => {
+    const [imgMsg] = await db.insert(chatMessagesTable).values({
+      roomId: roomA.id,
+      shopId: shopA.id,
+      senderId: dealerA.id,
+      senderName: "Dealer A",
+      kind: "image",
+      body: "photo.png",
+      objectPath: `/objects/uploads/${shopA.id}/chat/${roomA.id}/fake-png`,
+      mimeType: "image/png",
+      sizeBytes: 3,
+      providerEventId: "$fake-png-event",
+    }).returning();
+    const getFile = vi.spyOn(ObjectStorageService.prototype, "getObjectEntityFile").mockResolvedValue({} as never);
+    const download = vi.spyOn(ObjectStorageService.prototype, "downloadObject").mockResolvedValue(
+      new Response("png", { status: 200, headers: { "content-type": "application/octet-stream" } }),
+    );
+    try {
+      const res = await request(app)
+        .get(`/api/chat/rooms/${roomA.id}/messages/${imgMsg.id}/media`)
+        .set("Authorization", `Bearer ${dealerTokenA}`);
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toBe("image/png");
+      expect(res.headers["content-disposition"]).toMatch(/^inline; filename="photo.png"/);
+    } finally {
+      getFile.mockRestore();
+      download.mockRestore();
+      await db.delete(chatMessagesTable).where(eq(chatMessagesTable.id, imgMsg.id));
+    }
   });
 
   it("dealer B cannot access dealer A's room media (404 — cross-shop)", async () => {
@@ -1641,12 +1841,34 @@ describe("Chat upload URL: signed key matches objectPath (no post-signing rewrit
     expect(res.status).toBe(404);
   });
 
-  it("disallowed content type is rejected with 400", async () => {
-    const res = await request(app)
+  it("any file type may be uploaded (archives, APKs, executables, unknown types)", async () => {
+    for (const [name, contentType] of [
+      ["build.apk", "application/vnd.android.package-archive"],
+      ["backup.rar", "application/vnd.rar"],
+      ["archive.zip", "application/zip"],
+      ["setup.exe", "application/x-msdownload"],
+      ["mystery.bin", "application/octet-stream"],
+    ]) {
+      const res = await request(app)
+        .post(`/api/chat/rooms/${roomA.id}/upload-url`)
+        .set("Authorization", `Bearer ${dealerTokenA}`)
+        .send({ name, size: 100, contentType });
+      expect(res.status, `${name} (${contentType})`).toBe(200);
+      expect(res.body.objectPath).toMatch(new RegExp(`^/objects/uploads/${shopA.id}/chat/${roomA.id}/`));
+    }
+  });
+
+  it("upload-url enforces the 100 MiB limit and integer sizes", async () => {
+    const tooBig = await request(app)
       .post(`/api/chat/rooms/${roomA.id}/upload-url`)
       .set("Authorization", `Bearer ${dealerTokenA}`)
-      .send({ name: "script.exe", size: 100, contentType: "application/x-msdownload" });
-    expect(res.status).toBe(400);
+      .send({ name: "huge.zip", size: 100 * 1024 * 1024 + 1, contentType: "application/zip" });
+    expect(tooBig.status).toBe(400);
+    const fractional = await request(app)
+      .post(`/api/chat/rooms/${roomA.id}/upload-url`)
+      .set("Authorization", `Bearer ${dealerTokenA}`)
+      .send({ name: "x.zip", size: 10.5, contentType: "application/zip" });
+    expect(fractional.status).toBe(400);
   });
 });
 

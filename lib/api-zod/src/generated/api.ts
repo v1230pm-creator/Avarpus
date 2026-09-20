@@ -606,7 +606,7 @@ export const shopInvitationCreateBodyMobileRegExp = new RegExp('^\\d{10}$');
 
 export const ShopInvitationCreateBody = zod.object({
   "mobile": zod.string().regex(shopInvitationCreateBodyMobileRegExp),
-  "role": zod.enum(['reception', 'technician', 'store_manager', 'accountant'])
+  "role": zod.enum(['reception', 'technician', 'store_manager', 'accountant', 'owner']).describe('Staff role, or `owner` to add a co-owner with full access.')
 })
 
 export const ShopInvitationCreateResponse = zod.object({
@@ -836,7 +836,9 @@ export const StaffListResponse = zod.object({
   "shopId": zod.string().optional(),
   "dealerId": zod.string().optional(),
   "needsDisplayName": zod.boolean()
-}))
+}).and(zod.object({
+  "invitePending": zod.boolean().describe('True while a personal account has been invited with a Staff ID and claim code but has not yet joined. Such accounts are never approved by the owner; they join themselves from Shop → Join with Staff ID.')
+})))
 })
 
 
@@ -1619,7 +1621,7 @@ export const DealerTransactionsListResponse = zod.object({
 
 
 /**
- * Returns OTHER registered shops (verified owner accounts only, never dealer-portal or customer logins, never the caller's own shop). Matches business name, owner name or Dealer ID by prefix/substring; a full 10-digit mobile number matches the owner's registered mobile exactly. Results only carry ids and names — the owner's mobile is never returned here.
+ * Returns OTHER registered shops (verified owner accounts only, never dealer-portal or customer logins, never the caller's own shop). Matches business name, owner name or Dealer ID by prefix/substring; a full Indian mobile number (10 digits, optionally with +91/0 prefix, spaces or dashes) matches the owner's registered mobile exactly — partial numbers never match. Shops owned by a `dealer` or the platform `super_admin` both count as verified. Results only carry ids and names — the owner's mobile is never returned here.
  * @summary Search verified shop owners to send a device to
  */
 export const dealersDirectoryQueryQMax = 80;
@@ -5601,19 +5603,21 @@ export const ChatRoomsListResponse = zod.object({
   "shopId": zod.string().nullable(),
   "senderId": zod.string(),
   "senderName": zod.string(),
-  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
   "body": zod.string(),
   "objectPath": zod.string().optional(),
+  "mimeType": zod.string().optional().describe('MIME type of the stored attachment as verified by the server at send time (image\/video\/file\/audio kinds). Absent for text and legacy rows.\n'),
+  "sizeBytes": zod.number().optional().describe('Integer byte size of the stored attachment, when known.'),
   "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
   "clientRequestId": zod.string().optional(),
   "replyTo": zod.object({
   "id": zod.string(),
   "senderId": zod.string(),
   "senderName": zod.string(),
-  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
   "body": zod.string(),
   "deleted": zod.boolean().describe('True when the quoted message is no longer available.')
-}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/file\/ audio is served from the quoted message\'s own media endpoint.\n'),
+}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/video\/ file\/audio is served from the quoted message\'s own media endpoint.\n'),
   "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
   "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
   "createdAt": zod.string()
@@ -5667,19 +5671,21 @@ export const ChatRoomsCreateResponse = zod.object({
   "shopId": zod.string().nullable(),
   "senderId": zod.string(),
   "senderName": zod.string(),
-  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
   "body": zod.string(),
   "objectPath": zod.string().optional(),
+  "mimeType": zod.string().optional().describe('MIME type of the stored attachment as verified by the server at send time (image\/video\/file\/audio kinds). Absent for text and legacy rows.\n'),
+  "sizeBytes": zod.number().optional().describe('Integer byte size of the stored attachment, when known.'),
   "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
   "clientRequestId": zod.string().optional(),
   "replyTo": zod.object({
   "id": zod.string(),
   "senderId": zod.string(),
   "senderName": zod.string(),
-  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
   "body": zod.string(),
   "deleted": zod.boolean().describe('True when the quoted message is no longer available.')
-}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/file\/ audio is served from the quoted message\'s own media endpoint.\n'),
+}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/video\/ file\/audio is served from the quoted message\'s own media endpoint.\n'),
   "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
   "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
   "createdAt": zod.string()
@@ -5724,19 +5730,21 @@ export const ChatRoomsArchivedListResponse = zod.object({
   "shopId": zod.string().nullable(),
   "senderId": zod.string(),
   "senderName": zod.string(),
-  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
   "body": zod.string(),
   "objectPath": zod.string().optional(),
+  "mimeType": zod.string().optional().describe('MIME type of the stored attachment as verified by the server at send time (image\/video\/file\/audio kinds). Absent for text and legacy rows.\n'),
+  "sizeBytes": zod.number().optional().describe('Integer byte size of the stored attachment, when known.'),
   "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
   "clientRequestId": zod.string().optional(),
   "replyTo": zod.object({
   "id": zod.string(),
   "senderId": zod.string(),
   "senderName": zod.string(),
-  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
   "body": zod.string(),
   "deleted": zod.boolean().describe('True when the quoted message is no longer available.')
-}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/file\/ audio is served from the quoted message\'s own media endpoint.\n'),
+}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/video\/ file\/audio is served from the quoted message\'s own media endpoint.\n'),
   "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
   "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
   "createdAt": zod.string()
@@ -5784,19 +5792,21 @@ export const ChatRoomsGetResponse = zod.object({
   "shopId": zod.string().nullable(),
   "senderId": zod.string(),
   "senderName": zod.string(),
-  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
   "body": zod.string(),
   "objectPath": zod.string().optional(),
+  "mimeType": zod.string().optional().describe('MIME type of the stored attachment as verified by the server at send time (image\/video\/file\/audio kinds). Absent for text and legacy rows.\n'),
+  "sizeBytes": zod.number().optional().describe('Integer byte size of the stored attachment, when known.'),
   "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
   "clientRequestId": zod.string().optional(),
   "replyTo": zod.object({
   "id": zod.string(),
   "senderId": zod.string(),
   "senderName": zod.string(),
-  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
   "body": zod.string(),
   "deleted": zod.boolean().describe('True when the quoted message is no longer available.')
-}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/file\/ audio is served from the quoted message\'s own media endpoint.\n'),
+}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/video\/ file\/audio is served from the quoted message\'s own media endpoint.\n'),
   "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
   "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
   "createdAt": zod.string()
@@ -6161,19 +6171,21 @@ export const ChatMessagesListResponse = zod.object({
   "shopId": zod.string().nullable(),
   "senderId": zod.string(),
   "senderName": zod.string(),
-  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
   "body": zod.string(),
   "objectPath": zod.string().optional(),
+  "mimeType": zod.string().optional().describe('MIME type of the stored attachment as verified by the server at send time (image\/video\/file\/audio kinds). Absent for text and legacy rows.\n'),
+  "sizeBytes": zod.number().optional().describe('Integer byte size of the stored attachment, when known.'),
   "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
   "clientRequestId": zod.string().optional(),
   "replyTo": zod.object({
   "id": zod.string(),
   "senderId": zod.string(),
   "senderName": zod.string(),
-  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
   "body": zod.string(),
   "deleted": zod.boolean().describe('True when the quoted message is no longer available.')
-}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/file\/ audio is served from the quoted message\'s own media endpoint.\n'),
+}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/video\/ file\/audio is served from the quoted message\'s own media endpoint.\n'),
   "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
   "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
   "createdAt": zod.string()
@@ -6194,7 +6206,7 @@ export const chatMessagesSendBodyDurationMsMax = 600000;
 
 
 export const ChatMessagesSendBody = zod.object({
-  "kind": zod.enum(['text', 'image', 'file', 'audio']),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio']),
   "body": zod.string(),
   "objectPath": zod.string().optional(),
   "durationMs": zod.number().min(1).max(chatMessagesSendBodyDurationMsMax).optional().describe('Integer voice-note duration in milliseconds. REQUIRED for kind=audio; must be omitted for other kinds.\n'),
@@ -6213,19 +6225,21 @@ export const ChatMessagesSendResponse = zod.object({
   "shopId": zod.string().nullable(),
   "senderId": zod.string(),
   "senderName": zod.string(),
-  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
   "body": zod.string(),
   "objectPath": zod.string().optional(),
+  "mimeType": zod.string().optional().describe('MIME type of the stored attachment as verified by the server at send time (image\/video\/file\/audio kinds). Absent for text and legacy rows.\n'),
+  "sizeBytes": zod.number().optional().describe('Integer byte size of the stored attachment, when known.'),
   "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
   "clientRequestId": zod.string().optional(),
   "replyTo": zod.object({
   "id": zod.string(),
   "senderId": zod.string(),
   "senderName": zod.string(),
-  "kind": zod.enum(['text', 'image', 'file', 'audio', 'system']),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
   "body": zod.string(),
   "deleted": zod.boolean().describe('True when the quoted message is no longer available.')
-}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/file\/ audio is served from the quoted message\'s own media endpoint.\n'),
+}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/video\/ file\/audio is served from the quoted message\'s own media endpoint.\n'),
   "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
   "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
   "createdAt": zod.string()
@@ -6282,7 +6296,7 @@ export const ChatUploadUrlBody = zod.object({
   "name": zod.string(),
   "size": zod.number(),
   "contentType": zod.string()
-})
+}).describe('Any file type may be attached (photos, videos, documents, archives, APKs, ...). contentType is a syntactically valid MIME type; unknown types should be sent as application\/octet-stream. size must be a positive integer of at most 100 MiB.\n')
 
 export const ChatUploadUrlResponse = zod.object({
   "uploadURL": zod.string(),

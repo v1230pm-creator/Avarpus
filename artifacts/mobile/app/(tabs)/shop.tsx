@@ -140,8 +140,12 @@ export default function ShopScreen() {
     }
   };
 
+  // Memberships the signed-in account can simply open (no code involved).
+  const teamMemberships = (workspace?.memberships ?? []).filter((membership) => membership.role !== 'owner');
+
   const beginRecovery = async () => {
-    const target = workspace?.memberships[0];
+    // Recovery codes go to the business mailbox, which only an owner holds.
+    const target = workspace?.memberships.find((membership) => membership.role === 'owner');
     if (!target) return;
     setMode('recovery');
     setSaving(true);
@@ -285,6 +289,24 @@ export default function ShopScreen() {
               disabled={!recoveryShopId || !recoveryEmail.trim() || recoveryCode.trim().length !== 6}
               colors={colors}
             />
+          </View>
+        )}
+
+        {mode === 'overview' && !workspace?.shop && teamMemberships.length > 0 && (
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.cardTitle, { color: colors.foreground }]}>You are on a Shop team</Text>
+            <Text style={[styles.body, { color: colors.mutedForeground }]}>
+              Open the workspace to continue. No code is needed — your membership is already active.
+            </Text>
+            {teamMemberships.map((membership) => (
+              <PrimaryButton
+                key={membership.id}
+                label={`Open ${membership.businessName}`}
+                onPress={() => switchWorkspace(membership.id)}
+                busy={saving}
+                colors={colors}
+              />
+            ))}
           </View>
         )}
 

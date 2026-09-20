@@ -15,6 +15,7 @@ import { ROLE_LABELS } from '@/utils/helpers';
 const ROLE_COLORS: Record<string, string> = {
   super_admin: '#F87171',
   dealer: '#8B5CF6',
+  owner: '#8B5CF6',
   reception: '#4DA3FF',
   technician: '#34D399',
   store_manager: '#F59E0B',
@@ -31,6 +32,9 @@ type StaffUser = {
   role: string;
   isActive: boolean;
   designation?: string;
+  profilePhoto?: string | null;
+  /** Invited with a Staff ID + claim code; joins on their own, never approved here. */
+  invitePending?: boolean;
 };
 
 function StaffCard({
@@ -46,7 +50,7 @@ function StaffCard({
   const roleColor = ROLE_COLORS[staff.role] ?? colors.primary;
   return (
     <FlatCard style={styles.card}>
-      <Avatar name={staff.name} size={52} />
+      <Avatar name={staff.name} url={staff.profilePhoto} size={52} />
       <View style={styles.cardContent}>
         <View style={styles.nameRow}>
           <Text style={[styles.name, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{staff.name}</Text>
@@ -115,12 +119,14 @@ function PendingCard({
         activeOpacity={0.8}
         onPress={() => { setExpanded((e) => !e); setConfirmReject(false); }}
       >
-        <Avatar name={staff.name} size={44} />
+        <Avatar name={staff.name} url={staff.profilePhoto} size={44} />
         <View style={styles.cardContent}>
           <View style={styles.nameRow}>
             <Text style={[styles.name, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{staff.name}</Text>
             <View style={[styles.pendingBadge, { backgroundColor: colors.warning + '1A' }]}>
-              <Text style={[styles.pendingBadgeText, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>Pending</Text>
+              <Text style={[styles.pendingBadgeText, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>
+                {staff.invitePending ? 'Invited' : 'Pending'}
+              </Text>
             </View>
           </View>
           <Text style={[styles.email, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{staff.email}</Text>
@@ -142,16 +148,23 @@ function PendingCard({
               </View>
             )}
           </View>
+          {staff.invitePending && (
+            <Text style={[styles.mobile, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              Waiting for them to join: they sign in with mobile OTP, open Shop and enter the Staff ID and claim code you shared. No approval is needed. Add them again to issue fresh codes.
+            </Text>
+          )}
           <View style={styles.actionRow}>
-            <TouchableOpacity
-              disabled={busy}
-              onPress={onApprove}
-              style={[styles.actionBtn, { backgroundColor: colors.success, opacity: busy ? 0.6 : 1 }]}
-              activeOpacity={0.85}
-            >
-              <Feather name="check" size={15} color="#FFFFFF" />
-              <Text style={[styles.actionBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Approve</Text>
-            </TouchableOpacity>
+            {!staff.invitePending && (
+              <TouchableOpacity
+                disabled={busy}
+                onPress={onApprove}
+                style={[styles.actionBtn, { backgroundColor: colors.success, opacity: busy ? 0.6 : 1 }]}
+                activeOpacity={0.85}
+              >
+                <Feather name="check" size={15} color="#FFFFFF" />
+                <Text style={[styles.actionBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Approve</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               disabled={busy}
               onPress={() => {
@@ -172,13 +185,15 @@ function PendingCard({
                   { fontFamily: 'Inter_600SemiBold', color: confirmReject ? '#FFFFFF' : colors.destructive },
                 ]}
               >
-                {confirmReject ? 'Confirm Reject' : 'Reject'}
+                {confirmReject ? (staff.invitePending ? 'Confirm cancel' : 'Confirm Reject') : (staff.invitePending ? 'Cancel invite' : 'Reject')}
               </Text>
             </TouchableOpacity>
           </View>
           {confirmReject && (
             <Text style={[styles.rejectHint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-              Rejecting permanently removes this registration.
+              {staff.invitePending
+                ? 'Cancelling withdraws the invitation. Their personal Avarpus account is not affected.'
+                : 'Rejecting permanently removes this registration.'}
             </Text>
           )}
         </View>
@@ -330,7 +345,7 @@ export default function StaffScreen() {
           canManage && pending.length > 0 ? (
             <View style={styles.pendingSection}>
               <Text style={[styles.sectionTitle, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>
-                Pending Approvals ({pending.length})
+                {pending.every((u) => u.invitePending) ? 'Invited' : 'Pending Approvals'} ({pending.length})
               </Text>
               {!!actionError && (
                 <Text style={[styles.actionErrorText, { color: colors.destructive, fontFamily: 'Inter_400Regular' }]}>{actionError}</Text>

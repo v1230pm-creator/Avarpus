@@ -18,6 +18,10 @@ export interface ChatMessage {
   kind: ChatMessageKind;
   body: string;
   objectPath?: string;
+  /** MIME type of the stored attachment as verified by the server at send time (image/video/file/audio kinds). Absent for text and legacy rows. */
+  mimeType?: string;
+  /** Integer byte size of the stored attachment, when known. */
+  sizeBytes?: number;
   /** Integer duration in milliseconds. Only set for kind=audio (voice notes). */
   durationMs?: number;
   clientRequestId?: string;

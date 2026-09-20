@@ -108,16 +108,28 @@ jest.mock('@expo/vector-icons', () => {
   };
 });
 
+// Avatar reaches the API client (bearer storage) for entity paths; the call
+// UI only needs a stand-in that shows the remote party's name and photo.
+jest.mock('@/components/ui/Avatar', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+  return {
+    Avatar: ({ name, url }: { name: string; url?: string | null }) =>
+      React.createElement(Text, { testID: 'remote-avatar' }, `Avatar:${name}${url ? `:${url}` : ''}`),
+  };
+});
+
 // ── Subject (native component imported directly) ─────────────────────────────
 import { LiveKitCall } from '../components/chat/LiveKitCall.native';
 
-function renderCall(overrides?: { onHangup?: () => void; mode?: 'audio' | 'video' }) {
+function renderCall(overrides?: { onHangup?: () => void; mode?: 'audio' | 'video'; remotePhoto?: string | null }) {
   const onHangup = overrides?.onHangup ?? jest.fn();
   const utils = render(
     <LiveKitCall
       serverUrl="wss://lk.example.com"
       token="tok-123"
       mode={overrides?.mode ?? 'audio'}
+      remotePhoto={overrides?.remotePhoto}
       remoteName="Alice"
       onHangup={onHangup}
     />,
@@ -298,6 +310,16 @@ describe('LiveKitCall.native – preserved UI', () => {
     expect(screen.getByTestId('switch-camera-button')).toBeTruthy();
     expect(screen.getByTestId('mute-button')).toBeTruthy();
     expect(screen.getByTestId('hangup-button')).toBeTruthy();
+  });
+
+  it('shows the remote party profile photo on audio and video call screens', () => {
+    const audio = renderCall({ mode: 'audio', remotePhoto: '/objects/uploads/p/photo.jpg' });
+    expect(screen.getByText('Avatar:Alice:/objects/uploads/p/photo.jpg')).toBeTruthy();
+    audio.unmount();
+
+    renderCall({ mode: 'video', remotePhoto: '/objects/uploads/p/photo.jpg' });
+    expect(screen.getByTestId('remote-video-placeholder')).toBeTruthy();
+    expect(screen.getByText('Avatar:Alice:/objects/uploads/p/photo.jpg')).toBeTruthy();
   });
 
   it('shows the E2EE-disabled copy on the active call screen', () => {

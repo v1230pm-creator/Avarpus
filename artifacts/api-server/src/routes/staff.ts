@@ -63,7 +63,7 @@ router.get(
           .select()
           .from(usersTable)
           .where(and(ne(usersTable.role, "super_admin"), ne(usersTable.id, me.id)));
-        res.json({ staff: rows.map(publicUser) });
+        res.json({ staff: rows.map((row) => ({ ...publicUser(row), invitePending: false })) });
         return;
       }
       res.json({ staff: [] });
@@ -75,15 +75,22 @@ router.get(
       .innerJoin(usersTable, eq(usersTable.id, shopMembershipsTable.userId))
       .where(and(
         eq(shopMembershipsTable.shopId, me.shopId),
-        ne(shopMembershipsTable.role, "owner"),
         ne(usersTable.id, me.id),
       ));
+    // Co-owners are listed too (role "owner") so every proprietor can see who
+    // else runs the Shop; they carry no edit/permission actions because owner
+    // access is unrestricted by design.
     res.json({
-      staff: rows.map(({ user, membership }) => publicUser({
-        ...user,
-        shopId: membership.shopId,
-        role: membership.role,
-        isActive: membership.status === "active",
+      staff: rows.map(({ user, membership }) => ({
+        ...publicUser({
+          ...user,
+          shopId: membership.shopId,
+          role: membership.role,
+          isActive: membership.status === "active",
+        }),
+        // An invited personal account joins itself with its Staff ID + claim
+        // code; the owner cannot (and must not) approve it on their behalf.
+        invitePending: membership.status === "pending" && !!membership.staffId,
       })),
     });
   }),
@@ -225,7 +232,9 @@ async function loadManagedStaff(me: DbUser, id: string): Promise<
         },
       };
     }
-    if (row.membership.role === "owner") {
+    if (row.membership.role === "owner" && !(row.membership.status === "pending" && row.membership.staffId)) {
+      // An active co-owner has the same authority as the caller; only a
+      // still-pending co-owner invitation may be managed (cancelled).
       return { ok: false, status: 403, message: "This account cannot be managed" };
     }
     return {
@@ -378,19 +387,27 @@ router.patch(
       res.json({ user: publicUser(check.target) });
       return;
     }
+    if (check.membershipId && check.personalAccountMembership) {
+      // Invited personal accounts are activated only by the /shop/claim
+      // handshake. Flipping the membership here would leave the account with
+      // an active membership but no selected workspace, and the staff member
+      // would be routed to the owner-only business-email recovery flow.
+      res.status(409).json({
+        message: "This person was invited with a Staff ID and claim code. They join from Shop → Join with Staff ID; no approval is needed. Add them again to issue fresh codes.",
+      });
+      return;
+    }
     if (check.membershipId) {
       await db.update(shopMembershipsTable)
         .set({ status: "active", updatedAt: new Date() })
         .where(eq(shopMembershipsTable.id, check.membershipId));
-      if (!check.personalAccountMembership) {
-        await db.update(usersTable).set({ isActive: true }).where(eq(usersTable.id, check.target.id));
-        sendStaffApprovedEmail(check.target.email, check.target.name).catch((err) => {
-          console.error(
-            `[staff] Failed to send approval email to ${check.target.email}:`,
-            err,
-          );
-        });
-      }
+      await db.update(usersTable).set({ isActive: true }).where(eq(usersTable.id, check.target.id));
+      sendStaffApprovedEmail(check.target.email, check.target.name).catch((err) => {
+        console.error(
+          `[staff] Failed to send approval email to ${check.target.email}:`,
+          err,
+        );
+      });
       res.json({ user: publicUser({ ...check.target, isActive: true }) });
       return;
     }
@@ -534,7 +551,16 @@ router.delete(
       return;
     }
     if (check.membershipId && check.personalAccountMembership) {
-      await db.delete(shopMembershipsTable).where(eq(shopMembershipsTable.id, check.membershipId));
+      // Conditional delete: if the staff member claimed the invitation in the
+      // meantime, the membership is active and the cancellation must lose.
+      const removed = await db.delete(shopMembershipsTable).where(and(
+        eq(shopMembershipsTable.id, check.membershipId),
+        eq(shopMembershipsTable.status, "pending"),
+      )).returning({ id: shopMembershipsTable.id });
+      if (removed.length === 0) {
+        res.status(409).json({ message: "This person already joined the workspace; the invitation can no longer be cancelled." });
+        return;
+      }
       res.json({ message: "Pending workspace membership removed" });
       return;
     }

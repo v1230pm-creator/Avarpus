@@ -136,7 +136,7 @@ export default function CustomersScreen() {
                 borderWidth: 1, borderColor: theme.border
               }}
             >
-              <Avatar name={user?.name ?? 'User'} size={34} />
+              <Avatar name={user?.name ?? 'User'} size={34} url={user?.profilePhoto} />
             </TouchableOpacity>
 
             <TouchableOpacity

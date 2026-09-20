@@ -915,7 +915,7 @@ function CustomerInboxScreen() {
                 >
                   <Avatar
                     name={deviceContactByPhone.get(normalizeIndianPhone(item.contact.mobile ?? '') ?? '')?.name ?? item.contact.name}
-                    url={deviceContactByPhone.get(normalizeIndianPhone(item.contact.mobile ?? '') ?? '')?.imageUri ?? item.contact.profilePhoto}
+                    url={item.contact.profilePhoto ?? deviceContactByPhone.get(normalizeIndianPhone(item.contact.mobile ?? '') ?? '')?.imageUri}
                     size={48}
                   />
                   <View style={styles.contactDetails}>

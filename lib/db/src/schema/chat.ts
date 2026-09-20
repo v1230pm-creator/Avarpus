@@ -1,5 +1,6 @@
 import {
   type AnyPgColumn,
+  bigint,
   boolean,
   integer,
   jsonb,
@@ -268,11 +269,15 @@ export const chatMessagesTable = pgTable(
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
     senderName: text("sender_name").notNull(),
-    // text | image | file | audio | system
+    // text | image | video | file | audio | system
     kind: text("kind").notNull().default("text"),
     body: text("body").notNull(),
-    // For image/file/audio messages: the object storage path
+    // For image/video/file/audio messages: the object storage path
     objectPath: text("object_path"),
+    // Attachment metadata read from the stored object at send time (never
+    // trusted from the client). Null for text/system rows and legacy media.
+    mimeType: text("mime_type"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
     // For audio (voice note) messages: duration in milliseconds. Null otherwise.
     durationMs: integer("duration_ms"),
     // Optional Matrix event ID for cross-reference (never used for auth decisions)

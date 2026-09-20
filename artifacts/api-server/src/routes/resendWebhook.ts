@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { RequestHandler } from "express";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   db,
   notificationsTable,
@@ -8,6 +8,7 @@ import {
   usersTable,
 } from "@workspace/db";
 import { dispatchPushToUsers } from "../lib/push";
+import { shopOwnerUserIds } from "../lib/shopOwners";
 import { maskEmail } from "../lib/authUtils";
 
 const WEBHOOK_TOLERANCE_SECONDS = 5 * 60;
@@ -179,14 +180,7 @@ export const resendWebhookHandler: RequestHandler = (req, res, next) => {
         return { created: true, alert: null };
       }
 
-      const owners = await tx
-        .select({ id: usersTable.id })
-        .from(usersTable)
-        .where(and(
-          eq(usersTable.shopId, shopId),
-          eq(usersTable.isActive, true),
-          inArray(usersTable.role, ["dealer", "super_admin"]),
-        ));
+      const owners = (await shopOwnerUserIds(shopId, { executor: tx })).map((id) => ({ id }));
       if (owners.length === 0) return { created: true, alert: null };
 
       const title = "Verification email could not be delivered";

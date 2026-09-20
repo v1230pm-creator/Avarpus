@@ -90,3 +90,6 @@
 - [OTP throttle refunds](otp-throttle-refunds.md) — dead SMS provider surfaces as 429 after 3 tries; refund only per-mobile for provable pre-dispatch failures, release siblings on denial.
 - [Dealer directory search](dealer-directory-search.md) — verified owner = `dealer` OR `super_admin`; normalise typed mobiles then match exactly; gate by `repairs_update`; failed search ≠ "not found".
 - [Dealer transfer requests](dealer-transfer-requests.md) — sending a repair to another shop is an offer; receiver row exists only after accept; reads gated by `repairs`, mutations by `repairs_update`.
+- [Co-owners](co-owners.md) — many `owner` memberships per Shop via the owner invite + claim; mirrored as `dealer`; owners resolved from memberships, not users.shopId; co-owners unmanageable by each other.
+- [Staff invite onboarding](staff-invite-onboarding.md) — invited accounts join only via their own claim; owner Approve must 409; recovery-code prompt is owner-only, staff get direct Open buttons.
+- [Chat attachments — any file type](chat-attachments-any-type.md) — no allow-list; server sniffs stored bytes and demotes spoofed viewer MIME; queue ref is sole authority; owned temp files deleted on every exit.

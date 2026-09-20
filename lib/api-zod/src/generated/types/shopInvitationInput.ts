@@ -10,5 +10,6 @@ import type { ShopInvitationInputRole } from './shopInvitationInputRole';
 export interface ShopInvitationInput {
   /** @pattern ^\d{10}$ */
   mobile: string;
+  /** Staff role, or `owner` to add a co-owner with full access. */
   role: ShopInvitationInputRole;
 }

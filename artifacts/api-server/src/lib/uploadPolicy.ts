@@ -79,3 +79,67 @@ export async function verifyStoredUpload(
   }
   return { ok: true, size, contentType };
 }
+
+// ── Chat attachments: coarse byte-signature classification ──────────────────
+//
+// Chat accepts every file type, so there is no allow-list to enforce. What
+// must hold is that anything the app will hand to an inline viewer (image,
+// video, audio, PDF) really is one: the declared MIME on the stored object is
+// still whatever the client PUT, so the leading bytes are the authority.
+
+export type ChatMediaClass = "image" | "video" | "audio" | "pdf" | "unknown";
+
+const ISO_BMFF_IMAGE_BRANDS = new Set(["heic", "heix", "hevc", "hevx", "heim", "heis", "hevm", "hevs", "mif1", "msf1", "avif", "avis"]);
+const ISO_BMFF_AUDIO_BRANDS = new Set(["M4A ", "M4B ", "M4P "]);
+const ISO_BMFF_TOP_ATOMS = new Set(["ftyp", "moov", "mdat", "wide", "free", "skip", "pnot"]);
+
+/** Which viewer-safe class (if any) the leading bytes of an object belong to. */
+export function sniffChatMediaClass(head: Buffer): ChatMediaClass {
+  if (head.length < 4) return "unknown";
+  const ascii = (start: number, end: number) => head.subarray(start, end).toString("latin1");
+
+  // images
+  if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return "image";
+  if (head.length >= 8 && head.subarray(0, 8).equals(PNG_SIGNATURE)) return "image";
+  if (ascii(0, 4) === "GIF8") return "image";
+  if (ascii(0, 2) === "BM") return "image";
+  if (head.length >= 12 && ascii(0, 4) === "RIFF") {
+    const form = ascii(8, 12);
+    if (form === "WEBP") return "image";
+    if (form === "WAVE") return "audio";
+    if (form === "AVI ") return "video";
+    return "unknown";
+  }
+  // documents
+  if (head.length >= 5 && ascii(0, 5) === "%PDF-") return "pdf";
+  // audio
+  if (ascii(0, 3) === "ID3") return "audio";
+  if (ascii(0, 4) === "fLaC") return "audio";
+  if (ascii(0, 4) === "OggS") return "audio";
+  if (ascii(0, 5) === "#!AMR") return "audio";
+  // MPEG audio frame sync (MP3) and ADTS AAC (voice notes) share 0xFFF.
+  // (ADTS always has layer bits 00, so only the 11-bit sync word is checked.)
+  if (head[0] === 0xff && (head[1] & 0xe0) === 0xe0 && head[1] !== 0xff) {
+    return "audio";
+  }
+  // video
+  if (head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3) return "video"; // Matroska / WebM
+  if (head.length >= 12 && ISO_BMFF_TOP_ATOMS.has(ascii(4, 8))) {
+    if (ascii(4, 8) === "ftyp") {
+      const brand = ascii(8, 12);
+      if (ISO_BMFF_IMAGE_BRANDS.has(brand)) return "image";
+      if (ISO_BMFF_AUDIO_BRANDS.has(brand)) return "audio";
+    }
+    return "video"; // MP4 / MOV / 3GP / M4V
+  }
+  return "unknown";
+}
+
+/** The class a declared MIME type claims to be, or null for opaque files. */
+export function declaredChatMediaClass(mimeType: string): Exclude<ChatMediaClass, "unknown"> | null {
+  if (mimeType === "application/pdf") return "pdf";
+  if (mimeType.startsWith("image/") && mimeType !== "image/svg+xml") return "image";
+  if (mimeType.startsWith("video/")) return "video";
+  if (mimeType.startsWith("audio/")) return "audio";
+  return null;
+}

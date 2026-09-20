@@ -8,7 +8,7 @@
 import type { ChatMessageQuoteKind } from './chatMessageQuoteKind';
 
 /**
- * Snapshot of the message being replied to. Media for a quoted image/file/ audio is served from the quoted message's own media endpoint.
+ * Snapshot of the message being replied to. Media for a quoted image/video/ file/audio is served from the quoted message's own media endpoint.
  */
 export interface ChatMessageQuote {
   id: string;

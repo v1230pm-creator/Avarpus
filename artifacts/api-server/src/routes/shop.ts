@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import type { Request } from "express";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import {
   db,
   shopMembershipsTable,
@@ -28,10 +28,39 @@ import { isDealerPortalRole } from "../lib/dealerPortal";
 const router: IRouter = Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const STAFF_ROLES = ["reception", "technician", "store_manager", "accountant"] as const;
+// Roles an owner may invite into the workspace. "owner" adds a co-owner
+// (partner, sibling, second proprietor) with the same unrestricted access as
+// the account that created the Shop.
+const INVITABLE_ROLES = [...STAFF_ROLES, "owner"] as const;
 type AuthedRequest = Request & { user: DbUser };
 
 function me(req: Request): DbUser {
   return (req as AuthedRequest).user;
+}
+
+// users.role is the legacy compatibility mirror of the active membership; an
+// owner membership is represented there as "dealer".
+function mirroredUserRole(membershipRole: string): string {
+  return membershipRole === "owner" ? "dealer" : membershipRole;
+}
+
+// Fields mirrored onto the users row when a membership becomes the active
+// workspace (what /shop/setup writes for the creating owner).
+// Owner-only fields (GSTIN printed on documents, the "Owner" designation)
+// follow the workspace: they are set when an owner membership is selected and
+// cleared again when a staff membership is, so a co-owner of Shop A who also
+// works at Shop B never issues B's documents with A's GSTIN.
+function workspaceMirror(shop: typeof shopsTable.$inferSelect, membershipRole: string) {
+  return {
+    shopId: shop.id,
+    role: mirroredUserRole(membershipRole),
+    isActive: true,
+    businessName: shop.businessName,
+    shopAddress: shop.address,
+    ...(membershipRole === "owner"
+      ? { gstNumber: shop.gstNumber, designation: "Owner" }
+      : { gstNumber: null, designation: sql`case when ${usersTable.designation} = 'Owner' then null else ${usersTable.designation} end` }),
+  };
 }
 
 function defaultSettings() {
@@ -66,9 +95,14 @@ router.get("/shop/me", requireAuth, asyncHandler(async (req, res) => {
     .innerJoin(shopsTable, eq(shopsTable.id, shopMembershipsTable.shopId))
     .where(and(eq(shopMembershipsTable.userId, user.id), eq(shopMembershipsTable.status, "active")));
   const selected = memberships.find(({ shop }) => shop.id === user.shopId) ?? null;
+  // "Backup recovery" (a code sent to the verified business email) only makes
+  // sense for an owner restoring their own workspace. Staff members who hold
+  // an active membership but no selected workspace simply open it via
+  // /shop/switch — they never have access to the business mailbox.
+  const ownsAWorkspace = memberships.some(({ membership }) => membership.role === "owner");
   res.json({
     activeShopId: selected?.shop.id ?? null,
-    backupDetected: !selected && memberships.length > 0,
+    backupDetected: !selected && ownsAWorkspace,
     shop: selected ? {
       id: selected.shop.id,
       businessName: selected.shop.businessName,
@@ -143,12 +177,7 @@ router.post("/shop/recovery/verify", requireAuth, asyncHandler(async (req, res) 
     res.status(403).json({ message: "Recovery details are invalid." });
     return;
   }
-  const [updated] = await db.update(usersTable).set({
-    shopId,
-    role: membership.role === "owner" ? "dealer" : membership.role,
-    businessName: shop.businessName,
-    shopAddress: shop.address,
-  }).where(eq(usersTable.id, user.id)).returning();
+  const [updated] = await db.update(usersTable).set(workspaceMirror(shop, membership.role)).where(eq(usersTable.id, user.id)).returning();
   res.json({ message: "Business workspace restored.", user: publicUser(updated), shop: {
     id: shop.id, businessName: shop.businessName, role: membership.role,
   } });
@@ -306,8 +335,8 @@ router.post("/shop/invitations", requireAuth, asyncHandler(async (req, res) => {
   if (!body) return;
   const { mobile, role } = body;
   if (typeof mobile !== "string" || !/^\d{10}$/.test(mobile) ||
-      typeof role !== "string" || !(STAFF_ROLES as readonly string[]).includes(role)) {
-    res.status(400).json({ message: "A 10-digit mobile number and valid staff role are required." });
+      typeof role !== "string" || !(INVITABLE_ROLES as readonly string[]).includes(role)) {
+    res.status(400).json({ message: "A 10-digit mobile number and a valid role (staff role or owner) are required." });
     return;
   }
   const [target] = await db.select({ id: usersTable.id, role: usersTable.role }).from(usersTable).where(eq(usersTable.mobile, mobile)).limit(1);
@@ -316,7 +345,13 @@ router.post("/shop/invitations", requireAuth, asyncHandler(async (req, res) => {
     return;
   }
   if (target.role === "dealer" || target.role === "super_admin") {
-    res.status(403).json({ message: "Owner and platform administrator accounts cannot be invited as staff." });
+    res.status(403).json({ message: "This number already runs its own Shop (or is a platform administrator) and cannot be invited." });
+    return;
+  }
+  if (target.role === "dealer_owner" || target.role === "dealer_staff") {
+    // Portal logins are created and linked by the shop that owns the dealer
+    // profile; the app offers them no claim flow, so the invite would hang.
+    res.status(403).json({ message: "This number belongs to a dealer-portal login. Manage it from Staff instead of inviting it." });
     return;
   }
   const [existingMembership] = await db.select({ status: shopMembershipsTable.status })
@@ -357,12 +392,37 @@ router.post("/shop/claim", requireAuth, asyncHandler(async (req, res) => {
     .where(and(
       eq(shopMembershipsTable.userId, user.id),
       eq(shopMembershipsTable.staffId, staffId),
-      eq(shopMembershipsTable.status, "pending"),
       gt(shopMembershipsTable.inviteExpiresAt, new Date()),
     ))
     .limit(1);
   if (!membership || !membership.inviteCodeHash || membership.inviteCodeHash !== sha256(claimCode.trim().toUpperCase())) {
     res.status(403).json({ message: "Staff ID or claim code is invalid." });
+    return;
+  }
+  if (membership.status === "active") {
+    // Legacy state: an owner "approved" the invitation before the codes were
+    // entered. The codes still prove the handshake, so finish the join by
+    // selecting the workspace and retiring the one-time code. The retire is
+    // a compare-and-set so a concurrent replay of the same codes loses.
+    const [retired] = await db.update(shopMembershipsTable).set({
+      inviteCodeHash: null, inviteExpiresAt: null, updatedAt: new Date(),
+    }).where(and(
+      eq(shopMembershipsTable.id, membership.id),
+      eq(shopMembershipsTable.status, "active"),
+      eq(shopMembershipsTable.inviteCodeHash, sha256(claimCode.trim().toUpperCase())),
+      gt(shopMembershipsTable.inviteExpiresAt, new Date()),
+    )).returning();
+    if (!retired) {
+      res.status(409).json({ message: "This staff invitation was already claimed." });
+      return;
+    }
+    const [shop] = await db.select().from(shopsTable).where(eq(shopsTable.id, membership.shopId)).limit(1);
+    const [joined] = await db.update(usersTable).set(workspaceMirror(shop, membership.role)).where(eq(usersTable.id, user.id)).returning();
+    res.json({
+      message: "You joined the shop workspace.",
+      shop: { id: shop.id, businessName: shop.businessName, role: membership.role, staffId: membership.staffId },
+      user: publicUser(joined),
+    });
     return;
   }
   const [updated] = await db.update(shopMembershipsTable).set({
@@ -378,11 +438,11 @@ router.post("/shop/claim", requireAuth, asyncHandler(async (req, res) => {
     return;
   }
   const [shop] = await db.select().from(shopsTable).where(eq(shopsTable.id, updated.shopId)).limit(1);
-  await db.update(usersTable).set({ shopId: updated.shopId, role: updated.role, isActive: true }).where(eq(usersTable.id, user.id));
+  const [joined] = await db.update(usersTable).set(workspaceMirror(shop, updated.role)).where(eq(usersTable.id, user.id)).returning();
   res.json({
     message: "You joined the shop workspace.",
     shop: { id: shop.id, businessName: shop.businessName, role: updated.role, staffId: updated.staffId },
-    user: publicUser({ ...user, shopId: updated.shopId, role: updated.role, isActive: true }),
+    user: publicUser(joined),
   });
 }));
 
@@ -397,10 +457,7 @@ router.post("/shop/switch", requireAuth, asyncHandler(async (req, res) => {
     return;
   }
   const [shop] = await db.select().from(shopsTable).where(eq(shopsTable.id, shopId)).limit(1);
-  const [updated] = await db.update(usersTable).set({
-    shopId, role: membership.role === "owner" ? "dealer" : membership.role,
-    businessName: shop.businessName, shopAddress: shop.address,
-  }).where(eq(usersTable.id, user.id)).returning();
+  const [updated] = await db.update(usersTable).set(workspaceMirror(shop, membership.role)).where(eq(usersTable.id, user.id)).returning();
   res.json({ shop: { id: shop.id, businessName: shop.businessName, role: membership.role }, user: publicUser(updated) });
 }));
 

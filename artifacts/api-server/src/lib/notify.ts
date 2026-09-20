@@ -1,9 +1,7 @@
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, notificationsTable, usersTable } from "@workspace/db";
 import { dispatchPushToUsers } from "./push";
-
-// Owner roles that get shop-wide notifications.
-const OWNER_ROLES = ["dealer", "super_admin"];
+import { shopOwnerUserIds } from "./shopOwners";
 
 export type NotifyInput = {
   shopId: string;
@@ -31,18 +29,9 @@ export type NotifyUserInput = {
 // main request. Always call WITHOUT await, or with .catch swallowed.
 export async function notifyShop(input: NotifyInput): Promise<void> {
   try {
-    const owners = await db
-      .select({ id: usersTable.id })
-      .from(usersTable)
-      .where(
-        and(
-          eq(usersTable.shopId, input.shopId),
-          eq(usersTable.isActive, true),
-          inArray(usersTable.role, OWNER_ROLES),
-          ...(input.actorId ? [ne(usersTable.id, input.actorId)] : []),
-        ),
-      );
-    const ids = new Set(owners.map((o) => o.id));
+    // Every active owner of the Shop (co-owners included), whichever
+    // workspace they currently have selected.
+    const ids = new Set(await shopOwnerUserIds(input.shopId, { excludeUserId: input.actorId }));
     for (const id of input.extraUserIds ?? []) {
       if (id && id !== input.actorId) ids.add(id);
     }

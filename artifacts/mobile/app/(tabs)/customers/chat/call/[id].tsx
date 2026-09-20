@@ -61,11 +61,13 @@ export default function CallScreen() {
     id: string;
     mode?: string;
     name?: string;
+    photo?: string;
   }>();
 
   const roomId = params.id ?? '';
   const mode: CallMode = params.mode === 'video' ? 'video' : 'audio';
   const remoteName = params.name ?? 'Call';
+  const remotePhoto = params.photo || null;
 
   const callTokenMutation = useChatCallToken();
   const [tokenState, setTokenState] = useState<TokenState>({ status: 'idle' });
@@ -131,7 +133,9 @@ export default function CallScreen() {
   // ── Unsupported-runtime fallback ───────────────────────────────────────
   // Web and Expo Go skip the token request and native LiveKit import.
   if (!liveKitNativeSupported) {
-    return <LiveKitCall serverUrl="" token="" mode={mode} remoteName={remoteName} onHangup={handleHangup} />;
+    return (
+      <LiveKitCall serverUrl="" token="" mode={mode} remoteName={remoteName} remotePhoto={remotePhoto} onHangup={handleHangup} />
+    );
   }
 
   // ── Loading state ──────────────────────────────────────────────────────
@@ -242,6 +246,7 @@ export default function CallScreen() {
       token={tokenState.token}
       mode={mode}
       remoteName={remoteName}
+      remotePhoto={remotePhoto}
       onHangup={handleHangup}
     />
   );

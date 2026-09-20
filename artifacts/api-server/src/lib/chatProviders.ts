@@ -655,9 +655,9 @@ export async function matrixSendMessage(opts: {
   matrixRoomId: string;
   /** Matrix user_id of the sender, e.g. @localpart:server */
   senderUserId: string;
-  msgtype: "m.text" | "m.image" | "m.file" | "m.audio";
+  msgtype: "m.text" | "m.image" | "m.video" | "m.file" | "m.audio";
   body: string;
-  /** For m.image / m.file / m.audio: the mxc:// URI or fallback URL */
+  /** For m.image / m.video / m.file / m.audio: the mxc:// URI or fallback URL */
   url?: string;
   /**
    * Optional content `info` block. For m.audio voice notes we populate

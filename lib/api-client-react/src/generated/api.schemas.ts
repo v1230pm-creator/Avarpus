@@ -503,6 +503,11 @@ export interface Message {
   message: string;
 }
 
+export type StaffListItem = AuthUser & {
+  /** True while a personal account has been invited with a Staff ID and claim code but has not yet joined. Such accounts are never approved by the owner; they join themselves from Shop → Join with Staff ID. */
+  invitePending: boolean;
+};
+
 export type StaffCreateInputRole = typeof StaffCreateInputRole[keyof typeof StaffCreateInputRole];
 
 
@@ -638,6 +643,9 @@ export interface ShopSetupRequestResult {
   email: string;
 }
 
+/**
+ * Staff role, or `owner` to add a co-owner with full access.
+ */
 export type ShopInvitationInputRole = typeof ShopInvitationInputRole[keyof typeof ShopInvitationInputRole];
 
 
@@ -646,11 +654,13 @@ export const ShopInvitationInputRole = {
   technician: 'technician',
   store_manager: 'store_manager',
   accountant: 'accountant',
+  owner: 'owner',
 } as const;
 
 export interface ShopInvitationInput {
   /** @pattern ^\d{10}$ */
   mobile: string;
+  /** Staff role, or `owner` to add a co-owner with full access. */
   role: ShopInvitationInputRole;
 }
 
@@ -1992,6 +2002,7 @@ export type ChatMessageKind = typeof ChatMessageKind[keyof typeof ChatMessageKin
 export const ChatMessageKind = {
   text: 'text',
   image: 'image',
+  video: 'video',
   file: 'file',
   audio: 'audio',
   system: 'system',
@@ -2003,13 +2014,14 @@ export type ChatMessageQuoteKind = typeof ChatMessageQuoteKind[keyof typeof Chat
 export const ChatMessageQuoteKind = {
   text: 'text',
   image: 'image',
+  video: 'video',
   file: 'file',
   audio: 'audio',
   system: 'system',
 } as const;
 
 /**
- * Snapshot of the message being replied to. Media for a quoted image/file/ audio is served from the quoted message's own media endpoint.
+ * Snapshot of the message being replied to. Media for a quoted image/video/ file/audio is served from the quoted message's own media endpoint.
  */
 export interface ChatMessageQuote {
   id: string;
@@ -2031,6 +2043,10 @@ export interface ChatMessage {
   kind: ChatMessageKind;
   body: string;
   objectPath?: string;
+  /** MIME type of the stored attachment as verified by the server at send time (image/video/file/audio kinds). Absent for text and legacy rows. */
+  mimeType?: string;
+  /** Integer byte size of the stored attachment, when known. */
+  sizeBytes?: number;
   /** Integer duration in milliseconds. Only set for kind=audio (voice notes). */
   durationMs?: number;
   clientRequestId?: string;
@@ -2391,6 +2407,7 @@ export type ChatMessageSendInputKind = typeof ChatMessageSendInputKind[keyof typ
 export const ChatMessageSendInputKind = {
   text: 'text',
   image: 'image',
+  video: 'video',
   file: 'file',
   audio: 'audio',
 } as const;
@@ -2435,6 +2452,9 @@ export interface ChatMarkReadInput {
   messageId: string;
 }
 
+/**
+ * Any file type may be attached (photos, videos, documents, archives, APKs, ...). contentType is a syntactically valid MIME type; unknown types should be sent as application/octet-stream. size must be a positive integer of at most 100 MiB.
+ */
 export interface ChatUploadUrlInput {
   name: string;
   size: number;
@@ -2659,7 +2679,7 @@ export type PushTokenUnregister200 = {
 };
 
 export type StaffList200 = {
-  staff: AuthUser[];
+  staff: StaffListItem[];
 };
 
 export type StaffCreate200 = {

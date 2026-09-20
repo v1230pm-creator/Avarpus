@@ -57,6 +57,7 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
+import { declaredChatMediaClass, sniffChatMediaClass } from "../lib/uploadPolicy";
 import { ObjectStorageService } from "../lib/objectStorage";
 import {
   chatCapabilities,
@@ -949,6 +950,7 @@ router.post(
         name: usersTable.name,
         mobile: usersTable.mobile,
         role: usersTable.role,
+        profilePhoto: usersTable.profilePhoto,
       })
       .from(usersTable)
       .where(
@@ -1010,6 +1012,7 @@ router.post(
         // volunteers numbers the caller did not already know.
         mobile: u.mobile,
         role: u.role,
+        profilePhoto: u.profilePhoto ?? undefined,
         matchToken: rawToken,
       }));
     });
@@ -2034,7 +2037,7 @@ router.post(
         res.status(404).json({ message: "Source message not found" });
         return;
       }
-      if (!["text", "image", "file", "audio"].includes(sourceMessage.kind)) {
+      if (!["text", "image", "video", "file", "audio"].includes(sourceMessage.kind)) {
         res.status(400).json({ message: "This message cannot be forwarded" });
         return;
       }
@@ -2103,8 +2106,11 @@ router.post(
       return;
     }
 
-    // Validate objectPath for media messages (image/file/audio).
+    // Validate objectPath for media messages (image/video/file/audio).
     let resolvedObjectPath: string | null = null;
+    /** Verified from the stored object (or copied from the forward source). */
+    let resolvedMimeType: string | null = null;
+    let resolvedSizeBytes: number | null = null;
     /** Server-owned copy created for a forward; deleted again if delivery fails. */
     let forwardedCopyPath: string | null = null;
     if (forwardSource) {
@@ -2119,11 +2125,16 @@ router.post(
           const sourceFile = await objectStorageService.getObjectEntityFile(sourceMessage.objectPath);
           const [metadata] = await sourceFile.getMetadata();
           const [bytes] = await sourceFile.download();
+          const sourceMime =
+            sourceMessage.mimeType ??
+            normalizeChatContentType(metadata.contentType as string | undefined);
           forwardedCopyPath = await objectStorageService.saveObjectEntityWithPrefix(
             `${chatStorageScope(room)}/chat/${roomId}`,
             bytes,
-            (metadata.contentType as string | undefined) || "application/octet-stream",
+            sourceMime,
           );
+          resolvedMimeType = sourceMime;
+          resolvedSizeBytes = sourceMessage.sizeBytes ?? bytes.byteLength;
         } catch (error) {
           req.log.warn({ err: error }, "Forward source attachment unavailable");
           res.status(400).json({
@@ -2134,9 +2145,9 @@ router.post(
         }
         resolvedObjectPath = forwardedCopyPath;
       }
-    } else if (kind === "image" || kind === "file" || kind === "audio") {
+    } else if (kind === "image" || kind === "video" || kind === "file" || kind === "audio") {
       if (typeof objectPath !== "string" || !objectPath.trim()) {
-        res.status(400).json({ message: "objectPath is required for image/file/audio messages" });
+        res.status(400).json({ message: "objectPath is required for image/video/file/audio messages" });
         return;
       }
       const expectedPrefix = `uploads/${chatStorageScope(room)}/chat/${roomId}/`;
@@ -2182,7 +2193,21 @@ router.post(
       }
       mediaClaimToken = claim.token;
       try {
-        await objectStorageService.getObjectEntityFile(resolvedObjectPath);
+        const uploadedFile = await objectStorageService.getObjectEntityFile(resolvedObjectPath);
+        const [metadata] = await uploadedFile.getMetadata();
+        resolvedMimeType = normalizeChatContentType(metadata.contentType as string | undefined);
+        const storedSize = Number(metadata.size);
+        resolvedSizeBytes = Number.isFinite(storedSize) && storedSize > 0 ? Math.floor(storedSize) : null;
+        // The stored content type is whatever the client PUT. Anything that
+        // claims to be viewer-safe media must prove it with its leading
+        // bytes; otherwise it is demoted to an opaque download.
+        const declaredClass = declaredChatMediaClass(resolvedMimeType);
+        if (declaredClass && resolvedSizeBytes) {
+          const [head] = await uploadedFile.download({ start: 0, end: Math.min(63, resolvedSizeBytes - 1) });
+          if (sniffChatMediaClass(head) !== declaredClass) {
+            resolvedMimeType = "application/octet-stream";
+          }
+        }
       } catch {
         await releasePendingUpload({
           objectPath: resolvedObjectPath,
@@ -2193,6 +2218,30 @@ router.post(
         res.status(400).json({
           message: "Uploaded attachment is no longer available. Please upload it again.",
           code: "CHAT_MEDIA_EXPIRED",
+        });
+        return;
+      }
+      // The declared kind decides how every recipient renders/opens the bytes,
+      // so it must agree with what was actually stored (an "image" that is
+      // really an APK would be handed to the image viewer).
+      if (
+        !resolvedSizeBytes ||
+        resolvedSizeBytes > CHAT_MAX_SIZE ||
+        !chatKindMatchesMime(kind, resolvedMimeType)
+      ) {
+        await releasePendingUpload({
+          objectPath: resolvedObjectPath,
+          ownerUserId: me.id,
+          purpose: "chat",
+          token: mediaClaimToken,
+        }).catch(() => undefined);
+        res.status(400).json({
+          message: !resolvedSizeBytes
+            ? "Uploaded attachment is empty."
+            : resolvedSizeBytes > CHAT_MAX_SIZE
+              ? `Attachment exceeds the ${CHAT_MAX_SIZE / 1024 / 1024} MB limit.`
+              : `Uploaded content (${resolvedMimeType}) does not match kind=${kind}.`,
+          code: "CHAT_MEDIA_KIND_MISMATCH",
         });
         return;
       }
@@ -2211,14 +2260,16 @@ router.post(
       }
     }
 
-    const msgtype: "m.text" | "m.image" | "m.file" | "m.audio" =
+    const msgtype: "m.text" | "m.image" | "m.video" | "m.file" | "m.audio" =
       kind === "image"
         ? "m.image"
-        : kind === "file"
-          ? "m.file"
-          : kind === "audio"
-            ? "m.audio"
-            : "m.text";
+        : kind === "video"
+          ? "m.video"
+          : kind === "file"
+            ? "m.file"
+            : kind === "audio"
+              ? "m.audio"
+              : "m.text";
 
     // Sender's deterministic Matrix user ID.
     const senderMatrixUserId = matrixUserIdForApp(me.id);
@@ -2235,7 +2286,14 @@ router.post(
         body: effectiveBody,
         url: resolvedObjectPath ?? undefined,
         // For voice notes, include Matrix content info.duration (milliseconds).
-        info: resolvedDurationMs !== null ? { duration: resolvedDurationMs } : undefined,
+        info:
+          resolvedDurationMs !== null || resolvedMimeType
+            ? {
+                ...(resolvedDurationMs !== null ? { duration: resolvedDurationMs } : {}),
+                ...(resolvedMimeType ? { mimetype: resolvedMimeType } : {}),
+                ...(resolvedSizeBytes ? { size: resolvedSizeBytes } : {}),
+              }
+            : undefined,
         inReplyToEventId: replyTarget?.providerEventId ?? undefined,
         txnId,
         signal: AbortSignal.timeout(CHAT_PROVIDER_SEND_TIMEOUT_MS),
@@ -2298,6 +2356,8 @@ router.post(
         kind,
         body: effectiveBody,
         objectPath: resolvedObjectPath,
+        mimeType: resolvedObjectPath ? resolvedMimeType : null,
+        sizeBytes: resolvedObjectPath ? resolvedSizeBytes : null,
         durationMs: resolvedDurationMs,
         providerEventId,
         clientRequestId: reqId,
@@ -2332,6 +2392,8 @@ router.post(
       const preview =
         message.kind === "image"
           ? "Photo"
+          : message.kind === "video"
+            ? "Video"
           : message.kind === "audio"
             ? "Voice message"
             : message.kind === "file"
@@ -2582,26 +2644,42 @@ router.post(
 
 // ── Upload URL ────────────────────────────────────────────────────────────────
 
-// Allowed MIME types for chat uploads
-const CHAT_ALLOWED_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "image/heic",
-  "video/mp4",
-  "video/quicktime",
-  "application/pdf",
-  "audio/mpeg",
-  "audio/ogg",
-  "audio/webm",
-  // Expo SDK 54 HIGH_QUALITY recorder outputs M4A/AAC on native devices,
-  // reported as audio/mp4 (iOS) / audio/x-m4a / audio/aac.
-  "audio/mp4",
-  "audio/x-m4a",
-  "audio/aac",
-]);
-const CHAT_MAX_SIZE = 50 * 1024 * 1024; // 50 MB
+// Chat attachments accept ANY file type (photos, videos, PDFs, archives, APKs,
+// spreadsheets, ...). The content type is only required to be a syntactically
+// valid MIME type; anything else is stored as application/octet-stream. Safety
+// comes from how the media endpoint serves the bytes (see
+// chatAttachmentDisposition), never from an upload-time allowlist.
+const CHAT_MAX_SIZE = 100 * 1024 * 1024; // 100 MiB
+const MIME_TYPE_RE = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$/;
+
+/** Lower-case, parameter-free MIME type or application/octet-stream. */
+function normalizeChatContentType(raw: string | null | undefined): string {
+  const bare = String(raw ?? "").split(";")[0].trim().toLowerCase();
+  return MIME_TYPE_RE.test(bare) ? bare : "application/octet-stream";
+}
+
+/**
+ * Types a client may render inline (image viewer / video player / audio /
+ * PDF). Everything else is served as a download: active content such as
+ * HTML or SVG must never execute from the API origin.
+ */
+const CHAT_INLINE_MIME_RE =
+  /^(image\/(jpeg|png|gif|webp|heic|heif|bmp|avif)|video\/[a-z0-9.+-]+|audio\/[a-z0-9.+-]+|application\/pdf)$/;
+
+function chatAttachmentDisposition(mimeType: string, filename: string): string {
+  const kind = CHAT_INLINE_MIME_RE.test(mimeType) ? "inline" : "attachment";
+  const ascii = filename.replace(/[^\x20-\x7E]/g, "_").replace(/["\\]/g, "_").slice(0, 120) || "attachment";
+  const utf8 = encodeURIComponent(filename.slice(0, 160)).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `${kind}; filename="${ascii}"; filename*=UTF-8''${utf8}`;
+}
+
+/** The message kind a stored MIME type is allowed to carry. */
+function chatKindMatchesMime(kind: string, mimeType: string): boolean {
+  if (kind === "image") return mimeType.startsWith("image/") && mimeType !== "image/svg+xml";
+  if (kind === "video") return mimeType.startsWith("video/");
+  if (kind === "audio") return mimeType.startsWith("audio/");
+  return kind === "file";
+}
 
 router.post(
   "/chat/rooms/:roomId/upload-url",
@@ -2643,8 +2721,8 @@ router.post(
       return;
     }
 
-    if (!CHAT_ALLOWED_TYPES.has(contentType.trim().toLowerCase())) {
-      res.status(400).json({ error: `Content type not allowed: ${contentType}` });
+    if (!Number.isInteger(size)) {
+      res.status(400).json({ error: "size must be an integer byte count" });
       return;
     }
 
@@ -2782,8 +2860,8 @@ router.get(
       return;
     }
 
-    // Must be a media kind (image / file / audio)
-    if (msg.kind !== "image" && msg.kind !== "file" && msg.kind !== "audio") {
+    // Must be a media kind (image / video / file / audio)
+    if (msg.kind !== "image" && msg.kind !== "video" && msg.kind !== "file" && msg.kind !== "audio") {
       res.status(404).json({ message: "Not found" });
       return;
     }
@@ -2806,6 +2884,15 @@ router.get(
       const response = await objectStorageService.downloadObject(objectFile);
       res.status(response.status);
       response.headers.forEach((value, key) => res.setHeader(key, value));
+      // Serve with the verified type and never let the browser sniff or render
+      // active content (HTML/SVG/...) from the API origin. Legacy rows without
+      // stored metadata fall back to the storage header, sanitised.
+      const servedMime =
+        msg.mimeType ??
+        normalizeChatContentType(response.headers.get("content-type"));
+      res.setHeader("Content-Type", servedMime);
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Disposition", chatAttachmentDisposition(servedMime, msg.body));
       if (response.body) {
         Readable.fromWeb(
           response.body as unknown as import("stream/web").ReadableStream<Uint8Array>,
@@ -2959,6 +3046,8 @@ function formatMessage(msg: ChatMessageRow, replyTo?: ChatMessageQuote | null) {
     kind: msg.kind,
     body: deleted ? "" : msg.body,
     objectPath: deleted ? undefined : msg.objectPath ?? undefined,
+    mimeType: deleted ? undefined : msg.mimeType ?? undefined,
+    sizeBytes: deleted ? undefined : msg.sizeBytes ?? undefined,
     durationMs: deleted ? undefined : msg.durationMs ?? undefined,
     clientRequestId: msg.clientRequestId ?? undefined,
     replyTo: deleted ? undefined : replyTo ?? undefined,

@@ -141,7 +141,9 @@ export function useAvarpusContacts() {
   const displayFor = useCallback(
     (contact: ChatContact) => {
       const device = deviceContactByPhone.get(normalizeIndianPhone(contact.mobile ?? '') ?? '');
-      return { name: device?.name ?? contact.name, photo: device?.imageUri ?? contact.profilePhoto ?? undefined };
+      // A registered user's own Avarpus profile photo wins over whatever
+      // picture the device contact happens to carry.
+      return { name: device?.name ?? contact.name, photo: contact.profilePhoto ?? device?.imageUri ?? undefined };
     },
     [deviceContactByPhone],
   );

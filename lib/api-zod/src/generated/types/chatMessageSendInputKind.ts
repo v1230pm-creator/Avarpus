@@ -12,6 +12,7 @@ export type ChatMessageSendInputKind = typeof ChatMessageSendInputKind[keyof typ
 export const ChatMessageSendInputKind = {
   text: 'text',
   image: 'image',
+  video: 'video',
   file: 'file',
   audio: 'audio',
 } as const;

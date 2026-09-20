@@ -365,7 +365,7 @@ export default function RepairsScreen() {
                 marginRight: 4,
               }}
             >
-              <Avatar name={user?.name ?? 'User'} size={36} />
+              <Avatar name={user?.name ?? 'User'} size={36} url={user?.profilePhoto} />
               <View style={{ position: 'absolute', bottom: -2, right: -2, backgroundColor: colors.card, borderRadius: 10, padding: 2 }}>
                 <Feather name="menu" size={10} color={colors.primary} />
               </View>

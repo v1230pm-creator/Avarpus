@@ -40,6 +40,8 @@ export function describeMessage(kind: string, body: string): string {
   switch (kind) {
     case 'image':
       return 'Photo';
+    case 'video':
+      return 'Video';
     case 'audio':
       return 'Voice message';
     case 'file':
@@ -122,8 +124,14 @@ export function QuotedMessage({
           {quote.kind === 'image' && !quote.deleted && (
             <Feather name="camera" size={12} color={textColor} />
           )}
+          {quote.kind === 'video' && !quote.deleted && (
+            <Feather name="video" size={12} color={textColor} />
+          )}
           {quote.kind === 'audio' && !quote.deleted && (
             <Feather name="mic" size={12} color={textColor} />
+          )}
+          {quote.kind === 'file' && !quote.deleted && (
+            <Feather name="file" size={12} color={textColor} />
           )}
           <Text style={[styles.quoteText, { color: textColor }, quote.deleted && styles.quoteDeleted]} numberOfLines={2}>
             {bodyText}

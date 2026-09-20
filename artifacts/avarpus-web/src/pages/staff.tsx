@@ -60,7 +60,7 @@ export function StaffPage() {
                       {item.isActive ? (
                         <Badge variant="success">Active</Badge>
                       ) : (
-                        <Badge variant="secondary">Inactive</Badge>
+                        <Badge variant="secondary">{item.invitePending ? 'Invited' : 'Inactive'}</Badge>
                       )}
                     </TableCell>
                   </TableRow>

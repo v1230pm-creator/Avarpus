@@ -211,6 +211,7 @@ const mockCreateUploadTask = jest.fn();
 const mockGetInfoAsync = jest.fn();
 const mockCopyAsync = jest.fn();
 const mockDownloadAsync = jest.fn();
+const mockGetContentUriAsync = jest.fn();
 jest.mock('expo-file-system/legacy', () => ({
   cacheDirectory: 'file:///cache/',
   FileSystemUploadType: { BINARY_CONTENT: 0 },
@@ -218,6 +219,7 @@ jest.mock('expo-file-system/legacy', () => ({
   copyAsync: (...args: any[]) => mockCopyAsync(...args),
   createUploadTask: (...args: any[]) => mockCreateUploadTask(...args),
   downloadAsync: (...args: any[]) => mockDownloadAsync(...args),
+  getContentUriAsync: (...args: any[]) => mockGetContentUriAsync(...args),
   deleteAsync: jest.fn().mockResolvedValue(undefined),
 }));
 
@@ -227,6 +229,31 @@ const mockIsAvailableAsync = jest.fn();
 jest.mock('expo-sharing', () => ({
   shareAsync: (...args: any[]) => mockShareAsync(...args),
   isAvailableAsync: (...args: any[]) => mockIsAvailableAsync(...args),
+}));
+
+// expo-video / expo-intent-launcher have no native module under Jest.
+const mockVideoPlay = jest.fn();
+const mockVideoPause = jest.fn();
+jest.mock('expo-video', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    useVideoPlayer: (source: any, setup?: (player: any) => void) => {
+      const player = React.useMemo(
+        () => ({ loop: false, play: mockVideoPlay, pause: mockVideoPause }),
+        [],
+      );
+      React.useEffect(() => {
+        setup?.(player);
+      }, [player, source]);
+      return player;
+    },
+    VideoView: (props: any) => React.createElement(View, { ...props, testID: 'video-view' }),
+  };
+});
+const mockStartActivityAsync = jest.fn();
+jest.mock('expo-intent-launcher', () => ({
+  startActivityAsync: (...args: any[]) => mockStartActivityAsync(...args),
 }));
 
 // Mock expo-image (to avoid native module issues)
@@ -1991,6 +2018,9 @@ describe('Chat screen — attachments', () => {
     fireEvent.press(screen.getByLabelText('Gallery'));
 
     await waitFor(() => expect(mockLaunchImageLibraryAsync).toHaveBeenCalled());
+    expect(mockLaunchImageLibraryAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaTypes: ['images', 'videos'], allowsMultipleSelection: true }),
+    );
     expect(await screen.findByText('gallery.jpg')).toBeTruthy();
     expect(screen.getByLabelText('Send attachment')).toBeTruthy();
   });
@@ -2016,15 +2046,135 @@ describe('Chat screen — attachments', () => {
     );
     render(<ChatRoomScreen />);
 
-    fireEvent.press(screen.getByLabelText('Add attachment'));
-    fireEvent.press(await screen.findByLabelText('Select recent.jpg'));
+    mockCopyAsync.mockResolvedValueOnce(undefined);
+    mockGetInfoAsync.mockResolvedValueOnce({ exists: true, size: 2048 });
+    const uploadMutate = jest.fn((args: any, cbs: any) => {
+      cbs?.onSuccess?.({ uploadURL: 'https://s3.example.com/put', objectPath: 'uploads/s1/chat/room-1/recent.jpg' });
+    });
+    mockUseChatUploadUrl.mockReturnValue({ mutate: uploadMutate, isPending: false });
+    mockCreateUploadTask.mockReturnValue({ uploadAsync: jest.fn().mockResolvedValue({ status: 200 }) });
+    const sendMutate = jest.fn((args: any, cbs: any) => cbs?.onSuccess?.({ message: { id: 'new-1' } }));
+    mockUseChatMessagesSend.mockReturnValue({ mutate: sendMutate, isPending: false });
+    render(<ChatRoomScreen />);
 
+    fireEvent.press(screen.getByLabelText('Add attachment'));
+    // A single tap only ticks the item — nothing is prepared or sent yet.
+    fireEvent.press(await screen.findByLabelText('Select recent.jpg'));
+    expect(screen.getByTestId('attachment-recent-selected-asset-recent')).toBeTruthy();
+    expect(screen.getByText('1 selected')).toBeTruthy();
+    expect(mockGetAssetInfoAsync).not.toHaveBeenCalled();
+    expect(sendMutate).not.toHaveBeenCalled();
+
+    // Tapping again un-ticks it; Send disappears.
+    fireEvent.press(screen.getByLabelText('Deselect recent.jpg'));
+    expect(screen.queryByTestId('attachment-send-selected')).toBeNull();
+    fireEvent.press(screen.getByLabelText('Select recent.jpg'));
+
+    // Send from the sheet uploads and delivers the ticked item.
+    fireEvent.press(screen.getByLabelText('Send 1 selected'));
     await waitFor(() => expect(mockGetAssetInfoAsync).toHaveBeenCalledWith('asset-recent'));
-    expect(await screen.findByText('recent.jpg')).toBeTruthy();
-    expect(screen.getByLabelText('Send attachment')).toBeTruthy();
+    await waitFor(() => expect(sendMutate).toHaveBeenCalledTimes(1));
+    expect(sendMutate.mock.calls[0][0].data).toEqual(
+      expect.objectContaining({ kind: 'image', body: 'recent.jpg', objectPath: 'uploads/s1/chat/room-1/recent.jpg' }),
+    );
     expect(
       screen.queryByText(/ExpoMediaLibrary\.getAssetInfoAsync/),
     ).toBeNull();
+  });
+
+  it('sends several ticked recents in order and stops the batch on the first failure', async () => {
+    const photo = (id: string, filename: string) => ({
+      id,
+      filename,
+      uri: `file:///photos/${filename}`,
+      mediaType: 'photo',
+      width: 100,
+      height: 100,
+      creationTime: 1,
+      modificationTime: 1,
+      duration: 0,
+    });
+    mockGetAssetsAsync.mockResolvedValueOnce({
+      assets: [photo('a1', 'one.jpg'), photo('a2', 'two.jpg'), photo('a3', 'three.jpg')],
+      endCursor: 'a3',
+      hasNextPage: false,
+    });
+    mockGetAssetInfoAsync.mockImplementation(async (id: string) => ({
+      localUri: `file:///photos/${id}.jpg`,
+      fileSize: 1000,
+    }));
+    const uploadMutate = jest.fn((args: any, cbs: any) => {
+      cbs?.onSuccess?.({ uploadURL: 'https://s3.example.com/put', objectPath: `uploads/s1/chat/room-1/${args.data.name}` });
+    });
+    mockUseChatUploadUrl.mockReturnValue({ mutate: uploadMutate, isPending: false });
+    mockCreateUploadTask.mockReturnValue({ uploadAsync: jest.fn().mockResolvedValue({ status: 200 }) });
+    const sendMutate = jest.fn((args: any, cbs: any) => {
+      if (args.data.body === 'two.jpg') cbs?.onError?.({ data: { message: 'Chat provider unavailable' } });
+      else cbs?.onSuccess?.({ message: { id: `new-${args.data.body}` } });
+    });
+    mockUseChatMessagesSend.mockReturnValue({ mutate: sendMutate, isPending: false });
+    render(<ChatRoomScreen />);
+
+    fireEvent.press(screen.getByLabelText('Add attachment'));
+    fireEvent.press(await screen.findByLabelText('Select one.jpg'));
+    fireEvent.press(screen.getByLabelText('Select two.jpg'));
+    fireEvent.press(screen.getByLabelText('Select three.jpg'));
+    expect(screen.getByText('3 selected')).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Send 3 selected'));
+
+    await waitFor(() => expect(screen.getByText('Chat provider unavailable')).toBeTruthy());
+    expect(sendMutate.mock.calls.map((call) => call[0].data.body)).toEqual(['one.jpg', 'two.jpg']);
+    // The failed item is still queued at the head, with the rest behind it.
+    expect(screen.getByText('two.jpg')).toBeTruthy();
+    expect(screen.getByTestId('pending-upload-meta').props.children).toContain('2 items');
+
+    // Retry resumes from the failed item without re-uploading it.
+    sendMutate.mockImplementation((args: any, cbs: any) => cbs?.onSuccess?.({ message: { id: `new-${args.data.body}` } }));
+    fireEvent.press(screen.getByText('Retry'));
+    await waitFor(() => expect(sendMutate).toHaveBeenCalledTimes(4));
+    expect(uploadMutate).toHaveBeenCalledTimes(3);
+    expect(sendMutate.mock.calls[2][0].data).toEqual(
+      expect.objectContaining({ body: 'two.jpg', objectPath: 'uploads/s1/chat/room-1/two.jpg' }),
+    );
+    expect(sendMutate.mock.calls[3][0].data.body).toBe('three.jpg');
+    await waitFor(() => expect(screen.queryByTestId('pending-upload-preview')).toBeNull());
+  });
+
+  it('accepts any file type from the document picker and sends archives as files', async () => {
+    mockGetDocumentAsync.mockResolvedValueOnce({
+      canceled: false,
+      assets: [
+        { name: 'firmware.zip', uri: 'file:///cache/firmware.zip', mimeType: 'application/zip', size: 9000 },
+        { name: 'avarpus.apk', uri: 'file:///cache/avarpus.apk', mimeType: null, size: 12000 },
+        { name: 'clip.mp4', uri: 'file:///cache/clip.mp4', mimeType: 'video/mp4', size: 30000 },
+      ],
+    });
+    const uploadMutate = jest.fn((args: any, cbs: any) => {
+      cbs?.onSuccess?.({ uploadURL: 'https://s3.example.com/put', objectPath: `uploads/s1/chat/room-1/${args.data.name}` });
+    });
+    mockUseChatUploadUrl.mockReturnValue({ mutate: uploadMutate, isPending: false });
+    mockCreateUploadTask.mockReturnValue({ uploadAsync: jest.fn().mockResolvedValue({ status: 200 }) });
+    const sendMutate = jest.fn((args: any, cbs: any) => cbs?.onSuccess?.({ message: { id: `new-${args.data.body}` } }));
+    mockUseChatMessagesSend.mockReturnValue({ mutate: sendMutate, isPending: false });
+    render(<ChatRoomScreen />);
+
+    fireEvent.press(screen.getByLabelText('Add attachment'));
+    fireEvent.press(screen.getByLabelText('Document'));
+    await waitFor(() => expect(mockGetDocumentAsync).toHaveBeenCalledWith(expect.objectContaining({ type: '*/*', multiple: true })));
+
+    // Nothing is delivered until Send is tapped.
+    expect(await screen.findByLabelText('Send 3 attachments')).toBeTruthy();
+    expect(screen.queryByText(/Unsupported file type/)).toBeNull();
+    expect(sendMutate).not.toHaveBeenCalled();
+
+    fireEvent.press(screen.getByLabelText('Send 3 attachments'));
+    await waitFor(() => expect(sendMutate).toHaveBeenCalledTimes(3));
+    expect(uploadMutate.mock.calls.map((call) => call[0].data.contentType)).toEqual([
+      'application/zip',
+      'application/vnd.android.package-archive',
+      'video/mp4',
+    ]);
+    expect(sendMutate.mock.calls.map((call) => call[0].data.kind)).toEqual(['file', 'file', 'video']);
   });
 
   it('shares the real current coordinates through the existing text-message flow', async () => {
@@ -2425,8 +2575,85 @@ describe('Chat screen — attachments', () => {
     expect(screen.getByText('invoice.pdf')).toBeTruthy();
     // The file attachment element should be present
     expect(screen.getByTestId('file-attachment-file-msg-1')).toBeTruthy();
-    // Download button has accessible label
-    expect(screen.getByLabelText('Download invoice.pdf')).toBeTruthy();
+    // Open button has accessible label
+    expect(screen.getByLabelText('Open invoice.pdf')).toBeTruthy();
+  });
+
+  it('opens a received document in the Android app registered for its type', async () => {
+    const platform = jest.replaceProperty(Platform, 'OS', 'android');
+    mockUseChatMessagesList.mockReturnValue({
+      data: {
+        messages: [
+          {
+            id: 'file-msg-2',
+            body: 'firmware.zip',
+            kind: 'file',
+            mimeType: 'application/zip',
+            sizeBytes: 9000,
+            senderId: 'other-user',
+            senderName: 'Alice',
+            roomId: 'room-1',
+            shopId: 's1',
+            createdAt: '2026-01-01T10:06:00Z',
+          },
+        ],
+        hasMore: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+    mockDownloadAsync.mockResolvedValueOnce({ uri: 'file:///cache/chat_media_file-msg-2_firmware.zip', status: 200 });
+    mockGetContentUriAsync.mockResolvedValueOnce('content://avarpus/firmware.zip');
+    mockStartActivityAsync.mockResolvedValueOnce({ resultCode: 0 });
+
+    render(<ChatRoomScreen />);
+    expect(screen.getByText(/^ZIP · /)).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Open firmware.zip'));
+
+    await waitFor(() => expect(mockStartActivityAsync).toHaveBeenCalledTimes(1));
+    expect(mockDownloadAsync).toHaveBeenCalledWith(
+      expect.stringContaining('/api/chat/rooms/room-1/messages/file-msg-2/media'),
+      expect.stringContaining('firmware.zip'),
+      expect.anything(),
+    );
+    expect(mockStartActivityAsync).toHaveBeenCalledWith(
+      'android.intent.action.VIEW',
+      expect.objectContaining({ data: 'content://avarpus/firmware.zip', type: 'application/zip', flags: 1 }),
+    );
+    expect(mockShareAsync).not.toHaveBeenCalled();
+    platform.restore();
+  });
+
+  it('renders video messages as a playable tile and opens the video viewer', async () => {
+    mockUseChatMessagesList.mockReturnValue({
+      data: {
+        messages: [
+          {
+            id: 'video-msg-1',
+            body: 'clip.mp4',
+            kind: 'video',
+            mimeType: 'video/mp4',
+            sizeBytes: 30000,
+            senderId: 'other-user',
+            senderName: 'Alice',
+            roomId: 'room-1',
+            shopId: 's1',
+            createdAt: '2026-01-01T10:06:00Z',
+          },
+        ],
+        hasMore: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+
+    render(<ChatRoomScreen />);
+    expect(screen.queryByTestId('video-viewer')).toBeNull();
+    fireEvent.press(screen.getByLabelText('Play video clip.mp4'));
+    expect(await screen.findByTestId('video-viewer')).toBeTruthy();
+    expect(screen.getByTestId('video-view')).toBeTruthy();
   });
 
   it('PDF picker results in kind=file send (not kind=image)', async () => {

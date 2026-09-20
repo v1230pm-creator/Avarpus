@@ -12,6 +12,7 @@ export type ChatMessageKind = typeof ChatMessageKind[keyof typeof ChatMessageKin
 export const ChatMessageKind = {
   text: 'text',
   image: 'image',
+  video: 'video',
   file: 'file',
   audio: 'audio',
   system: 'system',

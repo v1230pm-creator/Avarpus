@@ -5,8 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { AuthUser } from './authUser';
+import type { StaffListItem } from './staffListItem';
 
 export type StaffList200 = {
-  staff: AuthUser[];
+  staff: StaffListItem[];
 };
