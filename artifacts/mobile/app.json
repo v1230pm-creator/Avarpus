@@ -100,10 +100,10 @@
       "expo-asset",
       "expo-sharing"
     ],
-    "owner": "julian647",
+    "owner": "avarpus-team",
     "extra": {
       "eas": {
-        "projectId": "ebcf3946-9c4c-4fd5-bfc8-21e18bed3454"
+        "projectId": "61ec52bc-a5f9-4d18-970b-ff2974a67892"
       }
     },
     "experiments": {
