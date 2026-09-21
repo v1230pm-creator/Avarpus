@@ -20,6 +20,11 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AccountDeletionExecuteInput,
+  AccountDeletionOtpRequestInput,
+  AccountDeletionOtpRequested,
+  AccountDeletionPreview,
+  AccountDeletionResult,
   ActivateInviteInput,
   ActivityFeed200,
   ActivityFeedParams,
@@ -3585,6 +3590,225 @@ export const useAuthLogout = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAuthLogoutMutationOptions(options));
+    }
+
+export const getAccountDeletionPreviewUrl = () => {
+
+
+
+
+  return `/api/auth/account/deletion`
+}
+
+/**
+ * @summary What permanent deletion of the caller's own Chat and/or Business account would remove
+ */
+export const accountDeletionPreview = async ( options?: Parameters<typeof customFetch>[1]): Promise<AccountDeletionPreview> => {
+
+  return customFetch<AccountDeletionPreview>(getAccountDeletionPreviewUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAccountDeletionPreviewQueryKey = () => {
+    return [
+    `/api/auth/account/deletion`
+    ] as const;
+    }
+
+
+export const getAccountDeletionPreviewQueryOptions = <TData = Awaited<ReturnType<typeof accountDeletionPreview>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof accountDeletionPreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAccountDeletionPreviewQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof accountDeletionPreview>>> = ({ signal }) => accountDeletionPreview({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof accountDeletionPreview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AccountDeletionPreviewQueryResult = NonNullable<Awaited<ReturnType<typeof accountDeletionPreview>>>
+export type AccountDeletionPreviewQueryError = ErrorType<void>
+
+
+/**
+ * @summary What permanent deletion of the caller's own Chat and/or Business account would remove
+ */
+
+export function useAccountDeletionPreview<TData = Awaited<ReturnType<typeof accountDeletionPreview>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof accountDeletionPreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAccountDeletionPreviewQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAccountDeletionExecuteUrl = () => {
+
+
+
+
+  return `/api/auth/account/deletion`
+}
+
+/**
+ * @summary Permanently delete the caller's own Chat account, Business account, or both, after re-authentication
+ */
+export const accountDeletionExecute = async (accountDeletionExecuteInput: AccountDeletionExecuteInput, options?: Parameters<typeof customFetch>[1]): Promise<AccountDeletionResult> => {
+
+  return customFetch<AccountDeletionResult>(getAccountDeletionExecuteUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(accountDeletionExecuteInput)
+  }
+);}
+
+
+
+
+
+export const getAccountDeletionExecuteMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof accountDeletionExecute>>, TError,{data: BodyType<AccountDeletionExecuteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof accountDeletionExecute>>, TError,{data: BodyType<AccountDeletionExecuteInput>}, TContext> => {
+
+const mutationKey = ['accountDeletionExecute'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof accountDeletionExecute>>, {data: BodyType<AccountDeletionExecuteInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  accountDeletionExecute(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AccountDeletionExecuteMutationResult = NonNullable<Awaited<ReturnType<typeof accountDeletionExecute>>>
+    export type AccountDeletionExecuteMutationBody = BodyType<AccountDeletionExecuteInput>
+    export type AccountDeletionExecuteMutationError = ErrorType<void>
+
+    /**
+ * @summary Permanently delete the caller's own Chat account, Business account, or both, after re-authentication
+ */
+export const useAccountDeletionExecute = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof accountDeletionExecute>>, TError,{data: BodyType<AccountDeletionExecuteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof accountDeletionExecute>>,
+        TError,
+        {data: BodyType<AccountDeletionExecuteInput>},
+        TContext
+      > => {
+      return useMutation(getAccountDeletionExecuteMutationOptions(options));
+    }
+
+export const getAccountDeletionRequestOtpUrl = () => {
+
+
+
+
+  return `/api/auth/account/deletion/otp`
+}
+
+/**
+ * @summary Send a one-time re-authentication code to the caller's own registered mobile before permanent deletion
+ */
+export const accountDeletionRequestOtp = async (accountDeletionOtpRequestInput: AccountDeletionOtpRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<AccountDeletionOtpRequested> => {
+
+  return customFetch<AccountDeletionOtpRequested>(getAccountDeletionRequestOtpUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(accountDeletionOtpRequestInput)
+  }
+);}
+
+
+
+
+
+export const getAccountDeletionRequestOtpMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof accountDeletionRequestOtp>>, TError,{data: BodyType<AccountDeletionOtpRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof accountDeletionRequestOtp>>, TError,{data: BodyType<AccountDeletionOtpRequestInput>}, TContext> => {
+
+const mutationKey = ['accountDeletionRequestOtp'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof accountDeletionRequestOtp>>, {data: BodyType<AccountDeletionOtpRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  accountDeletionRequestOtp(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AccountDeletionRequestOtpMutationResult = NonNullable<Awaited<ReturnType<typeof accountDeletionRequestOtp>>>
+    export type AccountDeletionRequestOtpMutationBody = BodyType<AccountDeletionOtpRequestInput>
+    export type AccountDeletionRequestOtpMutationError = ErrorType<void>
+
+    /**
+ * @summary Send a one-time re-authentication code to the caller's own registered mobile before permanent deletion
+ */
+export const useAccountDeletionRequestOtp = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof accountDeletionRequestOtp>>, TError,{data: BodyType<AccountDeletionOtpRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof accountDeletionRequestOtp>>,
+        TError,
+        {data: BodyType<AccountDeletionOtpRequestInput>},
+        TContext
+      > => {
+      return useMutation(getAccountDeletionRequestOtpMutationOptions(options));
     }
 
 export const getDealersListUrl = (params?: DealersListParams,) => {

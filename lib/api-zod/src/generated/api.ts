@@ -1211,6 +1211,68 @@ export const AuthLogoutResponse = zod.object({
 
 
 /**
+ * @summary What permanent deletion of the caller's own Chat and/or Business account would remove
+ */
+export const AccountDeletionPreviewResponse = zod.object({
+  "verificationChannel": zod.enum(['sms', 'email']),
+  "verificationTarget": zod.string(),
+  "chat": zod.object({
+  "allowed": zod.boolean(),
+  "reason": zod.string().nullable(),
+  "conversationCount": zod.number(),
+  "statusCount": zod.number()
+}),
+  "business": zod.object({
+  "allowed": zod.boolean(),
+  "reason": zod.string().nullable(),
+  "ownedShops": zod.array(zod.object({
+  "id": zod.string(),
+  "businessName": zod.string(),
+  "otherMemberCount": zod.number(),
+  "repairCount": zod.number(),
+  "customerCount": zod.number()
+})),
+  "membershipCount": zod.number(),
+  "dealerPortalLinked": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Permanently delete the caller's own Chat account, Business account, or both, after re-authentication
+ */
+export const accountDeletionExecuteBodyCodeMin = 4;
+export const accountDeletionExecuteBodyCodeMax = 12;
+
+
+
+export const AccountDeletionExecuteBody = zod.object({
+  "scope": zod.enum(['chat', 'business', 'both']),
+  "code": zod.string().min(accountDeletionExecuteBodyCodeMin).max(accountDeletionExecuteBodyCodeMax)
+})
+
+export const AccountDeletionExecuteResponse = zod.object({
+  "scope": zod.enum(['chat', 'business', 'both']),
+  "accountRemoved": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Send a one-time re-authentication code to the caller's own registered mobile before permanent deletion
+ */
+export const AccountDeletionRequestOtpBody = zod.object({
+  "scope": zod.enum(['chat', 'business', 'both'])
+})
+
+export const AccountDeletionRequestOtpResponse = zod.object({
+  "message": zod.string(),
+  "verificationChannel": zod.enum(['sms', 'email']),
+  "verificationTarget": zod.string()
+})
+
+
+/**
  * @summary List B2B dealers of the caller's shop with live repair counts
  */
 export const DealersListQueryParams = zod.object({

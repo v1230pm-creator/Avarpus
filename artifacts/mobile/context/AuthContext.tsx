@@ -39,6 +39,13 @@ interface AuthContextType {
   clearSignedOutNotice: () => void;
   trustedDeviceStatus: TrustedDeviceStatus;
   useOtpInstead: () => void;
+  /**
+   * Keep the signed-in UI mounted while the server has already revoked every
+   * session (account deletion). Background 401s are ignored until `logout()`
+   * runs, so a success screen can be shown before returning to sign-in.
+   * Returns a release function for the case where the deletion did not happen.
+   */
+  holdSessionUntilLogout: () => () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -56,6 +63,7 @@ const AuthContext = createContext<AuthContextType>({
   clearSignedOutNotice: () => {},
   trustedDeviceStatus: 'idle',
   useOtpInstead: () => {},
+  holdSessionUntilLogout: () => () => {},
 });
 
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
@@ -144,6 +152,9 @@ export function AuthProvider({
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [signedOutNotice, setSignedOutNotice] = useState<string | null>(null);
+  // True between a completed account deletion and the explicit logout that
+  // follows it; the global 401 handler stays quiet meanwhile.
+  const sessionHeldRef = useRef(false);
   const [trustedDeviceStatus, setTrustedDeviceStatus] = useState<TrustedDeviceStatus>('idle');
   const recoveryAttemptRef = useRef(0);
   const featureRequestRef = useRef(0);
@@ -166,6 +177,7 @@ export function AuthProvider({
   useEffect(() => {
     setUnauthorizedHandler(() => {
       if (!userRef.current) return; // not signed in — nothing to do
+      if (sessionHeldRef.current) return; // account just deleted; logout() will clear state
       recoveryAttemptRef.current += 1;
       featureRequestRef.current += 1;
       resetIdentityCache();
@@ -361,7 +373,15 @@ export function AuthProvider({
     }
   };
 
+  const holdSessionUntilLogout = () => {
+    sessionHeldRef.current = true;
+    return () => {
+      sessionHeldRef.current = false;
+    };
+  };
+
   const logout = async () => {
+    sessionHeldRef.current = false;
     recoveryAttemptRef.current += 1;
     featureRequestRef.current += 1;
     const logoutRequest = authLogout().catch(() => {
@@ -439,6 +459,7 @@ export function AuthProvider({
         clearSignedOutNotice: () => setSignedOutNotice(null),
         trustedDeviceStatus,
         useOtpInstead,
+        holdSessionUntilLogout,
       }}
     >
       {children}

@@ -488,6 +488,42 @@ export async function matrixJoinRoomAs(
 }
 
 /**
+ * Leave a room AS a virtual user (impersonated via `?user_id=`). Used when an
+ * account's chat layer is permanently deleted: the appservice cannot
+ * deactivate a homeserver account (that needs an admin identity, which this
+ * deployment deliberately does not hold), so the virtual user leaves every
+ * room instead. A user that is not (or no longer) in the room is a success.
+ *
+ * Reference: POST /_matrix/client/v3/rooms/{roomId}/leave
+ */
+export async function matrixLeaveRoomAs(
+  matrixRoomId: string,
+  matrixUserId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  requireMatrixConfigured();
+  const resp = await fetch(
+    matrixUrl(
+      withUserId(
+        `/_matrix/client/v3/rooms/${encodeURIComponent(matrixRoomId)}/leave`,
+        matrixUserId,
+      ),
+    ),
+    {
+      method: "POST",
+      headers: matrixHeaders(),
+      body: JSON.stringify({}),
+      signal,
+    },
+  );
+  if (resp.ok) return;
+  const body = await resp.text().catch(() => "");
+  // M_FORBIDDEN "not in room" / M_NOT_FOUND: nothing left to leave.
+  if (resp.status === 403 || resp.status === 404) return;
+  throw new Error(`Matrix leaveRoom failed: ${resp.status} ${body}`);
+}
+
+/**
  * Return the set of joined member Matrix IDs for a room via the Client-Server
  * API. Read AS the initiating virtual user (impersonated via `?user_id=`) so we
  * never require an admin identity.

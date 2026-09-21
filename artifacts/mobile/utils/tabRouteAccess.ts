@@ -17,6 +17,7 @@ function isPersonalRoute(segments: TabSegments) {
       undefined,
       'profile',
       'account',
+      'delete-account',
       'security',
       'notifications',
       'settings',

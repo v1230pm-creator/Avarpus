@@ -906,6 +906,62 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
+  /auth/account/deletion:
+    get:
+      operationId: accountDeletionPreview
+      tags: [auth]
+      summary: What permanent deletion of the caller's own Chat and/or Business account would remove
+      responses:
+        "200":
+          description: Deletion preview for the authenticated account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountDeletionPreview"
+        "401": { description: Authentication required }
+    post:
+      operationId: accountDeletionExecute
+      tags: [auth]
+      summary: Permanently delete the caller's own Chat account, Business account, or both, after re-authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountDeletionExecuteInput"
+      responses:
+        "200":
+          description: The selected account layer(s) and their data are permanently deleted; every session of the account is revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountDeletionResult"
+        "400": { description: "Invalid request, or an incorrect/expired verification code (code OTP_INVALID; the session stays valid)" }
+        "401": { description: Authentication required }
+        "403": { description: This account cannot delete the selected layer }
+        "429": { description: Too many incorrect attempts }
+  /auth/account/deletion/otp:
+    post:
+      operationId: accountDeletionRequestOtp
+      tags: [auth]
+      summary: Send a one-time re-authentication code to the caller's own registered mobile before permanent deletion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountDeletionOtpRequestInput"
+      responses:
+        "200":
+          description: Code sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountDeletionOtpRequested"
+        "401": { description: Authentication required }
+        "403": { description: This account cannot delete the selected layer }
+        "429": { description: Too many code requests }
+        "503": { description: Verification delivery unavailable }
   /dealers:
     get:
       operationId: dealersList
@@ -4813,6 +4869,72 @@ components:
       properties:
         message: { type: string }
       required: [message]
+    AccountDeletionScope:
+      type: string
+      enum: [chat, business, both]
+    AccountDeletionPreview:
+      type: object
+      properties:
+        # Where the re-authentication code will be delivered (masked).
+        verificationChannel: { type: string, enum: [sms, email] }
+        verificationTarget: { type: string }
+        chat:
+          type: object
+          properties:
+            allowed: { type: boolean }
+            reason: { type: string, nullable: true }
+            conversationCount: { type: number }
+            statusCount: { type: number }
+          required: [allowed, reason, conversationCount, statusCount]
+        business:
+          type: object
+          properties:
+            allowed: { type: boolean }
+            reason: { type: string, nullable: true }
+            # Shops this account is the registered owner of: deleted entirely.
+            ownedShops:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string }
+                  businessName: { type: string }
+                  otherMemberCount: { type: number }
+                  repairCount: { type: number }
+                  customerCount: { type: number }
+                required: [id, businessName, otherMemberCount, repairCount, customerCount]
+            # Other people's Shops this account merely belongs to: only the
+            # membership is removed; their business data is untouched.
+            membershipCount: { type: number }
+            dealerPortalLinked: { type: boolean }
+          required: [allowed, reason, ownedShops, membershipCount, dealerPortalLinked]
+      required: [verificationChannel, verificationTarget, chat, business]
+    AccountDeletionOtpRequestInput:
+      type: object
+      properties:
+        scope: { $ref: "#/components/schemas/AccountDeletionScope" }
+      required: [scope]
+    AccountDeletionOtpRequested:
+      type: object
+      properties:
+        message: { type: string }
+        verificationChannel: { type: string, enum: [sms, email] }
+        verificationTarget: { type: string }
+      required: [message, verificationChannel, verificationTarget]
+    AccountDeletionExecuteInput:
+      type: object
+      properties:
+        scope: { $ref: "#/components/schemas/AccountDeletionScope" }
+        code: { type: string, minLength: 4, maxLength: 12 }
+      required: [scope, code]
+    AccountDeletionResult:
+      type: object
+      properties:
+        scope: { $ref: "#/components/schemas/AccountDeletionScope" }
+        # True when the Avarpus account itself no longer exists (scope both).
+        accountRemoved: { type: boolean }
+        message: { type: string }
+      required: [scope, accountRemoved, message]
     AuthUser:
       type: object
       properties:

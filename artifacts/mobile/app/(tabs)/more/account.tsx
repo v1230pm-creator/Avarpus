@@ -488,6 +488,25 @@ export default function AccountScreen() {
           </View>
         </Card>
 
+        <TouchableOpacity
+          onPress={() => router.push('/(tabs)/more/delete-account')}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Delete Account"
+        >
+          <Card style={{ borderColor: colors.destructive + '33' }}>
+            <View style={styles.configRow}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={[styles.configLabel, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>Delete Account</Text>
+                <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  Permanently delete your Chat Account, Business Account, or both. This cannot be undone.
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.destructive} />
+            </View>
+          </Card>
+        </TouchableOpacity>
+
         {saved ? (
           <View style={[styles.savedBanner, { backgroundColor: colors.successLight, borderColor: colors.success + '33', borderRadius: colors.radius }]}>
             <Feather name="check-circle" size={16} color={colors.success} />

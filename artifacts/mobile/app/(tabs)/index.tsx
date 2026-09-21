@@ -83,7 +83,8 @@ function formatRoomTime(dateStr?: string): string {
 
 function formatMessagePreview(room: ChatRoom): { text: string; icon?: 'image' | 'mic' | 'paperclip' } {
   const message = room.lastMessage;
-  if (!message) return { text: 'No messages yet' };
+  // A room without messages shows an empty preview line, not placeholder copy.
+  if (!message) return { text: '' };
   if (message.kind === 'image') return { text: 'Photo', icon: 'image' };
   if (message.kind === 'audio') return { text: 'Voice message', icon: 'mic' };
   if (message.kind === 'file') return { text: 'Attachment', icon: 'paperclip' };
@@ -95,16 +96,22 @@ function RoomItem({
   displayName,
   currentUserId,
   onPress,
+  onAvatarPress,
   onLongPress,
   selected,
+  selecting,
   colors,
 }: {
   room: ChatRoom;
   displayName: string;
   currentUserId?: string;
   onPress: () => void;
+  /** Tapping the photo opens the peer's profile; the rest of the row opens the chat. */
+  onAvatarPress: () => void;
   onLongPress: () => void;
   selected: boolean;
+  /** True while any room is selected; the photo then toggles selection instead. */
+  selecting: boolean;
   colors: any;
 }) {
   const lastMsg = room.lastMessage;
@@ -114,18 +121,29 @@ function RoomItem({
   const receiptColor = room.lastMessageStatus === 'read' ? '#53BDEB' : colors.mutedForeground;
   const receiptText = room.lastMessageStatus === 'delivered' || room.lastMessageStatus === 'read' ? '✓✓' : '✓';
 
+  // The row is a plain container with two sibling controls: the photo (opens
+  // the peer's profile) and the rest of the row (opens the chat). Siblings —
+  // not nested touchables — so each stays independently reachable to screen
+  // readers and neither steals the other's long-press.
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      onLongPress={onLongPress}
-      activeOpacity={0.72}
-      accessibilityRole="button"
-      accessibilityLabel={`${selected ? 'Selected, ' : ''}open chat with ${displayName}`}
-      accessibilityState={{ selected }}
-      testID={`room-item-${room.id}`}
+    <View
+      style={[styles.roomItem, selected && { backgroundColor: 'rgba(33, 192, 99, 0.15)' }]}
+      testID={`room-row-${room.id}`}
     >
-      <View style={[styles.roomItem, selected && { backgroundColor: 'rgba(33, 192, 99, 0.15)' }]}>
-        <View style={{ position: 'relative' }}>
+        <TouchableOpacity
+          style={{ position: 'relative' }}
+          onPress={onAvatarPress}
+          onLongPress={onLongPress}
+          activeOpacity={0.72}
+          accessibilityRole="button"
+          accessibilityLabel={
+            selecting
+              ? `${selected ? 'Selected, ' : ''}toggle selection of ${displayName}`
+              : `View profile of ${displayName}`
+          }
+          accessibilityState={{ selected }}
+          testID={`room-avatar-${room.id}`}
+        >
           <Avatar
             name={displayName}
             url={room.profilePhoto}
@@ -137,8 +155,21 @@ function RoomItem({
               <Feather name="check" size={12} color="#fff" />
             </View>
           )}
-        </View>
-        <View style={styles.roomContent}>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.roomContent}
+          onPress={onPress}
+          onLongPress={onLongPress}
+          activeOpacity={0.72}
+          accessibilityRole="button"
+          accessibilityLabel={
+            selecting
+              ? `${selected ? 'Selected, ' : ''}toggle selection of ${displayName}`
+              : `Open chat with ${displayName}`
+          }
+          accessibilityState={{ selected }}
+          testID={`room-item-${room.id}`}
+        >
           <View style={styles.roomHeader}>
             <Text style={[styles.roomName, { color: colors.foreground }]} numberOfLines={1}>
               {displayName}
@@ -181,9 +212,8 @@ function RoomItem({
               )}
             </View>
           </View>
-        </View>
-      </View>
-    </TouchableOpacity>
+        </TouchableOpacity>
+    </View>
   );
 }
 
@@ -575,9 +605,6 @@ function CustomerInboxScreen() {
       <View style={styles.topAppBar}>
         <View style={styles.appTitleBlock}>
           <Text style={[styles.appTitle, { color: colors.foreground }]}>Avarpus</Text>
-          <Text style={[styles.appTagline, { color: colors.mutedForeground }]}>
-            CONNECT • SHARE • TOGETHER
-          </Text>
         </View>
         <View style={styles.appBarActions}>
           {/* Refresh activity reads as its own indicator; the menu stays a menu. */}
@@ -618,7 +645,7 @@ function CustomerInboxScreen() {
             ref={searchInputRef}
             value={search}
             onChangeText={setSearch}
-            placeholder="Search conversations, people or links..."
+            placeholder="Search people"
             placeholderTextColor={colors.mutedForeground}
             style={[styles.searchInput, { color: colors.foreground }]}
             returnKeyType="search"
@@ -694,7 +721,7 @@ function CustomerInboxScreen() {
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Search conversations"
+                placeholder="Search people"
                 placeholderTextColor={colors.mutedForeground}
                 style={[styles.searchInput, { color: colors.foreground }]}
                 returnKeyType="search"
@@ -719,12 +746,21 @@ function CustomerInboxScreen() {
             currentUserId={user?.id}
             colors={colors}
             selected={selectedRoomIds.has(item.id)}
+            selecting={selectedRoomIds.size > 0}
             onPress={() => {
               if (selectedRoomIds.size > 0) {
                 toggleSelection(item.id);
                 return;
               }
               router.push(`/(tabs)/customers/chat/${item.id}?name=${encodeURIComponent(nameForRoom(item))}`);
+            }}
+            onAvatarPress={() => {
+              // While selecting, the photo behaves like the row so the checkmark stays reachable.
+              if (selectedRoomIds.size > 0) {
+                toggleSelection(item.id);
+                return;
+              }
+              router.push(`/(tabs)/customers/chat/profile/${item.id}?name=${encodeURIComponent(nameForRoom(item))}`);
             }}
             onLongPress={() => {
               if (selectedRoomIds.size === 0) {
@@ -983,12 +1019,6 @@ const styles = StyleSheet.create({
   appTitle: {
     fontSize: 24,
     fontFamily: 'Inter_700Bold',
-  },
-  appTagline: {
-    marginTop: 2,
-    fontSize: 11,
-    letterSpacing: 1,
-    fontFamily: 'Inter_500Medium',
   },
   headerBusySlot: { width: 16, alignItems: 'center', justifyContent: 'center' },
   appBarActions: {

@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import authRouter from "./auth";
+import accountRouter from "./account";
 import staffRouter from "./staff";
 import businessRouter from "./business";
 import storageRouter from "./storage";
@@ -26,6 +27,7 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+router.use(accountRouter);
 router.use(staffRouter);
 // Dealer-to-dealer routes MUST mount before the B2B dealers router: its
 // `/dealers/:id` (UUID-guarded, answers 404) would otherwise swallow

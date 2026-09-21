@@ -335,7 +335,7 @@ export default function TabLayout() {
   // the supplier has the portal switched off (mirrors the API contract's
   // inactive-exempt families): the supplier cannot veto an independent business.
   const isPersonalAccountRoute =
-    (segments[1] === 'more' && ['profile', 'account', 'security'].includes(segments[2] ?? '')) ||
+    (segments[1] === 'more' && ['profile', 'account', 'delete-account', 'security'].includes(segments[2] ?? '')) ||
     segments[1] === 'shop';
   if (portal && dealerPortalInactive && !isPersonalAccountRoute) {
     return <DealerInactiveScreen />;

@@ -104,6 +104,10 @@ args = "dealer-transactions"
 task = "workflow.run"
 args = "dealer-transfers"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "account-deletion"
+
 [[workflows.workflow]]
 name = "typecheck"
 author = "agent"
@@ -342,6 +346,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-dealer-transfers.mjs"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "account-deletion"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-account-deletion.mjs"
 
 [workflows.workflow.metadata]
 isValidation = true

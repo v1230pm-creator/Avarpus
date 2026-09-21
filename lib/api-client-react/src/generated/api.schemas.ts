@@ -546,6 +546,86 @@ export interface Message {
   message: string;
 }
 
+export type AccountDeletionScope = typeof AccountDeletionScope[keyof typeof AccountDeletionScope];
+
+
+export const AccountDeletionScope = {
+  chat: 'chat',
+  business: 'business',
+  both: 'both',
+} as const;
+
+export type AccountDeletionPreviewVerificationChannel = typeof AccountDeletionPreviewVerificationChannel[keyof typeof AccountDeletionPreviewVerificationChannel];
+
+
+export const AccountDeletionPreviewVerificationChannel = {
+  sms: 'sms',
+  email: 'email',
+} as const;
+
+export type AccountDeletionPreviewChat = {
+  allowed: boolean;
+  reason: string | null;
+  conversationCount: number;
+  statusCount: number;
+};
+
+export type AccountDeletionPreviewBusinessOwnedShopsItem = {
+  id: string;
+  businessName: string;
+  otherMemberCount: number;
+  repairCount: number;
+  customerCount: number;
+};
+
+export type AccountDeletionPreviewBusiness = {
+  allowed: boolean;
+  reason: string | null;
+  ownedShops: AccountDeletionPreviewBusinessOwnedShopsItem[];
+  membershipCount: number;
+  dealerPortalLinked: boolean;
+};
+
+export interface AccountDeletionPreview {
+  verificationChannel: AccountDeletionPreviewVerificationChannel;
+  verificationTarget: string;
+  chat: AccountDeletionPreviewChat;
+  business: AccountDeletionPreviewBusiness;
+}
+
+export interface AccountDeletionOtpRequestInput {
+  scope: AccountDeletionScope;
+}
+
+export type AccountDeletionOtpRequestedVerificationChannel = typeof AccountDeletionOtpRequestedVerificationChannel[keyof typeof AccountDeletionOtpRequestedVerificationChannel];
+
+
+export const AccountDeletionOtpRequestedVerificationChannel = {
+  sms: 'sms',
+  email: 'email',
+} as const;
+
+export interface AccountDeletionOtpRequested {
+  message: string;
+  verificationChannel: AccountDeletionOtpRequestedVerificationChannel;
+  verificationTarget: string;
+}
+
+export interface AccountDeletionExecuteInput {
+  scope: AccountDeletionScope;
+  /**
+     * @minLength 4
+     * @maxLength 12
+     */
+  code: string;
+}
+
+export interface AccountDeletionResult {
+  scope: AccountDeletionScope;
+  accountRemoved: boolean;
+  message: string;
+}
+
 export type StaffListItem = AuthUser & {
   /** True while a personal account has been invited with a Staff ID and claim code but has not yet joined. Such accounts are never approved by the owner; they join themselves from Shop → Join with Staff ID. */
   invitePending: boolean;

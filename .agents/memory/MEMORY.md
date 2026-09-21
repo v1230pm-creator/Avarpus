@@ -94,3 +94,4 @@
 - [Staff invite onboarding](staff-invite-onboarding.md) — invited accounts join only via their own claim; owner Approve must 409; recovery-code prompt is owner-only, staff get direct Open buttons.
 - [Chat attachments — any file type](chat-attachments-any-type.md) — no allow-list; server sniffs stored bytes and demotes spoofed viewer MIME; queue ref is sole authority; owned temp files deleted on every exit.
 - [Staff removal & activation codes](staff-removal-and-activation.md) — one code bound to the invitee account, never re-verified; removal is one tx; switch/claim lock the membership or backfill resurrects access.
+- [Permanent account deletion](account-deletion.md) — in-session OTP failures return 400 never 401 (401 signs the app out); hold the 401 handler until explicit logout; ambiguous transport after execute.

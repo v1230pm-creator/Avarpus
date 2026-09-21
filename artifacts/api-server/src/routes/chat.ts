@@ -2291,35 +2291,55 @@ router.post(
     }
 
     // ── Persist after successful Matrix delivery (idempotent on conflict) ────
-    const inserted = await db
-      .insert(chatMessagesTable)
-      .values({
-        roomId,
-        shopId: room.shopId,
-        senderId: me.id,
-        senderName: me.name,
-        kind,
-        body: effectiveBody,
-        objectPath: resolvedObjectPath,
-        mimeType: resolvedObjectPath ? resolvedMimeType : null,
-        sizeBytes: resolvedObjectPath ? resolvedSizeBytes : null,
-        durationMs: resolvedDurationMs,
-        providerEventId,
-        clientRequestId: reqId,
-        replyToMessageId: replyTarget?.id ?? null,
-        forwarded: forwardSource !== null,
-      })
-      .onConflictDoNothing({
-        target: [
-          chatMessagesTable.roomId,
-          chatMessagesTable.senderId,
-          chatMessagesTable.clientRequestId,
-        ],
-        // Match the partial unique index predicate so Postgres uses it as the
-        // conflict arbiter (the index is WHERE client_request_id IS NOT NULL).
-        where: isNotNull(chatMessagesTable.clientRequestId),
-      })
-      .returning();
+    // Membership was checked before the (slow) provider round-trip. An account
+    // deletion may have run in between: it locks the room row FOR UPDATE and
+    // removes this membership in one transaction. Re-take the room lock here so
+    // this insert is ordered after any such deletion and re-check membership,
+    // otherwise a message would be written into a conversation the sender has
+    // already permanently left.
+    const inserted = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT 1 FROM chat_rooms WHERE id = ${roomId} FOR SHARE`);
+      const [stillMember] = await tx
+        .select({ userId: chatRoomMembersTable.userId })
+        .from(chatRoomMembersTable)
+        .where(and(eq(chatRoomMembersTable.roomId, roomId), eq(chatRoomMembersTable.userId, me.id)))
+        .limit(1);
+      if (!stillMember) return null;
+      return tx
+        .insert(chatMessagesTable)
+        .values({
+          roomId,
+          shopId: room.shopId,
+          senderId: me.id,
+          senderName: me.name,
+          kind,
+          body: effectiveBody,
+          objectPath: resolvedObjectPath,
+          mimeType: resolvedObjectPath ? resolvedMimeType : null,
+          sizeBytes: resolvedObjectPath ? resolvedSizeBytes : null,
+          durationMs: resolvedDurationMs,
+          providerEventId,
+          clientRequestId: reqId,
+          replyToMessageId: replyTarget?.id ?? null,
+          forwarded: forwardSource !== null,
+        })
+        .onConflictDoNothing({
+          target: [
+            chatMessagesTable.roomId,
+            chatMessagesTable.senderId,
+            chatMessagesTable.clientRequestId,
+          ],
+          // Match the partial unique index predicate so Postgres uses it as the
+          // conflict arbiter (the index is WHERE client_request_id IS NOT NULL).
+          where: isNotNull(chatMessagesTable.clientRequestId),
+        })
+        .returning();
+    });
+
+    if (inserted === null) {
+      res.status(410).json({ message: "This conversation is no longer available.", code: "ROOM_GONE" });
+      return;
+    }
 
     if (resolvedObjectPath && mediaClaimToken && inserted.length > 0) {
       await completePendingUpload({
