@@ -1,8 +1,40 @@
-// Email delivery for OTP codes via Resend (Replit connector).
-// A new ReplitConnectors instance is created per call — never cached, as
-// recommended by the connector SDK.
+// Email delivery for OTP codes via Resend.
+//
+// Two transports:
+// - RESEND_API_KEY set → call the Resend REST API directly (used when the API
+//   runs outside Replit, e.g. on a VPS).
+// - otherwise → the Replit Resend connector proxy. A new ReplitConnectors
+//   instance is created per call — never cached, as recommended by the SDK.
 
 import { ReplitConnectors } from "@replit/connectors-sdk";
+
+const RESEND_API_BASE = "https://api.resend.com";
+
+function getResendApiKey(): string | null {
+  const key = process.env["RESEND_API_KEY"]?.trim();
+  return key ? key : null;
+}
+
+async function postToResend(path: string, body: string): Promise<Response> {
+  const apiKey = getResendApiKey();
+  if (apiKey) {
+    return fetch(`${RESEND_API_BASE}${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body,
+      signal: AbortSignal.timeout(30_000),
+    });
+  }
+  const connectors = new ReplitConnectors();
+  return connectors.proxy("resend", path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+  });
+}
 
 // Sender address is driven by the MAIL_FROM env secret. Until a verified
 // domain is configured in Resend, fall back to Resend's shared onboarding
@@ -265,11 +297,9 @@ async function sendEmail(
   text: string,
   tags?: Record<string, string>,
 ): Promise<string | null> {
-  const connectors = new ReplitConnectors();
-  const response = await connectors.proxy("resend", "/emails", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const response = await postToResend(
+    "/emails",
+    JSON.stringify({
       from: getMailFrom(),
       to: [to],
       subject,
@@ -281,7 +311,7 @@ async function sendEmail(
           }
         : {}),
     }),
-  });
+  );
 
   if (!response.ok) {
     const body = await response.text().catch(() => "(no body)");

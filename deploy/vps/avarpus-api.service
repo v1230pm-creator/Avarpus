@@ -1,0 +1,26 @@
+[Unit]
+Description=Avarpus API server
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=avarpus
+Group=avarpus
+WorkingDirectory=/home/avarpus/avarpus/artifacts/api-server
+EnvironmentFile=/etc/avarpus/api.env
+ExecStart=/usr/bin/node --enable-source-maps ./dist/index.mjs
+Restart=always
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=30
+LimitNOFILE=65536
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

@@ -51,6 +51,10 @@ Before building the first release under the new identity, complete these out-of-
 4. **Drive backup OAuth client**: the Google OAuth client used for Drive backup (`GOOGLE_BACKUP_CLIENT_ID`) is a web client completing on the API server and returning to the app via `avarpus://google-backup`; confirm it has no Android package/SHA-1 entry that still names the old package. Nothing else needs changing there.
 5. **Build and release**: build a fresh APK, then publish it through the update admin as a new release with a new `versionCode`, the actual native version/build, and a fresh checksum. Point the official website download page at it; release labels alone never change APK contents.
 
+## Self-hosting the API (VPS)
+
+`deploy/vps/` holds the runbook (Hindi), systemd unit, nginx config, env template and `deploy.sh` for running the API server on a plain Ubuntu VPS with local PostgreSQL. Two switches make the server portable: `OBJECT_STORAGE_PROVIDER=gcs` + `GCS_SERVICE_ACCOUNT_KEY_FILE` (plain Google Cloud Storage bucket instead of the Replit sidecar) and `RESEND_API_KEY` (direct Resend API instead of the Replit connector). Leave both unset on Replit. `artifacts/api-server/scripts/migrate-objects-to-gcs.mjs` copies the Replit bucket to a GCS bucket and must run on Replit; the VPS service must stay stopped until data and objects are migrated (its cleanup jobs delete objects unknown to the DB).
+
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9

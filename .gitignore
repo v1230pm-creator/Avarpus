@@ -50,3 +50,7 @@ Thumbs.db
 
 # Agent-uploaded assets (not needed in repo/builds)
 attached_assets/
+
+# Database dumps must never be committed (production data)
+*.dump
+*.sql.gz
