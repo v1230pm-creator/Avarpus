@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BackgroundRelock } from '@/components/BackgroundRelock';
 import { KeyboardProviderCompat } from '@/components/KeyboardProviderCompat';
 import { PrivacyShield } from '@/components/PrivacyShield';
+import { PushNotificationsBridge } from '@/components/PushNotificationsBridge';
 import { ConfirmDialogProvider } from '@/components/ui/ConfirmDialog';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import {
@@ -94,6 +95,7 @@ export default function RootLayout() {
                   <BackgroundRelock>
                     <ConfirmDialogProvider>
                       <RootLayoutNav dark={dark} />
+                      <PushNotificationsBridge />
                     </ConfirmDialogProvider>
                     <PrivacyShield />
                   </BackgroundRelock>

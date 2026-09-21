@@ -3,7 +3,7 @@ plugins {
   id 'expo-module-gradle-plugin'
 }
 
-group = 'com.vmcelectronicerp'
+group = 'com.avarpus'
 version = '1.0.0'
 
 android {

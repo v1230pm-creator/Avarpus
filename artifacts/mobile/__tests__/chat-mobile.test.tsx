@@ -22,6 +22,7 @@ jest.mock('expo-router', () => {
   return {
     useRouter: jest.fn(() => ({ push: jest.fn(), back: jest.fn(), replace: jest.fn() })),
     useLocalSearchParams: jest.fn(() => ({})),
+    useFocusEffect: (effect: () => void | (() => void)) => React.useEffect(effect, [effect]),
     useNavigation: jest.fn(() => ({
       getParent: jest.fn(() => ({
         getParent: jest.fn(() => ({ setOptions: jest.fn() })),

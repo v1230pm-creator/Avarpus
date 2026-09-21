@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { db, notificationsTable } from "@workspace/db";
+import { db, notificationPreferencesTable, notificationsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
-import { NotificationsMarkReadBody } from "@workspace/api-zod";
+import { NotificationPreferencesUpdateBody, NotificationsMarkReadBody } from "@workspace/api-zod";
 import { parseBody } from "../lib/validate";
+import { DEFAULT_PUSH_PREFERENCES, type PushPreferences } from "../lib/push";
 
 const router: IRouter = Router();
 
@@ -56,6 +57,68 @@ router.post(
       .set({ readAt: new Date() })
       .where(and(...conds));
     return res.json({ message: "Marked read" });
+  }),
+);
+
+// ── Notification preferences ────────────────────────────────────────────────
+// Per-account, applied server-side at send time so every device of the account
+// behaves the same. No row means the product defaults (everything on).
+
+const PREFERENCE_KEYS = [
+  "messages",
+  "calls",
+  "dealer",
+  "repair",
+  "payments",
+  "status",
+  "showPreview",
+  "sound",
+  "vibration",
+] as const satisfies ReadonlyArray<keyof PushPreferences>;
+
+function publicPreferences(row: PushPreferences | undefined): PushPreferences {
+  const source = row ?? DEFAULT_PUSH_PREFERENCES;
+  const out = {} as PushPreferences;
+  for (const key of PREFERENCE_KEYS) out[key] = source[key];
+  return out;
+}
+
+router.get(
+  "/notifications/preferences",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const me = req.user!;
+    const [row] = await db
+      .select()
+      .from(notificationPreferencesTable)
+      .where(eq(notificationPreferencesTable.userId, me.id))
+      .limit(1);
+    res.json({ preferences: publicPreferences(row) });
+  }),
+);
+
+router.put(
+  "/notifications/preferences",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const me = req.user!;
+    const body = parseBody(NotificationPreferencesUpdateBody, req, res);
+    if (!body) return;
+    const patch: Partial<PushPreferences> = {};
+    for (const key of PREFERENCE_KEYS) {
+      const value = body[key];
+      if (typeof value === "boolean") patch[key] = value;
+    }
+    const now = new Date();
+    const [row] = await db
+      .insert(notificationPreferencesTable)
+      .values({ userId: me.id, ...DEFAULT_PUSH_PREFERENCES, ...patch, updatedAt: now })
+      .onConflictDoUpdate({
+        target: notificationPreferencesTable.userId,
+        set: { ...patch, updatedAt: now },
+      })
+      .returning();
+    res.json({ preferences: publicPreferences(row) });
   }),
 );
 

@@ -729,7 +729,7 @@ export default function AppUpdateScreen() {
             onPress: () =>
               IntentLauncher.startActivityAsync(
                 'android.settings.MANAGE_UNKNOWN_APP_SOURCES',
-                { data: 'package:com.vmcelectronicerp.app' },
+                { data: 'package:com.avarpus.app' },
               ).catch(() => {}),
           },
         ],

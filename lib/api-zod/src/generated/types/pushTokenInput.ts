@@ -11,4 +11,9 @@ export interface PushTokenInput {
   token: string;
   platform: PushTokenInputPlatform;
   deviceInfo?: string;
+  /** @maxLength 120 */
+  deviceId?: string;
+  /** @maxLength 60 */
+  appVersion?: string;
+  notificationsEnabled?: boolean;
 }

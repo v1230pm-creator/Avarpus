@@ -284,6 +284,99 @@ async function run() {
       && (await pushTokenRows(reporter.userId)).length === 1,
   );
 
+  console.log("\nOne handset, one live token");
+  const rotatedFrom = expoToken("rotate-a");
+  const rotatedTo = expoToken("rotate-b");
+  const deviceId = marked("handset-1");
+  const withDevice = await api("POST", "/push/tokens", reporter.token, {
+    token: rotatedFrom,
+    platform: "android",
+    deviceId,
+    appVersion: "1.0.8 (17)",
+  });
+  check("a device may report its installation id and app build", withDevice.status === 200, withDevice.json);
+  const { rows: [deviceRow] } = await pool.query(
+    `SELECT device_id, app_version, notifications_enabled, last_seen_at FROM push_tokens WHERE token = $1`,
+    [rotatedFrom],
+  );
+  check(
+    "installation id, app build and enabled state are stored",
+    deviceRow?.device_id === deviceId && deviceRow?.app_version === "1.0.8 (17)" && deviceRow?.notifications_enabled === true,
+    deviceRow,
+  );
+  await api("POST", "/push/tokens", reporter.token, { token: rotatedTo, platform: "android", deviceId });
+  check(
+    "a rotated token retires the same handset's previous token",
+    (await pushTokenRow(rotatedFrom)) == null && (await pushTokenRow(rotatedTo)) != null,
+  );
+  check(
+    "the handset's original registration is untouched by the rotation",
+    (await pushTokenRow(token)) != null,
+  );
+  const devices = await api("GET", "/push/devices", reporter.token);
+  check(
+    "the account can list its devices without seeing raw tokens",
+    devices.status === 200
+      && devices.json.devices.length === 2
+      && devices.json.devices.every((d) => typeof d.tokenSuffix === "string" && d.tokenSuffix.length === 4 && !("token" in d))
+      && devices.json.devices.every((d) => d.current === true),
+    devices.json,
+  );
+  check(
+    "another account never sees these devices",
+    (await api("GET", "/push/devices", stranger.token)).json.devices?.length === 0,
+  );
+  await api("POST", "/push/tokens", reporter.token, { token: rotatedTo, platform: "android", deviceId, notificationsEnabled: false });
+  await api("POST", "/push/tokens/unregister", reporter.token, { token: rotatedTo });
+
+  console.log("\nNotification preferences");
+  const defaults = await api("GET", "/notifications/preferences", reporter.token);
+  check(
+    "preferences default to everything on",
+    defaults.status === 200 && Object.values(defaults.json.preferences).every((v) => v === true)
+      && Object.keys(defaults.json.preferences).sort().join(",")
+        === "calls,dealer,messages,payments,repair,showPreview,sound,status,vibration",
+    defaults.json,
+  );
+  const updated = await api("PUT", "/notifications/preferences", reporter.token, { showPreview: false, sound: false });
+  check(
+    "a partial update changes only the named keys",
+    updated.status === 200 && updated.json.preferences.showPreview === false
+      && updated.json.preferences.sound === false && updated.json.preferences.messages === true,
+    updated.json,
+  );
+  check(
+    "a non-boolean preference is rejected",
+    (await api("PUT", "/notifications/preferences", reporter.token, { sound: "loud" })).status === 400,
+  );
+  check(
+    "preferences are per account",
+    (await api("GET", "/notifications/preferences", stranger.token)).json.preferences.sound === true,
+  );
+  check(
+    "anonymous callers cannot read preferences",
+    (await api("GET", "/notifications/preferences", null)).status === 401,
+  );
+  await api("PUT", "/notifications/preferences", reporter.token, { showPreview: true, sound: true });
+
+  console.log("\nTest notification");
+  pushStub.reset();
+  const testSend = await api("POST", "/push/test", reporter.token);
+  check("a signed-in account can send itself a test push", testSend.status === 200 && testSend.json.deviceCount === 1, testSend.json);
+  const testDelivered = await pushStub.waitForToken(token);
+  check(
+    "the test push reaches the device on the general channel",
+    testDelivered.length === 1 && testDelivered[0].channelId === "avarpus_general" && testDelivered[0].data?.type === "push_test",
+    testDelivered,
+  );
+  let limited = null;
+  for (let i = 0; i < 6 && !limited; i++) {
+    const attempt = await api("POST", "/push/test", reporter.token);
+    if (attempt.status === 429) limited = attempt;
+  }
+  check("test pushes are rate limited", limited?.status === 429, limited?.json);
+  await sleep(500);
+
   console.log("\nA settled report reaches a closed app");
   pushStub.reset();
   const firstReport = await seedReport({ reporter, reported, room, tag: "first" });

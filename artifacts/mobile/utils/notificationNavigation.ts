@@ -2,8 +2,13 @@ export function getNotificationRoute(data: unknown): string | null {
   if (!data || typeof data !== 'object') return null;
   const payload = data as Record<string, unknown>;
 
-  if (typeof payload.roomId === 'string' && payload.roomId) {
-    return `/(tabs)/customers/chat/${payload.roomId}`;
+  // Chat pushes carry the room under roomId (and chatId / conversationId as
+  // aliases); any of them opens the exact conversation, never just the inbox.
+  const roomId = [payload.roomId, payload.chatId, payload.conversationId].find(
+    (value): value is string => typeof value === 'string' && value.length > 0,
+  );
+  if (roomId) {
+    return `/(tabs)/customers/chat/${roomId}`;
   }
   // Transfer requests (new / declined / cancelled) open the request itself —
   // the receiver has no repair row to open until they accept.

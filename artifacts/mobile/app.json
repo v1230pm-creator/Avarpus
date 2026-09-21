@@ -2,18 +2,18 @@
   "expo": {
     "name": "Avarpus",
     "slug": "avarpus",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "orientation": "default",
     "icon": "./assets/images/avarpus-icon-universal-square.png",
-    "scheme": "vmcelectronicerp",
+    "scheme": "avarpus",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.vmcelectronicerp.app"
+      "bundleIdentifier": "com.avarpus.app"
     },
     "android": {
-      "package": "com.vmcelectronicerp.app",
-      "versionCode": 16,
+      "package": "com.avarpus.app",
+      "versionCode": 25,
       "icon": "./assets/images/avarpus-icon-legacy.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/avarpus-adaptive-foreground.png",
@@ -53,8 +53,12 @@
       [
         "expo-notifications",
         {
+          "icon": "./assets/images/avarpus-notification-icon.png",
           "color": "#006DA8",
-          "defaultChannel": "default"
+          "defaultChannel": "avarpus_general",
+          "sounds": [
+            "./assets/sounds/avarpus_message.wav"
+          ]
         }
       ],
       "expo-web-browser",

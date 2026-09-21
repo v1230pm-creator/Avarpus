@@ -27,7 +27,7 @@ import { parseBody } from "../lib/validate";
 
 const router: IRouter = Router();
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
-const MOBILE_RETURN_URL = "vmcelectronicerp://google-backup";
+const MOBILE_RETURN_URL = "avarpus://google-backup";
 const FREQUENCIES = new Set<BackupFrequency>(["never", "daily", "weekly", "monthly"]);
 
 function stateHash(value: string): string {

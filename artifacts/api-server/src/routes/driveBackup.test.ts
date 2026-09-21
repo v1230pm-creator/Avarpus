@@ -136,7 +136,7 @@ describe("Drive backup routes", () => {
       .query({ code: "not-a-real-code", state: "unknown-state" });
 
     expect(response.status).toBe(302);
-    expect(response.headers.location).toBe("vmcelectronicerp://google-backup?status=error");
+    expect(response.headers.location).toBe("avarpus://google-backup?status=error");
   });
 
   it("does not accept recovery passwords at any server endpoint", async () => {

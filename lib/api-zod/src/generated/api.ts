@@ -791,10 +791,19 @@ export const NotificationsMarkReadResponse = zod.object({
 /**
  * @summary Register this device's push token against the signed-in session
  */
+export const pushTokenRegisterBodyDeviceIdMax = 120;
+
+export const pushTokenRegisterBodyAppVersionMax = 60;
+
+
+
 export const PushTokenRegisterBody = zod.object({
   "token": zod.string(),
   "platform": zod.enum(['ios', 'android']),
-  "deviceInfo": zod.string().optional()
+  "deviceInfo": zod.string().optional(),
+  "deviceId": zod.string().max(pushTokenRegisterBodyDeviceIdMax).optional(),
+  "appVersion": zod.string().max(pushTokenRegisterBodyAppVersionMax).optional(),
+  "notificationsEnabled": zod.boolean().optional()
 })
 
 export const PushTokenRegisterResponse = zod.object({
@@ -811,6 +820,83 @@ export const PushTokenUnregisterBody = zod.object({
 
 export const PushTokenUnregisterResponse = zod.object({
   "message": zod.string()
+})
+
+
+/**
+ * @summary Devices registered for push on the current account (tokens masked)
+ */
+export const PushDevicesListResponse = zod.object({
+  "devices": zod.array(zod.object({
+  "tokenSuffix": zod.string(),
+  "platform": zod.string(),
+  "deviceInfo": zod.string().nullish(),
+  "appVersion": zod.string().nullish(),
+  "notificationsEnabled": zod.boolean(),
+  "current": zod.boolean(),
+  "lastSeenAt": zod.string(),
+  "lastSentAt": zod.string().nullish(),
+  "lastError": zod.string().nullish(),
+  "lastErrorAt": zod.string().nullish(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Send a test notification to the caller's own devices (rate limited)
+ */
+export const PushSendTestResponse = zod.object({
+  "message": zod.string(),
+  "deviceCount": zod.number()
+})
+
+
+/**
+ * @summary Notification preferences for the current account
+ */
+export const NotificationPreferencesGetResponse = zod.object({
+  "preferences": zod.object({
+  "messages": zod.boolean(),
+  "calls": zod.boolean(),
+  "dealer": zod.boolean(),
+  "repair": zod.boolean(),
+  "payments": zod.boolean(),
+  "status": zod.boolean(),
+  "showPreview": zod.boolean(),
+  "sound": zod.boolean(),
+  "vibration": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Update notification preferences (partial; omitted keys unchanged)
+ */
+export const NotificationPreferencesUpdateBody = zod.object({
+  "messages": zod.boolean().optional(),
+  "calls": zod.boolean().optional(),
+  "dealer": zod.boolean().optional(),
+  "repair": zod.boolean().optional(),
+  "payments": zod.boolean().optional(),
+  "status": zod.boolean().optional(),
+  "showPreview": zod.boolean().optional(),
+  "sound": zod.boolean().optional(),
+  "vibration": zod.boolean().optional()
+})
+
+export const NotificationPreferencesUpdateResponse = zod.object({
+  "preferences": zod.object({
+  "messages": zod.boolean(),
+  "calls": zod.boolean(),
+  "dealer": zod.boolean(),
+  "repair": zod.boolean(),
+  "payments": zod.boolean(),
+  "status": zod.boolean(),
+  "showPreview": zod.boolean(),
+  "sound": zod.boolean(),
+  "vibration": zod.boolean()
+})
 })
 
 

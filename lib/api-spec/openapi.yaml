@@ -610,6 +610,83 @@ paths:
                   message: { type: string }
                 required: [message]
         "401": { description: Authentication required }
+  /push/devices:
+    get:
+      operationId: pushDevicesList
+      tags: [business]
+      summary: Devices registered for push on the current account (tokens masked)
+      responses:
+        "200":
+          description: Registered devices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PushDevice"
+                required: [devices]
+        "401": { description: Authentication required }
+  /push/test:
+    post:
+      operationId: pushSendTest
+      tags: [business]
+      summary: Send a test notification to the caller's own devices (rate limited)
+      responses:
+        "200":
+          description: Test notification queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  deviceCount: { type: number }
+                required: [message, deviceCount]
+        "401": { description: Authentication required }
+        "429": { description: Too many test notifications }
+  /notifications/preferences:
+    get:
+      operationId: notificationPreferencesGet
+      tags: [business]
+      summary: Notification preferences for the current account
+      responses:
+        "200":
+          description: Preferences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  preferences:
+                    $ref: "#/components/schemas/NotificationPreferences"
+                required: [preferences]
+        "401": { description: Authentication required }
+    put:
+      operationId: notificationPreferencesUpdate
+      tags: [business]
+      summary: Update notification preferences (partial; omitted keys unchanged)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationPreferencesInput"
+      responses:
+        "200":
+          description: Updated preferences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  preferences:
+                    $ref: "#/components/schemas/NotificationPreferences"
+                required: [preferences]
+        "400": { description: Invalid preferences }
+        "401": { description: Authentication required }
   /staff:
     get:
       operationId: staffList
@@ -4449,7 +4526,50 @@ components:
         token: { type: string }
         platform: { type: string, enum: [ios, android] }
         deviceInfo: { type: string }
+        deviceId: { type: string, maxLength: 120 }
+        appVersion: { type: string, maxLength: 60 }
+        notificationsEnabled: { type: boolean }
       required: [token, platform]
+    PushDevice:
+      type: object
+      properties:
+        tokenSuffix: { type: string }
+        platform: { type: string }
+        deviceInfo: { type: string, nullable: true }
+        appVersion: { type: string, nullable: true }
+        notificationsEnabled: { type: boolean }
+        current: { type: boolean }
+        lastSeenAt: { type: string }
+        lastSentAt: { type: string, nullable: true }
+        lastError: { type: string, nullable: true }
+        lastErrorAt: { type: string, nullable: true }
+        createdAt: { type: string }
+      required: [tokenSuffix, platform, notificationsEnabled, current, lastSeenAt, createdAt]
+    NotificationPreferences:
+      type: object
+      properties:
+        messages: { type: boolean }
+        calls: { type: boolean }
+        dealer: { type: boolean }
+        repair: { type: boolean }
+        payments: { type: boolean }
+        status: { type: boolean }
+        showPreview: { type: boolean }
+        sound: { type: boolean }
+        vibration: { type: boolean }
+      required: [messages, calls, dealer, repair, payments, status, showPreview, sound, vibration]
+    NotificationPreferencesInput:
+      type: object
+      properties:
+        messages: { type: boolean }
+        calls: { type: boolean }
+        dealer: { type: boolean }
+        repair: { type: boolean }
+        payments: { type: boolean }
+        status: { type: boolean }
+        showPreview: { type: boolean }
+        sound: { type: boolean }
+        vibration: { type: boolean }
     PushTokenUnregisterInput:
       type: object
       properties:

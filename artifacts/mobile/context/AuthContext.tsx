@@ -377,7 +377,8 @@ export function AuthProvider({
     await storage.remove(KEYS.AUTH_TOKEN);
     await storage.remove(KEYS.CURRENT_USER);
     // Signing out deletes the session server-side, which drops the device's
-    // push token with it. Only the local record needs clearing here.
+    // push token with it. If that request never arrives (offline), the native
+    // registration is invalidated instead so the old token stops delivering.
     await forgetPushRegistration();
     await logoutRequest;
   };

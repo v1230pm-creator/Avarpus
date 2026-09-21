@@ -39,7 +39,7 @@ import {
 } from '@/utils/driveBackupCrypto';
 
 const GOOGLE_STORAGE_URL = 'https://one.google.com/storage/management';
-const OAUTH_RETURN_URL = 'vmcelectronicerp://google-backup';
+const OAUTH_RETURN_URL = 'avarpus://google-backup';
 const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
 const DRIVE_FILES = 'https://www.googleapis.com/drive/v3/files';
 

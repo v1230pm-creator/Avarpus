@@ -85,7 +85,7 @@ import {
   ChatUploadUrlBody,
 } from "@workspace/api-zod";
 import { generateToken, sha256 } from "../lib/authUtils";
-import { notifyUser } from "../lib/notify";
+import { chatMessagePreview, notifyRoomMessageRecipients } from "../lib/chatMessagePush";
 import { parseBody, uuidParam } from "../lib/validate";
 import {
   claimPendingUpload,
@@ -397,61 +397,6 @@ async function getDirectPeerUserId(
     )
     .limit(1);
   return peer?.userId ?? null;
-}
-
-async function getRoomRecipientUserIds(roomId: string, senderUserId: string): Promise<string[]> {
-  const recipients = await db
-    .select({ userId: chatRoomMembersTable.userId })
-    .from(chatRoomMembersTable)
-    .leftJoin(
-      chatRoomPreferencesTable,
-      and(
-        eq(chatRoomPreferencesTable.roomId, chatRoomMembersTable.roomId),
-        eq(chatRoomPreferencesTable.userId, chatRoomMembersTable.userId),
-      ),
-    )
-    .where(
-      and(
-        eq(chatRoomMembersTable.roomId, roomId),
-        ne(chatRoomMembersTable.userId, senderUserId),
-        or(
-          isNull(chatRoomPreferencesTable.id),
-          eq(chatRoomPreferencesTable.isMuted, false),
-        ),
-      ),
-    );
-  return [...new Set(recipients.map((recipient) => recipient.userId))];
-}
-
-async function notifyRoomMessageRecipients(input: {
-  roomId: string;
-  shopId: string | null;
-  messageId: string;
-  senderId: string;
-  senderName: string;
-  preview: string;
-}): Promise<void> {
-  try {
-    const recipientUserIds = await getRoomRecipientUserIds(input.roomId, input.senderId);
-    for (const recipientUserId of recipientUserIds) {
-      void notifyUser({
-        userId: recipientUserId,
-        shopId: input.shopId,
-        type: "chat_message",
-        title: `New message from ${input.senderName}`,
-        body: input.preview.slice(0, 160),
-        data: {
-          roomId: input.roomId,
-          messageId: input.messageId,
-          senderId: input.senderId,
-          senderName: input.senderName,
-        },
-        dedupeKey: `chat-message:${input.messageId}:${recipientUserId}`,
-      });
-    }
-  } catch (error) {
-    console.error("notifyRoomMessageRecipients failed:", error);
-  }
 }
 
 // ── Customer invite issuance ──────────────────────────────────────────────────
@@ -2389,16 +2334,7 @@ router.post(
 
     if (inserted.length > 0) {
       const message = inserted[0];
-      const preview =
-        message.kind === "image"
-          ? "Photo"
-          : message.kind === "video"
-            ? "Video"
-          : message.kind === "audio"
-            ? "Voice message"
-            : message.kind === "file"
-              ? `Attachment: ${message.body}`
-              : message.body;
+      const preview = chatMessagePreview(message.kind, message.body);
       void notifyRoomMessageRecipients({
         roomId,
         shopId: room.shopId,

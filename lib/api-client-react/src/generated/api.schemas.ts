@@ -236,6 +236,49 @@ export interface PushTokenInput {
   token: string;
   platform: PushTokenInputPlatform;
   deviceInfo?: string;
+  /** @maxLength 120 */
+  deviceId?: string;
+  /** @maxLength 60 */
+  appVersion?: string;
+  notificationsEnabled?: boolean;
+}
+
+export interface PushDevice {
+  tokenSuffix: string;
+  platform: string;
+  deviceInfo?: string | null;
+  appVersion?: string | null;
+  notificationsEnabled: boolean;
+  current: boolean;
+  lastSeenAt: string;
+  lastSentAt?: string | null;
+  lastError?: string | null;
+  lastErrorAt?: string | null;
+  createdAt: string;
+}
+
+export interface NotificationPreferences {
+  messages: boolean;
+  calls: boolean;
+  dealer: boolean;
+  repair: boolean;
+  payments: boolean;
+  status: boolean;
+  showPreview: boolean;
+  sound: boolean;
+  vibration: boolean;
+}
+
+export interface NotificationPreferencesInput {
+  messages?: boolean;
+  calls?: boolean;
+  dealer?: boolean;
+  repair?: boolean;
+  payments?: boolean;
+  status?: boolean;
+  showPreview?: boolean;
+  sound?: boolean;
+  vibration?: boolean;
 }
 
 export interface PushTokenUnregisterInput {
@@ -2682,6 +2725,23 @@ export type PushTokenRegister200 = {
 
 export type PushTokenUnregister200 = {
   message: string;
+};
+
+export type PushDevicesList200 = {
+  devices: PushDevice[];
+};
+
+export type PushSendTest200 = {
+  message: string;
+  deviceCount: number;
+};
+
+export type NotificationPreferencesGet200 = {
+  preferences: NotificationPreferences;
+};
+
+export type NotificationPreferencesUpdate200 = {
+  preferences: NotificationPreferences;
 };
 
 export type StaffList200 = {

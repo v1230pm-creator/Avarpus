@@ -37,6 +37,20 @@ To enable monitoring:
 
 For a failed staff-registration verification email, active shop owners see an in-app notification with the recipient and safe delivery reason. Webhooks are deduplicated by their provider event ID so provider retries never create duplicate alerts.
 
+## Android app identity: com.avarpus.app
+
+The mobile app ships as Android package / iOS bundle identifier `com.avarpus.app` with URL scheme `avarpus` (`artifacts/mobile/app.json`). The legacy identity `com.vmcelectronicerp.app` / scheme `vmcelectronicerp` is retired: nothing in the repo may reference it.
+
+Because Android treats a new package name as a different app, **existing installs of the old identity will not upgrade in place**. Users must install the new app from the official download page and sign in again with OTP. There is no in-app migration or reinstall banner in the old app.
+
+Before building the first release under the new identity, complete these out-of-repo steps (they need the operator's Firebase, EAS, and Google Cloud accounts):
+
+1. **Firebase**: in the Firebase project, add an Android app with package name `com.avarpus.app` (the old `com.vmcelectronicerp.app` app does not carry over). Download its `google-services.json`.
+2. **EAS file variable**: replace the `GOOGLE_SERVICES_JSON` EAS file environment variable with the new `google-services.json`. The release-build guard in `artifacts/mobile/app.config.js` refuses to build without it; a build made with the old file would install but never obtain a push token.
+3. **EAS credentials**: in the EAS project's Android credentials, assign the existing upload keystore to `com.avarpus.app` (EAS keys credentials by application id; the keystore is held by the operator). Do not let EAS generate a fresh keystore unintentionally.
+4. **Drive backup OAuth client**: the Google OAuth client used for Drive backup (`GOOGLE_BACKUP_CLIENT_ID`) is a web client completing on the API server and returning to the app via `avarpus://google-backup`; confirm it has no Android package/SHA-1 entry that still names the old package. Nothing else needs changing there.
+5. **Build and release**: build a fresh APK, then publish it through the update admin as a new release with a new `versionCode`, the actual native version/build, and a fresh checksum. Point the official website download page at it; release labels alone never change APK contents.
+
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9

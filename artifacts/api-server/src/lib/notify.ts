@@ -23,6 +23,10 @@ export type NotifyUserInput = {
   body: string;
   data?: Record<string, unknown>;
   dedupeKey?: string;
+  // Recipient-specific push hints (never stored on the row): app badge total
+  // and same-thread unread count. See PushContent.
+  badge?: number;
+  threadUnread?: number;
 };
 
 // Best-effort, fire-and-forget: notifications must never fail or slow the
@@ -87,6 +91,8 @@ export async function notifyUser(input: NotifyUserInput): Promise<void> {
       title: input.title,
       body: input.body,
       data: input.data,
+      badge: input.badge,
+      threadUnread: input.threadUnread,
     });
   } catch (err) {
     // eslint-disable-next-line no-console

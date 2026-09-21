@@ -38,7 +38,7 @@
     {
       "id": "push-registration",
       "label": "push registration",
-      "isolationExempt": "These routes only write or delete the caller's own session-bound device token; they accept no customer, shop, or other account identifier and return no record data."
+      "isolationExempt": "These routes only write, list (masked) or delete the caller's own session-bound device tokens and push a test alert to the caller's own account; they accept no customer, shop, or other account identifier and never return another account's data."
     },
     {
       "id": "personal-status",
@@ -77,8 +77,12 @@
     { "family": "business-workspace", "method": "*", "pattern": "^/shop(?:/.*)?$" },
     { "family": "notifications", "method": "GET", "pattern": "^/notifications$" },
     { "family": "notifications", "method": "POST", "pattern": "^/notifications/read$" },
+    { "family": "notifications", "method": "GET", "pattern": "^/notifications/preferences$" },
+    { "family": "notifications", "method": "PUT", "pattern": "^/notifications/preferences$" },
     { "family": "push-registration", "method": "POST", "pattern": "^/push/tokens$" },
     { "family": "push-registration", "method": "POST", "pattern": "^/push/tokens/unregister$" },
+    { "family": "push-registration", "method": "GET", "pattern": "^/push/devices$" },
+    { "family": "push-registration", "method": "POST", "pattern": "^/push/test$" },
     { "family": "personal-status", "method": "GET", "pattern": "^/statuses$" },
     { "family": "personal-status", "method": "POST", "pattern": "^/statuses$" },
     { "family": "personal-status", "method": "POST", "pattern": "^/statuses/upload-url$" },

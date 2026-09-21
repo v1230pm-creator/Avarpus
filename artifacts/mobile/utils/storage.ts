@@ -42,5 +42,8 @@ export const KEYS = {
   SETTINGS: 'vmc_settings',
   APP_UPDATE_DOWNLOAD: 'vmc_app_update_download',
   PUSH_TOKEN: 'vmc_push_token',
+  PUSH_DEVICE_ID: 'vmc_push_device_id',
+  PUSH_DIAGNOSTICS: 'vmc_push_diagnostics',
+  PUSH_CHANNELS_VERSION: 'vmc_push_channels_version',
   SEEDED: 'vmc_seeded',
 };

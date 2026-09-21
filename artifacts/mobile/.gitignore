@@ -41,3 +41,6 @@ yarn-error.*
 .vercel
 
 .env
+
+# Firebase client config for Android push (provide via EAS file env GOOGLE_SERVICES_JSON)
+google-services.json

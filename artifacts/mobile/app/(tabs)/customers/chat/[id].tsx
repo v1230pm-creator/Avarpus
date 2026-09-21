@@ -25,7 +25,7 @@ import {
   useColorScheme,
   useWindowDimensions,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -68,6 +68,7 @@ import { useConfirmDialog, type ConfirmAction } from '@/components/ui/ConfirmDia
 import { useAuth } from '@/context/AuthContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { storage, KEYS } from '@/utils/storage';
+import { dismissChatNotifications, setActiveChatRoom } from '@/utils/pushNotifications';
 import {
   useChatCapabilities,
   useChatRoomsCreate,
@@ -1541,6 +1542,16 @@ export default function ChatScreen() {
     return [...pending, ...serverMessages];
   }, [serverMessages, optimisticMsgs]);
 
+  // ── Push suppression while this room is on screen ───────────────────────
+  // A message push for the open conversation would duplicate what the list
+  // already shows; the foreground handler checks this before presenting.
+  useFocusEffect(
+    useCallback(() => {
+      setActiveChatRoom(resolvedRoomId ?? null);
+      return () => setActiveChatRoom(null);
+    }, [resolvedRoomId]),
+  );
+
   // ── Mark read ───────────────────────────────────────────────────────────
   const markReadMutation = useChatMarkRead();
   useEffect(() => {
@@ -1548,6 +1559,8 @@ export default function ChatScreen() {
     const newestIncoming = serverMessages.find((m) => m.senderId !== user?.id);
     if (!newestIncoming) return;
     markReadMutation.mutate({ roomId: resolvedRoomId, data: { messageId: newestIncoming.id } });
+    // Reading here clears the room's delivered notifications from the tray.
+    void dismissChatNotifications(resolvedRoomId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedRoomId, serverMessages[0]?.id]);
 

@@ -28,7 +28,7 @@
 - [Role feature toggles](role-feature-toggles.md) — owner-editable per-role Staff Permissions; new mutation endpoints in toggleable areas must add requireFeature; never gate shared GET collections.
 - [Route-level feature gates](route-level-feature-gates.md) — hidden tabs are not protection; sensitive mobile routes must deny access before their data hooks mount.
 - [Prod data import path](prod-data-import.md) — prod SQL is read-only; use the token-guarded import endpoint; jsonb columns reject JS arrays via node-postgres, stringify first.
-- [Push delivery](push-delivery.md) — push copies a notification row verbatim, only for rows actually inserted, and tokens live and die with the session they were registered on.
+- [Push delivery](push-delivery.md) — push copies a row verbatim (preview-off masking is the only exception); tokens die with their session; Android needs baked-in Firebase config + immutable channel variants.
 - [In-app notifications](notifications.md) — notification rows to owners+targeted extras minus actor, fire-and-forget; never JSON.stringify jsonb objects for Drizzle inserts.
 - [APK release identity](apk-release-identity.md) — release labels never change APK contents; each new release needs a fresh checksum, actual native version/build, and serialized state changes.
 - [Background APK downloads](background-apk-downloads.md) — app-close survival requires Android DownloadManager plus native durable identity; JS resumables are fallback-only.

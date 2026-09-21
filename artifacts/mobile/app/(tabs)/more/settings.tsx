@@ -58,8 +58,8 @@ const SETTINGS_ITEMS = [
     id: 'notifications',
     icon: 'bell',
     title: 'Notifications',
-    subtitle: 'Message, group & call tones',
-    route: '/(tabs)/more/notifications'
+    subtitle: 'Alerts, preview, sound & vibration',
+    route: '/(tabs)/more/notification-settings'
   },
   {
     id: 'storage_data',
