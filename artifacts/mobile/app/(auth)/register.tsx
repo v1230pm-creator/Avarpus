@@ -11,6 +11,7 @@ import { authRegisterStart, authRegisterVerify } from '@workspace/api-client-rea
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { onBlue } from '@/constants/brand';
+import { font, fontFamily } from '@/constants/typography';
 
 type Step = 'form' | 'email_otp' | 'success';
 
@@ -57,7 +58,7 @@ const otpStyles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
   cell: {
     width: 44, height: 52, borderRadius: 8,
-    fontSize: 20, fontFamily: 'Inter_700Bold',
+    ...font.itemTitle, fontFamily: fontFamily.bold,
     borderWidth: 1,
   },
 });
@@ -226,10 +227,10 @@ export default function RegisterScreen() {
             <Feather name="arrow-left" size={20} color={theme.text} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={[gs.title, { color: theme.text, fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[gs.title, { color: theme.text, fontFamily: fontFamily.bold }]}>
               Create Dealer Account
             </Text>
-            <Text style={[gs.subtitle, { color: theme.textMuted, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[gs.subtitle, { color: theme.textMuted, fontFamily: fontFamily.regular }]}>
               Register your shop / business
             </Text>
           </View>
@@ -248,17 +249,17 @@ export default function RegisterScreen() {
             <View style={gs.photoRow}>
               <TouchableOpacity style={[gs.photoBox, { borderColor: theme.border, backgroundColor: theme.inputBg }]} onPress={() => pickImage(setProfilePhoto)} activeOpacity={0.8}>
                 {profilePhoto ? <Image source={{ uri: profilePhoto }} style={gs.photoImg} contentFit="cover" /> : <Feather name="user" size={20} color={theme.textMuted} />}
-                <Text style={[gs.photoLabel, { color: theme.textMuted, fontFamily: 'Inter_500Medium' }]}>Profile Photo</Text>
+                <Text style={[gs.photoLabel, { color: theme.textMuted, fontFamily: fontFamily.medium }]}>Profile Photo</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[gs.photoBox, { borderColor: theme.border, backgroundColor: theme.inputBg }]} onPress={() => pickImage(setCompanyLogo)} activeOpacity={0.8}>
                 {companyLogo ? <Image source={{ uri: companyLogo }} style={gs.photoImg} contentFit="cover" /> : <Feather name="image" size={20} color={theme.textMuted} />}
-                <Text style={[gs.photoLabel, { color: theme.textMuted, fontFamily: 'Inter_500Medium' }]}>Company Logo</Text>
+                <Text style={[gs.photoLabel, { color: theme.textMuted, fontFamily: fontFamily.medium }]}>Company Logo</Text>
               </TouchableOpacity>
             </View>
 
             <View style={[gs.infoBox, { backgroundColor: theme.infoBg, borderColor: theme.infoBg }]}>
               <Feather name="info" size={14} color={theme.info} />
-              <Text style={[gs.infoText, { color: theme.info, fontFamily: 'Inter_400Regular' }]}>
+              <Text style={[gs.infoText, { color: theme.info, fontFamily: fontFamily.regular }]}>
                 We'll send a 6-digit OTP to your email to verify your identity. Your account is created as the shop owner (Dealer).
               </Text>
             </View>
@@ -273,9 +274,9 @@ export default function RegisterScreen() {
               <View style={[gs.otpIconWrap, { backgroundColor: theme.primary + '15', borderColor: theme.primary + '30' }]}>
                 <Feather name="mail" size={24} color={theme.primary} />
               </View>
-              <Text style={[gs.otpTitle, { color: theme.text, fontFamily: 'Inter_700Bold' }]}>Verify Email</Text>
-              <Text style={[gs.otpSub, { color: theme.textMuted, fontFamily: 'Inter_400Regular' }]}>
-                Enter the 6-digit OTP sent to <Text style={{ color: theme.text, fontFamily: 'Inter_600SemiBold' }}>{email}</Text>
+              <Text style={[gs.otpTitle, { color: theme.text, fontFamily: fontFamily.bold }]}>Verify Email</Text>
+              <Text style={[gs.otpSub, { color: theme.textMuted, fontFamily: fontFamily.regular }]}>
+                Enter the 6-digit OTP sent to <Text style={{ color: theme.text, fontFamily: fontFamily.semibold }}>{email}</Text>
               </Text>
             </View>
 
@@ -284,12 +285,12 @@ export default function RegisterScreen() {
             {!!emailError && (
               <View style={[gs.errorBox, { backgroundColor: theme.dangerBg, borderColor: theme.dangerBg }]}>
                 <Feather name="alert-circle" size={13} color={theme.danger} />
-                <Text style={[gs.errorText, { color: theme.danger, fontFamily: 'Inter_400Regular' }]}>{emailError}</Text>
+                <Text style={[gs.errorText, { color: theme.danger, fontFamily: fontFamily.regular }]}>{emailError}</Text>
               </View>
             )}
 
             <TouchableOpacity onPress={handleResendEmailOtp} disabled={emailTimer > 0} style={{ alignItems: 'center' }}>
-              <Text style={[gs.timerText, { color: emailTimer > 0 ? theme.textMuted : theme.primary, fontFamily: 'Inter_500Medium' }]}>
+              <Text style={[gs.timerText, { color: emailTimer > 0 ? theme.textMuted : theme.primary, fontFamily: fontFamily.medium }]}>
                 {emailTimer > 0 ? `Resend OTP in ${emailTimer}s` : 'Resend OTP'}
               </Text>
             </TouchableOpacity>
@@ -305,10 +306,10 @@ export default function RegisterScreen() {
                 <Feather name="check" size={32} color={onBlue.controlText} />
               </View>
             </View>
-            <Text style={[gs.successTitle, { color: theme.text, fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[gs.successTitle, { color: theme.text, fontFamily: fontFamily.bold }]}>
               Account created
             </Text>
-            <Text style={[gs.successSub, { color: theme.textMuted, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[gs.successSub, { color: theme.textMuted, fontFamily: fontFamily.regular }]}>
               Your dealer account and shop workspace are ready. Sign in with a mobile verification code to continue.
             </Text>
 
@@ -322,7 +323,7 @@ export default function RegisterScreen() {
                   <View style={[gs.successStepDot, { backgroundColor: item.color + '22' }]}>
                     <Feather name={item.icon as any} size={12} color={item.color} />
                   </View>
-                  <Text style={[gs.successStepText, { color: theme.text, fontFamily: 'Inter_400Regular' }]}>{item.label}</Text>
+                  <Text style={[gs.successStepText, { color: theme.text, fontFamily: fontFamily.regular }]}>{item.label}</Text>
                 </View>
               ))}
             </View>
@@ -333,8 +334,8 @@ export default function RegisterScreen() {
 
         {step === 'form' && (
           <TouchableOpacity onPress={() => router.back()} style={{ alignItems: 'center' }}>
-            <Text style={[gs.loginLink, { color: theme.textMuted, fontFamily: 'Inter_400Regular' }]}>
-              Already have an account? <Text style={{ color: theme.primary, fontFamily: 'Inter_600SemiBold' }}>Sign In</Text>
+            <Text style={[gs.loginLink, { color: theme.textMuted, fontFamily: fontFamily.regular }]}>
+              Already have an account? <Text style={{ color: theme.primary, fontFamily: fontFamily.semibold }}>Sign In</Text>
             </Text>
           </TouchableOpacity>
         )}
@@ -348,30 +349,30 @@ const gs = StyleSheet.create({
   scroll: { paddingHorizontal: 16, gap: 16 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
-  title: { fontSize: 24, letterSpacing: -0.5 },
-  subtitle: { fontSize: 13, marginTop: 2 },
+  title: { ...font.title },
+  subtitle: { ...font.small, marginTop: 2 },
   card: { borderRadius: 12, borderWidth: 1, padding: 16, gap: 12 },
   infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 8, padding: 10, borderWidth: 1 },
-  infoText: { fontSize: 12, flex: 1, lineHeight: 16 },
+  infoText: { ...font.small, flex: 1 },
   photoRow: { flexDirection: 'row', gap: 8 },
   photoBox: { flex: 1, height: 76, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 4, overflow: 'hidden' },
   photoImg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 20 },
-  photoLabel: { fontSize: 11, position: 'absolute', bottom: 4 },
+  photoLabel: { ...font.small, position: 'absolute', bottom: 4 },
   otpHeader: { alignItems: 'center', gap: 4 },
   otpIconWrap: { width: 56, height: 56, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, marginBottom: 4 },
-  otpTitle: { fontSize: 20 },
-  otpSub: { fontSize: 13, textAlign: 'center' },
+  otpTitle: { ...font.itemTitle },
+  otpSub: { ...font.small, textAlign: 'center' },
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 8, padding: 10, borderWidth: 1 },
-  errorText: { fontSize: 12, flex: 1 },
-  timerText: { fontSize: 13 },
+  errorText: { ...font.small, flex: 1 },
+  timerText: { ...font.smallStrong },
   successCard: { borderRadius: 12, borderWidth: 1, padding: 20, gap: 12, alignItems: 'center' },
   successIcon: { marginBottom: 4 },
   successIconGrad: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
-  successTitle: { fontSize: 20 },
-  successSub: { fontSize: 13, textAlign: 'center', lineHeight: 18 },
+  successTitle: { ...font.itemTitle },
+  successSub: { ...font.small, textAlign: 'center' },
   successSteps: { width: '100%', gap: 10, marginVertical: 8 },
   successStep: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   successStepDot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  successStepText: { fontSize: 13 },
-  loginLink: { fontSize: 13 },
+  successStepText: { ...font.small },
+  loginLink: { ...font.small },
 });

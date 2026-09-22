@@ -16,37 +16,25 @@ import {
 } from '@/utils/tabVisibility';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AvarpusLoadingScreen, AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
-import { useChatCapabilities, useChatRoomsList, getChatRoomsListQueryKey } from '@workspace/api-client-react';
+import { useChatUnreadCount } from '@/hooks/useChatUnreadCount';
+import { StatusRingIcon } from '@/components/ui/StatusRingIcon';
+import { font, fontFamily } from '@/constants/typography';
+import { size, space } from '@/constants/spacing';
 
 const MAIN_TABS: Array<{
   name: PrimaryTabName;
   label: string;
-  icon: React.ComponentProps<typeof Feather>['name'];
+  /** `status` draws its own ring glyph; every other tab uses a Feather outline. */
+  icon: React.ComponentProps<typeof Feather>['name'] | 'status';
 }> = [
   { name: 'index', label: 'Chats', icon: 'message-circle' as const },
-  { name: 'status', label: 'Status', icon: 'circle' as const },
+  { name: 'status', label: 'Status', icon: 'status' as const },
   { name: 'shop', label: 'Shop', icon: 'shopping-bag' as const },
   { name: 'calls', label: 'Calls', icon: 'phone' as const },
   { name: 'repairs', label: 'My Repairs', icon: 'tool' as const },
 ];
 
-function useChatsTabUnreadCount(): number {
-  // Shares the react-query cache/key with the Chat Home screen, so this adds
-  // no extra network traffic beyond what that screen already polls.
-  const { data: capData } = useChatCapabilities();
-  const providerConfigured = capData?.matrixAvailable === true;
-  const { data: roomsData } = useChatRoomsList({
-    query: {
-      enabled: providerConfigured,
-      queryKey: getChatRoomsListQueryKey(),
-      refetchInterval: providerConfigured ? 5_000 : false,
-      refetchIntervalInBackground: false,
-    },
-  });
-  return (roomsData?.rooms ?? [])
-    .filter((room) => room.kind === 'customer' || room.kind === 'direct')
-    .reduce((sum, room) => sum + (room.unreadCount ?? 0), 0);
-}
+const useChatsTabUnreadCount = useChatUnreadCount;
 
 function PremiumTabBar({
   state,
@@ -63,7 +51,7 @@ function PremiumTabBar({
 }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const bottomInset = Platform.OS === 'web' ? 20 : Math.max(insets.bottom, 8);
+  const bottomInset = Platform.OS === 'web' ? 20 : Math.max(insets.bottom, 12);
   const currentOptions = descriptors[state.routes[state.index]?.key]?.options;
   const tabBarStyle = currentOptions?.tabBarStyle as any;
   if (tabBarStyle?.display === 'none') return null;
@@ -73,10 +61,10 @@ function PremiumTabBar({
       style={[
         styles.tabBar,
         {
-          backgroundColor: colors.card,
+          backgroundColor: colors.navigation,
           borderTopColor: colors.border,
           paddingBottom: bottomInset,
-          minHeight: 62 + bottomInset,
+          minHeight: size.tabBar + bottomInset,
         },
         tabBarStyle,
       ]}
@@ -87,12 +75,14 @@ function PremiumTabBar({
         const routeOptions = descriptors[state.routes[routeIndex].key]?.options;
         if (routeOptions?.href === null) return null;
         const focused = state.index === routeIndex;
-        
+
         const isKhata = tab.name === 'khata';
         const activeColor = isKhata ? colors.goldActive : colors.primary;
         const activeBg = isKhata ? `${colors.gold}15` : colors.accent;
         const activeBorder = isKhata ? colors.gold : 'transparent';
-        
+        // Inactive glyphs stay white-on-charcoal; only the active one turns blue.
+        const iconColor = focused ? activeColor : colors.foreground;
+
         return (
           <TouchableOpacity
             key={tab.name}
@@ -110,14 +100,14 @@ function PremiumTabBar({
                 focused && isKhata && { borderWidth: 1, borderColor: activeBorder },
               ]}
             >
-              <Feather
-                name={tab.icon}
-                size={19}
-                color={focused ? activeColor : colors.mutedForeground}
-              />
+              {tab.icon === 'status' ? (
+                <StatusRingIcon size={size.navIcon} color={iconColor} />
+              ) : (
+                <Feather name={tab.icon} size={size.navIcon} color={iconColor} />
+              )}
               {tab.name === 'index' && chatsUnreadCount > 0 && (
                 <View
-                  style={[styles.tabUnreadBadge, { backgroundColor: colors.primary, borderColor: colors.card }]}
+                  style={[styles.tabUnreadBadge, { backgroundColor: colors.notification }]}
                   accessibilityLabel={`${chatsUnreadCount} unread chats`}
                 >
                   <Text style={styles.tabUnreadBadgeText}>
@@ -127,11 +117,12 @@ function PremiumTabBar({
               )}
             </View>
             <Text
+              numberOfLines={1}
               style={[
                 styles.tabLabel,
                 {
-                  color: focused ? activeColor : colors.mutedForeground,
-                  fontFamily: focused ? 'Inter_600SemiBold' : 'Inter_500Medium',
+                  color: colors.foreground,
+                  fontFamily: focused ? fontFamily.bold : fontFamily.medium,
                 },
               ]}
             >
@@ -158,7 +149,7 @@ function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boo
       screenOptions={{
         headerShown: false,
         tabBarHideOnKeyboard: true,
-        tabBarStyle: isWeb ? { height: 84 } : undefined,
+        tabBarStyle: isWeb ? { height: size.tabBar + 20 } : undefined,
       }}
     >
       <Tabs.Screen
@@ -366,97 +357,96 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
-    paddingTop: 6,
-    borderTopWidth: 1,
+    paddingTop: space.md,
+    paddingHorizontal: space.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
     elevation: 0,
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-    minHeight: 56,
+    justifyContent: 'flex-start',
+    gap: space.xs + 2,
+    minHeight: size.tabBar - space.md,
   },
   tabIconWrap: {
-    width: 34,
-    height: 26,
-    borderRadius: 13,
+    width: 64,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tabUnreadBadge: {
     position: 'absolute',
-    top: -4,
-    right: -2,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 1.5,
+    top: -6,
+    right: 6,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 3,
+    paddingHorizontal: 6,
   },
-  tabUnreadBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '700' },
-  tabLabel: { fontSize: 10, letterSpacing: 0.1 },
+  tabUnreadBadgeText: {
+    color: '#FFFFFF',
+    fontFamily: fontFamily.bold,
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  tabLabel: { ...font.label, fontFamily: fontFamily.medium },
   inactivePage: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 28,
+    paddingHorizontal: space.xxl,
   },
   inactiveIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: space.xxl,
   },
   inactiveTitle: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 24,
+    ...font.title,
     textAlign: 'center',
   },
   inactiveBody: {
-    marginTop: 12,
+    marginTop: space.md,
     maxWidth: 440,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    lineHeight: 22,
+    ...font.body,
     textAlign: 'center',
   },
   inactiveHint: {
-    marginTop: 10,
-    marginBottom: 24,
+    marginTop: space.sm,
+    marginBottom: space.xxl,
     maxWidth: 440,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 19,
+    ...font.caption,
     textAlign: 'center',
   },
   inactivePrimary: {
-    minWidth: 220,
-    minHeight: 48,
-    borderRadius: 14,
+    minWidth: 240,
+    minHeight: size.button,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 22,
+    paddingHorizontal: space.xxl,
   },
-  inactivePrimaryText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+  inactivePrimaryText: font.button,
   inactiveSecondary: {
-    minWidth: 220,
-    minHeight: 48,
-    borderRadius: 14,
+    minWidth: 240,
+    minHeight: size.button,
+    borderRadius: 16,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
-    paddingHorizontal: 22,
+    marginTop: space.md,
+    paddingHorizontal: space.xxl,
   },
-  inactiveSecondaryText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+  inactiveSecondaryText: font.button,
   inactiveSignOut: {
-    marginTop: 22,
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
+    marginTop: space.xxl,
+    ...font.labelStrong,
   },
 });

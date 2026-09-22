@@ -27,6 +27,8 @@ import { generateUUID } from '@/utils/helpers';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
@@ -120,7 +122,7 @@ function SectionHeader({
       <View style={[styles.sectionIcon, { backgroundColor: colors.primary }]}>
         <Feather name={icon} size={14} color="#FFFFFF" />
       </View>
-      <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{title}</Text>
+      <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>{title}</Text>
     </View>
   );
 }
@@ -659,10 +661,10 @@ export default function NewRepairScreen() {
           <View style={[styles.successIconWrap, { backgroundColor: colors.success + '22' }]}>
             <Feather name="check-circle" size={48} color={colors.success} />
           </View>
-          <Text style={[styles.successTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.successTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
             Job Card Created
           </Text>
-          <Text style={[styles.successSubtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.successSubtitle, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
             Ticket No: {createdRepair.repairId}
           </Text>
 
@@ -687,7 +689,7 @@ export default function NewRepairScreen() {
         <TouchableOpacity onPress={() => step === 2 ? setStep(1) : router.replace('/(tabs)/repairs')} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
            {step === 1 ? 'SERVICE FORM' : 'REVIEW & CONFIRM'}
         </Text>
          {step === 1 ? (
@@ -727,7 +729,7 @@ export default function NewRepairScreen() {
                       <Feather name="briefcase" size={15} color={dealerId ? colors.primary : colors.mutedForeground} />
                       <Text
                         numberOfLines={1}
-                        style={[styles.dealerLinkLabel, { color: dealerId ? colors.primary : colors.foreground, fontFamily: 'Inter_600SemiBold' }]}
+                        style={[styles.dealerLinkLabel, { color: dealerId ? colors.primary : colors.foreground, fontFamily: fontFamily.semibold }]}
                       >
                         {selectedDealer ? selectedDealer.dealerCode : 'Link Dealer'}
                       </Text>
@@ -770,23 +772,23 @@ export default function NewRepairScreen() {
                   <View style={{ borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.card, borderRadius: 12, padding: 12, marginBottom: 12 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                       <Feather name="check-circle" size={15} color={colors.primary} />
-                      <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_700Bold' }}>Dealer Account Detected</Text>
+                      <Text style={{ fontSize: 13, color: colors.primary, fontFamily: fontFamily.bold }}>Dealer Account Detected</Text>
                     </View>
-                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{detectedDealer.name}</Text>
-                    <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 2 }}>
+                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: fontFamily.semibold }}>{detectedDealer.name}</Text>
+                    <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.regular, marginTop: 2 }}>
                       {detectedDealer.dealerCode}{detectedDealer.shopName ? ` · ${detectedDealer.shopName}` : ''} · {detectedDealer.mobile}
                     </Text>
                     <TouchableOpacity
                       onPress={() => { setDealerId(null); setAutoDetected(false); setDealerCleared(true); }}
                       style={{ marginTop: 8, alignSelf: 'flex-start' }}
                     >
-                      <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }}>Remove dealer link</Text>
+                      <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.semibold }}>Remove dealer link</Text>
                     </TouchableOpacity>
                   </View>
                 )}
                 {detectMatches.length > 1 && !dealerId && (
                   <View style={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, borderRadius: 12, padding: 12, marginBottom: 12 }}>
-                    <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginBottom: 8 }}>
+                    <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: fontFamily.semibold, marginBottom: 8 }}>
                       This number matches {detectMatches.length} dealers — choose one:
                     </Text>
                     {detectMatches.map((d) => (
@@ -795,8 +797,8 @@ export default function NewRepairScreen() {
                         onPress={() => { setDealerId(d.id); setAutoDetected(false); setDealerCleared(false); fillFromDealer(d); }}
                         style={{ paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}
                       >
-                        <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{d.name}</Text>
-                        <Text style={{ fontSize: 11, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{d.dealerCode}{d.shopName ? ` · ${d.shopName}` : ''}</Text>
+                        <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: fontFamily.semibold }}>{d.name}</Text>
+                        <Text style={{ fontSize: 13, color: colors.primary, fontFamily: fontFamily.bold }}>{d.dealerCode}{d.shopName ? ` · ${d.shopName}` : ''}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -842,7 +844,7 @@ export default function NewRepairScreen() {
                  <SectionHeader title="Device Details" icon="smartphone" />
                 <View style={styles.threeColumnRow}>
                   <View style={styles.compactField}>
-                    <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Device Type *</Text>
+                    <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Device Type *</Text>
                     <TouchableOpacity
                       activeOpacity={0.7}
                       onPress={() => setShowDeviceType(v => !v)}
@@ -852,7 +854,7 @@ export default function NewRepairScreen() {
                         {!!deviceType && <Feather name="check" size={14} color="#FFF" />}
                       </View>
                       <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
-                        <Text numberOfLines={1} style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{deviceType}</Text>
+                        <Text numberOfLines={1} style={[styles.countBadgeText, { color: colors.primary, fontFamily: fontFamily.semibold }]}>{deviceType}</Text>
                       </View>
                       <Feather name={showDeviceType ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
                     </TouchableOpacity>
@@ -871,7 +873,7 @@ export default function NewRepairScreen() {
                                 <View style={[styles.radioOuter, { borderColor: selected ? colors.primary : colors.muted }]}>
                                   {selected && <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />}
                                 </View>
-                                <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>{dt}</Text>
+                                <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? fontFamily.semibold : fontFamily.medium }]}>{dt}</Text>
                                 {selected && <Feather name="check" size={16} color={colors.primary} />}
                               </TouchableOpacity>
                             );
@@ -885,7 +887,7 @@ export default function NewRepairScreen() {
                     <Text
                       onPress={() => setShowBrand(v => !v)}
                       accessibilityRole="button"
-                      style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}
+                      style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}
                     >
                       Brand *
                     </Text>
@@ -899,15 +901,15 @@ export default function NewRepairScreen() {
                       </View>
                       {brand ? (
                         <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
-                          <Text numberOfLines={1} style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{brand}</Text>
+                          <Text numberOfLines={1} style={[styles.countBadgeText, { color: colors.primary, fontFamily: fontFamily.semibold }]}>{brand}</Text>
                         </View>
                       ) : (
-                        <Text numberOfLines={1} style={[styles.compactToggleLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Select brand</Text>
+                        <Text numberOfLines={1} style={[styles.compactToggleLabel, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>Select brand</Text>
                       )}
                       <Feather name={showBrand ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
                     </TouchableOpacity>
                     {!!errors.brand && (
-                      <Text style={[styles.fieldError, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>{errors.brand}</Text>
+                      <Text style={[styles.fieldError, { color: colors.destructive, fontFamily: fontFamily.medium }]}>{errors.brand}</Text>
                     )}
                     {showBrand && (
                       <View style={[styles.vListWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
@@ -924,7 +926,7 @@ export default function NewRepairScreen() {
                                 <View style={[styles.radioOuter, { borderColor: selected ? colors.primary : colors.muted }]}>
                                   {selected && <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />}
                                 </View>
-                                <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>{b}</Text>
+                                <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: selected ? fontFamily.semibold : fontFamily.medium }]}>{b}</Text>
                                 {selected && <Feather name="check" size={16} color={colors.primary} />}
                               </TouchableOpacity>
                             );
@@ -935,14 +937,14 @@ export default function NewRepairScreen() {
                   </View>
 
                   <View style={styles.compactField}>
-                    <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Model *</Text>
+                    <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Model *</Text>
                     <Input value={model} onChangeText={setModel} placeholder="Model" leftIcon="smartphone" error={errors.model} />
                   </View>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={styles.identifierFieldColumn}>
-                    <Text style={[styles.identifierFieldLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>Device ID</Text>
+                    <Text style={[styles.identifierFieldLabel, { color: colors.foreground, fontFamily: fontFamily.medium }]}>Device ID</Text>
                     <TouchableOpacity
                       activeOpacity={0.7}
                       onPress={() => setShowIdentifierModal(true)}
@@ -955,7 +957,7 @@ export default function NewRepairScreen() {
                     >
                       <Text style={[styles.identifierFieldText, {
                         color: (serialNumber || imei || imei2) ? colors.foreground : colors.mutedForeground,
-                        fontFamily: 'Inter_400Regular',
+                        fontFamily: fontFamily.regular,
                       }]}>
                         {[serialNumber && 'Serial', imei && 'IMEI 1', imei2 && 'IMEI 2'].filter(Boolean).join(', ') || 'Select ID'}
                       </Text>
@@ -984,13 +986,13 @@ export default function NewRepairScreen() {
                     <View style={[styles.checkbox, { backgroundColor: simPresent ? colors.teal : 'transparent', borderColor: colors.teal }]}>
                       {simPresent && <Feather name="check" size={14} color="#FFF" />}
                     </View>
-                    <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>SIM Present</Text>
+                    <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: fontFamily.medium }]}>SIM Present</Text>
                   </TouchableOpacity>
                   <TouchableOpacity activeOpacity={0.7} onPress={() => setMemoryCardPresent(!memoryCardPresent)} style={[styles.checklistItem, { backgroundColor: colors.goldSoft, borderColor: colors.gold }]}>
                     <View style={[styles.checkbox, { backgroundColor: memoryCardPresent ? colors.gold : 'transparent', borderColor: colors.gold }]}>
                       {memoryCardPresent && <Feather name="check" size={14} color="#FFF" />}
                     </View>
-                    <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>SD Card Present</Text>
+                    <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: fontFamily.medium }]}>SD Card Present</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -998,7 +1000,7 @@ export default function NewRepairScreen() {
               <View style={styles.threeColumnRow}>
               {/* Physical Condition */}
               <View style={styles.compactField}>
-              <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Physical</Text>
+              <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Physical</Text>
               <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <TouchableOpacity
                   activeOpacity={0.7}
@@ -1011,7 +1013,7 @@ export default function NewRepairScreen() {
                   </View>
                   {Object.values(physicalCondition).filter(Boolean).length > 0 && (
                     <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
-                      <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{Object.values(physicalCondition).filter(Boolean).length}</Text>
+                      <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: fontFamily.semibold }]}>{Object.values(physicalCondition).filter(Boolean).length}</Text>
                     </View>
                   )}
                   <Feather name={showPhysical ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
@@ -1031,7 +1033,7 @@ export default function NewRepairScreen() {
                             <View style={[styles.checkbox, { backgroundColor: checked ? colors.primary : 'transparent', borderColor: checked ? colors.primary : colors.muted }]}>
                               {checked && <Feather name="check" size={14} color="#FFF" />}
                             </View>
-                            <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{item.label}</Text>
+                            <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: fontFamily.medium }]}>{item.label}</Text>
                           </TouchableOpacity>
                         );
                       })}
@@ -1043,7 +1045,7 @@ export default function NewRepairScreen() {
 
               {/* Checklist */}
               <View style={styles.compactField}>
-              <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Pre Repair</Text>
+              <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Pre Repair</Text>
               <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <TouchableOpacity
                   activeOpacity={0.7}
@@ -1056,7 +1058,7 @@ export default function NewRepairScreen() {
                   </View>
                   {Object.values(checklist).filter(Boolean).length > 0 && (
                     <View style={[styles.countBadge, { backgroundColor: colors.primary + '1A' }]}>
-                      <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{Object.values(checklist).filter(Boolean).length}</Text>
+                      <Text style={[styles.countBadgeText, { color: colors.primary, fontFamily: fontFamily.semibold }]}>{Object.values(checklist).filter(Boolean).length}</Text>
                     </View>
                   )}
                   <Feather name={showChecklist ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
@@ -1076,7 +1078,7 @@ export default function NewRepairScreen() {
                             <View style={[styles.checkbox, { backgroundColor: checked ? colors.primary : 'transparent', borderColor: checked ? colors.primary : colors.muted }]}>
                               {checked && <Feather name="check" size={14} color="#FFF" />}
                             </View>
-                            <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{item.label}</Text>
+                            <Text style={[styles.checklistLabel, { color: colors.foreground, fontFamily: fontFamily.medium }]}>{item.label}</Text>
                           </TouchableOpacity>
                         );
                       })}
@@ -1090,7 +1092,7 @@ export default function NewRepairScreen() {
               {/* Photos */}
                <View style={[styles.photoSection, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '44' }]}>
                  <SectionHeader title="ADD IMAGES" icon="camera" />
-                 <Text style={[styles.photoHint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                 <Text style={[styles.photoHint, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                    Tap to take or upload photos of the device
                  </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoScroll}>
@@ -1111,12 +1113,12 @@ export default function NewRepairScreen() {
                    <TouchableOpacity onPress={handlePickPhoto} style={[styles.addPhotoBtn, { backgroundColor: colors.primary + '14', borderColor: colors.primary }]}>
                      <Feather name="camera" size={25} color={colors.primary} />
                      <Feather name="plus" size={13} color={colors.primary} style={styles.photoPlus} />
-                     <Text style={[styles.addPhotoText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Add Images</Text>
+                     <Text style={[styles.addPhotoText, { color: colors.primary, fontFamily: fontFamily.semibold }]}>Add Images</Text>
                   </TouchableOpacity>
                 </ScrollView>
                  <View style={styles.photoCountRow}>
                    <Feather name="camera" size={12} color={colors.mutedForeground} />
-                   <Text style={[styles.photoCount, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
+                   <Text style={[styles.photoCount, { color: colors.mutedForeground, fontFamily: fontFamily.medium }]}>
                      {photos.length}/6 Images Added
                    </Text>
                  </View>
@@ -1138,7 +1140,7 @@ export default function NewRepairScreen() {
                 {isBackdated && (
                   <View style={[styles.warningBanner, { backgroundColor: colors.warning + '22', borderColor: colors.warning + '55' }]}>
                     <Feather name="alert-triangle" size={16} color={colors.warning} />
-                    <Text style={[styles.warningText, { color: colors.warning, fontFamily: 'Inter_500Medium' }]}>
+                    <Text style={[styles.warningText, { color: colors.warning, fontFamily: fontFamily.medium }]}>
                       This is a backdated entry. Dealer/Owner approval is required.
                     </Text>
                   </View>
@@ -1149,13 +1151,13 @@ export default function NewRepairScreen() {
 
                 <Input label="Expected Delivery *" value={expectedDate} onChangeText={setExpectedDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" maxLength={10} leftIcon="calendar" error={errors.expectedDate} />
                  <View style={styles.priorityField}>
-                   <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Priority</Text>
+                   <Text style={[styles.compactFieldLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Priority</Text>
                    <TouchableOpacity
                      activeOpacity={0.75}
                      onPress={() => setShowPriority((visible) => !visible)}
                      style={[styles.prioritySelect, { backgroundColor: priority === 'normal' ? colors.successLight : colors.card, borderColor: showPriority ? colors.primary : colors.border }]}
                    >
-                     <Text style={[styles.priorityValue, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>
+                     <Text style={[styles.priorityValue, { color: colors.foreground, fontFamily: fontFamily.medium }]}>
                        {PRIORITY_LABELS[priority as keyof typeof PRIORITY_LABELS] || priority}
                      </Text>
                      <Feather name={showPriority ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
@@ -1168,7 +1170,7 @@ export default function NewRepairScreen() {
                            onPress={() => { setPriority(opt); setShowPriority(false); }}
                            style={[styles.priorityOption, { borderBottomColor: colors.border, backgroundColor: priority === opt ? colors.primary + '12' : 'transparent' }]}
                          >
-                           <Text style={[styles.priorityValue, { color: priority === opt ? colors.primary : colors.foreground, fontFamily: priority === opt ? 'Inter_600SemiBold' : 'Inter_400Regular' }]}>
+                           <Text style={[styles.priorityValue, { color: priority === opt ? colors.primary : colors.foreground, fontFamily: priority === opt ? fontFamily.semibold : fontFamily.regular }]}>
                              {PRIORITY_LABELS[opt as keyof typeof PRIORITY_LABELS] || opt}
                            </Text>
                            {priority === opt && <Feather name="check" size={16} color={colors.primary} />}
@@ -1183,7 +1185,7 @@ export default function NewRepairScreen() {
               <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={styles.estimateRow}>
                   <View style={styles.estimateColumn}>
-                    <Text style={[styles.estimateLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Estimate</Text>
+                    <Text style={[styles.estimateLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Estimate</Text>
                     <Input
                       value={repairCharge}
                       onChangeText={setRepairCharge}
@@ -1195,7 +1197,7 @@ export default function NewRepairScreen() {
                   </View>
                    <View style={styles.estimateColumn}>
                      <View style={styles.advanceHeader}>
-                       <Text style={[styles.estimateLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Advance Paid</Text>
+                       <Text style={[styles.estimateLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Advance Paid</Text>
                        <Switch
                          value={advanceEnabled}
                          onValueChange={(enabled) => {
@@ -1218,7 +1220,7 @@ export default function NewRepairScreen() {
                      />
                   </View>
                 </View>
-                <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4, marginBottom: 10, fontFamily: 'Inter_400Regular' }}>
+                <Text style={{ color: colors.mutedForeground, fontSize: 13, marginTop: 4, marginBottom: 10, fontFamily: fontFamily.regular }}>
                   This is only an estimate — the final bill is prepared when the repair is completed.
                 </Text>
                 {(parseFloat(advancePaid) || 0) > 0 && (
@@ -1235,13 +1237,13 @@ export default function NewRepairScreen() {
                             backgroundColor: advanceMethod === m ? colors.primary + '18' : 'transparent',
                           }}
                         >
-                          <Text style={{ color: advanceMethod === m ? colors.primary : colors.mutedForeground, fontSize: 13, fontFamily: 'Inter_500Medium' }}>{m}</Text>
+                          <Text style={{ color: advanceMethod === m ? colors.primary : colors.mutedForeground, fontSize: 13, fontFamily: fontFamily.medium }}>{m}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
-                      <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: 'Inter_500Medium' }}>Estimated Balance</Text>
-                      <Text style={{ color: colors.foreground, fontSize: 13, fontFamily: 'Inter_600SemiBold' }}>
+                      <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: fontFamily.medium }}>Estimated Balance</Text>
+                      <Text style={{ color: colors.foreground, fontSize: 13, fontFamily: fontFamily.semibold }}>
                         ₹{Math.max((parseFloat(repairCharge) || 0) - (parseFloat(advancePaid) || 0), 0)}
                       </Text>
                     </View>
@@ -1258,8 +1260,8 @@ export default function NewRepairScreen() {
                    <Feather name="box" size={21} color="#FFFFFF" />
                  </View>
                  <View style={styles.receiveCopy}>
-                   <Text style={[styles.receiveTitle, { fontFamily: 'Inter_700Bold' }]}>RECEIVE DEVICE</Text>
-                   <Text style={[styles.receiveSubtitle, { fontFamily: 'Inter_400Regular' }]}>Create repair job and save details</Text>
+                   <Text style={[styles.receiveTitle, { color: colors.primaryForeground }]}>RECEIVE DEVICE</Text>
+                   <Text style={[styles.receiveSubtitle, { fontFamily: fontFamily.regular }]}>Create repair job and save details</Text>
                  </View>
                  <Feather name="chevron-right" size={24} color="#FFFFFF" />
                </TouchableOpacity>
@@ -1296,14 +1298,14 @@ export default function NewRepairScreen() {
                   <View style={[styles.checkbox, { backgroundColor: customerConfirmed ? colors.primary : 'transparent', borderColor: customerConfirmed ? colors.primary : colors.muted }]}>
                     {customerConfirmed && <Feather name="check" size={14} color="#FFF" />}
                   </View>
-                  <Text style={[styles.confirmationText, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>
+                  <Text style={[styles.confirmationText, { color: colors.foreground, fontFamily: fontFamily.medium }]}>
                     I have submitted the device and the above details are correct.
                   </Text>
                 </TouchableOpacity>
               </View>
 
               <View style={{ alignItems: 'center', marginTop: 10 }}>
-                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.regular }}>
                   Received by: {user?.name || 'System'}
                 </Text>
               </View>
@@ -1341,8 +1343,8 @@ export default function NewRepairScreen() {
               <Feather name="arrow-left" size={20} color={colors.foreground} />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Select Dealer</Text>
-              <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>Search and link a dealer to this repair</Text>
+              <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Select Dealer</Text>
+              <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>Search and link a dealer to this repair</Text>
             </View>
           </View>
 
@@ -1382,12 +1384,12 @@ export default function NewRepairScreen() {
                   }}
                 >
                   <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.primary + '15' }}>
-                    <Text style={{ fontSize: 11, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{d.dealerCode}</Text>
+                    <Text style={{ fontSize: 13, color: colors.primary, fontFamily: fontFamily.bold }}>{d.dealerCode}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{d.name}</Text>
-                    {!!d.shopName && <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{d.shopName}</Text>}
-                    <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{d.mobile}</Text>
+                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: fontFamily.semibold }}>{d.name}</Text>
+                    {!!d.shopName && <Text style={{ fontSize: 13, color: colors.mutedForeground }}>{d.shopName}</Text>}
+                    <Text style={{ fontSize: 13, color: colors.mutedForeground }}>{d.mobile}</Text>
                   </View>
                   {active && <Feather name="check" size={17} color={colors.primary} />}
                 </TouchableOpacity>
@@ -1395,10 +1397,10 @@ export default function NewRepairScreen() {
             }) : (
               <View style={{ alignItems: 'center', paddingVertical: 40 }}>
                 <Feather name="users" size={28} color={colors.mutedForeground} />
-                <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginTop: 10 }}>
+                <Text style={{ color: colors.foreground, fontFamily: fontFamily.semibold, marginTop: 10 }}>
                   {dealerSearch.trim() ? 'No matching dealers' : 'No dealers yet'}
                 </Text>
-                <Text style={{ color: colors.mutedForeground, fontSize: 12, textAlign: 'center', marginTop: 4 }}>
+                <Text style={{ color: colors.mutedForeground, fontSize: 13, textAlign: 'center', marginTop: 4 }}>
                   {dealerSearch.trim() ? 'Try another name, code, shop or mobile.' : 'Add a dealer to link it to this repair.'}
                 </Text>
               </View>
@@ -1412,7 +1414,7 @@ export default function NewRepairScreen() {
               style={[styles.addDealerButton, { borderColor: colors.primary + '55', backgroundColor: colors.primary + '0D' }]}
             >
               <Feather name="plus-circle" size={17} color={colors.primary} />
-              <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Add New Dealer</Text>
+              <Text style={{ fontSize: 13, color: colors.primary, fontFamily: fontFamily.semibold }}>Add New Dealer</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -1428,10 +1430,10 @@ export default function NewRepairScreen() {
           <View style={[styles.identifierModal, { backgroundColor: colors.card, borderColor: colors.destructive + '66' }]}>
             <View style={styles.identifierModalHeader}>
               <View>
-                <Text style={[styles.identifierModalTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+                <Text style={[styles.identifierModalTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
                   Device ID
                 </Text>
-                <Text style={[styles.identifierModalHint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                <Text style={[styles.identifierModalHint, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                   Select one or more, then enter the details
                 </Text>
               </View>
@@ -1466,7 +1468,7 @@ export default function NewRepairScreen() {
                       }]}>
                         {selected && <Feather name="check" size={14} color="#FFF" />}
                       </View>
-                      <Text style={[styles.identifierOptionLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                      <Text style={[styles.identifierOptionLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
                         {option.label}
                       </Text>
                     </TouchableOpacity>
@@ -1491,7 +1493,7 @@ export default function NewRepairScreen() {
               style={[styles.identifierOkButton, { backgroundColor: colors.primary }]}
             >
               <Feather name="check" size={18} color="#FFF" />
-              <Text style={[styles.identifierOkText, { fontFamily: 'Inter_700Bold' }]}>Done</Text>
+              <Text style={[styles.identifierOkText, { fontFamily: fontFamily.bold }]}>Done</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1501,7 +1503,7 @@ export default function NewRepairScreen() {
       <Modal visible={!!showPhotoKindModal} animationType="fade" transparent onRequestClose={() => setShowPhotoKindModal(null)}>
         <View style={[styles.overlayCenter, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
           <View style={[styles.kindModal, { backgroundColor: colors.card }]}>
-            <Text style={[styles.kindTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Photo Category</Text>
+            <Text style={[styles.kindTitle, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Photo Category</Text>
             <View style={styles.kindGrid}>
               {PHOTO_KINDS.map(k => (
                 <TouchableOpacity
@@ -1514,12 +1516,12 @@ export default function NewRepairScreen() {
                     }
                   }}
                 >
-                  <Text style={[styles.kindBtnText, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{k.label}</Text>
+                  <Text style={[styles.kindBtnText, { color: colors.foreground, fontFamily: fontFamily.medium }]}>{k.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
             <TouchableOpacity style={{ marginTop: 20 }} onPress={() => setShowPhotoKindModal(null)}>
-              <Text style={{ color: colors.destructive, fontFamily: 'Inter_500Medium', textAlign: 'center', fontSize: 16 }}>Cancel</Text>
+              <Text style={{ color: colors.destructive, fontFamily: fontFamily.medium, textAlign: 'center', fontSize: 16 }}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1533,38 +1535,38 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingBottom: 12,
+    paddingHorizontal: layout.screenPadding, paddingBottom: space.md,
   },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 17, letterSpacing: 0.4 },
-  headerCheck: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  scroll: { paddingHorizontal: 14, paddingTop: 8 },
+  backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  headerCheck: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  scroll: { paddingHorizontal: layout.screenPadding, paddingTop: space.sm },
   section: {
-    gap: 10,
-    padding: 13,
-    borderRadius: 16,
-    borderWidth: 1,
+    gap: space.md,
+    padding: space.xl,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   estimateRow: { flexDirection: 'row', gap: 10 },
   estimateColumn: { flex: 1, minWidth: 0, gap: 7 },
-  estimateLabel: { fontSize: 12, lineHeight: 16, letterSpacing: 0.1 },
+  estimateLabel: { fontSize: 13, lineHeight: 16, letterSpacing: 0.1 },
   threeColumnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   twoColumnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   twoColumn: { flex: 1, minWidth: 0 },
   compactField: { flex: 1, minWidth: 0, gap: 7 },
-  compactFieldLabel: { fontSize: 11, lineHeight: 16 },
+  compactFieldLabel: { fontSize: 13, lineHeight: 16 },
   identifierFieldColumn: { flex: 1, minWidth: 0, gap: 7 },
-  identifierFieldLabel: { fontSize: 12, lineHeight: 16, letterSpacing: 0.1 },
+  identifierFieldLabel: { fontSize: 13, lineHeight: 16, letterSpacing: 0.1 },
   identifierFieldControl: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 0, borderWidth: 1.5 },
   identifierFieldText: { flex: 1, minWidth: 0, fontSize: 15, lineHeight: 20 },
   compactToggle: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 0, borderRadius: 9, borderWidth: 1 },
-  compactToggleLabel: { flex: 1, minWidth: 0, fontSize: 11, lineHeight: 16 },
+  compactToggleLabel: { flex: 1, minWidth: 0, fontSize: 13, lineHeight: 16 },
   customerHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2, marginBottom: 3 },
   sectionIcon: { width: 25, height: 25, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { fontSize: 13, letterSpacing: 0.2 },
+  sectionTitle: { ...font.heading },
   dealerLinkButton: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '52%', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, borderWidth: 1 },
-  dealerLinkLabel: { fontSize: 12, flexShrink: 1 },
+  dealerLinkLabel: { fontSize: 13, flexShrink: 1 },
   dealerPickerScreen: { flex: 1 },
   dealerPickerHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1 },
   addDealerButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 13, marginTop: 8, borderRadius: 11, borderWidth: 1 },
@@ -1572,33 +1574,33 @@ const styles = StyleSheet.create({
   sectionToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10, borderWidth: 1 },
   sectionToggleLabel: { fontSize: 13, flex: 1 },
   countBadge: { minWidth: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  countBadgeText: { fontSize: 10 },
+  countBadgeText: { fontSize: 13 },
   vListWrap: { borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
   vList: { maxHeight: 250 },
-  fieldError: { fontSize: 11, marginTop: -6 },
+  fieldError: { fontSize: 13, marginTop: -6 },
   radioOuter: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   radioInner: { width: 8, height: 8, borderRadius: 4 },
   vItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   checklistItem: { width: '48%', flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 10, borderWidth: 1, gap: 8 },
   checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  checklistLabel: { fontSize: 12, flex: 1 },
+  checklistLabel: { fontSize: 13, flex: 1 },
   photoSection: {
     gap: 7,
     padding: 13,
     borderRadius: 16,
     borderWidth: 1,
   },
-  photoHint: { fontSize: 11, marginLeft: 33, marginTop: -3 },
+  photoHint: { fontSize: 13, marginLeft: 33, marginTop: -3 },
   photoScroll: { gap: 10, paddingVertical: 2 },
   addPhotoBtn: { width: 108, height: 92, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 4, position: 'relative' },
   photoPlus: { position: 'absolute', top: 23, left: 60 },
-  addPhotoText: { fontSize: 10 },
+  addPhotoText: { fontSize: 13 },
   photoCountRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 1 },
-  photoCount: { fontSize: 11 },
+  photoCount: { fontSize: 13 },
   photoThumbWrap: { width: 80, height: 80, borderRadius: 10, borderWidth: 1, overflow: 'hidden' },
   photoThumb: { width: '100%', height: '100%' },
   photoBadge: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingVertical: 2, alignItems: 'center' },
-  photoBadgeText: { color: '#FFF', fontSize: 8, fontWeight: 'bold' },
+  photoBadgeText: { ...font.smallStrong },
   photoRemove: { position: 'absolute', top: 4, right: 4, width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   priorityField: { gap: 7, position: 'relative', zIndex: 4 },
   prioritySelect: { minHeight: 44, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -1606,11 +1608,11 @@ const styles = StyleSheet.create({
   priorityMenu: { position: 'absolute', top: 68, left: 0, right: 0, borderRadius: 10, borderWidth: 1, overflow: 'hidden', zIndex: 10, elevation: 5 },
   priorityOption: { minHeight: 42, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth },
   advanceHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 28 },
-  receiveButton: { minHeight: 58, borderRadius: 12, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2, marginBottom: 8 },
+  receiveButton: { minHeight: size.buttonLg, borderRadius: radius.sm, paddingHorizontal: space.lg, flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.xs, marginBottom: space.sm },
   receiveIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
   receiveCopy: { flex: 1, gap: 2 },
-  receiveTitle: { color: '#FFFFFF', fontSize: 15, letterSpacing: 0.2 },
-  receiveSubtitle: { color: 'rgba(255,255,255,0.84)', fontSize: 10 },
+  receiveTitle: { ...font.button },
+  receiveSubtitle: { color: 'rgba(255,255,255,0.84)', fontSize: 13 },
   sigBtn: { padding: 12, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   sigBtnText: { fontSize: 13 },
   sigPreviewWrap: { height: 100, borderRadius: 10, borderWidth: 1, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
@@ -1619,23 +1621,23 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1 },
   sigScreen: { flex: 1, paddingHorizontal: 16, paddingBottom: 20 },
   sigHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
-  sigSubtitle: { fontSize: 12, marginTop: 2 },
+  sigSubtitle: { fontSize: 13, marginTop: 2 },
   sigCloseBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   sigCard: { flex: 1, borderRadius: 12, borderWidth: 1, overflow: 'hidden', backgroundColor: '#FFF' },
   sigBaseline: { position: 'absolute', left: 20, right: 20, bottom: 16, borderTopWidth: 1, borderTopColor: '#D1D5DB', borderStyle: 'dashed', paddingTop: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
-  sigBaselineText: { fontSize: 11, color: '#9CA3AF' },
+  sigBaselineText: { fontSize: 13, color: '#9CA3AF' },
   sigFooterRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  modalTitle: { fontSize: 16 },
+  modalTitle: { ...font.heading },
   overlayCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
   kindModal: { width: '100%', padding: 16, borderRadius: 16 },
   kindTitle: { fontSize: 16, marginBottom: 12, textAlign: 'center' },
   kindGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   kindBtn: { width: '48%', padding: 12, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
-  kindBtnText: { fontSize: 12 },
+  kindBtnText: { fontSize: 13 },
   identifierModal: { width: '100%', maxWidth: 520, maxHeight: '82%', padding: 16, borderRadius: 18, borderWidth: 1 },
   identifierModalHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 },
   identifierModalTitle: { fontSize: 17, lineHeight: 22 },
-  identifierModalHint: { fontSize: 12, lineHeight: 17, marginTop: 2 },
+  identifierModalHint: { fontSize: 13, lineHeight: 17, marginTop: 2 },
   identifierClose: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   identifierModalScroll: { flexGrow: 0 },
   identifierOptionBlock: { gap: 7, marginBottom: 10 },
@@ -1649,11 +1651,11 @@ const styles = StyleSheet.create({
   successSubtitle: { fontSize: 14, marginBottom: 24 },
   qrWrap: { padding: 16, backgroundColor: '#FFF', borderRadius: 12, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 },
   warningBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 4 },
-  warningText: { flex: 1, fontSize: 12, lineHeight: 16 },
+  warningText: { flex: 1, fontSize: 13, lineHeight: 16 },
   summaryBox: { padding: 12, borderRadius: 10, borderWidth: 1, gap: 6 },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  summaryLabel: { fontSize: 12, flex: 1 },
-  summaryValue: { fontSize: 13, flex: 2, textAlign: 'right', fontFamily: 'Inter_500Medium' },
+  summaryLabel: { fontSize: 13, flex: 1 },
+  summaryValue: { fontSize: 13, flex: 2, textAlign: 'right', fontFamily: fontFamily.medium },
   confirmationWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10, borderWidth: 1 },
-  confirmationText: { flex: 1, fontSize: 12, lineHeight: 18 },
+  confirmationText: { flex: 1, fontSize: 13, lineHeight: 18 },
 });

@@ -14,6 +14,8 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { Card } from '@/components/ui/Card';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
@@ -114,7 +116,7 @@ export default function SecurityScreen() {
         >
           <Feather name="arrow-left" size={20} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>
           Security
         </Text>
         <View style={{ width: 40 }} />
@@ -141,7 +143,7 @@ export default function SecurityScreen() {
                 styles.bannerText,
                 {
                   color: banner.kind === 'success' ? colors.success : colors.destructive,
-                  fontFamily: 'Inter_600SemiBold',
+                  fontFamily: fontFamily.semibold,
                 },
               ]}
             >
@@ -158,10 +160,10 @@ export default function SecurityScreen() {
               <Card>
                 <View style={styles.rowBetween}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                    <Text style={[styles.rowLabel, { color: colors.foreground }]}>
                       App lock
                     </Text>
-                    <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                    <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
                       Unlock with {methodLabel.toLowerCase()}. Avarpus no longer stores or asks for an MPIN.
                     </Text>
                   </View>
@@ -183,10 +185,10 @@ export default function SecurityScreen() {
                     <Feather name="smartphone" size={18} color={colors.primary} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                    <Text style={[styles.rowLabel, { color: colors.foreground }]}>
                       Uses Android device security
                     </Text>
-                    <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                    <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
                       Android controls the authentication prompt. Depending on your phone setup, it can offer fingerprint, face unlock, PIN, pattern, or device password.
                     </Text>
                   </View>
@@ -210,7 +212,7 @@ const styles = StyleSheet.create({
   bannerText: { fontSize: 13, flex: 1 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   rowLabel: { fontSize: 15 },
-  rowSub: { fontSize: 12, marginTop: 4, lineHeight: 18 },
+  rowSub: { ...font.caption, marginTop: space.xs },
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   infoIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 });

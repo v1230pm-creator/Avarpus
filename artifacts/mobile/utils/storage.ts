@@ -45,5 +45,7 @@ export const KEYS = {
   PUSH_DEVICE_ID: 'vmc_push_device_id',
   PUSH_DIAGNOSTICS: 'vmc_push_diagnostics',
   PUSH_CHANNELS_VERSION: 'vmc_push_channels_version',
+  CHAT_STORES: 'vmc_chat_stores',
+  CHAT_AUTO_DOWNLOAD: 'vmc_chat_auto_download',
   SEEDED: 'vmc_seeded',
 };

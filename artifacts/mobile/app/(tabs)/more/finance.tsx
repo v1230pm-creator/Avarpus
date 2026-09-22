@@ -21,6 +21,8 @@ import { FlatCard, useStaggerAnim, useIsDark } from '@/components/ui/Glass';
 import { FinanceFormSheet } from '@/components/forms/FinanceFormSheet';
 import { FinanceEntry } from '@/types';
 import { formatCurrency, formatDate, getTodayStr } from '@/utils/helpers';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 const PERIODS = ['Today', 'Week', 'Month', 'All'] as const;
 type Period = (typeof PERIODS)[number];
@@ -39,17 +41,17 @@ function TransactionItem({ entry, isLast, onPress }: { entry: FinanceEntry; isLa
       </View>
       <View style={styles.txContent}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={[styles.txCategory, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{entry.category}</Text>
+          <Text style={[styles.txCategory, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>{entry.category}</Text>
           {entry.isSample && <SampleBadge />}
         </View>
         {entry.description && (
-          <Text style={[styles.txDesc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+          <Text style={[styles.txDesc, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]} numberOfLines={1}>
             {entry.description}
           </Text>
         )}
-        <Text style={[styles.txDate, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{formatDate(entry.date)}</Text>
+        <Text style={[styles.txDate, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>{formatDate(entry.date)}</Text>
       </View>
-      <Text style={[styles.txAmount, { color: isIncome ? colors.success : colors.destructive, fontFamily: 'Inter_700Bold' }]}>
+      <Text style={[styles.txAmount, { color: isIncome ? colors.success : colors.destructive, fontFamily: fontFamily.bold }]}>
         {isIncome ? '+' : '-'}{formatCurrency(entry.amount)}
       </Text>
     </TouchableOpacity>
@@ -116,13 +118,13 @@ export default function FinanceScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Finance</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Finance</Text>
         <TouchableOpacity
           onPress={openAdd}
           style={[styles.addBtn, { backgroundColor: colors.primary }]}
           accessibilityLabel="Add entry"
         >
-          <Feather name="plus" size={20} color="#FFFFFF" />
+          <Feather name="plus" size={size.inlineIcon} color={colors.primaryForeground} />
         </TouchableOpacity>
       </View>
 
@@ -151,7 +153,7 @@ export default function FinanceScreen() {
                   borderColor: active ? colors.primary : (colors.border),
                 }]}
               >
-                <Text style={[styles.periodText, { color: active ? '#FFFFFF' : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>
+                <Text style={[styles.periodText, { color: active ? colors.primaryForeground : colors.mutedForeground, fontFamily: active ? fontFamily.semibold : fontFamily.medium }]}>
                   {p}
                 </Text>
               </TouchableOpacity>
@@ -168,8 +170,8 @@ export default function FinanceScreen() {
         <FlatCard animValue={anims[0]} style={{ padding: 12 }}>
           <View style={styles.profitRow}>
             <View>
-              <Text style={[styles.profitLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Net Profit</Text>
-              <Text style={[styles.profitValue, { color: stats.profit >= 0 ? colors.success : colors.destructive, fontFamily: 'Inter_700Bold' }]}>
+              <Text style={[styles.profitLabel, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>Net Profit</Text>
+              <Text style={[styles.profitValue, { color: stats.profit >= 0 ? colors.success : colors.destructive, fontFamily: fontFamily.bold }]}>
                 {formatCurrency(stats.profit)}
               </Text>
             </View>
@@ -180,13 +182,13 @@ export default function FinanceScreen() {
         </FlatCard>
 
         {/* Transactions */}
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: fontFamily.semibold }]}>
           TRANSACTIONS ({filteredEntries.length})
         </Text>
 
         {filteredEntries.length === 0 ? (
           <Card>
-            <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               No transactions for this period
             </Text>
           </Card>
@@ -208,28 +210,28 @@ export default function FinanceScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 12 },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  addBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20 },
-  scroll: { padding: 12, gap: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
+  backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  addBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  scroll: { padding: layout.screenPadding, gap: space.sm },
   periodRow: { flexDirection: 'row', gap: 8 },
   periodTab: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
-  periodText: { fontSize: 13 },
+  periodText: { ...font.smallStrong },
   statsRow: { flexDirection: 'row', gap: 8 },
   statCard: { flex: 1 },
   profitRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  profitLabel: { fontSize: 13 },
-  profitValue: { fontSize: 28, marginTop: 2 },
+  profitLabel: { ...font.caption },
+  profitValue: { ...font.title, marginTop: space.xs },
   profitBadge: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  sectionLabel: { fontSize: 11, letterSpacing: 1 },
+  sectionLabel: { ...font.overline },
   txList: { overflow: 'hidden' },
-  txItem: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
-  txIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  txItem: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: layout.rowPaddingVertical, paddingHorizontal: space.xl },
+  txIcon: { width: size.avatarSm, height: size.avatarSm, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   txContent: { flex: 1, gap: 2 },
-  txCategory: { fontSize: 14 },
-  txDesc: { fontSize: 12 },
-  txDate: { fontSize: 11 },
-  txAmount: { fontSize: 15 },
-  emptyText: { textAlign: 'center', fontSize: 14 },
+  txCategory: { ...font.bodyStrong },
+  txDesc: { ...font.caption },
+  txDate: { ...font.caption },
+  txAmount: { ...font.bodyStrong },
+  emptyText: { ...font.body, textAlign: 'center' },
 });

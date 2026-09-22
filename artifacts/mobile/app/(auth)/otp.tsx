@@ -12,6 +12,7 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
 import { completeUnlockSuccess } from '@/utils/appLock';
 import { onBlue } from '@/constants/brand';
+import { font, fontFamily } from '@/constants/typography';
 
 export default function OTPScreen() {
   const router = useRouter();
@@ -156,10 +157,10 @@ export default function OTPScreen() {
               <View style={[styles.iconCircle, { backgroundColor: theme.primary + '15' }]}>
                 <Feather name={needsDisplayName ? 'user' : 'smartphone'} size={28} color={theme.primary} />
               </View>
-              <Text style={[styles.title, { color: theme.text, fontFamily: 'Inter_700Bold' }]}>
+              <Text style={[styles.title, { color: theme.text, fontFamily: fontFamily.bold }]}>
                 {needsDisplayName ? 'Choose your display name' : 'Verify Your Mobile'}
               </Text>
-              <Text style={[styles.subtitle, { color: theme.textMuted, fontFamily: 'Inter_400Regular' }]}>
+              <Text style={[styles.subtitle, { color: theme.textMuted, fontFamily: fontFamily.regular }]}>
                 {needsDisplayName
                   ? 'This is how you will appear in conversations.'
                   : sentTo
@@ -180,7 +181,7 @@ export default function OTPScreen() {
                   onSubmitEditing={saveDisplayName}
                   placeholder="Your name"
                   placeholderTextColor={theme.textMuted}
-                  style={[styles.nameInput, { borderColor: theme.border, color: theme.text, backgroundColor: theme.inputBg, borderRadius: colors.radius - 2, fontFamily: 'Inter_500Medium' }]}
+                  style={[styles.nameInput, { borderColor: theme.border, color: theme.text, backgroundColor: theme.inputBg, borderRadius: colors.radius - 2, fontFamily: fontFamily.medium }]}
                 />
                 <Button title="Continue" onPress={saveDisplayName} loading={savingName} variant="onBlue" fullWidth size="lg" />
               </>
@@ -202,7 +203,7 @@ export default function OTPScreen() {
                         {
                           borderColor: digit ? theme.primary : theme.border,
                           color: theme.text,
-                          fontFamily: 'Inter_700Bold',
+                          fontFamily: fontFamily.bold,
                           backgroundColor: theme.inputBg,
                           borderRadius: colors.radius - 2,
                         },
@@ -215,12 +216,12 @@ export default function OTPScreen() {
                 {!!error && (
                   <View style={[styles.errorBox, { backgroundColor: theme.dangerBg, borderColor: theme.dangerBg }]}>
                     <Feather name="alert-circle" size={14} color={theme.danger} />
-                    <Text style={[styles.errorText, { color: theme.danger, fontFamily: 'Inter_400Regular' }]}>{error}</Text>
+                    <Text style={[styles.errorText, { color: theme.danger, fontFamily: fontFamily.regular }]}>{error}</Text>
                   </View>
                 )}
 
                 <TouchableOpacity onPress={handleResend} disabled={timer > 0} style={{ alignItems: 'center' }}>
-                  <Text style={[styles.resendText, { color: timer > 0 ? theme.textMuted : theme.primary, fontFamily: 'Inter_500Medium' }]}>
+                  <Text style={[styles.resendText, { color: timer > 0 ? theme.textMuted : theme.primary, fontFamily: fontFamily.medium }]}>
                     {timer > 0 ? `Resend OTP in ${timer}s` : 'Resend OTP'}
                   </Text>
                 </TouchableOpacity>
@@ -231,7 +232,7 @@ export default function OTPScreen() {
             {needsDisplayName && !!error && (
               <View style={[styles.errorBox, { backgroundColor: theme.dangerBg, borderColor: theme.dangerBg }]}>
                 <Feather name="alert-circle" size={14} color={theme.danger} />
-                <Text style={[styles.errorText, { color: theme.danger, fontFamily: 'Inter_400Regular' }]}>{error}</Text>
+                <Text style={[styles.errorText, { color: theme.danger, fontFamily: fontFamily.regular }]}>{error}</Text>
               </View>
             )}
           </View>
@@ -249,12 +250,12 @@ const styles = StyleSheet.create({
   content: { flex: 1, justifyContent: 'center', gap: 24 },
   header: { alignItems: 'center', gap: 8 },
   iconCircle: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 24, letterSpacing: -0.5 },
-  subtitle: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  title: { ...font.title },
+  subtitle: { ...font.small, textAlign: 'center' },
   otpRow: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
-  otpCell: { width: 44, height: 56, fontSize: 22, borderWidth: 1 },
-  nameInput: { width: '100%', height: 50, borderWidth: 1, paddingHorizontal: 16, fontSize: 15 },
-  resendText: { fontSize: 14 },
+  otpCell: { width: 44, height: 56, ...font.heading, borderWidth: 1 },
+  nameInput: { width: '100%', height: 50, borderWidth: 1, paddingHorizontal: 16, ...font.input },
+  resendText: { ...font.smallStrong },
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 8, padding: 12, borderWidth: 1 },
-  errorText: { fontSize: 13, flex: 1 },
+  errorText: { ...font.small, flex: 1 },
 });

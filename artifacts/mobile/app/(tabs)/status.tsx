@@ -32,6 +32,8 @@ import { Avatar } from '@/components/ui/Avatar';
 import { StatusViewer } from '@/components/status/StatusViewer';
 import { KEYS, storage } from '@/utils/storage';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
+import { font } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 type PendingMedia = {
   uri: string;
@@ -258,7 +260,7 @@ export default function StatusScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPadding + 12 }]}>
+      <View style={[styles.header, { paddingTop: topPadding + space.md, backgroundColor: colors.background }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Updates</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity
@@ -267,7 +269,7 @@ export default function StatusScreen() {
             accessibilityLabel="Capture status"
             testID="status-camera"
           >
-            <Feather name="camera" size={20} color={colors.foreground} />
+            <Feather name="camera" size={size.headerIcon} color={colors.foreground} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/more/settings')}
@@ -275,7 +277,7 @@ export default function StatusScreen() {
             accessibilityLabel="Open settings"
             testID="status-settings-menu"
           >
-            <Feather name="more-vertical" size={22} color={colors.foreground} />
+            <Feather name="more-vertical" size={size.headerIcon} color={colors.foreground} />
           </TouchableOpacity>
         </View>
       </View>
@@ -355,7 +357,7 @@ export default function StatusScreen() {
         )}
       </ScrollView>
 
-      <View style={[styles.floatingActions, { bottom: Math.max(insets.bottom, 10) + 8 }]}>
+      <View style={[styles.floatingActions, { bottom: size.tabBar + (Platform.OS === 'web' ? 20 : Math.max(insets.bottom, 12)) + space.lg }]}>
         <TouchableOpacity
           onPress={openTextComposer}
           style={[styles.smallFab, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
@@ -365,7 +367,7 @@ export default function StatusScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => void selectMedia('camera')}
-          style={[styles.fab, { backgroundColor: colors.success }]}
+          style={[styles.fab, { backgroundColor: colors.primary }]}
           accessibilityLabel="Create camera status"
         >
           <Feather name="camera" size={23} color="#FFFFFF" />
@@ -424,7 +426,7 @@ export default function StatusScreen() {
                 maxLength={7000}
                 autoFocus
                 textAlignVertical="center"
-                style={styles.textComposer}
+                style={[styles.textComposer, { backgroundColor: colors.primary, color: colors.primaryForeground }]}
               />
             )}
 
@@ -463,46 +465,46 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
     minHeight: 74,
-    paddingHorizontal: 18,
+    paddingHorizontal: layout.screenPadding,
     paddingBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  title: { fontFamily: 'Inter_700Bold', fontSize: 28, letterSpacing: -0.8 },
+  title: { ...font.display },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  iconButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  content: { paddingHorizontal: 16, paddingBottom: 140 },
-  sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 20, marginTop: 8, marginBottom: 12 },
+  iconButton: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  content: { paddingHorizontal: layout.screenPadding, paddingBottom: 140 },
+  sectionTitle: { ...font.heading, marginTop: space.sm, marginBottom: space.md },
   statusRow: { flexDirection: 'row', alignItems: 'center', minHeight: 72, gap: 12 },
   addAvatar: { width: 62, height: 62, alignItems: 'center', justifyContent: 'center' },
   addBadge: { position: 'absolute', right: 1, bottom: 0, width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   statusRing: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center' },
   rowText: { flex: 1, minHeight: 72, justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
-  rowName: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
-  rowTime: { fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: 4 },
+  rowName: { ...font.itemTitle },
+  rowTime: { ...font.caption, marginTop: space.xs },
   groupSection: { marginTop: 20 },
-  groupLabel: { fontFamily: 'Inter_600SemiBold', fontSize: 13, marginBottom: 5 },
+  groupLabel: { ...font.labelStrong, marginBottom: space.sm },
   stateBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 54, gap: 10 },
-  stateTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 16, textAlign: 'center' },
-  stateText: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 20, textAlign: 'center', maxWidth: 286 },
+  stateTitle: { ...font.bodyStrong, textAlign: 'center' },
+  stateText: { ...font.body, textAlign: 'center', maxWidth: 286 },
   emptyCard: { alignItems: 'center', marginTop: 24, padding: 28, borderRadius: 20, borderWidth: 1 },
   emptyIcon: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  floatingActions: { position: 'absolute', right: 18, alignItems: 'center', gap: 12 },
+  floatingActions: { position: 'absolute', right: layout.screenPadding, alignItems: 'center', gap: space.md },
   smallFab: { width: 46, height: 46, borderRadius: 15, borderWidth: 1, alignItems: 'center', justifyContent: 'center', elevation: 3 },
-  fab: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', elevation: 5 },
+  fab: { width: size.fab, height: size.fab, borderRadius: size.fabRadius, alignItems: 'center', justifyContent: 'center' },
   composerBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.58)' },
   composer: { borderTopLeftRadius: 26, borderTopRightRadius: 26, overflow: 'hidden', paddingBottom: Platform.OS === 'web' ? 34 : 20 },
   composerHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 12 },
-  composerTitle: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 18, marginLeft: 6 },
+  composerTitle: { flex: 1, ...font.heading, marginLeft: space.sm },
   publishButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
-  textComposer: { minHeight: 260, backgroundColor: '#165D8C', color: '#FFFFFF', fontFamily: 'Inter_600SemiBold', fontSize: 28, lineHeight: 37, textAlign: 'center', padding: 30 },
+  textComposer: { minHeight: 260, color: '#FFFFFF', ...font.title, textAlign: 'center', padding: space.xxxl },
   mediaChoice: { minHeight: 260, marginHorizontal: 18, borderWidth: 1, borderRadius: 20, alignItems: 'center', justifyContent: 'center', padding: 28 },
   mediaIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  mediaName: { fontFamily: 'Inter_600SemiBold', fontSize: 15, maxWidth: '86%' },
-  mediaMeta: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 5, textTransform: 'capitalize' },
+  mediaName: { ...font.bodyStrong, maxWidth: '86%' },
+  mediaMeta: { ...font.caption, marginTop: space.sm, textTransform: 'capitalize' },
   removeMedia: { position: 'absolute', right: 14, top: 14, width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   composerTools: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, marginTop: 18, paddingTop: 14, paddingHorizontal: 20 },
   toolButton: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 52 },
-  toolLabel: { fontFamily: 'Inter_500Medium', fontSize: 12 },
+  toolLabel: { ...font.label },
 });

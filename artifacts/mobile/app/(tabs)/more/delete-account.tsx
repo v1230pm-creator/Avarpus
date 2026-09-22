@@ -20,6 +20,8 @@ import {
   type AccountDeletionScope,
 } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -232,11 +234,11 @@ export default function DeleteAccountScreen() {
         <View style={{ flex: 1 }}>
           <View style={styles.optionTitleRow}>
             <Feather name={icon} size={16} color={selected ? destructive : colors.foreground} />
-            <Text style={[styles.optionTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{title}</Text>
+            <Text style={[styles.optionTitle, { color: colors.foreground }]}>{title}</Text>
           </View>
-          <Text style={[styles.optionSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{sub}</Text>
+          <Text style={[styles.optionSub, { color: colors.mutedForeground }]}>{sub}</Text>
           {!allowed && reason ? (
-            <Text style={[styles.optionSub, { color: destructive, fontFamily: 'Inter_500Medium' }]}>{reason}</Text>
+            <Text style={[styles.optionSub, { color: destructive }]}>{reason}</Text>
           ) : null}
         </View>
       </TouchableOpacity>
@@ -251,8 +253,8 @@ export default function DeleteAccountScreen() {
             <View style={[styles.bigIcon, { backgroundColor: colors.success + '15' }]}>
               <Feather name="check-circle" size={34} color={colors.success} />
             </View>
-            <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Account Deleted</Text>
-            <Text style={[styles.desc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular', textAlign: 'center' }]}>
+            <Text style={[styles.title, { color: colors.foreground }]}>Account Deleted</Text>
+            <Text style={[styles.desc, { color: colors.mutedForeground, textAlign: 'center' }]}>
               {scope === 'both'
                 ? 'Your Chat Account and Business Account have been permanently deleted. You have been signed out on every device.'
                 : `Your ${SCOPE_LABEL[scope ?? 'chat']} has been permanently deleted. You have been signed out on every device and can sign in again with your mobile number.`}
@@ -270,8 +272,8 @@ export default function DeleteAccountScreen() {
             <View style={[styles.bigIcon, { backgroundColor: destructive + '15' }]}>
               <Feather name="alert-triangle" size={34} color={destructive} />
             </View>
-            <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Deletion could not be completed.</Text>
-            <Text style={[styles.desc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular', textAlign: 'center' }]}>
+            <Text style={[styles.title, { color: colors.foreground }]}>Deletion could not be completed.</Text>
+            <Text style={[styles.desc, { color: colors.mutedForeground, textAlign: 'center' }]}>
               {failure}
             </Text>
             <Button title="Retry" onPress={() => { setFailure(null); setStepError(null); setCode(''); setStep('confirm'); }} fullWidth size="lg" variant="destructive" />
@@ -285,12 +287,12 @@ export default function DeleteAccountScreen() {
       return (
         <>
           <Card>
-            <Text style={[styles.desc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.desc, { color: colors.mutedForeground }]}>
               Choose what to permanently delete. Deletion is immediate, cannot be undone, and nothing can be restored afterwards.
             </Text>
             {previewError ? (
               <View style={styles.inlineError}>
-                <Text style={[styles.errorText, { color: destructive, fontFamily: 'Inter_500Medium' }]}>{previewError}</Text>
+                <Text style={[styles.errorText, { color: destructive }]}>{previewError}</Text>
                 <Button title="Try again" onPress={loadPreview} variant="outline" />
               </View>
             ) : !preview ? (
@@ -321,24 +323,24 @@ export default function DeleteAccountScreen() {
           <Card>
             <View style={styles.warnHeader}>
               <Feather name="alert-triangle" size={20} color={destructive} />
-              <Text style={[styles.title, { color: destructive, fontFamily: 'Inter_700Bold' }]}>
+              <Text style={[styles.title, { color: destructive }]}>
                 {scope === 'both'
                   ? 'This will permanently delete both of your accounts'
                   : `This will permanently delete your ${SCOPE_LABEL[scope ?? 'chat']}`}
               </Text>
             </View>
-            <Text style={[styles.desc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.desc, { color: colors.mutedForeground }]}>
               The following will be erased from Avarpus servers right away. It cannot be recovered by you or by Avarpus support.
             </Text>
             <View style={styles.bullets}>
               {consequences.map((line, i) => (
                 <View key={i} style={styles.bullet}>
                   <Feather name="x-circle" size={14} color={destructive} style={{ marginTop: 3 }} />
-                  <Text style={[styles.bulletText, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}>{line}</Text>
+                  <Text style={[styles.bulletText, { color: colors.foreground }]}>{line}</Text>
                 </View>
               ))}
             </View>
-            <Text style={[styles.desc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.desc, { color: colors.mutedForeground }]}>
               You will be signed out on every device. Other people keep their own copies of conversations they had with you.
             </Text>
           </Card>
@@ -352,7 +354,7 @@ export default function DeleteAccountScreen() {
       return (
         <>
           <Card>
-            <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Final confirmation</Text>
+            <Text style={[styles.title, { color: colors.foreground }]}>Final confirmation</Text>
             <TouchableOpacity
               onPress={() => {
                 if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -374,15 +376,15 @@ export default function DeleteAccountScreen() {
               >
                 {acknowledged && <Feather name="check" size={14} color="#FFFFFF" />}
               </View>
-              <Text style={[styles.checkText, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>
+              <Text style={[styles.checkText, { color: colors.foreground }]}>
                 I understand this action is permanent and cannot be undone.
               </Text>
             </TouchableOpacity>
-            <Text style={[styles.desc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.desc, { color: colors.mutedForeground }]}>
               To confirm it is really you, a one-time code will be sent to the mobile number on this account.
             </Text>
             {stepError ? (
-              <Text style={[styles.errorText, { color: destructive, fontFamily: 'Inter_500Medium' }]}>{stepError}</Text>
+              <Text style={[styles.errorText, { color: destructive }]}>{stepError}</Text>
             ) : null}
           </Card>
           <Button
@@ -404,8 +406,8 @@ export default function DeleteAccountScreen() {
     return (
       <>
         <Card>
-          <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Enter verification code</Text>
-          <Text style={[styles.desc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.title, { color: colors.foreground }]}>Enter verification code</Text>
+          <Text style={[styles.desc, { color: colors.mutedForeground }]}>
             {sentTo ? `A code was sent to ${sentTo}.` : 'A code was sent to your registered mobile number.'} Entering it deletes your {SCOPE_LABEL[scope ?? 'chat']} immediately.
           </Text>
           <Input
@@ -421,7 +423,7 @@ export default function DeleteAccountScreen() {
             editable={!busy}
           />
           <TouchableOpacity onPress={requestCode} disabled={busy} style={styles.resend}>
-            <Text style={[styles.resendText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Resend code</Text>
+            <Text style={[styles.resendText, { color: colors.primary }]}>Resend code</Text>
           </TouchableOpacity>
         </Card>
         <Button
@@ -461,7 +463,7 @@ export default function DeleteAccountScreen() {
         >
           <Feather name="arrow-left" size={20} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Delete Account</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Delete Account</Text>
         <View style={{ width: 40 }} />
       </View>
       <ScrollView
@@ -489,7 +491,7 @@ const styles = StyleSheet.create({
   radioDot: { width: 10, height: 10, borderRadius: 5 },
   optionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   optionTitle: { fontSize: 15 },
-  optionSub: { fontSize: 12, lineHeight: 17, marginTop: 4 },
+  optionSub: { ...font.caption, marginTop: space.xs },
   warnHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 6 },
   bullets: { gap: 8, marginBottom: 12 },
   bullet: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },

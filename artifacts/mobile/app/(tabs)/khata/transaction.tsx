@@ -18,6 +18,8 @@ import { DataErrorState } from '@/components/ui/DataStates';
 import { useColors } from '@/hooks/useColors';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { dealerBalanceLabel, formatDateTime } from '@/utils/dealer-ledger';
+import { font } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 type Scope = 'dealer' | 'customer';
 
@@ -320,18 +322,18 @@ function customerView(
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 10, gap: 6 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20, fontFamily: 'Inter_700Bold' },
-  headerSub: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  amount: { fontSize: 28, fontFamily: 'Inter_700Bold' },
-  direction: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  statusLine: { fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  headerSub: { ...font.caption },
+  amount: { ...font.title },
+  direction: { ...font.bodyStrong },
+  statusLine: { ...font.caption, textAlign: 'center' },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, paddingVertical: 10 },
-  rowLabel: { fontSize: 12, fontFamily: 'Inter_500Medium', flexShrink: 0 },
-  rowValue: { fontSize: 13, fontFamily: 'Inter_600SemiBold', flex: 1, textAlign: 'right' },
+  rowLabel: { ...font.captionStrong, flexShrink: 0 },
+  rowValue: { ...font.bodyStrong, flex: 1, textAlign: 'right' },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 10, paddingVertical: 12 },
   linkIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  linkLabel: { flex: 1, fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  emptyText: { fontSize: 14, textAlign: 'center', marginTop: 40, fontFamily: 'Inter_500Medium' },
+  linkLabel: { flex: 1, ...font.bodyStrong },
+  emptyText: { ...font.body, textAlign: 'center', marginTop: 40 },
 });

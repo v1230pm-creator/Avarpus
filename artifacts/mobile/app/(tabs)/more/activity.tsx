@@ -4,6 +4,8 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, space } from '@/constants/spacing';
 import { FadeInView, FlatCard } from '@/components/ui/Glass';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { formatDate } from '@/utils/helpers';
@@ -43,18 +45,18 @@ export default function ActivityFeedScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold', flex: 1, marginRight: 8 }}>
+                <Text style={{ ...font.bodyStrong, color: colors.foreground, flex: 1, marginRight: space.sm }}>
                   {item.action}
                 </Text>
-                <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+                <Text style={{ ...font.caption, color: colors.mutedForeground }}>
                   {formatDate(item.createdAt)}
                 </Text>
               </View>
-              <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginTop: 4 }}>
+              <Text style={{ ...font.captionStrong, color: colors.mutedForeground, marginTop: space.xs }}>
                 by {item.userName} ({item.userRole})
               </Text>
               {item.repairId && (
-                <Text style={{ fontSize: 12, color: colors.primary, fontFamily: 'Inter_600SemiBold', marginTop: 6 }}>
+                <Text style={{ ...font.captionStrong, color: colors.primary, marginTop: space.sm }}>
                   View Repair
                 </Text>
               )}
@@ -73,19 +75,19 @@ export default function ActivityFeedScreen() {
           <TouchableOpacity onPress={() => router.back()} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border }}>
             <Feather name="arrow-left" size={20} color={colors.foreground} />
           </TouchableOpacity>
-          <Text style={{ fontSize: 20, color: colors.foreground, fontFamily: 'Inter_700Bold' }}>Activity Log</Text>
+          <Text style={{ ...font.title, color: colors.foreground }}>Activity Log</Text>
         </View>
       </View>
 
       <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 12, marginBottom: 16 }}>
         <TouchableOpacity onPress={() => setFilterType(undefined)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: filterType === undefined ? colors.primary : colors.card, borderWidth: 1, borderColor: filterType === undefined ? colors.primary : colors.border }}>
-          <Text style={{ color: filterType === undefined ? '#FFF' : colors.foreground, fontSize: 13, fontFamily: 'Inter_500Medium' }}>All</Text>
+          <Text style={{ color: filterType === undefined ? colors.primaryForeground : colors.foreground, ...font.captionStrong }}>All</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setFilterType(ActivityFeedType.repair)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: filterType === ActivityFeedType.repair ? colors.primary : colors.card, borderWidth: 1, borderColor: filterType === ActivityFeedType.repair ? colors.primary : colors.border }}>
-          <Text style={{ color: filterType === ActivityFeedType.repair ? '#FFF' : colors.foreground, fontSize: 13, fontFamily: 'Inter_500Medium' }}>Repairs</Text>
+          <Text style={{ color: filterType === ActivityFeedType.repair ? colors.primaryForeground : colors.foreground, ...font.captionStrong }}>Repairs</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setFilterType(ActivityFeedType.login)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: filterType === ActivityFeedType.login ? colors.primary : colors.card, borderWidth: 1, borderColor: filterType === ActivityFeedType.login ? colors.primary : colors.border }}>
-          <Text style={{ color: filterType === ActivityFeedType.login ? '#FFF' : colors.foreground, fontSize: 13, fontFamily: 'Inter_500Medium' }}>Logins</Text>
+          <Text style={{ color: filterType === ActivityFeedType.login ? colors.primaryForeground : colors.foreground, ...font.captionStrong }}>Logins</Text>
         </TouchableOpacity>
       </View>
 

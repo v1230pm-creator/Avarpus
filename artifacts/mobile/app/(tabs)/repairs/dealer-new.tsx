@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
+import { font } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 export default function AddDealerScreen() {
   const colors = useColors();
@@ -59,13 +61,13 @@ export default function AddDealerScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
 
-      <View style={[styles.header, { paddingTop: topPad + 14 }]}>
+      <View style={[styles.header, { paddingTop: topPad + layout.rowPaddingVertical }]}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}>
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Add Dealer</Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Register a B2B dealer for bulk repairs</Text>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Add Dealer</Text>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>Register a B2B dealer for bulk repairs</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -76,7 +78,7 @@ export default function AddDealerScreen() {
         showsVerticalScrollIndicator={false}
       >
         <FadeInView animValue={anims[0]} style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>DEALER DETAILS</Text>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>DEALER DETAILS</Text>
           <View style={{ gap: 14 }}>
             <Input label="Dealer Name" value={name} onChangeText={setName}
               placeholder="Owner / contact person" leftIcon="user" error={errors.name} />
@@ -92,9 +94,9 @@ export default function AddDealerScreen() {
         </FadeInView>
 
         <FadeInView animValue={anims[1]} style={styles.section}>
-          <View style={[styles.infoBox, { backgroundColor: colors.primary + '0F', borderColor: colors.primary + '22', borderRadius: 16 }]}>
+          <View style={[styles.infoBox, { backgroundColor: colors.primary + '0F', borderColor: colors.primary + '22', borderRadius: radius.md }]}>
             <Feather name="info" size={14} color={colors.primary} />
-            <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.infoText, { color: colors.mutedForeground }]}>
               A dealer code (DLR-001, DLR-002…) is assigned automatically. You can link repairs to this dealer at intake and track all their repairs from the dealer profile.
             </Text>
           </View>
@@ -107,13 +109,13 @@ export default function AddDealerScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 10, gap: 6 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20 },
-  headerSub: { fontSize: 12 },
-  scroll: { padding: 12, gap: 12 },
-  section: { gap: 12 },
-  sectionLabel: { fontSize: 10, letterSpacing: 1, marginTop: 4 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  headerSub: { ...font.caption },
+  scroll: { padding: layout.screenPadding, gap: space.md },
+  section: { gap: space.md },
+  sectionLabel: { ...font.overline, marginTop: space.xs },
   infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, padding: 10 },
-  infoText: { fontSize: 11, flex: 1, lineHeight: 16 },
+  infoText: { ...font.caption, flex: 1 },
 });

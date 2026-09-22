@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button } from '@/components/ui/Button';
 import { onBlue } from '@/constants/brand';
+import { font } from '@/constants/typography';
 
 export default function TermsScreen() {
   const router = useRouter();
@@ -76,15 +77,15 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, paddingHorizontal: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backButton: { width: 44, height: 44, marginLeft: -10, alignItems: 'center', justifyContent: 'center' },
-  wordmark: { fontSize: 12, letterSpacing: 2.4, fontFamily: 'Inter_700Bold' },
+  wordmark: { ...font.smallStrong, letterSpacing: 2.4 },
   content: { flex: 1, justifyContent: 'center', paddingVertical: 28, gap: 14 },
-  eyebrow: { fontSize: 12, letterSpacing: 1.5, fontFamily: 'Inter_700Bold', textTransform: 'uppercase' },
-  title: { fontSize: 28, lineHeight: 34, letterSpacing: -0.6, fontFamily: 'Inter_700Bold', marginBottom: 2 },
-  subtitle: { fontSize: 15, lineHeight: 22, fontFamily: 'Inter_500Medium' },
+  eyebrow: { ...font.overline, letterSpacing: 1.5 },
+  title: { ...font.title, marginBottom: 2 },
+  subtitle: { ...font.captionStrong },
   divider: { height: 1, marginVertical: 14 },
   section: { paddingBottom: 16, marginBottom: 2, borderBottomWidth: 1 },
-  sectionTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 5 },
-  sectionText: { fontSize: 14.5, lineHeight: 21, fontFamily: 'Inter_500Medium' },
+  sectionTitle: { ...font.labelStrong, marginBottom: 5 },
+  sectionText: { ...font.captionStrong },
   buttonArea: { width: '100%', height: 64, paddingHorizontal: 5, paddingBottom: 10, marginTop: 4 },
   primaryButton: { borderRadius: 28, minHeight: 54, maxHeight: 54 },
 });

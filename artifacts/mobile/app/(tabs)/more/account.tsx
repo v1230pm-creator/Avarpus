@@ -14,6 +14,8 @@ import {
   type SessionInfo,
 } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -159,7 +161,7 @@ export default function AccountScreen() {
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}>
           <Feather name="arrow-left" size={20} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Account & Devices</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Account & Devices</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -171,7 +173,7 @@ export default function AccountScreen() {
         <FadeInView animValue={anims[0]} style={styles.section}>
         {/* Company Info */}
         <View style={[styles.sectionHeader, { borderLeftColor: colors.primary }]}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Company Information</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Company Information</Text>
         </View>
 
         <Input label="Company Name" value={companyName} onChangeText={setCompanyName} leftIcon="briefcase" />
@@ -184,17 +186,17 @@ export default function AccountScreen() {
         <FadeInView animValue={anims[1]} style={styles.section}>
         {/* App Config */}
         <View style={[styles.sectionHeader, { borderLeftColor: colors.primary }]}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>App Configuration</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>App Configuration</Text>
         </View>
 
         <Card>
           <View style={styles.configRow}>
             <View>
-              <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Currency</Text>
-              <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Default: INR (Indian Rupee)</Text>
+              <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Currency</Text>
+              <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>Default: INR (Indian Rupee)</Text>
             </View>
             <View style={[styles.currencyBadge, { backgroundColor: colors.primary + '15' }]}>
-              <Text style={[styles.currencyText, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>₹ INR</Text>
+              <Text style={[styles.currencyText, { color: colors.primary, fontFamily: fontFamily.bold }]}>₹ INR</Text>
             </View>
           </View>
         </Card>
@@ -202,10 +204,10 @@ export default function AccountScreen() {
         <Card>
           <View style={styles.configRow}>
             <View>
-              <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>App Version</Text>
-              <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Avarpus</Text>
+              <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>App Version</Text>
+              <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>Avarpus</Text>
             </View>
-            <Text style={[styles.versionText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.versionText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               v{currentVersion} (Build {currentBuild})
             </Text>
           </View>
@@ -220,8 +222,8 @@ export default function AccountScreen() {
           <Card>
             <View style={styles.configRow}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Create Dealer Account</Text>
-                <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Create Dealer Account</Text>
+                <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                   Register another shop or business owner account.
                 </Text>
               </View>
@@ -234,17 +236,17 @@ export default function AccountScreen() {
         <FadeInView animValue={anims[2]} style={styles.section}>
         {/* Security & Session */}
         <View style={[styles.sectionHeader, { borderLeftColor: colors.primary }]}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Security &amp; Session</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Security &amp; Session</Text>
         </View>
 
         <Card>
           <View style={styles.configRow}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Backup email identity</Text>
-              <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Backup email identity</Text>
+              <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                 {user?.email ?? 'No backup email is saved for this account.'}
               </Text>
-              <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                 Kept only for account recovery and to protect your existing account data. Sign-in uses mobile OTP.
               </Text>
             </View>
@@ -256,8 +258,8 @@ export default function AccountScreen() {
           <Card>
             <View style={styles.configRow}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Biometric app lock</Text>
-                <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Biometric app lock</Text>
+                <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                   Enable device biometric or password authentication when reopening the app.
                 </Text>
               </View>
@@ -267,8 +269,8 @@ export default function AccountScreen() {
         </TouchableOpacity>
 
         <Card>
-          <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Auto-lock after inactivity</Text>
-          <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Auto-lock after inactivity</Text>
+          <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
             Locks with device authentication when app lock is enabled. Your signed-in session stays active until you sign out.
           </Text>
           <View style={styles.timeoutRow}>
@@ -288,7 +290,7 @@ export default function AccountScreen() {
                 >
                   <Text style={[styles.timeoutChipText, {
                     color: active ? '#FFFFFF' : colors.foreground,
-                    fontFamily: 'Inter_600SemiBold',
+                    fontFamily: fontFamily.semibold,
                   }]}>
                     {inactivityLabel(min)}
                   </Text>
@@ -299,15 +301,15 @@ export default function AccountScreen() {
         </Card>
 
         <Card>
-          <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Active sessions</Text>
-          <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Active sessions</Text>
+          <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
             Devices currently signed in to your account.
           </Text>
           {sessions === null && !sessionsError && (
             <AvarpusSpinner size={20} style={{ marginTop: 14 }} />
           )}
           {sessionsError && (
-            <Text style={[styles.historyEmpty, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.historyEmpty, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               Couldn't load sessions. Check your connection and try again.
             </Text>
           )}
@@ -320,11 +322,11 @@ export default function AccountScreen() {
                 <Feather name="smartphone" size={14} color={s.current ? colors.success : colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.historyMethod, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                <Text style={[styles.historyMethod, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
                   {s.deviceInfo || 'Unknown device'}
                   {s.current ? '  ·  This device' : ''}
                 </Text>
-                <Text style={[styles.historyTime, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                <Text style={[styles.historyTime, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                   {s.current
                     ? `Signed in ${formatLoginTime(s.createdAt)}`
                     : `Last active ${formatLoginTime(s.lastSeenAt)}  ·  Signed in ${formatLoginTime(s.createdAt)}`}
@@ -339,7 +341,7 @@ export default function AccountScreen() {
                   {revokingId === s.id ? (
                     <AvarpusSpinner size={20} color={colors.destructive} />
                   ) : (
-                    <Text style={[styles.revokeBtnText, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>
+                    <Text style={[styles.revokeBtnText, { color: colors.destructive, fontFamily: fontFamily.semibold }]}>
                       Sign out
                     </Text>
                   )}
@@ -358,7 +360,7 @@ export default function AccountScreen() {
               ) : (
                 <>
                   <Feather name="log-out" size={15} color={colors.destructive} />
-                  <Text style={[styles.revokeBtnText, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>
+                  <Text style={[styles.revokeBtnText, { color: colors.destructive, fontFamily: fontFamily.semibold }]}>
                     Sign out all other devices
                   </Text>
                 </>
@@ -368,20 +370,20 @@ export default function AccountScreen() {
         </Card>
 
         <Card>
-          <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Login history</Text>
-          <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Login history</Text>
+          <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
             Recent sign-ins to your account.
           </Text>
           {history === null && !historyError && (
             <AvarpusSpinner size={20} style={{ marginTop: 14 }} />
           )}
           {historyError && (
-            <Text style={[styles.historyEmpty, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.historyEmpty, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               Couldn't load login history. Check your connection and try again.
             </Text>
           )}
           {history !== null && history.length === 0 && (
-            <Text style={[styles.historyEmpty, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.historyEmpty, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               No logins recorded yet.
             </Text>
           )}
@@ -394,12 +396,12 @@ export default function AccountScreen() {
                 <Feather name={e.method === 'otp' ? 'smartphone' : 'key'} size={14} color={colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.historyMethod, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                <Text style={[styles.historyMethod, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
                   {e.method === 'otp' ? 'Mobile OTP' : e.method === 'device_key' ? 'Device key' : 'Archived sign-in method'}
                   {e.deviceInfo ? `  ·  ${e.deviceInfo}` : ''}
                   {e.rememberMe ? '  ·  Remembered' : ''}
                 </Text>
-                <Text style={[styles.historyTime, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                <Text style={[styles.historyTime, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                   {formatLoginTime(e.createdAt)}
                 </Text>
               </View>
@@ -412,14 +414,14 @@ export default function AccountScreen() {
         <FadeInView animValue={anims[3]} style={styles.section}>
         {/* Sample data */}
         <View style={[styles.sectionHeader, { borderLeftColor: colors.primary }]}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Sample Data</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Sample Data</Text>
         </View>
 
         <Card>
-          <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+          <Text style={[styles.configLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
             {hasSampleData ? 'Sample data is loaded' : 'Explore with sample data'}
           </Text>
-          <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
             {hasSampleData
               ? 'Demo repairs, customers, stock and finance entries are mixed into your shop. Clearing removes only the sample records — your real data is untouched.'
               : 'Load labelled demo repairs, customers, stock and finance entries into your shop to try the app and reports. You can remove them anytime with one tap.'}
@@ -436,7 +438,7 @@ export default function AccountScreen() {
                 ) : (
                   <>
                     <Feather name="trash-2" size={16} color={colors.destructive} />
-                    <Text style={[styles.dangerBtnText, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>Clear sample data</Text>
+                    <Text style={[styles.dangerBtnText, { color: colors.destructive, fontFamily: fontFamily.semibold }]}>Clear sample data</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -451,14 +453,14 @@ export default function AccountScreen() {
                 ) : (
                   <>
                     <Feather name="database" size={16} color={colors.primary} />
-                    <Text style={[styles.dangerBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Load sample data</Text>
+                    <Text style={[styles.dangerBtnText, { color: colors.primary, fontFamily: fontFamily.semibold }]}>Load sample data</Text>
                   </>
                 )}
               </TouchableOpacity>
             )}
           </View>
           {!!sampleError && (
-            <Text style={[styles.historyEmpty, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>
+            <Text style={[styles.historyEmpty, { color: colors.destructive, fontFamily: fontFamily.medium }]}>
               {sampleError}
             </Text>
           )}
@@ -469,21 +471,21 @@ export default function AccountScreen() {
         <FadeInView animValue={anims[4]} style={styles.section}>
         {/* Danger Zone */}
         <View style={[styles.sectionHeader, { borderLeftColor: colors.destructive }]}>
-          <Text style={[styles.sectionTitle, { color: colors.destructive, fontFamily: 'Inter_700Bold' }]}>Data Management</Text>
+          <Text style={[styles.sectionTitle, { color: colors.destructive, fontFamily: fontFamily.bold }]}>Data Management</Text>
         </View>
 
         <Card>
-          <Text style={[styles.dangerDesc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.dangerDesc, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
             Backup and restore your app data. All data is stored locally on this device.
           </Text>
           <View style={styles.dangerActions}>
             <TouchableOpacity style={[styles.dangerBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '22' }]}>
               <Feather name="download" size={16} color={colors.primary} />
-              <Text style={[styles.dangerBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Backup Data</Text>
+              <Text style={[styles.dangerBtnText, { color: colors.primary, fontFamily: fontFamily.semibold }]}>Backup Data</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.dangerBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '22' }]}>
               <Feather name="upload" size={16} color={colors.primary} />
-              <Text style={[styles.dangerBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Restore</Text>
+              <Text style={[styles.dangerBtnText, { color: colors.primary, fontFamily: fontFamily.semibold }]}>Restore</Text>
             </TouchableOpacity>
           </View>
         </Card>
@@ -497,8 +499,8 @@ export default function AccountScreen() {
           <Card style={{ borderColor: colors.destructive + '33' }}>
             <View style={styles.configRow}>
               <View style={{ flex: 1, paddingRight: 12 }}>
-                <Text style={[styles.configLabel, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>Delete Account</Text>
-                <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                <Text style={[styles.configLabel, { color: colors.destructive, fontFamily: fontFamily.semibold }]}>Delete Account</Text>
+                <Text style={[styles.configSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                   Permanently delete your Chat Account, Business Account, or both. This cannot be undone.
                 </Text>
               </View>
@@ -510,7 +512,7 @@ export default function AccountScreen() {
         {saved ? (
           <View style={[styles.savedBanner, { backgroundColor: colors.successLight, borderColor: colors.success + '33', borderRadius: colors.radius }]}>
             <Feather name="check-circle" size={16} color={colors.success} />
-            <Text style={[styles.savedText, { color: colors.success, fontFamily: 'Inter_600SemiBold' }]}>Settings saved!</Text>
+            <Text style={[styles.savedText, { color: colors.success, fontFamily: fontFamily.semibold }]}>Settings saved!</Text>
           </View>
         ) : (
           <Button title="Save Settings" onPress={handleSave} fullWidth size="lg" />
@@ -532,7 +534,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 15 },
   configRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   configLabel: { fontSize: 15 },
-  configSub: { fontSize: 12, marginTop: 2 },
+  configSub: { ...font.caption, marginTop: 2 },
   currencyBadge: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
   currencyText: { fontSize: 14 },
   versionText: { fontSize: 14 },
@@ -548,9 +550,9 @@ const styles = StyleSheet.create({
   historyIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   historyMethod: { fontSize: 13 },
   revokeBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, minWidth: 70, alignItems: 'center' },
-  revokeBtnText: { fontSize: 12 },
+  revokeBtnText: { ...font.smallStrong },
   revokeAllBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1, marginTop: 12 },
-  historyTime: { fontSize: 12, marginTop: 2 },
+  historyTime: { ...font.caption, marginTop: 2 },
   savedBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderWidth: 1 },
   savedText: { fontSize: 14 },
 });

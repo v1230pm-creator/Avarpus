@@ -18,6 +18,8 @@ import {
   ChatAdminReportTranscriptQueryParams,
 } from "@workspace/api-zod";
 import { asyncHandler } from "../lib/asyncHandler";
+import { syncChatMediaPinsForReports } from "../lib/chatMediaPins";
+import { purgeRelayMediaForDeletedMessages } from "../lib/chatRelayCleanup";
 import { notifyUser } from "../lib/notify";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireRole } from "../middlewares/requireRole";
@@ -333,6 +335,15 @@ function transcriptMessageView(
     // Attachments themselves stay out of reach — an operator reads the
     // conversation, they do not get a handle on its stored media.
     hasAttachment: row.objectPath !== null,
+    // Whether the server still holds the attachment. `pinned` while this or
+    // another report is open; `purged`/`expired` means only device copies
+    // remain and the transcript must say so instead of implying evidence.
+    mediaState:
+      row.objectPath === null
+        ? null
+        : row.mediaPinned && row.mediaState === "available"
+          ? "pinned"
+          : row.mediaState,
     deletedAt: row.deletedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     isReportedMessage: row.id === input.reportedMessageId,
@@ -539,7 +550,10 @@ router.patch(
           decisionBatchId: null,
         })
         .where(eq(chatReportsTable.id, current.id));
-      return { ok: true as const, reporterUserId: current.reporterUserId };
+      // Terminal decisions release the media pin (unless another report on
+      // the same message is still open); reopening re-pins it.
+      const releasedMessageIds = await syncChatMediaPinsForReports(tx, [current.id]);
+      return { ok: true as const, reporterUserId: current.reporterUserId, releasedMessageIds };
     });
 
     if (!outcome.ok) {
@@ -551,6 +565,10 @@ router.patch(
       });
       return;
     }
+    // A message deleted-for-everyone while its report was open kept its relay
+    // bytes as evidence; the evidence is no longer needed. Best effort — the
+    // daily tombstone sweep is the backstop.
+    void purgeRelayMediaForDeletedMessages(outcome.releasedMessageIds);
 
     if (SETTLED_STATUSES.has(parsed.data.status)) {
       notifyReporterOfDecision({
@@ -696,11 +714,13 @@ router.post(
           decisionBatchId: batch.id,
         })
         .where(inArray(chatReportsTable.id, targets.map((row) => row.id)));
+      const releasedMessageIds = await syncChatMediaPinsForReports(tx, targets.map((row) => row.id));
 
       return {
         ok: true as const,
         batchId: batch.id,
         decidedAt,
+        releasedMessageIds,
         // Anchor first, then ascending id, so the reporter of the report the
         // operator acted from is keyed by that report.
         applied: targets.map((row) => ({
@@ -724,6 +744,8 @@ router.post(
     // One alert per person, not per report: somebody who filed three of these
     // complaints learns once that a human has finished with them, in the same
     // wording a single decision sends.
+    void purgeRelayMediaForDeletedMessages(outcome.releasedMessageIds);
+
     const notifiedReporters = new Set<string>();
     if (SETTLED_STATUSES.has(status)) {
       for (const row of outcome.applied) {
@@ -861,6 +883,10 @@ router.post(
           .where(eq(chatReportDecisionBatchItemsTable.id, item.id));
         restoredReportIds.push(item.reportId);
       }
+
+      // Restored reports may be open again, which pins their media again
+      // (while the relay copy still exists).
+      await syncChatMediaPinsForReports(tx, restoredReportIds);
 
       await tx
         .update(chatReportDecisionBatchesTable)

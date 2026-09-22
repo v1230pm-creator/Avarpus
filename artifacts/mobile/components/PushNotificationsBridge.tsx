@@ -7,9 +7,9 @@ import {
   getNotificationPreferencesGetQueryKey,
   getNotificationsListQueryKey,
   notificationPreferencesGet,
-  useChatRoomsList,
 } from '@workspace/api-client-react';
 import { useAuth } from '@/context/AuthContext';
+import { useChatUnreadCount } from '@/hooks/useChatUnreadCount';
 import { getNotificationRoute } from '@/utils/notificationNavigation';
 import {
   canReceivePush,
@@ -103,19 +103,14 @@ export function PushNotificationsBridge() {
     }
   }, [authReady, queryClient, router]);
 
-  // The launcher badge mirrors the Chats tab count. This observes the room
-  // list already polled by the tabs (enabled: false = cache only, no extra
-  // traffic): reading in-app clears the badge that a push set while closed.
-  const { data: roomsData } = useChatRoomsList({
-    query: { enabled: false, queryKey: getChatRoomsListQueryKey() },
-  });
+  // The launcher badge mirrors the Chats tab count (local store when open,
+  // otherwise the room list the tabs already poll): reading in-app clears the
+  // badge that a push set while the app was closed.
+  const unread = useChatUnreadCount();
   useEffect(() => {
-    if (!authReady || !roomsData || !canReceivePush()) return;
-    const unread = (roomsData.rooms ?? [])
-      .filter((room) => room.kind === 'customer' || room.kind === 'direct')
-      .reduce((sum, room) => sum + (room.unreadCount ?? 0), 0);
+    if (!authReady || !canReceivePush()) return;
     void setAppBadge(unread);
-  }, [authReady, roomsData]);
+  }, [authReady, unread]);
 
   return null;
 }

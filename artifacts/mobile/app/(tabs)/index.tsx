@@ -7,7 +7,6 @@ import {
   Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   SectionList,
   StyleSheet,
   Text,
@@ -15,7 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Contacts from 'expo-contacts/legacy';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,7 +23,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { buildInviteSmsUrl } from '@/constants/install';
-import { AVARPUS_BLUE } from '@/constants/brand';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { Avatar } from '@/components/ui/Avatar';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { useDeviceContactNames } from '@/hooks/useDeviceContactNames';
@@ -41,6 +41,9 @@ import {
   getChatRoomsArchivedListQueryKey,
 } from '@workspace/api-client-react';
 import type { ChatContact, ChatRoom } from '@workspace/api-client-react';
+import { useChatStore } from '@/context/ChatStoreContext';
+import { useLocalRooms } from '@/hooks/useLocalChat';
+import { ChatSyncBanner } from '@/components/chat/ChatSyncBanner';
 
 const PHONE_BATCH_SIZE = 50;
 
@@ -118,7 +121,7 @@ function RoomItem({
   const unread = room.unreadCount ?? 0;
   const preview = formatMessagePreview(room);
   const isOutgoing = !!lastMsg && lastMsg.senderId === currentUserId;
-  const receiptColor = room.lastMessageStatus === 'read' ? '#53BDEB' : colors.mutedForeground;
+  const receiptColor = room.lastMessageStatus === 'read' ? colors.primary : colors.mutedForeground;
   const receiptText = room.lastMessageStatus === 'delivered' || room.lastMessageStatus === 'read' ? '✓✓' : '✓';
 
   // The row is a plain container with two sibling controls: the photo (opens
@@ -127,7 +130,7 @@ function RoomItem({
   // readers and neither steals the other's long-press.
   return (
     <View
-      style={[styles.roomItem, selected && { backgroundColor: 'rgba(33, 192, 99, 0.15)' }]}
+      style={[styles.roomItem, selected && { backgroundColor: colors.accent }]}
       testID={`room-row-${room.id}`}
     >
         <TouchableOpacity
@@ -147,12 +150,17 @@ function RoomItem({
           <Avatar
             name={displayName}
             url={room.profilePhoto}
-            size={64}
+            size={size.avatar}
             style={styles.roomAvatar}
           />
           {selected && (
-            <View style={[styles.selectionCheckmark, { borderColor: colors.background }]}>
-              <Feather name="check" size={12} color="#fff" />
+            <View
+              style={[
+                styles.selectionCheckmark,
+                { backgroundColor: colors.primary, borderColor: colors.background },
+              ]}
+            >
+              <Feather name="check" size={13} color="#FFFFFF" />
             </View>
           )}
         </TouchableOpacity>
@@ -177,7 +185,7 @@ function RoomItem({
             <Text
               style={[
                 styles.roomTime,
-                { color: unread > 0 && !selected ? '#21C063' : colors.mutedForeground },
+                { color: unread > 0 && !selected ? colors.notification : colors.mutedForeground },
               ]}
             >
               {formatRoomTime(lastMsg?.createdAt ?? room.createdAt)}
@@ -192,7 +200,7 @@ function RoomItem({
             {preview.icon && (
               <Feather
                 name={preview.icon}
-                size={14}
+                size={16}
                 color={colors.mutedForeground}
                 style={styles.roomPreviewIcon}
               />
@@ -201,11 +209,11 @@ function RoomItem({
               {isOutgoing && !preview.icon ? `You: ${preview.text}` : preview.text}
             </Text>
             <View style={styles.roomFooterIcons}>
-              {room.isPinned && <Feather name="map-pin" size={13} color={colors.mutedForeground} />}
-              {room.isMuted && <Feather name="bell-off" size={13} color={colors.mutedForeground} />}
+              {room.isPinned && <Feather name="map-pin" size={18} color={colors.mutedForeground} />}
+              {room.isMuted && <Feather name="bell-off" size={18} color={colors.mutedForeground} />}
               {unread > 0 && !selected && (
-                <View style={[styles.unreadBadge, { backgroundColor: AVARPUS_BLUE }]}>
-                  <Text style={[styles.unreadText, { color: '#FFFFFF' }]}>
+                <View style={[styles.unreadBadge, { backgroundColor: colors.notification }]}>
+                  <Text style={styles.unreadText}>
                     {unread > 99 ? '99+' : String(unread)}
                   </Text>
                 </View>
@@ -256,6 +264,19 @@ function CustomerInboxScreen() {
   const { data: capData, isLoading: capLoading } = useChatCapabilities();
   const providerConfigured = capData?.matrixAvailable === true;
 
+  // Local-first: when the device store is open the inbox renders from it and
+  // the sync engine refreshes it (foreground, push, focus, slow poll). The
+  // network queries below stay as the fallback when no store could be opened.
+  const { store: chatStore, ready: storeReady, status: syncStatus, requestSync } = useChatStore();
+  const localFirst = !!chatStore;
+  const networkRooms = providerConfigured && storeReady && !localFirst;
+
+  useFocusEffect(
+    useCallback(() => {
+      if (localFirst && providerConfigured) void requestSync('inbox');
+    }, [localFirst, providerConfigured, requestSync]),
+  );
+
   const {
     data: roomsData,
     isLoading: roomsLoading,
@@ -264,9 +285,9 @@ function CustomerInboxScreen() {
     refetch: roomsRefetch,
   } = useChatRoomsList({
     query: {
-      enabled: providerConfigured,
+      enabled: networkRooms,
       queryKey: getChatRoomsListQueryKey(),
-      refetchInterval: providerConfigured ? 5_000 : false,
+      refetchInterval: networkRooms ? 5_000 : false,
       refetchIntervalInBackground: false,
       refetchOnMount: 'always',
     },
@@ -279,36 +300,72 @@ function CustomerInboxScreen() {
     refetch: archivedRoomsRefetch,
   } = useChatRoomsArchivedList({
     query: {
-      enabled: providerConfigured && roomFilter === 'archived',
+      enabled: networkRooms && roomFilter === 'archived',
       queryKey: getChatRoomsArchivedListQueryKey(),
-      refetchInterval: providerConfigured && roomFilter === 'archived' ? 5_000 : false,
+      refetchInterval: networkRooms && roomFilter === 'archived' ? 5_000 : false,
       refetchIntervalInBackground: false,
       refetchOnMount: 'always',
     },
   });
+  const localRooms = useLocalRooms(localFirst && providerConfigured);
+
+  const activeRooms = useMemo<ChatRoom[]>(() => {
+    if (localFirst) return (localRooms.data ?? []).filter((room) => !room.deletedAt && !room.isArchived);
+    return roomsData?.rooms ?? [];
+  }, [localFirst, localRooms.data, roomsData]);
+  const archivedRooms = useMemo<ChatRoom[]>(() => {
+    if (localFirst) return (localRooms.data ?? []).filter((room) => !room.deletedAt && room.isArchived === true);
+    return archivedRoomsData?.rooms ?? [];
+  }, [archivedRoomsData, localFirst, localRooms.data]);
 
   const rooms = useMemo(() => {
-    const source = roomFilter === 'archived' ? archivedRoomsData?.rooms : roomsData?.rooms;
-    const all = (source ?? []).filter((room) => room.kind === 'customer' || room.kind === 'direct');
+    const source = roomFilter === 'archived' ? archivedRooms : activeRooms;
+    const all = source.filter((room) => room.kind === 'customer' || room.kind === 'direct');
     const filtered = roomFilter === 'unread' ? all.filter((room) => (room.unreadCount ?? 0) > 0) : all;
     if (!search.trim()) return filtered;
     const q = search.toLowerCase();
     return filtered.filter(
       (r) => r.name.toLowerCase().includes(q) || r.lastMessage?.body.toLowerCase().includes(q),
     );
-  }, [archivedRoomsData, roomFilter, roomsData, search]);
+  }, [activeRooms, archivedRooms, roomFilter, search]);
 
-  const isLoading = capLoading || (providerConfigured && (roomFilter === 'archived' ? archivedRoomsLoading : roomsLoading));
-  const roomsQueryError = roomFilter === 'archived' ? archivedRoomsError : roomsError;
-  const refetchRooms = roomFilter === 'archived' ? archivedRoomsRefetch : roomsRefetch;
-  const roomsAreRefetching = roomFilter === 'archived' ? archivedRoomsRefetching : roomsRefetching;
+  const localBootstrapping =
+    localFirst && !syncStatus.bootstrapped && (localRooms.data?.length ?? 0) === 0 && (syncStatus.syncing || !syncStatus.error);
+  const isLoading =
+    capLoading ||
+    !storeReady ||
+    (providerConfigured &&
+      (localFirst
+        ? localRooms.loading || localBootstrapping
+        : roomFilter === 'archived'
+          ? archivedRoomsLoading
+          : roomsLoading));
+  const roomsQueryError = localFirst
+    ? !!syncStatus.error && !syncStatus.bootstrapped && (localRooms.data?.length ?? 0) === 0
+    : roomFilter === 'archived'
+      ? archivedRoomsError
+      : roomsError;
+  const refetchRooms = localFirst
+    ? () => requestSync('manual')
+    : roomFilter === 'archived'
+      ? archivedRoomsRefetch
+      : roomsRefetch;
+  const roomsAreRefetching = localFirst
+    ? syncStatus.syncing && syncStatus.bootstrapped
+    : roomFilter === 'archived'
+      ? archivedRoomsRefetching
+      : roomsRefetching;
 
   const invalidateRoomLists = useCallback(async () => {
+    if (localFirst) {
+      await requestSync('manual');
+      return;
+    }
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() }),
       queryClient.invalidateQueries({ queryKey: getChatRoomsArchivedListQueryKey() }),
     ]);
-  }, [queryClient]);
+  }, [localFirst, queryClient, requestSync]);
 
   const toggleSelection = (id: string) => {
     const next = new Set(selectedRoomIds);
@@ -326,19 +383,27 @@ function CustomerInboxScreen() {
 
   const applyBulkAction = useCallback(async (action: 'pin' | 'mute' | 'archive' | 'restore' | 'delete') => {
     if (bulkActionPending || selectedRoomIds.size === 0) return;
-    const sourceRooms = roomFilter === 'archived' ? archivedRoomsData?.rooms : roomsData?.rooms;
-    const selected = (sourceRooms ?? []).filter((room) => selectedRoomIds.has(room.id));
+    const sourceRooms = roomFilter === 'archived' ? archivedRooms : activeRooms;
+    const selected = sourceRooms.filter((room) => selectedRoomIds.has(room.id));
     setBulkActionPending(true);
     try {
       if (action === 'delete') {
-        await Promise.all([...selectedRoomIds].map((roomId) => roomsDelete.mutateAsync({ roomId })));
+        const deletedAt = new Date().toISOString();
+        await Promise.all(
+          [...selectedRoomIds].map(async (roomId) => {
+            await roomsDelete.mutateAsync({ roomId });
+            // Mirror the server-side preference so the row leaves the inbox now.
+            await chatStore?.setRoomPreference(roomId, { deletedAt });
+          }),
+        );
       } else {
         const field = action === 'pin' ? 'isPinned' : action === 'mute' ? 'isMuted' : 'isArchived';
         const nextValue = action === 'restore' ? false : !selected.every((room) => room[field] === true);
         await Promise.all(
-          [...selectedRoomIds].map((roomId) =>
-            preferencesUpdate.mutateAsync({ roomId, data: { [field]: nextValue } }),
-          ),
+          [...selectedRoomIds].map(async (roomId) => {
+            await preferencesUpdate.mutateAsync({ roomId, data: { [field]: nextValue } });
+            await chatStore?.setRoomPreference(roomId, { [field]: nextValue });
+          }),
         );
       }
       clearSelection();
@@ -348,7 +413,7 @@ function CustomerInboxScreen() {
     } finally {
       setBulkActionPending(false);
     }
-  }, [archivedRoomsData?.rooms, bulkActionPending, invalidateRoomLists, preferencesUpdate, roomFilter, roomsData?.rooms, roomsDelete, selectedRoomIds]);
+  }, [activeRooms, archivedRooms, bulkActionPending, chatStore, invalidateRoomLists, preferencesUpdate, roomFilter, roomsDelete, selectedRoomIds]);
 
   const handleBulkAction = useCallback((action: 'pin' | 'mute' | 'archive' | 'restore' | 'delete') => {
     if (action !== 'delete') {
@@ -372,15 +437,29 @@ function CustomerInboxScreen() {
   const handleReadAll = useCallback(async () => {
     setShowOverflowMenu(false);
     clearSelection();
-    const unreadRooms = (roomsData?.rooms ?? []).filter((room) => (room.unreadCount ?? 0) > 0 && !!room.lastMessage?.id);
+    const unreadRooms = activeRooms.filter((room) => (room.unreadCount ?? 0) > 0 && !!room.lastMessage?.id);
     if (!unreadRooms.length) return;
     try {
-      await Promise.all(unreadRooms.map((room) => chatMarkRead(room.id, { messageId: room.lastMessage!.id })));
+      await Promise.all(
+        unreadRooms.map(async (room) => {
+          await chatMarkRead(room.id, { messageId: room.lastMessage!.id });
+          if (chatStore && user?.id) {
+            await chatStore.applyReadStates([
+              {
+                roomId: room.id,
+                userId: user.id,
+                lastReadMessageId: room.lastMessage!.id,
+                lastReadAt: new Date().toISOString(),
+              },
+            ]);
+          }
+        }),
+      );
       await invalidateRoomLists();
     } catch {
       Alert.alert('Could not mark chats as read', 'Please check your connection and try again.');
     }
-  }, [invalidateRoomLists, roomsData?.rooms]);
+  }, [activeRooms, chatStore, invalidateRoomLists, user?.id]);
 
   const handleOverflowAction = useCallback((action: string) => {
     setShowOverflowMenu(false);
@@ -395,6 +474,14 @@ function CustomerInboxScreen() {
     }
     if (action === 'toggle-archived') {
       setRoomFilter((current) => (current === 'archived' ? 'all' : 'archived'));
+      return;
+    }
+    if (action === 'toggle-unread') {
+      setRoomFilter((current) => (current === 'unread' ? 'all' : 'unread'));
+      return;
+    }
+    if (action === 'scan-repair') {
+      router.push('/(tabs)/repairs/scanner');
       return;
     }
     Alert.alert('Not available yet', 'This option will be available when group messaging is enabled for Avarpus.');
@@ -565,34 +652,34 @@ function CustomerInboxScreen() {
   }, []);
 
   const renderSelectionHeader = () => (
-    <View style={[styles.selectionHeader, { paddingTop: topPad, backgroundColor: '#1F2C34' }]}>
+    <View style={[styles.selectionHeader, { paddingTop: topPad, backgroundColor: colors.secondary }]}>
       <View style={styles.selectionHeaderLeft}>
         <TouchableOpacity onPress={clearSelection} style={styles.iconButton} accessibilityLabel="Exit selection mode">
-          <Feather name="arrow-left" size={24} color="#fff" />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={styles.selectionCount} testID="selected-room-count">{selectedRoomIds.size}</Text>
+        <Text style={[styles.selectionCount, { color: colors.foreground }]} testID="selected-room-count">{selectedRoomIds.size}</Text>
       </View>
       <View style={styles.selectionHeaderRight}>
         {roomFilter === 'archived' ? (
           <TouchableOpacity disabled={bulkActionPending} onPress={() => handleBulkAction('restore')} style={styles.iconButton} accessibilityLabel="Restore selected chats">
-            <Feather name="rotate-ccw" size={20} color="#fff" />
+            <Feather name="rotate-ccw" size={22} color={colors.foreground} />
           </TouchableOpacity>
         ) : (
           <>
         <TouchableOpacity disabled={bulkActionPending} onPress={() => handleBulkAction('pin')} style={styles.iconButton} accessibilityLabel="Pin selected chats">
-          <Feather name="map-pin" size={20} color="#fff" />
+          <Feather name="map-pin" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <TouchableOpacity disabled={bulkActionPending} onPress={() => handleBulkAction('delete')} style={styles.iconButton} accessibilityLabel="Delete selected chats">
-          <Feather name="trash-2" size={20} color="#fff" />
+          <Feather name="trash-2" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <TouchableOpacity disabled={bulkActionPending} onPress={() => handleBulkAction('mute')} style={styles.iconButton} accessibilityLabel="Mute selected chats">
-          <Feather name="bell-off" size={20} color="#fff" />
+          <Feather name="bell-off" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <TouchableOpacity disabled={bulkActionPending} onPress={() => handleBulkAction('archive')} style={styles.iconButton} accessibilityLabel="Archive selected chats">
-          <Feather name="archive" size={20} color="#fff" />
+          <Feather name="archive" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setShowOverflowMenu(true)} style={styles.iconButton} accessibilityLabel="More selection actions">
-          <Feather name="more-vertical" size={20} color="#fff" />
+          <Feather name="more-vertical" size={22} color={colors.foreground} />
         </TouchableOpacity>
           </>
         )}
@@ -600,112 +687,74 @@ function CustomerInboxScreen() {
     </View>
   );
 
+  const renderSearchField = (autoFocusRef: boolean) => (
+    <View style={[styles.searchBar, { backgroundColor: colors.secondary }]}>
+      <Feather name="search" size={size.headerIcon} color={colors.mutedForeground} />
+      <TextInput
+        ref={autoFocusRef ? searchInputRef : undefined}
+        value={search}
+        onChangeText={setSearch}
+        placeholder="Search"
+        placeholderTextColor={colors.mutedForeground}
+        style={[styles.searchInput, { color: colors.foreground }]}
+        returnKeyType="search"
+        testID={autoFocusRef ? 'chat-search-input' : undefined}
+      />
+      {!!search && (
+        <TouchableOpacity
+          onPress={() => setSearch('')}
+          accessibilityLabel="Clear chat search"
+          style={styles.searchClear}
+          hitSlop={8}
+        >
+          <Feather name="x" size={22} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
   const renderNormalHeader = () => (
     <View style={[styles.normalHeaderContainer, { paddingTop: topPad }]}>
       <View style={styles.topAppBar}>
         <View style={styles.appTitleBlock}>
-          <Text style={[styles.appTitle, { color: colors.foreground }]}>Avarpus</Text>
+          <Text style={[styles.appTitle, { color: colors.foreground }]} numberOfLines={1}>
+            Avarpus
+          </Text>
         </View>
         <View style={styles.appBarActions}>
           {/* Refresh activity reads as its own indicator; the menu stays a menu. */}
           <View style={styles.headerBusySlot}>
-            {roomsAreRefetching ? <AvarpusSpinner size={16} /> : null}
+            {roomsAreRefetching ? <AvarpusSpinner size={18} /> : null}
           </View>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => searchInputRef.current?.focus()}
-            accessibilityLabel="Search conversations"
-          >
-            <Feather name="search" size={21} color={colors.foreground} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => router.push('/(tabs)/repairs/scanner')}
-            accessibilityLabel="Open camera"
-          >
-            <Feather name="camera" size={21} color={colors.foreground} />
-          </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconButton}
             onPress={() => setShowOverflowMenu(true)}
             accessibilityLabel="Open chat menu"
             testID="account-menu-control"
           >
-            <Feather name="more-vertical" size={21} color={colors.foreground} />
+            <Feather name="more-vertical" size={size.headerIcon} color={colors.foreground} />
           </TouchableOpacity>
         </View>
       </View>
 
-      <View style={styles.searchContainer}>
-        <View style={[styles.searchBar, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-          <View style={styles.searchBarLeft}>
-            <Feather name="search" size={19} color={colors.mutedForeground} />
-          </View>
-          <TextInput
-            ref={searchInputRef}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search people"
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.searchInput, { color: colors.foreground }]}
-            returnKeyType="search"
-            testID="chat-search-input"
-          />
-          {!!search && (
-            <TouchableOpacity onPress={() => setSearch('')} accessibilityLabel="Clear chat search">
-              <Feather name="x" size={18} color={colors.mutedForeground} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+      <View style={styles.searchContainer}>{renderSearchField(true)}</View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
-        style={styles.filterRowScroll}
-      >
-        {([
-          { id: 'all', label: 'All' },
-          { id: 'unread', label: 'Unread' },
-          { id: 'groups', label: 'Groups' },
-          { id: 'channels', label: 'Channels' },
-        ] as const).map((pill) => {
-          const selected = pill.id === 'all' ? roomFilter === 'all' : pill.id === 'unread' ? roomFilter === 'unread' : false;
-          return (
+      {roomFilter !== 'all' && (
+        <View style={styles.activeFilterRow}>
+          <View style={[styles.activeFilterChip, { backgroundColor: colors.accent }]}>
+            <Text style={[styles.activeFilterText, { color: colors.accentForeground }]}>
+              {roomFilter === 'unread' ? 'Unread chats' : 'Archived chats'}
+            </Text>
             <TouchableOpacity
-              key={pill.id}
-              style={[
-                styles.filterPill,
-                selected
-                  ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                  : { backgroundColor: 'transparent', borderColor: colors.border },
-              ]}
-              onPress={() => {
-                if (pill.id === 'all' || pill.id === 'unread') {
-                  setRoomFilter(pill.id);
-                  return;
-                }
-                Alert.alert('Not available yet', 'This option will be available when group messaging is enabled for Avarpus.');
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`Filter: ${pill.label}`}
-              accessibilityState={{ selected }}
+              onPress={() => setRoomFilter('all')}
+              accessibilityLabel="Show all chats"
+              hitSlop={10}
             >
-              <Text style={[styles.filterPillText, { color: selected ? '#FFFFFF' : colors.foreground }]}>
-                {pill.label}
-              </Text>
+              <Feather name="x" size={18} color={colors.accentForeground} />
             </TouchableOpacity>
-          );
-        })}
-        <TouchableOpacity
-          style={[styles.filterPillAdd, { borderColor: colors.border }]}
-          onPress={() => setShowOverflowMenu(true)}
-          accessibilityLabel="More filters"
-        >
-          <Feather name="plus" size={16} color={colors.foreground} />
-        </TouchableOpacity>
-      </ScrollView>
+          </View>
+        </View>
+      )}
     </View>
   );
 
@@ -716,25 +765,18 @@ function CustomerInboxScreen() {
         <View style={{ backgroundColor: colors.background }}>
           {renderSelectionHeader()}
           <View style={[styles.searchContainer, styles.selectionSearchContainer]}>
-            <View style={[styles.searchBar, { backgroundColor: colors.backgroundSecondary }]}>
-              <Feather name="search" size={18} color={colors.mutedForeground} />
-              <TextInput
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Search people"
-                placeholderTextColor={colors.mutedForeground}
-                style={[styles.searchInput, { color: colors.foreground }]}
-                returnKeyType="search"
-              />
-              {!!search && (
-                <TouchableOpacity onPress={() => setSearch('')} accessibilityLabel="Clear chat search">
-                  <Feather name="x" size={18} color={colors.mutedForeground} />
-                </TouchableOpacity>
-              )}
-            </View>
+            {renderSearchField(false)}
           </View>
         </View>
       ) : renderNormalHeader()}
+
+      {localFirst && providerConfigured ? (
+        <ChatSyncBanner
+          status={syncStatus}
+          hasLocalData={(localRooms.data?.length ?? 0) > 0}
+          onRetry={() => void requestSync('manual')}
+        />
+      ) : null}
 
       <FlatList
         data={rooms}
@@ -802,7 +844,7 @@ function CustomerInboxScreen() {
           <Feather name="alert-circle" size={32} color={colors.destructive} style={{ marginBottom: 12 }} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Could not load conversations</Text>
           <TouchableOpacity onPress={() => refetchRooms()} style={[styles.retryBtn, { backgroundColor: colors.primary }]}>
-            <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Retry</Text>
+            <Text style={[styles.retryText, { color: colors.primaryForeground }]}>Retry</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -810,18 +852,24 @@ function CustomerInboxScreen() {
       {/* Floating Action Button */}
       {providerConfigured && roomFilter !== 'archived' && selectedRoomIds.size === 0 && (
         <TouchableOpacity
-          // Sit 5 above the tab bar, which is a fixed 84 on web and
-          // 62 plus the safe-area inset on native.
-          style={[styles.fab, { bottom: (Platform.OS === 'web' ? 84 : 62 + Math.max(insets.bottom, 8)) + 5 }]}
+          // Clear the tab bar (a fixed height plus 20 on web, plus the
+          // safe-area inset on native) by one spacing step.
+          style={[
+            styles.fab,
+            {
+              backgroundColor: colors.primary,
+              bottom: size.tabBar + (Platform.OS === 'web' ? 20 : Math.max(insets.bottom, 12)) + space.lg,
+            },
+          ]}
           activeOpacity={0.8}
           onPress={() => setShowContactDiscovery(true)}
           accessibilityRole="button"
           accessibilityLabel="Start a new chat"
           testID="new-chat-control"
         >
-          <Feather name="message-square" size={24} color="#FFFFFF" />
-          <View style={[styles.fabPlusBadge, { backgroundColor: AVARPUS_BLUE }]}>
-            <Feather name="plus" size={12} color="#FFFFFF" />
+          <Feather name="message-square" size={28} color="#FFFFFF" />
+          <View style={styles.fabPlusBadge}>
+            <Feather name="plus" size={13} color="#FFFFFF" />
           </View>
         </TouchableOpacity>
       )}
@@ -836,14 +884,19 @@ function CustomerInboxScreen() {
       >
         <Pressable style={styles.overflowBackdrop} onPress={() => setShowOverflowMenu(false)}>
           <Pressable
-            style={[styles.overflowMenu, { top: topPad + 40, backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[
+              styles.overflowMenu,
+              { top: topPad + 48, backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+            ]}
             onPress={(event) => event.stopPropagation()}
           >
             {[
               { id: 'new-group', label: 'New group' },
               { id: 'new-community', label: 'New community' },
               { id: 'read-all', label: 'Read all' },
+              { id: 'toggle-unread', label: roomFilter === 'unread' ? 'Show all chats' : 'Unread chats' },
               { id: 'toggle-archived', label: roomFilter === 'archived' ? 'All chats' : 'Archived' },
+              { id: 'scan-repair', label: 'Scan repair code' },
               { id: 'settings', label: 'Settings' },
             ].map((item) => (
               <TouchableOpacity
@@ -1004,120 +1057,104 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   normalHeaderContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingHorizontal: layout.screenPadding,
+    paddingBottom: space.md,
   },
   topAppBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    minHeight: 56,
+    minHeight: 64,
   },
   appTitleBlock: {
     flexShrink: 1,
   },
-  appTitle: {
-    fontSize: 24,
-    fontFamily: 'Inter_700Bold',
-  },
-  headerBusySlot: { width: 16, alignItems: 'center', justifyContent: 'center' },
+  appTitle: font.display,
+  headerBusySlot: { width: 18, alignItems: 'center', justifyContent: 'center' },
   appBarActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: space.xs,
+    // Optically align the glyph with the screen's right padding.
+    marginRight: -space.sm,
   },
   iconButton: {
-    width: 40,
-    height: 40,
+    width: size.iconButton,
+    height: size.iconButton,
     alignItems: 'center',
     justifyContent: 'center',
   },
   searchContainer: {
-    marginTop: 4,
+    marginTop: space.lg,
   },
   selectionSearchContainer: {
     marginTop: 0,
-    paddingHorizontal: 12,
-    paddingBottom: 10,
+    paddingHorizontal: layout.screenPadding,
+    paddingVertical: space.md,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 52,
-    borderRadius: 26,
-    paddingHorizontal: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  filterRowScroll: {
-    marginTop: 12,
-    flexGrow: 0,
-  },
-  filterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingBottom: 4,
-  },
-  filterPill: {
-    height: 34,
-    paddingHorizontal: 16,
-    borderRadius: 17,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  filterPillText: {
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  filterPillAdd: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchBarLeft: {
-    marginRight: 12,
+    height: size.searchField,
+    borderRadius: size.searchRadius,
+    paddingHorizontal: space.xl,
+    gap: space.lg,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
-    fontFamily: 'Inter_400Regular',
+    minWidth: 0,
+    ...font.search,
     paddingVertical: 0,
   },
+  searchClear: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -space.sm,
+  },
+  activeFilterRow: {
+    flexDirection: 'row',
+    marginTop: space.lg,
+  },
+  activeFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    height: 36,
+    paddingLeft: space.lg,
+    paddingRight: space.md,
+    borderRadius: 18,
+  },
+  activeFilterText: font.captionStrong,
   selectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 72,
-    paddingHorizontal: 8,
+    minHeight: 64,
+    paddingHorizontal: space.md,
   },
   selectionHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: space.lg,
   },
-  selectionCount: {
-    fontSize: 18,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#fff',
-  },
+  selectionCount: font.itemTitle,
   selectionHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 0,
   },
   listContent: {
     flexGrow: 1,
-    paddingBottom: 80, // room for FAB
+    paddingTop: space.md,
+    paddingBottom: size.fab + space.xxxl, // room for FAB
   },
   roomItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: layout.rowPaddingVertical,
+    paddingHorizontal: layout.screenPadding,
   },
   roomAvatar: {
     borderWidth: 0,
@@ -1126,157 +1163,150 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -2,
     right: -2,
-    backgroundColor: '#21C063',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   roomContent: {
     flex: 1,
-    marginLeft: 14,
+    marginLeft: layout.avatarGap,
     minWidth: 0,
   },
   roomHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 3,
+    marginBottom: space.xs,
   },
   roomName: {
-    fontSize: 18,
-    fontFamily: 'Inter_600SemiBold',
+    ...font.itemTitle,
     flex: 1,
-    marginRight: 12,
+    marginRight: space.md,
   },
-  roomTime: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-  },
+  roomTime: font.caption,
   roomFooter: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   receiptTicks: {
-    fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
+    ...font.captionStrong,
+    fontFamily: fontFamily.semibold,
     letterSpacing: -2,
-    marginRight: 4,
+    marginRight: space.xs,
   },
   roomPreviewIcon: {
-    marginRight: 4,
+    marginRight: 6,
   },
   roomLastMsg: {
-    fontSize: 16,
-    fontFamily: 'Inter_400Regular',
+    ...font.body,
     flex: 1,
   },
   roomFooterIcons: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 8,
+    gap: space.sm + 2,
+    marginLeft: space.md,
   },
   unreadBadge: {
-    backgroundColor: '#21C063',
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
+    minWidth: size.badge,
+    height: size.badge,
+    borderRadius: size.badge / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: space.sm,
   },
   unreadText: {
-    fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
+    ...font.badge,
+    color: '#FFFFFF',
   },
   fab: {
     position: 'absolute',
-    right: 16,
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    // Matches the sign-in screen's brand blue.
-    backgroundColor: AVARPUS_BLUE,
+    right: layout.screenPadding,
+    width: size.fab,
+    height: size.fab,
+    borderRadius: size.fabRadius,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 4,
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
   },
-  // Sits on the message icon's top-right corner instead of floating loose.
+  // Sits inside the bubble so the glyph reads as "new message".
   fabPlusBadge: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 14,
-    height: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  centeredState: {
-    position: 'absolute',
-    top: 200,
+    top: 18,
     left: 0,
     right: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  centeredState: {
+    position: 'absolute',
+    top: '35%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: layout.screenPadding,
+  },
   stateText: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
+    ...font.caption,
+    marginTop: space.md,
   },
   emptyContainer: {
-    padding: 32,
+    padding: space.xxxl,
     alignItems: 'center',
   },
   emptyText: {
-    fontSize: 15,
-    fontFamily: 'Inter_500Medium',
+    ...font.body,
+    textAlign: 'center',
   },
   emptyTitle: {
-    fontSize: 18,
-    fontFamily: 'Inter_700Bold',
+    ...font.heading,
+    textAlign: 'center',
   },
   retryBtn: {
-    marginTop: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
+    marginTop: space.xl,
+    minHeight: size.buttonSm,
+    paddingHorizontal: space.xxl,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  retryText: font.labelStrong,
   overflowBackdrop: {
     flex: 1,
     backgroundColor: 'transparent',
   },
   overflowMenu: {
     position: 'absolute',
-    right: 10,
-    width: 214,
-    borderRadius: 10,
+    right: space.md,
+    width: 236,
+    borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 8,
+    paddingVertical: space.sm,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 20,
+    elevation: 10,
   },
   overflowMenuItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: space.xl,
   },
-  overflowMenuLabel: {
-    fontSize: 15,
-    fontFamily: 'Inter_400Regular',
-  },
+  overflowMenuLabel: font.body,
   contactDiscoveryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 10,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   contactScreen: {
@@ -1284,107 +1314,91 @@ const styles = StyleSheet.create({
   },
   contactHeaderTitle: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: space.sm,
   },
-  contactTitle: {
-    fontSize: 19,
-    fontFamily: 'Inter_600SemiBold',
-  },
+  contactTitle: font.heading,
   contactCount: {
     marginTop: 2,
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
+    ...font.caption,
   },
   contactSearchBar: {
-    minHeight: 46,
-    marginHorizontal: 14,
-    marginVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 23,
+    minHeight: 52,
+    marginHorizontal: layout.screenPadding,
+    marginVertical: space.md,
+    paddingHorizontal: space.xl,
+    borderRadius: 26,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: space.md,
   },
   contactSearchInput: {
     flex: 1,
     minWidth: 0,
-    paddingVertical: 10,
-    fontSize: 15,
-    fontFamily: 'Inter_400Regular',
+    paddingVertical: space.sm,
+    ...font.input,
   },
   contactLoading: {
     paddingTop: 42,
     alignItems: 'center',
-    gap: 12,
+    gap: space.md,
   },
   contactPermissionState: {
-    paddingHorizontal: 32,
+    paddingHorizontal: space.xxxl,
     paddingTop: 56,
     alignItems: 'center',
-    gap: 12,
+    gap: space.md,
   },
   contactPermissionText: {
-    fontSize: 14,
-    lineHeight: 20,
+    ...font.caption,
     textAlign: 'center',
   },
   permissionButton: {
-    marginTop: 6,
-    paddingHorizontal: 20,
-    paddingVertical: 11,
+    marginTop: space.sm,
+    minHeight: size.buttonSm,
+    paddingHorizontal: space.xxl,
     borderRadius: 22,
+    justifyContent: 'center',
   },
   permissionButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
+    color: '#FFFFFF',
+    ...font.labelStrong,
   },
   contactListContent: {
-    paddingBottom: 28,
+    paddingBottom: space.xxl,
   },
   contactSectionHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingHorizontal: layout.screenPadding,
+    paddingTop: space.lg,
+    paddingBottom: space.sm,
   },
-  contactSectionTitle: {
-    fontSize: 14,
-    fontFamily: 'Inter_500Medium',
-  },
+  contactSectionTitle: font.captionStrong,
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 68,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    minHeight: 72,
+    paddingHorizontal: layout.screenPadding,
+    paddingVertical: space.sm,
   },
   contactDetails: {
     flex: 1,
     minWidth: 0,
-    marginLeft: 14,
+    marginLeft: layout.avatarGap,
   },
-  contactName: {
-    fontSize: 16,
-    fontFamily: 'Inter_500Medium',
-  },
+  contactName: font.bodyStrong,
   contactPhone: {
-    marginTop: 3,
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
+    marginTop: 2,
+    ...font.caption,
   },
   contactRowAction: {
-    width: 42,
-    height: 42,
+    width: size.iconButton,
+    height: size.iconButton,
     alignItems: 'center',
     justifyContent: 'center',
   },
   inviteAction: {
     minWidth: 58,
-    paddingVertical: 10,
+    paddingVertical: space.sm,
     alignItems: 'flex-end',
   },
-  inviteText: {
-    fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
-  },
+  inviteText: font.labelStrong,
 });

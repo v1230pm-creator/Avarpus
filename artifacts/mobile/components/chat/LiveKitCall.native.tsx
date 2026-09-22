@@ -57,6 +57,7 @@ import { Track, ConnectionState } from 'livekit-client';
 import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
 import type { LiveKitCallProps } from './LiveKitCallTypes';
+import { font } from '@/constants/typography';
 
 /**
  * Shared navigation coordination refs, passed from the outer LiveKitCall
@@ -510,13 +511,11 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   callErrorTitle: {
-    fontSize: 18,
-    fontFamily: 'Inter_600SemiBold',
+    ...font.itemTitle,
     textAlign: 'center',
   },
   callErrorBody: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
+    ...font.small,
     lineHeight: 20,
     textAlign: 'center',
     marginBottom: 16,
@@ -537,8 +536,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   placeholderName: {
-    fontSize: 18,
-    fontFamily: 'Inter_500Medium',
+    ...font.search,
   },
   localVideoContainer: {
     position: 'absolute',
@@ -569,12 +567,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   audioRemoteName: {
-    fontSize: 22,
-    fontFamily: 'Inter_600SemiBold',
+    ...font.heading,
   },
   audioStatus: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
+    ...font.small,
   },
   loadingOverlay: {
     position: 'absolute',
@@ -588,8 +584,7 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   loadingText: {
-    fontSize: 15,
-    fontFamily: 'Inter_500Medium',
+    ...font.captionStrong,
   },
   e2eeBanner: {
     position: 'absolute',
@@ -610,8 +605,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   e2eeText: {
-    fontSize: 11,
-    fontFamily: 'Inter_500Medium',
+    ...font.smallStrong,
   },
   controls: {
     position: 'absolute',

@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
+import { font, fontFamily } from '@/constants/typography';
 
 // Roles a dealer can assign — dealer/admin accounts can never be set here.
 const STAFF_ROLES = ['reception', 'technician', 'store_manager', 'accountant'] as const;
@@ -116,8 +117,8 @@ export default function EditStaffScreen() {
           <Feather name="arrow-left" size={20} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Edit Staff</Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Edit Staff</Text>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]} numberOfLines={1}>
             {params.email ?? 'Update profile details'}
           </Text>
         </View>
@@ -130,7 +131,7 @@ export default function EditStaffScreen() {
         showsVerticalScrollIndicator={false}
       >
         <FadeInView animValue={anims[0]} style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>ROLE</Text>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: fontFamily.semibold }]}>ROLE</Text>
           <View style={styles.roleGrid}>
             {STAFF_ROLES.map((r) => {
               const active = role === r;
@@ -149,7 +150,7 @@ export default function EditStaffScreen() {
                   activeOpacity={0.8}
                 >
                   <Feather name={ROLE_ICONS[r]} size={18} color={active ? colors.primary : colors.mutedForeground} />
-                  <Text style={[styles.roleName, { color: active ? colors.primary : colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                  <Text style={[styles.roleName, { color: active ? colors.primary : colors.foreground, fontFamily: fontFamily.semibold }]}>
                     {ROLE_LABELS[r] ?? r}
                   </Text>
                 </TouchableOpacity>
@@ -159,7 +160,7 @@ export default function EditStaffScreen() {
         </FadeInView>
 
         <FadeInView animValue={anims[1]} style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>DETAILS</Text>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: fontFamily.semibold }]}>DETAILS</Text>
           <View style={{ gap: 8 }}>
             <Input label="Full Name" value={name} onChangeText={setName}
               placeholder="Staff member's name" leftIcon="user" error={errors.name} />
@@ -175,7 +176,7 @@ export default function EditStaffScreen() {
         <FadeInView animValue={anims[2]} style={styles.section}>
           <View style={[styles.infoBox, { backgroundColor: colors.primary + '0F', borderColor: colors.primary + '22', borderRadius: 16 }]}>
             <Feather name="info" size={14} color={colors.primary} />
-            <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               Email cannot be changed — it is kept as a recovery identity. Staff sign in with their registered mobile and a verification code.
             </Text>
           </View>
@@ -184,7 +185,7 @@ export default function EditStaffScreen() {
         </FadeInView>
 
         <FadeInView animValue={anims[2]} style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>REMOVE ACCESS</Text>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: fontFamily.semibold }]}>REMOVE ACCESS</Text>
           <TouchableOpacity
             onPress={handleRemove}
             disabled={loading || removing}
@@ -195,8 +196,8 @@ export default function EditStaffScreen() {
           >
             {removing ? <AvarpusSpinner size={18} /> : <Feather name="user-x" size={18} color={colors.destructive} />}
             <View style={{ flex: 1 }}>
-              <Text style={[styles.removeTitle, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>Remove from Shop</Text>
-              <Text style={[styles.removeText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              <Text style={[styles.removeTitle, { color: colors.destructive, fontFamily: fontFamily.semibold }]}>Remove from Shop</Text>
+              <Text style={[styles.removeText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                 Removes immediately: their Staff ID and all permissions for this Shop. Their personal account is kept; you can invite the number again.
               </Text>
             </View>
@@ -216,13 +217,13 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: 13 },
   scroll: { padding: 12, gap: 8 },
   section: { gap: 8 },
-  sectionLabel: { fontSize: 11, letterSpacing: 1, marginTop: 4 },
+  sectionLabel: { ...font.overline, marginTop: 4 },
   roleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   roleCard: { width: '48%', flexGrow: 1, borderWidth: 1.5, padding: 12, gap: 6, alignItems: 'flex-start' },
   roleName: { fontSize: 13 },
   infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, padding: 12 },
-  infoText: { fontSize: 12, flex: 1, lineHeight: 18 },
+  infoText: { ...font.caption, flex: 1 },
   removeBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, padding: 14 },
   removeTitle: { fontSize: 14 },
-  removeText: { fontSize: 12, lineHeight: 17, marginTop: 2 },
+  removeText: { ...font.caption, marginTop: 2 },
 });

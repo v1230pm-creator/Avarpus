@@ -12,17 +12,18 @@ import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { FlatCard, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
+import { font, fontFamily } from '@/constants/typography';
 
-const ROLE_COLORS: Record<string, string> = {
-  super_admin: '#F87171',
-  dealer: '#8B5CF6',
-  owner: '#8B5CF6',
-  reception: '#4DA3FF',
-  technician: '#34D399',
-  store_manager: '#F59E0B',
-  accountant: '#A8B3C7',
-  dealer_owner: '#F472B6',
-  dealer_staff: '#FB7185',
+const ROLE_COLOR_TOKENS: Record<string, string> = {
+  super_admin: 'destructive',
+  dealer: 'purple',
+  owner: 'purple',
+  reception: 'primary',
+  technician: 'success',
+  store_manager: 'warning',
+  accountant: 'mutedForeground',
+  dealer_owner: 'purple',
+  dealer_staff: 'destructive',
 };
 
 type StaffUser = {
@@ -52,24 +53,24 @@ function StaffCard({
   removing?: boolean;
 }) {
   const colors = useColors();
-  const roleColor = ROLE_COLORS[staff.role] ?? colors.primary;
+  const roleColor = colors[ROLE_COLOR_TOKENS[staff.role]] ?? colors.primary;
   return (
     <FlatCard style={styles.card}>
       <Avatar name={staff.name} url={staff.profilePhoto} size={52} />
       <View style={styles.cardContent}>
         <View style={styles.nameRow}>
-          <Text style={[styles.name, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{staff.name}</Text>
+          <Text style={[styles.name, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>{staff.name}</Text>
           <View style={[styles.statusDot, { backgroundColor: staff.isActive ? colors.success : colors.mutedForeground }]} />
         </View>
-        <Text style={[styles.email, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{staff.email}</Text>
-        {!!staff.mobile && <Text style={[styles.mobile, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{staff.mobile}</Text>}
+        <Text style={[styles.email, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>{staff.email}</Text>
+        {!!staff.mobile && <Text style={[styles.mobile, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>{staff.mobile}</Text>}
         <View style={styles.badges}>
           <View style={[styles.roleBadge, { backgroundColor: roleColor + '1A' }]}>
-            <Text style={[styles.roleText, { color: roleColor, fontFamily: 'Inter_600SemiBold' }]}>{ROLE_LABELS[staff.role] ?? staff.role}</Text>
+            <Text style={[styles.roleText, { color: roleColor, fontFamily: fontFamily.semibold }]}>{ROLE_LABELS[staff.role] ?? staff.role}</Text>
           </View>
           {staff.designation && (
             <View style={[styles.desBadge, { backgroundColor: colors.muted }]}>
-              <Text style={[styles.desText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{staff.designation}</Text>
+              <Text style={[styles.desText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>{staff.designation}</Text>
             </View>
           )}
         </View>
@@ -127,7 +128,7 @@ function PendingCard({
   const colors = useColors();
   const [expanded, setExpanded] = useState(false);
   const [confirmReject, setConfirmReject] = useState(false);
-  const roleColor = ROLE_COLORS[staff.role] ?? colors.primary;
+  const roleColor = colors[ROLE_COLOR_TOKENS[staff.role]] ?? colors.primary;
   return (
     <FlatCard style={styles.pendingCard}>
       <TouchableOpacity
@@ -138,34 +139,34 @@ function PendingCard({
         <Avatar name={staff.name} url={staff.profilePhoto} size={44} />
         <View style={styles.cardContent}>
           <View style={styles.nameRow}>
-            <Text style={[styles.name, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{staff.name}</Text>
+            <Text style={[styles.name, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>{staff.name}</Text>
             <View style={[styles.pendingBadge, { backgroundColor: colors.warning + '1A' }]}>
-              <Text style={[styles.pendingBadgeText, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>
+              <Text style={[styles.pendingBadgeText, { color: colors.warning, fontFamily: fontFamily.semibold }]}>
                 {staff.invitePending ? 'Invited' : 'Pending'}
               </Text>
             </View>
           </View>
-          <Text style={[styles.email, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{staff.email}</Text>
+          <Text style={[styles.email, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>{staff.email}</Text>
         </View>
         <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
       </TouchableOpacity>
       {expanded && (
         <View style={styles.pendingDetails}>
           {!!staff.mobile && (
-            <Text style={[styles.mobile, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Mobile: {staff.mobile}</Text>
+            <Text style={[styles.mobile, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>Mobile: {staff.mobile}</Text>
           )}
           <View style={styles.badges}>
             <View style={[styles.roleBadge, { backgroundColor: roleColor + '1A' }]}>
-              <Text style={[styles.roleText, { color: roleColor, fontFamily: 'Inter_600SemiBold' }]}>{ROLE_LABELS[staff.role] ?? staff.role}</Text>
+              <Text style={[styles.roleText, { color: roleColor, fontFamily: fontFamily.semibold }]}>{ROLE_LABELS[staff.role] ?? staff.role}</Text>
             </View>
             {staff.designation && (
               <View style={[styles.desBadge, { backgroundColor: colors.muted }]}>
-                <Text style={[styles.desText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{staff.designation}</Text>
+                <Text style={[styles.desText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>{staff.designation}</Text>
               </View>
             )}
           </View>
           {staff.invitePending && (
-            <Text style={[styles.mobile, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.mobile, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               Waiting for them to join: they sign in with mobile OTP, open Shop and enter the activation code you shared — once. No approval is needed. Add them again to issue a fresh code.
             </Text>
           )}
@@ -177,8 +178,8 @@ function PendingCard({
                 style={[styles.actionBtn, { backgroundColor: colors.success, opacity: busy ? 0.6 : 1 }]}
                 activeOpacity={0.85}
               >
-                <Feather name="check" size={15} color="#FFFFFF" />
-                <Text style={[styles.actionBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Approve</Text>
+                <Feather name="check" size={15} color={colors.primaryForeground} />
+                <Text style={[styles.actionBtnText, { fontFamily: fontFamily.semibold }]}>Approve</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -194,11 +195,11 @@ function PendingCard({
               ]}
               activeOpacity={0.85}
             >
-              <Feather name="x" size={15} color={confirmReject ? '#FFFFFF' : colors.destructive} />
+              <Feather name="x" size={15} color={confirmReject ? colors.primaryForeground : colors.destructive} />
               <Text
                 style={[
                   styles.actionBtnText,
-                  { fontFamily: 'Inter_600SemiBold', color: confirmReject ? '#FFFFFF' : colors.destructive },
+                  { fontFamily: fontFamily.semibold, color: confirmReject ? colors.primaryForeground : colors.destructive },
                 ]}
               >
                 {staff.invitePending ? 'Remove invite' : (confirmReject ? 'Confirm Reject' : 'Reject')}
@@ -206,7 +207,7 @@ function PendingCard({
             </TouchableOpacity>
           </View>
           {confirmReject && !staff.invitePending && (
-            <Text style={[styles.rejectHint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.rejectHint, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               Rejecting permanently removes this registration.
             </Text>
           )}
@@ -335,8 +336,8 @@ export default function StaffScreen() {
             <Feather name="arrow-left" size={20} color={colors.foreground} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Staff</Text>
-            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{filtered.length} members</Text>
+            <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Staff</Text>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>{filtered.length} members</Text>
           </View>
           {canManage ? (
             <TouchableOpacity
@@ -344,8 +345,8 @@ export default function StaffScreen() {
               style={[styles.addBtn, { backgroundColor: colors.primary }]}
               activeOpacity={0.85}
             >
-              <Feather name="user-plus" size={16} color="#FFFFFF" />
-              <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Add Staff</Text>
+              <Feather name="user-plus" size={16} color={colors.primaryForeground} />
+              <Text style={[styles.addBtnText, { fontFamily: fontFamily.semibold }]}>Add Staff</Text>
             </TouchableOpacity>
           ) : (
             <View style={{ width: 40 }} />
@@ -360,7 +361,7 @@ export default function StaffScreen() {
               onChangeText={setSearch}
               placeholder="Search staff..."
               placeholderTextColor={colors.mutedForeground}
-              style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+              style={[styles.searchInput, { color: colors.foreground, fontFamily: fontFamily.regular }]}
             />
             {!!search && <TouchableOpacity onPress={() => setSearch('')}><Feather name="x" size={16} color={colors.mutedForeground} /></TouchableOpacity>}
           </View>
@@ -383,15 +384,15 @@ export default function StaffScreen() {
         ListHeaderComponent={
           <>
           {!!actionError && (canManage && pending.length === 0) && (
-            <Text style={[styles.actionErrorText, { color: colors.destructive, fontFamily: 'Inter_400Regular', marginBottom: 8 }]}>{actionError}</Text>
+            <Text style={[styles.actionErrorText, { color: colors.destructive, fontFamily: fontFamily.regular, marginBottom: 8 }]}>{actionError}</Text>
           )}
           {canManage && pending.length > 0 ? (
             <View style={styles.pendingSection}>
-              <Text style={[styles.sectionTitle, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>
+              <Text style={[styles.sectionTitle, { color: colors.warning, fontFamily: fontFamily.semibold }]}>
                 {pending.every((u) => u.invitePending) ? 'Invited' : 'Pending Approvals'} ({pending.length})
               </Text>
               {!!actionError && (
-                <Text style={[styles.actionErrorText, { color: colors.destructive, fontFamily: 'Inter_400Regular' }]}>{actionError}</Text>
+                <Text style={[styles.actionErrorText, { color: colors.destructive, fontFamily: fontFamily.regular }]}>{actionError}</Text>
               )}
               {pending.map((u) => (
                 <PendingCard
@@ -403,7 +404,7 @@ export default function StaffScreen() {
                 />
               ))}
               {active.length > 0 && (
-                <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold', marginTop: 12 }]}>
+                <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: fontFamily.semibold, marginTop: 12 }]}>
                   Active Staff
                 </Text>
               )}
@@ -468,7 +469,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20 },
   headerSub: { fontSize: 13 },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 38, paddingHorizontal: 14, borderRadius: 12, marginTop: 3 },
-  addBtnText: { fontSize: 13, color: '#FFFFFF' },
+  addBtnText: { ...font.smallStrong },
   searchWrap: { paddingHorizontal: 12, paddingVertical: 12 },
   searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14 },
   searchInput: { flex: 1, height: 46, fontSize: 14 },
@@ -478,25 +479,25 @@ const styles = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   name: { fontSize: 15 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  email: { fontSize: 12 },
-  mobile: { fontSize: 12 },
+  email: { ...font.caption },
+  mobile: { ...font.caption },
   badges: { flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' },
   roleBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-  roleText: { fontSize: 11 },
+  roleText: { ...font.captionStrong },
   desBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-  desText: { fontSize: 11 },
+  desText: { ...font.caption },
   editBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   cardActions: { gap: 8 },
   pendingSection: { gap: 8, marginBottom: 4 },
   sectionTitle: { fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.6 },
-  actionErrorText: { fontSize: 12 },
+  actionErrorText: { ...font.caption },
   pendingCard: { padding: 12, gap: 0 },
   pendingRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   pendingBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
-  pendingBadgeText: { fontSize: 10 },
+  pendingBadgeText: { ...font.smallStrong },
   pendingDetails: { marginTop: 12, gap: 8 },
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
   actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 40, borderRadius: 12 },
-  actionBtnText: { fontSize: 13, color: '#FFFFFF' },
-  rejectHint: { fontSize: 11 },
+  actionBtnText: { ...font.smallStrong },
+  rejectHint: { ...font.caption },
 });

@@ -25,6 +25,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { AvarpusLoadingScreen, AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { isDealerPortalRole } from '@/types';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 type Mode = 'overview' | 'setup' | 'claim';
 
@@ -160,10 +162,10 @@ export default function ShopScreen() {
   };
 
   const header = (
-    <View style={[styles.header, { paddingTop: topPad + 16, borderBottomColor: colors.border }]}>
+    <View style={[styles.header, { paddingTop: topPad + space.lg, backgroundColor: colors.background }]}>
       {mode !== 'overview' && (
         <TouchableOpacity onPress={() => { setMode('overview'); setError(null); }} style={styles.iconButton}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
       )}
       <View style={{ flex: 1 }}>
@@ -171,7 +173,7 @@ export default function ShopScreen() {
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Your secure business workspace</Text>
       </View>
       <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/more', params: { scope: 'business' } })} style={styles.iconButton} accessibilityLabel="Open settings">
-        <Feather name="settings" size={21} color={colors.foreground} />
+        <Feather name="settings" size={size.headerIcon} color={colors.foreground} />
       </TouchableOpacity>
     </View>
   );
@@ -263,7 +265,7 @@ export default function ShopScreen() {
               <PrimaryButton label="Set up your Shop" onPress={() => { setMode('setup'); setError(null); }} colors={colors} />
               {!isDealerPortal && (
                 <TouchableOpacity onPress={() => setMode('claim')} style={[styles.secondaryButton, { borderColor: colors.border }]}>
-                  <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Join with activation code</Text>
+                  <Text style={{ color: colors.foreground, fontFamily: fontFamily.semibold }}>Join with activation code</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -342,7 +344,7 @@ function PrimaryButton({ label, onPress, disabled, busy, colors }: { label: stri
     accessibilityState={{ disabled: !!(disabled || busy), busy: !!busy }}
     style={[styles.primaryButton, { backgroundColor: colors.primary, opacity: disabled || busy ? 0.55 : 1 }]}
   >
-    {busy ? <AvarpusSpinner size={20} color={colors.primaryForeground} accessibilityLabel={null} /> : <Text style={{ color: colors.primaryForeground, fontFamily: 'Inter_600SemiBold' }}>{label}</Text>}
+    {busy ? <AvarpusSpinner size={20} color={colors.primaryForeground} accessibilityLabel={null} /> : <Text style={{ color: colors.primaryForeground, ...font.button }}>{label}</Text>}
   </TouchableOpacity>;
 }
 
@@ -356,34 +358,34 @@ function ToolRow({ icon, label, detail, onPress, colors }: { icon: keyof typeof 
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { minHeight: 60, paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 22, fontFamily: 'Inter_700Bold' },
-  subtitle: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  header: { minHeight: 60, paddingHorizontal: layout.screenPadding, paddingBottom: space.md, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  iconButton: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  title: { ...font.display },
+  subtitle: { ...font.caption, marginTop: space.xs },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: 16, gap: 14 },
   errorBox: { padding: 12, borderRadius: 12, borderWidth: 1, flexDirection: 'row', gap: 12, alignItems: 'center' },
   card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 14 },
-  cardTitle: { fontSize: 19, fontFamily: 'Inter_700Bold' },
-  body: { fontSize: 13, lineHeight: 19, fontFamily: 'Inter_400Regular' },
-  fieldLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  input: { minHeight: 48, borderWidth: 1, borderRadius: 11, paddingHorizontal: 13, fontFamily: 'Inter_400Regular' },
+  cardTitle: { ...font.heading },
+  body: { ...font.body },
+  fieldLabel: { ...font.labelStrong },
+  input: { minHeight: size.input, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.sm, paddingHorizontal: space.md, ...font.input },
   multiline: { minHeight: 84, paddingTop: 12, textAlignVertical: 'top' },
   primaryButton: { minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   secondaryButton: { minHeight: 48, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  link: { textAlign: 'center', fontFamily: 'Inter_600SemiBold', padding: 4 },
+  link: { textAlign: 'center', ...font.button, padding: space.xs },
   verifiedEmail: { minHeight: 46, borderRadius: 10, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   hero: { borderWidth: 1, borderRadius: 18, padding: 22, gap: 14, alignItems: 'stretch' },
   heroIcon: { width: 72, height: 72, borderRadius: 20, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
-  heroTitle: { fontSize: 22, fontFamily: 'Inter_700Bold', textAlign: 'center' },
-  heroText: { fontSize: 14, lineHeight: 21, textAlign: 'center', fontFamily: 'Inter_400Regular', marginBottom: 4 },
+  heroTitle: { ...font.heading, textAlign: 'center' },
+  heroText: { ...font.body, textAlign: 'center', marginBottom: space.xs },
   securityNote: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 4 },
   workspaceCard: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 8 },
   workspaceHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   workspaceIcon: { width: 50, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  sectionLabel: { fontSize: 11, letterSpacing: 0.9, fontFamily: 'Inter_600SemiBold', marginTop: 8, marginLeft: 3 },
+  sectionLabel: { ...font.overline, marginTop: space.sm, marginLeft: space.xs },
   toolList: { borderWidth: 1, borderRadius: 15, overflow: 'hidden' },
   toolRow: { minHeight: 68, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: StyleSheet.hairlineWidth },
   toolIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  toolLabel: { fontSize: 15, fontFamily: 'Inter_600SemiBold', marginBottom: 2 },
+  toolLabel: { ...font.bodyStrong, marginBottom: space.xs },
 });

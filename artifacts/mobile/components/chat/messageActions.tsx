@@ -5,6 +5,8 @@ import { Image } from 'expo-image';
 import { getChatMessageMediaUrl } from '@workspace/api-client-react';
 import type { ChatMessage, ChatMessageQuote } from '@workspace/api-client-react';
 import { AVARPUS_BLUE } from '@/constants/brand';
+import { font } from '@/constants/typography';
+import { useMediaThumbnailSource } from '@/hooks/useChatMedia';
 
 /**
  * Translucent brand-blue wash laid over a selected message. Deliberately the
@@ -101,6 +103,12 @@ export function QuotedMessage({
   testID?: string;
 }) {
   const showThumb = quote.kind === 'image' && !quote.deleted;
+  // Quoted photo thumbnail: device copy first; the relay only outside
+  // device-owned mode so a quote never bypasses the auto-download rules.
+  const thumbSource = useMediaThumbnailSource(
+    showThumb ? { id: quote.id, roomId } : null,
+    token,
+  );
   const bodyText = quote.deleted ? 'Message deleted' : describeMessage(quote.kind, quote.body);
   const surface = onDark ? 'rgba(255,255,255,0.16)' : colors.backgroundSecondary;
   const nameColor = onDark ? '#FFFFFF' : SELECTION_ACCENT;
@@ -138,9 +146,9 @@ export function QuotedMessage({
           </Text>
         </View>
       </View>
-      {showThumb && (
+      {showThumb && thumbSource && (
         <Image
-          source={{ uri: chatMediaUri(roomId, quote.id), headers: token ? { Authorization: `Bearer ${token}` } : undefined }}
+          source={thumbSource}
           style={styles.quoteThumb}
           contentFit="cover"
           accessibilityLabel="Quoted photo"
@@ -262,9 +270,9 @@ const styles = StyleSheet.create({
   },
   quoteBar: { width: 4 },
   quoteBody: { flex: 1, paddingHorizontal: 8, paddingVertical: 6, justifyContent: 'center' },
-  quoteName: { fontSize: 12, fontFamily: 'Inter_600SemiBold', marginBottom: 2 },
+  quoteName: { ...font.smallStrong, marginBottom: 2 },
   quoteLine: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  quoteText: { fontSize: 12, fontFamily: 'Inter_400Regular', flexShrink: 1 },
+  quoteText: { ...font.small, flexShrink: 1 },
   quoteDeleted: { fontStyle: 'italic' },
   quoteThumb: { width: 48, height: 48, backgroundColor: '#222' },
   replyStrip: {
@@ -286,5 +294,5 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   selectionIcon: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
-  selectionCount: { flex: 1, fontSize: 18, fontFamily: 'Inter_600SemiBold', paddingHorizontal: 8 },
+  selectionCount: { flex: 1, ...font.itemTitle, paddingHorizontal: 8 },
 });

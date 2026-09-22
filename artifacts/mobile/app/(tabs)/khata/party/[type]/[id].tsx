@@ -21,6 +21,8 @@ import { useColors } from '@/hooks/useColors';
 import { DataErrorBanner, DataErrorState } from '@/components/ui/DataStates';
 import { KhataTransactionSheet } from '@/components/forms/KhataTransactionSheet';
 import { useData } from '@/context/DataContext';
+import { font } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 export default function KhataDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -260,8 +262,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     marginRight: 4,
   },
-  headerTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
-  headerSubtitle: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  headerTitle: { ...font.title },
+  headerSubtitle: { ...font.caption },
 
   scroll: { padding: 16, paddingBottom: 24 },
 
@@ -274,13 +276,13 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   summaryBox: { flex: 1, gap: 4 },
-  summaryLabel: { fontSize: 12, fontFamily: 'Inter_500Medium' },
-  summaryValue: { fontSize: 20, fontFamily: 'Inter_700Bold' },
+  summaryLabel: { ...font.captionStrong },
+  summaryValue: { ...font.heading },
   summaryDivider: { width: 1, height: '100%', marginHorizontal: 16 },
   summaryRow: { flex: 1.2, gap: 12 },
   summaryMiniBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  summaryMiniLabel: { fontSize: 12, fontFamily: 'Inter_500Medium' },
-  summaryMiniValue: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  summaryMiniLabel: { ...font.captionStrong },
+  summaryMiniValue: { ...font.bodyStrong },
 
   activityList: { gap: 12 },
   entryRow: { flexDirection: 'row', marginVertical: 4 },
@@ -292,18 +294,18 @@ const styles = StyleSheet.create({
     padding: 12,
     minWidth: 160,
   },
-  entryAmount: { fontSize: 18, fontFamily: 'Inter_700Bold', marginBottom: 4 },
-  entryDesc: { fontSize: 13, fontFamily: 'Inter_500Medium', marginBottom: 6 },
-  entryDate: { fontSize: 11, fontFamily: 'Inter_400Regular', marginBottom: 8 },
+  entryAmount: { ...font.heading, marginBottom: space.xs },
+  entryDesc: { ...font.bodyStrong, marginBottom: space.sm },
+  entryDate: { ...font.caption, marginBottom: space.sm },
   balancePill: {
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
   },
-  balancePillText: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
+  balancePillText: { ...font.captionStrong },
   
-  emptyText: { fontSize: 14, textAlign: 'center', marginVertical: 40, fontFamily: 'Inter_500Medium' },
+  emptyText: { ...font.body, textAlign: 'center', marginVertical: 40 },
 
   footer: {
     flexDirection: 'row',
@@ -320,7 +322,6 @@ const styles = StyleSheet.create({
   },
   actionBtnText: {
     color: '#fff',
-    fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
+    ...font.button,
   },
 });

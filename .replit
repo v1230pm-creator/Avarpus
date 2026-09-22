@@ -18,10 +18,6 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "typecheck"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "shop-isolation"
 
 [[workflows.workflow.tasks]]
@@ -42,10 +38,6 @@ args = "portal-repair-isolation"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "api-typecheck"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "workspace-typecheck"
 
 [[workflows.workflow.tasks]]
@@ -62,10 +54,6 @@ args = "public-requests"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "admin-public-requests-browser"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "official-site-public-claims"
 
 [[workflows.workflow.tasks]]
@@ -78,19 +66,11 @@ args = "chat-reports"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "admin-chat-reports-browser"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "push-delivery"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "brand-assets"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "web-list-search"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
@@ -108,16 +88,41 @@ args = "dealer-transfers"
 task = "workflow.run"
 args = "account-deletion"
 
-[[workflows.workflow]]
-name = "typecheck"
-author = "agent"
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "chat-sync"
 
 [[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/mobile run typecheck"
+task = "workflow.run"
+args = "chat-relay-purge-e2e"
 
-[workflows.workflow.metadata]
-isValidation = true
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "mobile-jest"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "web-checks"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "api-vitest"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "admin-browser"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "customer-khata"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "dealer-detection"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "test-registration-guard"
 
 [[workflows.workflow]]
 name = "shop-isolation"
@@ -175,37 +180,26 @@ task = "shell.exec"
 args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-portal-repair-isolation.mjs"
 
 [[workflows.workflow]]
-name = "api-typecheck"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/api-server run typecheck"
-
-[workflows.workflow.metadata]
-isValidation = true
-
-[[workflows.workflow]]
 name = "workspace-typecheck"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm run typecheck"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "flock /tmp/heavy-checks.lock pnpm run typecheck"
 
 [[workflows.workflow]]
 name = "workspace-build"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm run build"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "flock /tmp/heavy-checks.lock pnpm run build:artifacts"
 
 [[workflows.workflow]]
 name = "deployment-readiness"
@@ -228,17 +222,6 @@ isValidation = true
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-public-requests.mjs"
-
-[[workflows.workflow]]
-name = "admin-public-requests-browser"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/update-admin run test:public-requests-browser"
-
-[workflows.workflow.metadata]
-isValidation = true
 
 [[workflows.workflow]]
 name = "official-site-public-claims"
@@ -274,17 +257,6 @@ task = "shell.exec"
 args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-chat-reports.mjs"
 
 [[workflows.workflow]]
-name = "admin-chat-reports-browser"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/update-admin run test:chat-reports-browser"
-
-[workflows.workflow.metadata]
-isValidation = true
-
-[[workflows.workflow]]
 name = "push-delivery"
 author = "agent"
 
@@ -302,17 +274,6 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm run validate:brand-assets"
-
-[workflows.workflow.metadata]
-isValidation = true
-
-[[workflows.workflow]]
-name = "web-list-search"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/avarpus-web run test:list-search"
 
 [workflows.workflow.metadata]
 isValidation = true
@@ -357,6 +318,105 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-account-deletion.mjs"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "chat-sync"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-chat-sync.mjs"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "chat-relay-purge-e2e"
+author = "agent"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock flock /tmp/heavy-checks.lock node scripts/run-isolated.mjs scripts/test-chat-relay-purge-e2e.mjs"
+
+[[workflows.workflow]]
+name = "mobile-jest"
+author = "agent"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "flock /tmp/heavy-checks.lock pnpm --filter @workspace/mobile exec jest --ci --maxWorkers=1"
+
+[[workflows.workflow]]
+name = "web-checks"
+author = "agent"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "CI=1 flock /tmp/heavy-checks.lock pnpm --filter @workspace/avarpus-web run test"
+
+[[workflows.workflow]]
+name = "api-vitest"
+author = "agent"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && CI=1 flock /tmp/api-server-tests.lock flock /tmp/heavy-checks.lock npx vitest run"
+
+[[workflows.workflow]]
+name = "admin-browser"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "flock /tmp/heavy-checks.lock pnpm --filter @workspace/update-admin run test:browser"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "customer-khata"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-customer-khata.mjs"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "dealer-detection"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && flock /tmp/api-server-tests.lock node scripts/run-isolated.mjs scripts/test-dealer-detection.mjs"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "test-registration-guard"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node scripts/src/check-test-registration.mjs"
 
 [workflows.workflow.metadata]
 isValidation = true

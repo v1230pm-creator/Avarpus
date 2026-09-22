@@ -17,6 +17,7 @@ import { Feather } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -67,10 +68,10 @@ function ApprovalCard({
     <FlatCard style={styles.card}>
       <View style={styles.cardTop}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.requester, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+          <Text style={[styles.requester, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
             {request.requesterName}
           </Text>
-          <Text style={[styles.role, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.role, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
             {request.requesterRole.replace('_', ' ')}
           </Text>
         </View>
@@ -82,22 +83,22 @@ function ApprovalCard({
       </View>
 
       <View style={[styles.detailsBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.recordType, { color: colors.foreground, fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }]}>
+        <Text style={[styles.recordType, { color: colors.foreground, fontFamily: fontFamily.semibold, textTransform: 'capitalize' }]}>
           {request.mode} {request.recordType}
         </Text>
-        <Text style={[styles.detailsText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+        <Text style={[styles.detailsText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
           {details}
         </Text>
-        <Text style={[styles.dateInfo, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>
+        <Text style={[styles.dateInfo, { color: colors.foreground, fontFamily: fontFamily.medium }]}>
           Requested Backdate: {formatDate(request.requestedDate)}
         </Text>
       </View>
 
       <View style={styles.reasonBlock}>
-        <Text style={[styles.reasonLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
+        <Text style={[styles.reasonLabel, { color: colors.mutedForeground, fontFamily: fontFamily.medium }]}>
           Reason for backdating:
         </Text>
-        <Text style={[styles.reasonText, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}>
+        <Text style={[styles.reasonText, { color: colors.foreground, fontFamily: fontFamily.regular }]}>
           "{request.reason}"
         </Text>
       </View>
@@ -120,11 +121,11 @@ function ApprovalCard({
 
       {request.status !== 'pending' && (
         <View style={[styles.decidedBox, { borderTopColor: colors.border }]}>
-          <Text style={[styles.decidedText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.decidedText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
             {request.status === 'approved' ? 'Approved by' : 'Rejected by'} {request.decidedByName} on {formatDate(request.decidedAt || '')}
           </Text>
           {request.status === 'rejected' && request.rejectionReason && (
-            <Text style={[styles.rejectionReason, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>
+            <Text style={[styles.rejectionReason, { color: colors.destructive, fontFamily: fontFamily.medium }]}>
               Reason: {request.rejectionReason}
             </Text>
           )}
@@ -206,10 +207,10 @@ export default function ApprovalsScreen() {
             <Feather name="arrow-left" size={22} color={colors.foreground} />
           </TouchableOpacity>
           <View>
-            <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
               {isStaff ? 'My Requests' : 'Approvals'}
             </Text>
-            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               Backdated entries
             </Text>
           </View>
@@ -245,10 +246,10 @@ export default function ApprovalsScreen() {
 
       {/* Reject Modal */}
       <Modal visible={!!rejectingId} animationType="fade" transparent>
-        <KeyboardAvoidingCompat style={[styles.overlayCenter, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
+        <KeyboardAvoidingCompat style={[styles.overlayCenter, { backgroundColor: colors.background + '99' }]}>
           <View style={[styles.rejectModal, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Reject Request</Text>
-            <Text style={[styles.modalSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Reject Request</Text>
+            <Text style={[styles.modalSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               Please provide a reason for rejecting this backdated entry.
             </Text>
 
@@ -257,7 +258,7 @@ export default function ApprovalsScreen() {
               onChangeText={setRejectReason}
               placeholder="Reason for rejection..."
               placeholderTextColor={colors.mutedForeground}
-              style={[styles.rejectInput, { color: colors.foreground, borderColor: colors.border, fontFamily: 'Inter_400Regular' }]}
+              style={[styles.rejectInput, { color: colors.foreground, borderColor: colors.border, fontFamily: fontFamily.regular }]}
               multiline
               autoFocus
             />
@@ -279,23 +280,23 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 12 },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 20 },
-  headerSub: { fontSize: 12, marginTop: 2 },
+  headerSub: { ...font.caption, marginTop: 2 },
   list: { paddingHorizontal: 12, paddingTop: 4, gap: 8 },
   card: { padding: 12, gap: 8 },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   requester: { fontSize: 16 },
-  role: { fontSize: 12, marginTop: 2, textTransform: 'capitalize' },
+  role: { ...font.caption, marginTop: 2, textTransform: 'capitalize' },
   detailsBox: { padding: 12, borderRadius: 8, borderWidth: 1, gap: 6 },
   recordType: { fontSize: 13 },
   detailsText: { fontSize: 13, lineHeight: 18 },
   dateInfo: { fontSize: 13, marginTop: 4 },
   reasonBlock: { gap: 4 },
-  reasonLabel: { fontSize: 12 },
+  reasonLabel: { ...font.caption },
   reasonText: { fontSize: 14, fontStyle: 'italic' },
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
   decidedBox: { borderTopWidth: 1, paddingTop: 12, marginTop: 4, gap: 4 },
-  decidedText: { fontSize: 12 },
-  rejectionReason: { fontSize: 12 },
+  decidedText: { ...font.caption },
+  rejectionReason: { ...font.caption },
 
   overlayCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 12 },
   rejectModal: { width: '100%', padding: 12, borderRadius: 16, borderWidth: 1 },

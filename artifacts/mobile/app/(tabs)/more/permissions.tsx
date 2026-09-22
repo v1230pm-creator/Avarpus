@@ -7,6 +7,7 @@ import { AvarpusLoadingScreen } from '@/components/ui/AvarpusSpinner';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
 import { FlatCard } from '@/components/ui/FlatCard';
 import { roleFeaturesGet, roleFeaturesUpdate } from '@workspace/api-client-react';
 
@@ -96,7 +97,7 @@ export default function PermissionsScreen() {
   if (!isOwner) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-        <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+        <Text style={{ color: colors.mutedForeground, fontFamily: fontFamily.regular }}>
           Only the shop owner can manage staff permissions.
         </Text>
       </View>
@@ -114,7 +115,7 @@ export default function PermissionsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.card }]}>
           <Feather name="chevron-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Staff Permissions</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Staff Permissions</Text>
       </View>
 
       {!matrix && !loadError && (
@@ -123,18 +124,18 @@ export default function PermissionsScreen() {
 
       {loadError && (
         <View style={styles.center}>
-          <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 12 }}>
+          <Text style={{ color: colors.mutedForeground, fontFamily: fontFamily.regular, marginBottom: 12 }}>
             Could not load permissions.
           </Text>
           <TouchableOpacity onPress={load} style={[styles.retryBtn, { backgroundColor: colors.primary }]}>
-            <Text style={{ color: '#FFF', fontFamily: 'Inter_600SemiBold' }}>Retry</Text>
+            <Text style={{ color: colors.primaryForeground, fontFamily: fontFamily.semibold }}>Retry</Text>
           </TouchableOpacity>
         </View>
       )}
 
       {matrix && (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
-          <Text style={[styles.hint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.hint, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
             Choose a role, then switch features on or off. Changes apply to staff devices within a minute.
           </Text>
 
@@ -157,7 +158,7 @@ export default function PermissionsScreen() {
                   <Text
                     style={{
                       color: active ? '#FFF' : colors.foreground,
-                      fontFamily: 'Inter_600SemiBold',
+                      fontFamily: fontFamily.semibold,
                       fontSize: 13,
                     }}
                   >
@@ -168,7 +169,7 @@ export default function PermissionsScreen() {
             })}
           </ScrollView>
 
-          <Text style={[styles.roleDesc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.roleDesc, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
             {ROLES.find((r) => r.key === selectedRole)?.description}
           </Text>
 
@@ -182,10 +183,10 @@ export default function PermissionsScreen() {
                 ]}
               >
                 <View style={styles.rowText}>
-                  <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                  <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
                     {FEATURE_LABELS[key].label}
                   </Text>
-                  <Text style={[styles.rowDesc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  <Text style={[styles.rowDesc, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                     {FEATURE_LABELS[key].description}
                   </Text>
                 </View>
@@ -199,7 +200,7 @@ export default function PermissionsScreen() {
             ))}
           </FlatCard>
 
-          <Text style={[styles.note, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.note, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
             Owner accounts (Dealer / Super Admin) always have full access and are not affected by these switches.
           </Text>
         </ScrollView>
@@ -219,12 +220,12 @@ const styles = StyleSheet.create({
   hint: { fontSize: 13, lineHeight: 19 },
   roleRow: { gap: 8, paddingVertical: 2 },
   roleChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20, borderWidth: 1 },
-  roleDesc: { fontSize: 12 },
+  roleDesc: { ...font.caption },
   group: { overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
   rowBorder: { borderBottomWidth: 1 },
   rowText: { flex: 1, gap: 2 },
   rowLabel: { fontSize: 15 },
-  rowDesc: { fontSize: 12 },
-  note: { fontSize: 12, lineHeight: 18, textAlign: 'center', paddingHorizontal: 8 },
+  rowDesc: { ...font.caption },
+  note: { ...font.caption, textAlign: 'center', paddingHorizontal: 8 },
 });

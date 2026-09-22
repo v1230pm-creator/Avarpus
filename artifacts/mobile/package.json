@@ -92,6 +92,7 @@
     "expo-print": "^57.0.1",
     "expo-secure-store": "^57.0.3",
     "expo-sharing": "^57.0.18",
+    "expo-sqlite": "~57.0.3",
     "expo-video": "~57.0.3",
     "js-sha256": "^1.0.0",
     "livekit-client": "2.22.0",

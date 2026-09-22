@@ -33,7 +33,7 @@
 import { Readable } from "stream";
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter, type Request } from "express";
-import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, notExists, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, notExists, or, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -46,6 +46,7 @@ import {
   chatRoomPreferencesTable,
   chatMessagesTable,
   chatMessageHiddenTable,
+  chatMessageReceiptsTable,
   chatBlocksTable,
   chatReportsTable,
   chatReadStateTable,
@@ -74,6 +75,7 @@ import {
 } from "../lib/chatProviders";
 import {
   AuthActivateInviteBody,
+  ChatAcknowledgeBody,
   ChatContactsMatchBody,
   ChatMarkReadBody,
   ChatMessagesDeleteBody,
@@ -82,11 +84,29 @@ import {
   ChatReportsCreateBody,
   ChatRoomsCreateBody,
   ChatRoomsPreferencesUpdateBody,
+  ChatSyncQueryParams,
   ChatUploadUrlBody,
 } from "@workspace/api-zod";
 import { generateToken, sha256 } from "../lib/authUtils";
 import { chatMessagePreview, notifyRoomMessageRecipients } from "../lib/chatMessagePush";
-import { parseBody, uuidParam } from "../lib/validate";
+import { parseBody, parseQuery, uuidParam } from "../lib/validate";
+import {
+  CHAT_SYNC_DEFAULT_LIMIT,
+  afterPosition,
+  decodeCursor,
+  encodeCursor,
+  initialCursor,
+  microsToDate,
+  pageStream,
+  readSyncClock,
+  recordReadDeliveries,
+  recordReceipts,
+  revokeStoredReceipts,
+  roomScopeCondition,
+  timestampToMicros,
+  type ReceiptEntry,
+  type SyncCursor,
+} from "../lib/chatSync";
 import {
   claimPendingUpload,
   CHAT_PROVIDER_SEND_TIMEOUT_MS,
@@ -95,6 +115,8 @@ import {
   registerPendingUpload,
   releasePendingUpload,
 } from "../lib/pendingUploads";
+import { syncChatMediaPins } from "../lib/chatMediaPins";
+import { purgeRelayMediaForDeletedMessage } from "../lib/chatRelayCleanup";
 
 const router: IRouter = Router();
 router.param("id", uuidParam);
@@ -713,12 +735,14 @@ router.patch(
       return;
     }
     const changes = Object.fromEntries(supplied.map((key) => [key, body[key]]));
+    // Database clock: updatedAt is a delta-sync watermark and must be
+    // comparable with the sync settle boundary computed in SQL.
     const [preference] = await db
       .insert(chatRoomPreferencesTable)
-      .values({ roomId, userId: me.id, ...changes, updatedAt: new Date() })
+      .values({ roomId, userId: me.id, ...changes, updatedAt: sql`now()` })
       .onConflictDoUpdate({
         target: [chatRoomPreferencesTable.roomId, chatRoomPreferencesTable.userId],
-        set: { ...changes, updatedAt: new Date(), deletedAt: null },
+        set: { ...changes, updatedAt: sql`now()`, deletedAt: null },
       })
       .returning();
     res.json({ preferences: formatRoomPreference(preference) });
@@ -735,7 +759,7 @@ router.delete(
       res.status(404).json({ message: "Room not found" });
       return;
     }
-    const now = new Date();
+    const now = sql`now()`;
     await db
       .insert(chatRoomPreferencesTable)
       .values({ roomId, userId: me.id, deletedAt: now, updatedAt: now })
@@ -1658,6 +1682,10 @@ router.post(
           details: details?.trim() ? details.trim() : null,
         })
         .returning();
+      // An open report holds the reported message's relay media so an
+      // operator can still judge it; the pin is released when the report
+      // reaches a terminal state.
+      if (messageId) await syncChatMediaPins(tx, [messageId]);
       return { report: created, rateLimited: false };
     });
     if (outcome.rateLimited || !outcome.report) {
@@ -1953,8 +1981,12 @@ router.post(
         res.status(400).json({ message: "replyToMessageId cannot be combined with forwardOf" });
         return;
       }
-      if (objectPath !== undefined || durationMs !== undefined) {
-        res.status(400).json({ message: "objectPath and durationMs are derived from the source when forwarding" });
+      if (durationMs !== undefined) {
+        res.status(400).json({ message: "durationMs is derived from the source when forwarding" });
+        return;
+      }
+      if (kind === "text" && objectPath !== undefined) {
+        res.status(400).json({ message: "objectPath cannot be combined with a text forward" });
         return;
       }
       if (!UUID_RE.test(forwardOf.roomId) || !UUID_RE.test(forwardOf.messageId)) {
@@ -2058,12 +2090,29 @@ router.post(
     let resolvedSizeBytes: number | null = null;
     /** Server-owned copy created for a forward; deleted again if delivery fails. */
     let forwardedCopyPath: string | null = null;
+    /**
+     * A forward normally copies the relay object server-side. Once the relay
+     * copy is purged the forwarding device is the only source, so it may send
+     * a fresh room-scoped upload of its local copy; that upload is verified
+     * exactly like a first-hand attachment below.
+     */
+    let clientForwardUpload = false;
     if (forwardSource) {
       const { room: sourceRoom, message: sourceMessage } = forwardSource;
-      if (sourceMessage.objectPath) {
+      if (sourceMessage.objectPath && typeof objectPath === "string" && objectPath.trim()) {
+        clientForwardUpload = true;
+      } else if (sourceMessage.objectPath) {
         const sourcePrefix = `/objects/uploads/${chatStorageScope(sourceRoom)}/chat/${sourceRoom.id}/`;
         if (!sourceMessage.objectPath.startsWith(sourcePrefix)) {
           res.status(404).json({ message: "Source message not found" });
+          return;
+        }
+        if (sourceMessage.mediaState !== "available") {
+          res.status(400).json({
+            message:
+              "The original attachment is no longer on the server. Forward it from a phone that still has a copy.",
+            code: "CHAT_MEDIA_EXPIRED",
+          });
           return;
         }
         try {
@@ -2083,14 +2132,19 @@ router.post(
         } catch (error) {
           req.log.warn({ err: error }, "Forward source attachment unavailable");
           res.status(400).json({
-            message: "The original attachment is no longer available.",
+            message:
+              "The original attachment is no longer on the server. Forward it from a phone that still has a copy.",
             code: "CHAT_MEDIA_EXPIRED",
           });
           return;
         }
         resolvedObjectPath = forwardedCopyPath;
       }
-    } else if (kind === "image" || kind === "video" || kind === "file" || kind === "audio") {
+    }
+    if (
+      (clientForwardUpload || !forwardSource) &&
+      (kind === "image" || kind === "video" || kind === "file" || kind === "audio")
+    ) {
       if (typeof objectPath !== "string" || !objectPath.trim()) {
         res.status(400).json({ message: "objectPath is required for image/video/file/audio messages" });
         return;
@@ -2517,7 +2571,7 @@ router.post(
         // failure in the batch never leaves a redacted event looking live.
         await db
           .update(chatMessagesTable)
-          .set({ deletedAt: new Date() })
+          .set({ deletedAt: new Date(), updatedAt: sql`now()` })
           .where(and(eq(chatMessagesTable.id, row.id), isNull(chatMessagesTable.deletedAt)));
       }
     }
@@ -2525,13 +2579,21 @@ router.post(
     if (withoutEvent.length > 0) {
       await db
         .update(chatMessagesTable)
-        .set({ deletedAt: new Date() })
+        .set({ deletedAt: new Date(), updatedAt: sql`now()` })
         .where(
           and(
             inArray(chatMessagesTable.id, withoutEvent.map((row) => row.id)),
             isNull(chatMessagesTable.deletedAt),
           ),
         );
+    }
+    // A tombstone has no readers left, so its relay copy goes now rather than
+    // waiting for the daily purge. Media pinned by an open abuse report is the
+    // one exception: it stays as evidence until the report is terminal.
+    for (const row of live) {
+      if (row.objectPath && row.mediaState === "available") {
+        await purgeRelayMediaForDeletedMessage(row.id, objectStorageService);
+      }
     }
     res.json({ deletedIds: rows.map((row) => row.id) });
   }),
@@ -2576,7 +2638,11 @@ router.post(
       return;
     }
 
-    // Upsert read state
+    // Read implies delivered: receipts for what this marker newly covers,
+    // computed against the marker's previous position, so it runs first.
+    await recordReadDeliveries(me.id, roomId);
+
+    // Upsert read state (database clock: lastReadAt is a delta-sync watermark)
     await db
       .insert(chatReadStateTable)
       .values({
@@ -2584,17 +2650,376 @@ router.post(
         shopId: room.shopId,
         userId: me.id,
         lastReadMessageId: messageId,
-        lastReadAt: new Date(),
+        lastReadAt: sql`now()`,
       })
       .onConflictDoUpdate({
         target: [chatReadStateTable.roomId, chatReadStateTable.userId],
         set: {
           lastReadMessageId: messageId,
-          lastReadAt: new Date(),
+          lastReadAt: sql`now()`,
         },
       });
 
     res.json({ message: "Read marker updated" });
+  }),
+);
+
+// ── Delivery acknowledgements ────────────────────────────────────────────────
+// Batch and idempotent. Every listed message must be visible to the caller
+// (member of its room, under the same scope rule as authorizeRoom) or the whole
+// batch is refused with 404 and nothing is written — a foreign message id must
+// be indistinguishable from an unknown one. The caller's own messages, and
+// `stored`/`lost` for messages without media, are reported as ignored.
+// `lost` (the device's saved copy went missing while the relay still has the
+// bytes) is the only ack that moves a receipt backwards: it clears the caller's
+// stored mark so the purge waits for a fresh `stored`; on media the relay has
+// already dropped it is ignored as `relay_gone`.
+
+router.post(
+  "/chat/acks",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const me = (req as AuthedRequest).user;
+    const body = parseBody(ChatAcknowledgeBody, req, res);
+    if (!body) return;
+    // Later entries for the same id win, except that `delivered` never
+    // overrides a `stored` or `lost` already listed for the same message.
+    const wanted = new Map<string, "delivered" | "stored" | "lost">();
+    for (const ack of body.acks) {
+      const id = ack.messageId.trim().toLowerCase();
+      if (!UUID_RE.test(id)) {
+        res.status(404).json({ message: "Message not found" });
+        return;
+      }
+      const current = wanted.get(id);
+      wanted.set(id, ack.state === "delivered" && current && current !== "delivered" ? current : ack.state);
+    }
+    const ids = [...wanted.keys()];
+    const visible = await db
+      .select({
+        id: chatMessagesTable.id,
+        roomId: chatMessagesTable.roomId,
+        senderId: chatMessagesTable.senderId,
+        objectPath: chatMessagesTable.objectPath,
+        mediaState: chatMessagesTable.mediaState,
+      })
+      .from(chatMessagesTable)
+      .innerJoin(chatRoomsTable, eq(chatRoomsTable.id, chatMessagesTable.roomId))
+      .innerJoin(
+        chatRoomMembersTable,
+        and(
+          eq(chatRoomMembersTable.roomId, chatMessagesTable.roomId),
+          eq(chatRoomMembersTable.userId, me.id),
+        ),
+      )
+      .where(and(inArray(chatMessagesTable.id, ids), roomScopeCondition(resolveShopId(me))));
+    if (visible.length !== ids.length) {
+      res.status(404).json({ message: "Message not found" });
+      return;
+    }
+    const acknowledged: string[] = [];
+    const ignored: { messageId: string; reason: "own_message" | "no_media" | "relay_gone" }[] = [];
+    const entries: ReceiptEntry[] = [];
+    const lost: ReceiptEntry[] = [];
+    for (const row of visible) {
+      const state = wanted.get(row.id)!;
+      if (row.senderId === me.id) {
+        ignored.push({ messageId: row.id, reason: "own_message" });
+        continue;
+      }
+      if (state !== "delivered" && !row.objectPath) {
+        ignored.push({ messageId: row.id, reason: "no_media" });
+        continue;
+      }
+      if (state === "lost") {
+        if (row.mediaState !== "available") {
+          ignored.push({ messageId: row.id, reason: "relay_gone" });
+          continue;
+        }
+        lost.push({ messageId: row.id, roomId: row.roomId, stored: false });
+        acknowledged.push(row.id);
+        continue;
+      }
+      entries.push({ messageId: row.id, roomId: row.roomId, stored: state === "stored" });
+      acknowledged.push(row.id);
+    }
+    await recordReceipts(me.id, entries);
+    await revokeStoredReceipts(me.id, lost);
+    res.json({ acknowledged, ignored });
+  }),
+);
+
+// ── Delta sync ───────────────────────────────────────────────────────────────
+// See lib/chatSync.ts for the cursor and settle-lag rules. EVERY stream —
+// including the caller-keyed ones (hidden, receipts, preferences) — joins room
+// membership under the authorizeRoom rule (global direct = membership only,
+// shop rooms = membership AND the caller's current shop), so an account whose
+// workspace changed stops receiving activity for old-shop rooms even though
+// its stale membership rows remain. With ?roomId the feed is limited to that
+// one room (404 unless the caller is a member of it).
+
+router.get(
+  "/chat/sync",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const me = (req as AuthedRequest).user;
+    const query = parseQuery(ChatSyncQueryParams, req, res);
+    if (!query) return;
+    const limit = query.limit ?? CHAT_SYNC_DEFAULT_LIMIT;
+    const roomFilter = query.roomId?.trim().toLowerCase() || null;
+    if (roomFilter !== null) {
+      if (!UUID_RE.test(roomFilter) || !(await authorizeRoom(me, roomFilter))) {
+        res.status(404).json({ message: "Room not found" });
+        return;
+      }
+    }
+    let cursor: SyncCursor | null = null;
+    if (query.cursor !== undefined && query.cursor !== "") {
+      cursor = decodeCursor(query.cursor);
+      if (!cursor) {
+        res.status(400).json({ message: "Invalid cursor", code: "INVALID_CURSOR" });
+        return;
+      }
+      if (cursor.room !== roomFilter) {
+        res.status(400).json({
+          message: "This cursor was issued for a different room filter",
+          code: "CURSOR_ROOM_MISMATCH",
+        });
+        return;
+      }
+    }
+
+    const shopId = resolveShopId(me);
+    const scope = roomScopeCondition(shopId);
+
+    // Syncing IS the app being online: keep presence and the legacy delivered
+    // signal working for older peers. Only memberships in rooms the caller is
+    // currently authorised for are touched — a stale membership in a shop the
+    // caller has left must not report them online or mark messages delivered.
+    await db.execute(sql`
+      UPDATE chat_room_members mem
+      SET last_synced_at = now()
+      FROM chat_rooms
+      WHERE chat_rooms.id = mem.room_id
+        AND mem.user_id = ${me.id}::uuid
+        AND ${scope}
+    `);
+
+    const clock = await readSyncClock();
+    const initial = cursor === null;
+    const from = cursor ?? initialCursor(clock, roomFilter);
+    const memberOf = and(
+      eq(chatRoomMembersTable.roomId, chatRoomsTable.id),
+      eq(chatRoomMembersTable.userId, me.id),
+    )!;
+    const roomOnly = (column: typeof chatMessagesTable.roomId | typeof chatReadStateTable.roomId | typeof chatRoomPreferencesTable.roomId | typeof chatRoomMembersTable.roomId) =>
+      roomFilter ? eq(column, roomFilter) : sql`true`;
+
+    const [messages, hidden, readStates, receipts, preferences, memberships] = await Promise.all([
+      pageStream(from.s.m, clock, limit, async (position, fetchLimit) => {
+        const rows = await db
+          .select({ row: chatMessagesTable, micros: timestampToMicros(chatMessagesTable.updatedAt) })
+          .from(chatMessagesTable)
+          .innerJoin(chatRoomsTable, eq(chatRoomsTable.id, chatMessagesTable.roomId))
+          .innerJoin(chatRoomMembersTable, memberOf)
+          .where(
+            and(
+              scope,
+              roomOnly(chatMessagesTable.roomId),
+              notHiddenForUser(me.id),
+              afterPosition(chatMessagesTable.updatedAt, chatMessagesTable.id, position),
+            ),
+          )
+          .orderBy(asc(chatMessagesTable.updatedAt), asc(chatMessagesTable.id))
+          .limit(fetchLimit);
+        return rows.map((r) => ({ item: r.row, micros: r.micros, id: r.row.id }));
+      }),
+      pageStream(from.s.h, clock, limit, async (position, fetchLimit) => {
+        const rows = await db
+          .select({
+            messageId: chatMessageHiddenTable.messageId,
+            roomId: chatMessagesTable.roomId,
+            hiddenAt: chatMessageHiddenTable.createdAt,
+            micros: timestampToMicros(chatMessageHiddenTable.createdAt),
+          })
+          .from(chatMessageHiddenTable)
+          .innerJoin(chatMessagesTable, eq(chatMessagesTable.id, chatMessageHiddenTable.messageId))
+          .innerJoin(chatRoomsTable, eq(chatRoomsTable.id, chatMessagesTable.roomId))
+          .innerJoin(chatRoomMembersTable, memberOf)
+          .where(
+            and(
+              eq(chatMessageHiddenTable.userId, me.id),
+              scope,
+              roomOnly(chatMessagesTable.roomId),
+              afterPosition(chatMessageHiddenTable.createdAt, chatMessageHiddenTable.messageId, position),
+            ),
+          )
+          .orderBy(asc(chatMessageHiddenTable.createdAt), asc(chatMessageHiddenTable.messageId))
+          .limit(fetchLimit);
+        return rows.map((r) => ({
+          item: { messageId: r.messageId, roomId: r.roomId, hiddenAt: r.hiddenAt.toISOString() },
+          micros: r.micros,
+          id: r.messageId,
+        }));
+      }),
+      pageStream(from.s.r, clock, limit, async (position, fetchLimit) => {
+        const rows = await db
+          .select({
+            id: chatReadStateTable.id,
+            roomId: chatReadStateTable.roomId,
+            userId: chatReadStateTable.userId,
+            lastReadMessageId: chatReadStateTable.lastReadMessageId,
+            lastReadAt: chatReadStateTable.lastReadAt,
+            micros: timestampToMicros(chatReadStateTable.lastReadAt),
+          })
+          .from(chatReadStateTable)
+          .innerJoin(chatRoomsTable, eq(chatRoomsTable.id, chatReadStateTable.roomId))
+          .innerJoin(chatRoomMembersTable, memberOf)
+          .where(
+            and(
+              scope,
+              roomOnly(chatReadStateTable.roomId),
+              afterPosition(chatReadStateTable.lastReadAt, chatReadStateTable.id, position),
+            ),
+          )
+          .orderBy(asc(chatReadStateTable.lastReadAt), asc(chatReadStateTable.id))
+          .limit(fetchLimit);
+        return rows.map((r) => ({
+          item: {
+            roomId: r.roomId,
+            userId: r.userId,
+            lastReadMessageId: r.lastReadMessageId,
+            lastReadAt: r.lastReadAt.toISOString(),
+          },
+          micros: r.micros,
+          id: r.id,
+        }));
+      }),
+      pageStream(from.s.c, clock, limit, async (position, fetchLimit) => {
+        const rows = await db
+          .select({
+            id: chatMessageReceiptsTable.id,
+            messageId: chatMessageReceiptsTable.messageId,
+            roomId: chatMessageReceiptsTable.roomId,
+            userId: chatMessageReceiptsTable.userId,
+            deliveredAt: chatMessageReceiptsTable.deliveredAt,
+            storedAt: chatMessageReceiptsTable.storedAt,
+            updatedAt: chatMessageReceiptsTable.updatedAt,
+            micros: timestampToMicros(chatMessageReceiptsTable.updatedAt),
+          })
+          .from(chatMessageReceiptsTable)
+          .innerJoin(chatMessagesTable, eq(chatMessagesTable.id, chatMessageReceiptsTable.messageId))
+          .innerJoin(chatRoomsTable, eq(chatRoomsTable.id, chatMessagesTable.roomId))
+          .innerJoin(chatRoomMembersTable, memberOf)
+          .where(
+            and(
+              eq(chatMessagesTable.senderId, me.id),
+              scope,
+              roomOnly(chatMessagesTable.roomId),
+              afterPosition(chatMessageReceiptsTable.updatedAt, chatMessageReceiptsTable.id, position),
+            ),
+          )
+          .orderBy(asc(chatMessageReceiptsTable.updatedAt), asc(chatMessageReceiptsTable.id))
+          .limit(fetchLimit);
+        return rows.map((r) => ({
+          item: {
+            messageId: r.messageId,
+            roomId: r.roomId,
+            userId: r.userId,
+            deliveredAt: r.deliveredAt.toISOString(),
+            storedAt: r.storedAt?.toISOString() ?? null,
+            updatedAt: r.updatedAt.toISOString(),
+          },
+          micros: r.micros,
+          id: r.id,
+        }));
+      }),
+      pageStream(from.s.p, clock, limit, async (position, fetchLimit) => {
+        const rows = await db
+          .select({ row: chatRoomPreferencesTable, micros: timestampToMicros(chatRoomPreferencesTable.updatedAt) })
+          .from(chatRoomPreferencesTable)
+          .innerJoin(chatRoomsTable, eq(chatRoomsTable.id, chatRoomPreferencesTable.roomId))
+          .innerJoin(chatRoomMembersTable, memberOf)
+          .where(
+            and(
+              eq(chatRoomPreferencesTable.userId, me.id),
+              scope,
+              roomOnly(chatRoomPreferencesTable.roomId),
+              afterPosition(chatRoomPreferencesTable.updatedAt, chatRoomPreferencesTable.id, position),
+            ),
+          )
+          .orderBy(asc(chatRoomPreferencesTable.updatedAt), asc(chatRoomPreferencesTable.id))
+          .limit(fetchLimit);
+        return rows.map((r) => ({
+          item: {
+            roomId: r.row.roomId,
+            isPinned: r.row.isPinned,
+            isMuted: r.row.isMuted,
+            isArchived: r.row.isArchived,
+            deletedAt: r.row.deletedAt?.toISOString() ?? null,
+            updatedAt: r.row.updatedAt.toISOString(),
+          },
+          micros: r.micros,
+          id: r.row.id,
+        }));
+      }),
+      pageStream(from.s.b, clock, limit, async (position, fetchLimit) => {
+        const rows = await db
+          .select({
+            memberId: chatRoomMembersTable.id,
+            room: chatRoomsTable,
+            micros: timestampToMicros(chatRoomMembersTable.joinedAt),
+          })
+          .from(chatRoomMembersTable)
+          .innerJoin(chatRoomsTable, eq(chatRoomsTable.id, chatRoomMembersTable.roomId))
+          .where(
+            and(
+              eq(chatRoomMembersTable.userId, me.id),
+              scope,
+              roomOnly(chatRoomMembersTable.roomId),
+              afterPosition(chatRoomMembersTable.joinedAt, chatRoomMembersTable.id, position),
+            ),
+          )
+          .orderBy(asc(chatRoomMembersTable.joinedAt), asc(chatRoomMembersTable.id))
+          .limit(fetchLimit);
+        return rows.map((r) => ({ item: r.room, micros: r.micros, id: r.memberId }));
+      }),
+    ]);
+
+    const next: SyncCursor = {
+      v: 1,
+      room: roomFilter,
+      s: {
+        m: messages.next,
+        h: hidden.next,
+        r: readStates.next,
+        c: receipts.next,
+        p: preferences.next,
+        b: memberships.next,
+      },
+    };
+    const rooms = [];
+    for (const room of memberships.items) {
+      rooms.push(await formatRoomForUser(room, me.id));
+    }
+    res.json({
+      messages: await formatMessagesWithQuotes(messages.items, me.id),
+      hidden: hidden.items,
+      readStates: readStates.items,
+      receipts: receipts.items,
+      preferences: preferences.items,
+      rooms,
+      nextCursor: encodeCursor(next),
+      hasMore:
+        messages.hasMore
+        || hidden.hasMore
+        || readStates.hasMore
+        || receipts.hasMore
+        || preferences.hasMore
+        || memberships.hasMore,
+      backfillBefore: initial ? microsToDate(clock.initialMicros).toISOString() : undefined,
+      syncedAt: microsToDate(clock.nowMicros).toISOString(),
+    });
   }),
 );
 
@@ -2833,6 +3258,11 @@ router.get(
       res.status(404).json({ message: "Not found" });
       return;
     }
+    // The relay copy has been purged or expired: only device copies remain.
+    if (msg.mediaState !== "available") {
+      res.status(404).json({ message: "Not found", code: "CHAT_MEDIA_EXPIRED", mediaState: msg.mediaState });
+      return;
+    }
 
     // Stream from object storage
     try {
@@ -2991,7 +3421,11 @@ function notHiddenForUser(userId: string) {
  * keeps its kind and timestamps but never exposes its body or media: the
  * original text stays in the row for moderation only.
  */
-function formatMessage(msg: ChatMessageRow, replyTo?: ChatMessageQuote | null) {
+function formatMessage(
+  msg: ChatMessageRow,
+  replyTo?: ChatMessageQuote | null,
+  delivery?: ChatMessageDelivery,
+) {
   const deleted = msg.deletedAt !== null && msg.deletedAt !== undefined;
   return {
     id: msg.id,
@@ -3010,7 +3444,122 @@ function formatMessage(msg: ChatMessageRow, replyTo?: ChatMessageQuote | null) {
     forwarded: msg.forwarded ? true : undefined,
     deletedAt: msg.deletedAt?.toISOString() ?? undefined,
     createdAt: msg.createdAt.toISOString(),
+    updatedAt: msg.updatedAt.toISOString(),
+    // Relay state of the server media copy. A pin only means something while
+    // the copy still exists; a purged row stays purged however it is flagged.
+    mediaState: msg.objectPath
+      ? msg.mediaPinned && msg.mediaState === "available"
+        ? "pinned"
+        : msg.mediaState
+      : undefined,
+    delivery,
   };
+}
+
+type ChatMessageDelivery = {
+  status: "sent" | "delivered" | "read";
+  deliveredAt?: string;
+  storedAt?: string;
+  readAt?: string;
+  source: "receipts" | "legacy";
+};
+
+/**
+ * Receipt summaries for the viewer's OWN messages in `rows` (other senders'
+ * messages get none). Per-recipient acknowledgements win when any exist for a
+ * message; otherwise the legacy "recipient app synced after send" signal that
+ * older builds still produce decides delivered. Read always comes from the
+ * read marker, which both old and new builds write.
+ */
+async function deliveryForMessages(rows: ChatMessageRow[], viewerUserId: string) {
+  const delivery = new Map<string, ChatMessageDelivery>();
+  const mine = rows.filter((row) => row.senderId === viewerUserId);
+  if (mine.length === 0) return delivery;
+  const roomIds = [...new Set(mine.map((row) => row.roomId))];
+  const [members, readStates, receipts] = await Promise.all([
+    db
+      .select({
+        roomId: chatRoomMembersTable.roomId,
+        userId: chatRoomMembersTable.userId,
+        lastSyncedAt: chatRoomMembersTable.lastSyncedAt,
+      })
+      .from(chatRoomMembersTable)
+      .where(
+        and(
+          inArray(chatRoomMembersTable.roomId, roomIds),
+          ne(chatRoomMembersTable.userId, viewerUserId),
+        ),
+      ),
+    db
+      .select({
+        roomId: chatReadStateTable.roomId,
+        userId: chatReadStateTable.userId,
+        lastReadAt: chatReadStateTable.lastReadAt,
+      })
+      .from(chatReadStateTable)
+      .where(
+        and(
+          inArray(chatReadStateTable.roomId, roomIds),
+          ne(chatReadStateTable.userId, viewerUserId),
+        ),
+      ),
+    db
+      .select({
+        messageId: chatMessageReceiptsTable.messageId,
+        userId: chatMessageReceiptsTable.userId,
+        deliveredAt: chatMessageReceiptsTable.deliveredAt,
+        storedAt: chatMessageReceiptsTable.storedAt,
+      })
+      .from(chatMessageReceiptsTable)
+      .where(inArray(chatMessageReceiptsTable.messageId, mine.map((row) => row.id))),
+  ]);
+  const membersByRoom = new Map<string, typeof members>();
+  for (const member of members) {
+    membersByRoom.set(member.roomId, [...(membersByRoom.get(member.roomId) ?? []), member]);
+  }
+  const readByRoom = new Map<string, typeof readStates>();
+  for (const state of readStates) {
+    readByRoom.set(state.roomId, [...(readByRoom.get(state.roomId) ?? []), state]);
+  }
+  const receiptsByMessage = new Map<string, typeof receipts>();
+  for (const receipt of receipts) {
+    receiptsByMessage.set(receipt.messageId, [...(receiptsByMessage.get(receipt.messageId) ?? []), receipt]);
+  }
+  for (const row of mine) {
+    const recipients = membersByRoom.get(row.roomId) ?? [];
+    const acks = receiptsByMessage.get(row.id) ?? [];
+    const reads = (readByRoom.get(row.roomId) ?? [])
+      .filter((state) => state.lastReadAt >= row.createdAt)
+      .map((state) => state.lastReadAt.getTime());
+    const readAt = reads.length ? new Date(Math.min(...reads)) : undefined;
+    let deliveredAt: Date | undefined;
+    let delivered = false;
+    if (acks.length > 0) {
+      delivered = true;
+      deliveredAt = new Date(Math.min(...acks.map((ack) => ack.deliveredAt.getTime())));
+    } else {
+      delivered = recipients.some(
+        (member) => !!member.lastSyncedAt && member.lastSyncedAt >= row.createdAt,
+      );
+    }
+    let storedAt: Date | undefined;
+    if (row.objectPath && recipients.length > 0) {
+      const storedTimes = recipients.map(
+        (member) => acks.find((ack) => ack.userId === member.userId)?.storedAt ?? null,
+      );
+      if (storedTimes.every((time): time is Date => time !== null)) {
+        storedAt = new Date(Math.max(...storedTimes.map((time) => time.getTime())));
+      }
+    }
+    delivery.set(row.id, {
+      status: readAt ? "read" : delivered ? "delivered" : "sent",
+      deliveredAt: deliveredAt?.toISOString(),
+      storedAt: storedAt?.toISOString(),
+      readAt: readAt?.toISOString(),
+      source: acks.length > 0 ? "receipts" : "legacy",
+    });
+  }
+  return delivery;
 }
 
 /**
@@ -3021,6 +3570,7 @@ function formatMessage(msg: ChatMessageRow, replyTo?: ChatMessageQuote | null) {
 async function formatMessagesWithQuotes(rows: ChatMessageRow[], viewerUserId: string) {
   const quotedIds = [...new Set(rows.map((r) => r.replyToMessageId).filter((id): id is string => !!id))];
   const quotes = new Map<string, ChatMessageQuote>();
+  const delivery = await deliveryForMessages(rows, viewerUserId);
   if (quotedIds.length > 0) {
     const quotedRows = await db
       .select({
@@ -3064,6 +3614,7 @@ async function formatMessagesWithQuotes(rows: ChatMessageRow[], viewerUserId: st
             deleted: true,
           }
         : undefined,
+      delivery.get(row.id),
     );
   });
 }
@@ -3154,7 +3705,13 @@ async function formatRoomSummaryForUser(
     } else if (peerMember?.lastSyncedAt && peerMember.lastSyncedAt >= lastMessage.createdAt) {
       lastMessageStatus = "delivered";
     } else {
-      lastMessageStatus = "sent";
+      // No legacy signal: an explicit delivered acknowledgement still counts.
+      const [receipt] = await db
+        .select({ id: chatMessageReceiptsTable.id })
+        .from(chatMessageReceiptsTable)
+        .where(eq(chatMessageReceiptsTable.messageId, lastMessage.id))
+        .limit(1);
+      lastMessageStatus = receipt ? "delivered" : "sent";
     }
   }
 

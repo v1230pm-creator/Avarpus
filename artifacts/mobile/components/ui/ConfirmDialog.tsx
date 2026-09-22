@@ -16,6 +16,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
+import { font, fontFamily } from '@/constants/typography';
 
 type FeatherName = React.ComponentProps<typeof Feather>['name'];
 
@@ -398,11 +399,11 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 360,
-    borderRadius: 26,
-    borderWidth: 1,
-    paddingHorizontal: 18,
-    paddingTop: 26,
-    paddingBottom: 18,
+    borderRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    paddingBottom: 20,
     alignItems: 'center',
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 30, shadowOffset: { width: 0, height: 18 } },
@@ -419,15 +420,13 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   title: {
-    fontSize: 20,
-    fontFamily: 'Inter_600SemiBold',
+    ...font.heading,
     textAlign: 'center',
   },
   message: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
+    ...font.caption,
     textAlign: 'center',
-    marginTop: 6,
+    marginTop: 8,
     paddingHorizontal: 8,
   },
   caption: {
@@ -442,9 +441,9 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   actionSurface: {
-    borderRadius: 14,
+    borderRadius: 16,
     paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     minHeight: 56,
     justifyContent: 'center',
   },
@@ -463,27 +462,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionLabel: {
-    fontSize: 13,
-    fontFamily: 'Inter_700Bold',
-    letterSpacing: 0.6,
+    ...font.caption,
+    fontFamily: fontFamily.bold,
+    letterSpacing: 0.4,
     textAlign: 'center',
   },
   actionSub: {
-    fontSize: 11,
-    fontFamily: 'Inter_400Regular',
+    ...font.small,
     marginTop: 2,
     textAlign: 'center',
   },
   cancel: {
     borderWidth: 1,
-    borderRadius: 14,
-    minHeight: 48,
+    borderRadius: 16,
+    minHeight: 52,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelText: {
-    fontSize: 13,
-    fontFamily: 'Inter_700Bold',
-    letterSpacing: 0.8,
+    ...font.caption,
+    fontFamily: fontFamily.bold,
+    letterSpacing: 0.5,
   },
 });

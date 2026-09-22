@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ChatReportTranscriptMessageMediaState } from './chatReportTranscriptMessageMediaState';
 
 export interface ChatReportTranscriptMessage {
   id: string;
@@ -13,6 +14,11 @@ export interface ChatReportTranscriptMessage {
   kind: string;
   body: string;
   hasAttachment: boolean;
+  /**
+     * Whether the server still holds the attachment. Null for messages without one. `purged`/`expired` mean only device copies remain and the transcript must say the media is no longer available.
+     * @nullable
+     */
+  mediaState: ChatReportTranscriptMessageMediaState;
   /** @nullable */
   deletedAt: Date | null;
   createdAt: Date;

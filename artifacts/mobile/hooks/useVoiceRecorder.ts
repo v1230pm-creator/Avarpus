@@ -10,6 +10,7 @@ import {
   type RecordingStatus,
 } from 'expo-audio';
 import { File, Paths } from 'expo-file-system';
+import { deleteOwnedTempFile } from '@/utils/tempFiles';
 
 /**
  * Voice-note recorder with WhatsApp-style pause / preview / resume.
@@ -89,25 +90,7 @@ async function fileSize(uri: string): Promise<number> {
 }
 
 /** Best-effort disposal of a recorder-owned temp file (or web blob URL). */
-export function deleteVoiceTempFile(uri: string | null | undefined) {
-  if (!uri) return;
-  if (IS_WEB) {
-    if (uri.startsWith('blob:')) {
-      try {
-        URL.revokeObjectURL(uri);
-      } catch {
-        // Already revoked.
-      }
-    }
-    return;
-  }
-  try {
-    const f = new File(uri);
-    if (f.exists) f.delete();
-  } catch {
-    // Cache files — the OS reclaims them if we cannot.
-  }
-}
+export const deleteVoiceTempFile = deleteOwnedTempFile;
 
 /** Concatenate ADTS segments into one new cache file and remove the parts. */
 async function concatSegments(uris: string[]): Promise<string> {

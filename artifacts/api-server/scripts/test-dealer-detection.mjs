@@ -180,19 +180,21 @@ async function run(A, B) {
   const r7 = await api("POST", "/repairs", A.token, repairBase(NEW_MOBILE));
   check("new number auto-links after profile update", r7.status === 200 && r7.json.repair?.dealerId === dealer.id && r7.json.repair?.dealerDetectedByPhone === true, r7.json.repair);
 
-  // ── Manual link authorization (staff must NOT pick arbitrary dealers) ───
+  // ── Manual links are open to shop staff with repairs_update (reception) ─
   const d2c = await api("POST", "/dealers", A.token, { name: "XYZ Repairs", mobile: "9877003344" });
   check("create second dealer", d2c.status === 200, d2c);
   const dealer2 = d2c.json.dealer;
-  const staff = await seedShopUser(A.shopId, "staff");
+  const staff = await seedShopUser(A.shopId, "reception");
   const sManual = await api("POST", "/repairs", staff.token, repairBase(CUSTOMER_MOBILE, { dealerId: dealer2.id }));
-  check("staff manual dealer link -> 403 DEALER_LINK_PRIVILEGED", sManual.status === 403 && sManual.json.code === "DEALER_LINK_PRIVILEGED", sManual);
+  check("staff manual dealer link is accepted without the phone flag", sManual.status === 200 && sManual.json.repair?.dealerId === dealer2.id && !sManual.json.repair?.dealerDetectedByPhone, sManual.json.repair);
   const sAuto = await api("POST", "/repairs", staff.token, repairBase("9877003344"));
   check("staff intake with dealer mobile still auto-links", sAuto.status === 200 && sAuto.json.repair?.dealerId === dealer2.id && sAuto.json.repair?.dealerDetectedByPhone === true, sAuto.json.repair);
   const sPick = await api("POST", "/repairs", staff.token, repairBase("9877003344", { dealerId: dealer2.id }));
   check("staff supplying the phone-matched dealerId is accepted", sPick.status === 200 && sPick.json.repair?.dealerId === dealer2.id, sPick.json.repair);
   const sPatch = await api("PATCH", `/repairs/${sAuto.json.repair.id}`, staff.token, { dealerId: null });
-  check("staff PATCH dealer link -> 403", sPatch.status === 403 && sPatch.json.code === "DEALER_LINK_PRIVILEGED", sPatch);
+  check("staff PATCH clears the dealer link", sPatch.status === 200 && !sPatch.json.repair?.dealerId && !sPatch.json.repair?.dealerDetectedByPhone, sPatch);
+  const sRelink = await api("PATCH", `/repairs/${sAuto.json.repair.id}`, staff.token, { dealerId: dealer2.id });
+  check("staff PATCH relinks manually without the phone flag", sRelink.status === 200 && sRelink.json.repair?.dealerId === dealer2.id && !sRelink.json.repair?.dealerDetectedByPhone, sRelink);
 
   // ── Two exact matches → no auto-assignment ──────────────────────────────
   // (dealersCreate dedupes same-mobile, so force the duplicate directly.)
@@ -212,9 +214,17 @@ async function run(A, B) {
   check("portal account cannot create repairs", pCreate.status === 403, pCreate);
   const pDetect = await api("GET", `/dealers/detect?mobile=${DUP_MOBILE}`, portal.token);
   check("portal account cannot call detect", pDetect.status === 403, pDetect);
+  // The portal projection omits dealerId, so compare by repair id: the own
+  // dealer's repairs are present, other dealers' and unlinked ones are not.
   const pList = await api("GET", "/repairs", portal.token);
-  const foreign = (pList.json.repairs ?? []).filter((r) => r.dealerId !== dealer.id);
-  check("portal list only shows own dealer's repairs", pList.status === 200 && foreign.length === 0, foreign);
+  const portalIds = (pList.json.repairs ?? []).map((r) => r.id);
+  const ownIds = [r1.json.repair.id, r3.json.repair.id, r5.json.repair.id, r7.json.repair.id];
+  const foreignIds = [r2.json.repair.id, r4.json.repair.id, sManual.json.repair.id, sAuto.json.repair.id, sPick.json.repair.id, rDup.json.repair.id];
+  check(
+    "portal list only shows own dealer's repairs",
+    pList.status === 200 && ownIds.every((id) => portalIds.includes(id)) && foreignIds.every((id) => !portalIds.includes(id)),
+    { portalIds, ownIds, foreignIds },
+  );
   await cleanup(staff.userId).catch(() => {});
   await cleanup(portal.userId).catch(() => {});
 

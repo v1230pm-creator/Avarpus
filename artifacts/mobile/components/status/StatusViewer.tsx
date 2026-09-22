@@ -16,6 +16,9 @@ import { Avatar } from '@/components/ui/Avatar';
 import { StatusMedia } from './StatusMedia';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { ConfirmDialogHost, useConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { font } from '@/constants/typography';
+import { space } from '@/constants/spacing';
+import { useColors } from '@/hooks/useColors';
 
 const IMAGE_DURATION_MS = 7_000;
 const VIDEO_DURATION_MS = 15_000;
@@ -45,6 +48,7 @@ export function StatusViewer({
   onViewed: (id: string) => void;
   onDelete: (id: string) => Promise<void>;
 }) {
+  const colors = useColors();
   const firstUnviewed = useMemo(() => {
     if (!group) return 0;
     const index = group.items.findIndex((item) => !item.viewed);
@@ -154,7 +158,7 @@ export function StatusViewer({
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
-      <View style={styles.viewer}>
+      <View style={[styles.viewer, { backgroundColor: colors.background }]}>
         <View style={styles.media}>
           <StatusMedia item={item} token={token} autoPlay />
         </View>
@@ -219,19 +223,19 @@ export function StatusViewer({
           onRequestClose={() => setViewers(null)}
         >
           <Pressable style={styles.sheetBackdrop} onPress={() => setViewers(null)}>
-            <Pressable style={styles.viewerSheet} onPress={() => {}}>
+            <Pressable style={[styles.viewerSheet, { backgroundColor: colors.card }]} onPress={() => {}}>
               <View style={styles.sheetHandle} />
-              <Text style={styles.sheetTitle}>Viewed by {item.viewerCount}</Text>
+              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Viewed by {item.viewerCount}</Text>
               {viewerLoading ? (
-                <AvarpusSpinner size={20} color="#0F62FE" style={{ marginTop: 28 }} />
+                <AvarpusSpinner size={20} color={colors.primary} style={{ marginTop: 28 }} />
               ) : viewers?.length ? (
                 <ScrollView>
                   {viewers.map((viewer) => (
                     <View key={viewer.userId} style={styles.viewerRow}>
                       <Avatar name={viewer.name} url={viewer.profilePhoto} size={44} />
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.viewerName}>{viewer.name}</Text>
-                        <Text style={styles.viewerTime}>Viewed {ageLabel(viewer.viewedAt)} ago</Text>
+                        <Text style={[styles.viewerName, { color: colors.foreground }]}>{viewer.name}</Text>
+                        <Text style={[styles.viewerTime, { color: colors.mutedForeground }]}>Viewed {ageLabel(viewer.viewedAt)} ago</Text>
                       </View>
                     </View>
                   ))}
@@ -239,7 +243,7 @@ export function StatusViewer({
               ) : (
                 <View style={styles.noViewers}>
                   <Feather name="eye-off" size={30} color="#8792A2" />
-                  <Text style={styles.noViewersText}>No views yet</Text>
+                  <Text style={[styles.noViewersText, { color: colors.mutedForeground }]}>No views yet</Text>
                 </View>
               )}
             </Pressable>
@@ -252,7 +256,7 @@ export function StatusViewer({
 }
 
 const styles = StyleSheet.create({
-  viewer: { flex: 1, backgroundColor: '#05080D' },
+  viewer: { flex: 1 },
   media: { ...StyleSheet.absoluteFill },
   topOverlay: {
     position: 'absolute',
@@ -269,8 +273,8 @@ const styles = StyleSheet.create({
   identityRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   closeButton: { width: 32, height: 40, alignItems: 'center', justifyContent: 'center' },
   identityText: { flex: 1 },
-  name: { color: '#FFFFFF', fontFamily: 'Inter_600SemiBold', fontSize: 15 },
-  time: { color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 2 },
+  name: { color: '#FFFFFF', ...font.bodyStrong },
+  time: { color: 'rgba(255,255,255,0.75)', ...font.caption, marginTop: space.xs },
   actionButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   tapZone: { position: 'absolute', top: 105, bottom: 80, width: '34%' },
   leftZone: { left: 0 },
@@ -289,7 +293,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: 'rgba(0,0,0,0.52)',
   },
-  viewerCount: { color: '#FFFFFF', fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+  viewerCount: { color: '#FFFFFF', ...font.badge },
   sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   viewerSheet: {
     maxHeight: '58%',
@@ -298,13 +302,12 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    backgroundColor: '#FFFFFF',
   },
   sheetHandle: { width: 42, height: 4, borderRadius: 2, backgroundColor: '#D6DCE5', alignSelf: 'center', marginTop: 10, marginBottom: 18 },
-  sheetTitle: { color: '#111827', fontFamily: 'Inter_700Bold', fontSize: 18, marginBottom: 8 },
+  sheetTitle: { ...font.heading, marginBottom: space.sm },
   viewerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
-  viewerName: { color: '#111827', fontFamily: 'Inter_600SemiBold', fontSize: 15 },
-  viewerTime: { color: '#6B7280', fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 3 },
+  viewerName: { ...font.bodyStrong },
+  viewerTime: { ...font.caption, marginTop: space.xs },
   noViewers: { alignItems: 'center', justifyContent: 'center', paddingTop: 42, gap: 10 },
-  noViewersText: { color: '#6B7280', fontFamily: 'Inter_500Medium', fontSize: 14 },
+  noViewersText: { ...font.bodyStrong },
 });

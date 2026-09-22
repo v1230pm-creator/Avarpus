@@ -296,7 +296,22 @@ export const chatMessagesTable = pgTable(
     // media stays unreachable, and the original body is retained for
     // moderation only — API responses blank it).
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    // Relay state of the server-side media copy. The server keeps media only
+    // as a temporary relay: `available` while the object can still be served,
+    // `purged` once the relay copy was dropped after every recipient stored
+    // it, `expired` once it was dropped unstored. Always `available` until the
+    // relay clean-up ships; never trusted from the client.
+    mediaState: text("media_state").notNull().default("available"),
+    // Pinned media is exempt from relay clean-up (reported as state `pinned`).
+    mediaPinned: boolean("media_pinned").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // Delta-sync watermark. Set by the database (never the app clock) on
+    // insert and bumped on every shared-row change a device must learn about:
+    // tombstone, edit, media relay state. Caller-specific changes (hide, read,
+    // receipts, preferences) carry their own timestamps and do not touch it.
+    updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
@@ -304,6 +319,41 @@ export const chatMessagesTable = pgTable(
     uniqueIndex("chat_messages_room_sender_client_req_unique")
       .on(t.roomId, t.senderId, t.clientRequestId)
       .where(sql`${t.clientRequestId} IS NOT NULL`),
+    // Keyset paging for delta sync: per room and per account (the account
+    // feed joins membership and walks this index from the cursor forward).
+    index("chat_messages_room_updated_idx").on(t.roomId, t.updatedAt, t.id),
+    index("chat_messages_updated_idx").on(t.updatedAt, t.id),
+  ],
+);
+
+// ── Per-message delivery receipts ────────────────────────────────────────────
+// One row per (message, recipient) written only by explicit client acks and
+// by the read marker (read implies delivered). Timestamps are first-seen and
+// database-assigned: `deliveredAt` never changes once written, `storedAt` is
+// set once when the recipient reports the media bytes are saved on device,
+// and `updatedAt` moves only when one of them is first set. The sender never
+// writes a receipt for their own message.
+export const chatMessageReceiptsTable = pgTable(
+  "chat_message_receipts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => chatMessagesTable.id, { onDelete: "cascade" }),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => chatRoomsTable.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }).notNull().defaultNow(),
+    storedAt: timestamp("stored_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("chat_message_receipts_message_user_unique").on(t.messageId, t.userId),
+    index("chat_message_receipts_updated_idx").on(t.updatedAt, t.id),
+    index("chat_message_receipts_room_user_idx").on(t.roomId, t.userId),
   ],
 );
 
@@ -327,6 +377,8 @@ export const chatMessageHiddenTable = pgTable(
   (t) => [
     uniqueIndex("chat_message_hidden_message_user_unique").on(t.messageId, t.userId),
     index("chat_message_hidden_user_idx").on(t.userId),
+    // Delta sync: the caller's own hide events in (createdAt, messageId) order.
+    index("chat_message_hidden_user_created_idx").on(t.userId, t.createdAt, t.messageId),
   ],
 );
 
@@ -543,6 +595,8 @@ export const chatReadStateTable = pgTable(
   },
   (t) => [
     uniqueIndex("chat_read_state_room_user_unique").on(t.roomId, t.userId),
+    // Delta sync: read-state changes across the caller's rooms by (lastReadAt, id).
+    index("chat_read_state_last_read_idx").on(t.lastReadAt, t.id),
   ],
 );
 
@@ -584,6 +638,7 @@ export type DbChatRoom = typeof chatRoomsTable.$inferSelect;
 export type DbChatRoomMember = typeof chatRoomMembersTable.$inferSelect;
 export type DbChatBlock = typeof chatBlocksTable.$inferSelect;
 export type DbChatMessage = typeof chatMessagesTable.$inferSelect;
+export type DbChatMessageReceipt = typeof chatMessageReceiptsTable.$inferSelect;
 export type DbChatReport = typeof chatReportsTable.$inferSelect;
 export type DbChatReportDecisionBatch =
   typeof chatReportDecisionBatchesTable.$inferSelect;

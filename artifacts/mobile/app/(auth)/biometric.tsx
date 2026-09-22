@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { completeUnlockSuccess, isBiometricLockEnabled, setUnlocked } from '@/utils/appLock';
 import { onBlue } from '@/constants/brand';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
+import { font, fontFamily } from '@/constants/typography';
 
 export default function BiometricScreen() {
   const router = useRouter();
@@ -110,10 +111,10 @@ export default function BiometricScreen() {
           <Feather name="shield" size={32} color={theme.primary} />
         </View>
         <View style={styles.titleWrap}>
-          <Text style={[styles.title, { color: theme.text, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.title, { color: theme.text, fontFamily: fontFamily.bold }]}>
             Unlock Avarpus
           </Text>
-          <Text style={[styles.subtitle, { color: theme.textMuted, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.subtitle, { color: theme.textMuted, fontFamily: fontFamily.regular }]}>
             Continue with your {methodLabel}.
           </Text>
         </View>
@@ -121,7 +122,7 @@ export default function BiometricScreen() {
         {!!error && (
           <View style={[styles.errorBox, { backgroundColor: theme.dangerBg, borderColor: theme.dangerBg }]}>
             <Feather name="alert-circle" size={14} color={theme.danger} />
-            <Text style={[styles.errorText, { color: theme.danger, fontFamily: 'Inter_500Medium' }]}>
+            <Text style={[styles.errorText, { color: theme.danger, fontFamily: fontFamily.medium }]}>
               {error}
             </Text>
           </View>
@@ -138,13 +139,13 @@ export default function BiometricScreen() {
           ) : (
             <>
               <Feather name="unlock" size={18} color={onBlue.controlText} />
-              <Text style={[styles.unlockText, { fontFamily: 'Inter_600SemiBold' }]}>Authenticate</Text>
+              <Text style={[styles.unlockText, { fontFamily: fontFamily.semibold }]}>Authenticate</Text>
             </>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity onPress={signOut} style={styles.signOutButton} activeOpacity={0.7}>
-          <Text style={[styles.signOutText, { color: theme.textMuted, fontFamily: 'Inter_500Medium' }]}>
+          <Text style={[styles.signOutText, { color: theme.textMuted, fontFamily: fontFamily.medium }]}>
             Sign out instead
           </Text>
         </TouchableOpacity>
@@ -158,12 +159,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, gap: 20 },
   iconWrap: { width: 72, height: 72, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   titleWrap: { alignItems: 'center', gap: 6 },
-  title: { fontSize: 24, textAlign: 'center', letterSpacing: -0.5 },
-  subtitle: { fontSize: 14, lineHeight: 20, textAlign: 'center', maxWidth: 300 },
+  title: { ...font.title, textAlign: 'center' },
+  subtitle: { ...font.small, textAlign: 'center', maxWidth: 300 },
   errorBox: { width: '100%', flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 8, borderWidth: 1 },
-  errorText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  errorText: { flex: 1, ...font.small },
   unlockButton: { width: '100%', minHeight: 50, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  unlockText: { color: onBlue.controlText, fontSize: 15 },
+  unlockText: { color: onBlue.controlText, ...font.button },
   signOutButton: { paddingVertical: 10, paddingHorizontal: 16 },
-  signOutText: { fontSize: 13 },
+  signOutText: { ...font.small },
 });

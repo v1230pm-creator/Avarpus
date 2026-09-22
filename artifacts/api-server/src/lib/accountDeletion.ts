@@ -34,6 +34,7 @@ import { ObjectNotFoundError, ObjectStorageService } from "./objectStorage";
 import { matrixConfigured, matrixLeaveRoomAs, matrixUserIdForApp } from "./chatProviders";
 import { invalidateUserFeatureCache } from "./roleFeatures";
 import { clearedWorkspaceMirror, workspaceMirror } from "./workspaceMirror";
+import { resolveStorageSweepPolicy } from "./storageSweeps";
 
 // ── Permanent account deletion ───────────────────────────────────────────────
 // One Avarpus account (a `users` row) carries two independent layers:
@@ -459,29 +460,43 @@ async function objectStillReferenced(objectPath: string): Promise<boolean> {
 }
 
 async function runPostCommitCleanup(cleanup: Cleanup, log: Logger): Promise<void> {
-  for (const objectPath of cleanup.objectPaths) {
-    if (!objectPath.startsWith("/objects/")) continue;
-    // Anything inside a namespace being removed wholesale is covered below.
-    if ([...cleanup.objectPrefixes].some((prefix) => objectPath.startsWith(`/objects/${prefix}`))) continue;
-    try {
-      if (await objectStillReferenced(objectPath)) continue;
-      const file = await objectStorageService.getObjectEntityFile(objectPath);
-      await file.delete({ ignoreNotFound: true });
-    } catch (err) {
-      if (err instanceof ObjectNotFoundError) continue;
-      log.warn({ err, objectPath }, "Account deletion: could not remove object");
+  // Object deletes only where this database owns the shared bucket: a row
+  // copied between environments (or a shop namespace with the same id) could
+  // still be live elsewhere. Elsewhere the rows are gone and the objects stay
+  // as unreferenced, unreadable orphans.
+  const storageSweeps = resolveStorageSweepPolicy();
+  if (!storageSweeps.enabled) {
+    if (cleanup.objectPaths.size || cleanup.objectPrefixes.size) {
+      log.warn(
+        { reason: storageSweeps.reason, objectPaths: cleanup.objectPaths.size, objectPrefixes: cleanup.objectPrefixes.size },
+        "Account deletion: object cleanup skipped (storage sweeps disabled in this environment)",
+      );
     }
-  }
-  for (const prefix of cleanup.objectPrefixes) {
-    try {
-      const files = await objectStorageService.listObjectEntityFiles(prefix);
-      for (const { file } of files) {
-        await file.delete({ ignoreNotFound: true }).catch((err: unknown) => {
-          log.warn({ err, prefix }, "Account deletion: could not remove object under prefix");
-        });
+  } else {
+    for (const objectPath of cleanup.objectPaths) {
+      if (!objectPath.startsWith("/objects/")) continue;
+      // Anything inside a namespace being removed wholesale is covered below.
+      if ([...cleanup.objectPrefixes].some((prefix) => objectPath.startsWith(`/objects/${prefix}`))) continue;
+      try {
+        if (await objectStillReferenced(objectPath)) continue;
+        const file = await objectStorageService.getObjectEntityFile(objectPath);
+        await file.delete({ ignoreNotFound: true });
+      } catch (err) {
+        if (err instanceof ObjectNotFoundError) continue;
+        log.warn({ err, objectPath }, "Account deletion: could not remove object");
       }
-    } catch (err) {
-      log.warn({ err, prefix }, "Account deletion: could not list object prefix");
+    }
+    for (const prefix of cleanup.objectPrefixes) {
+      try {
+        const files = await objectStorageService.listObjectEntityFiles(prefix);
+        for (const { file } of files) {
+          await file.delete({ ignoreNotFound: true }).catch((err: unknown) => {
+            log.warn({ err, prefix }, "Account deletion: could not remove object under prefix");
+          });
+        }
+      } catch (err) {
+        log.warn({ err, prefix }, "Account deletion: could not list object prefix");
+      }
     }
   }
   if (cleanup.matrixUserId && cleanup.matrixRoomIds.size && matrixConfigured()) {

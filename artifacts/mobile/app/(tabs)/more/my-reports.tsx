@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, space } from '@/constants/spacing';
 import { FlatCard } from '@/components/ui/Glass';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import {
@@ -68,7 +70,7 @@ export default function MyReportsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }} activeOpacity={0.7}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
           Safety Reports
         </Text>
       </View>
@@ -89,35 +91,35 @@ export default function MyReportsScreen() {
         ) : isError ? (
           <View style={{ alignItems: 'center', marginTop: 60 }}>
             <Feather name="wifi-off" size={32} color={colors.mutedForeground} />
-            <Text style={{ color: colors.mutedForeground, marginTop: 12, fontSize: 14, fontFamily: 'Inter_500Medium' }}>
+            <Text style={{ color: colors.mutedForeground, marginTop: space.md, ...font.captionStrong }}>
               Could not load your reports
             </Text>
             <TouchableOpacity onPress={() => refetch()} activeOpacity={0.7} style={{ marginTop: 12 }}>
-              <Text style={{ color: colors.primary, fontSize: 13, fontFamily: 'Inter_600SemiBold' }}>Try again</Text>
+              <Text style={{ color: colors.primary, ...font.captionStrong }}>Try again</Text>
             </TouchableOpacity>
           </View>
         ) : reports.length === 0 ? (
           <View style={{ alignItems: 'center', marginTop: 60 }}>
             <Feather name="flag" size={32} color={colors.mutedForeground} />
-            <Text style={{ color: colors.mutedForeground, marginTop: 12, fontSize: 14, fontFamily: 'Inter_500Medium' }}>
+            <Text style={{ color: colors.mutedForeground, marginTop: space.md, ...font.captionStrong }}>
               You have not reported any chats
             </Text>
             <Text
-              style={{ color: colors.mutedForeground, marginTop: 6, fontSize: 12, textAlign: 'center', fontFamily: 'Inter_400Regular', paddingHorizontal: 32 }}
+              style={{ color: colors.mutedForeground, marginTop: space.sm, textAlign: 'center', ...font.caption, paddingHorizontal: space.xxxl }}
             >
               Reports you send from a conversation appear here with their progress.
             </Text>
           </View>
         ) : (
           <>
-            <Text style={[styles.intro, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.intro, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               We can’t share what happens to another person’s account, only whether your report has
               been reviewed.
             </Text>
             <FlatCard style={{ paddingVertical: 4 }}>
               {reports.map((report, idx) => {
                 const closed = report.state === 'closed';
-                const tone = closed ? '#34D399' : '#F2B84B';
+                const tone = closed ? colors.success : colors.warning;
                 return (
                   <View
                     key={report.id}
@@ -133,15 +135,15 @@ export default function MyReportsScreen() {
                       <Feather name={closed ? 'check-circle' : 'clock'} size={18} color={tone} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: colors.foreground, fontSize: 14, fontFamily: 'Inter_600SemiBold' }} numberOfLines={1}>
+                      <Text style={{ color: colors.foreground, ...font.bodyStrong }} numberOfLines={1}>
                         {report.room.name ?? 'Reported conversation'}
                       </Text>
-                      <Text style={{ color: colors.mutedForeground, fontSize: 13, marginTop: 2, fontFamily: 'Inter_400Regular' }}>
+                      <Text style={{ color: colors.mutedForeground, ...font.caption, marginTop: space.xs }}>
                         {REASON_LABELS[report.reason] ?? report.reason}
                       </Text>
                       {!!report.details && (
                         <Text
-                          style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4, fontFamily: 'Inter_400Regular' }}
+                          style={{ color: colors.mutedForeground, ...font.caption, marginTop: space.xs }}
                           numberOfLines={3}
                         >
                           “{report.details}”
@@ -149,11 +151,11 @@ export default function MyReportsScreen() {
                       )}
                       <View style={styles.metaRow}>
                         <View style={[styles.statePill, { backgroundColor: tone + '1A' }]}>
-                          <Text style={{ color: tone, fontSize: 11, fontFamily: 'Inter_600SemiBold' }}>
+                          <Text style={{ color: tone, ...font.smallStrong }}>
                             {STATE_LABELS[report.state] ?? STATE_LABELS.in_review}
                           </Text>
                         </View>
-                        <Text style={{ color: colors.mutedForeground, fontSize: 11, fontFamily: 'Inter_400Regular' }}>
+                        <Text style={{ color: colors.mutedForeground, ...font.caption }}>
                           Reported {filedOn(report.createdAt)}
                         </Text>
                       </View>
@@ -172,7 +174,7 @@ export default function MyReportsScreen() {
                 {isFetchingNextPage ? (
                   <AvarpusSpinner size={20} />
                 ) : (
-                  <Text style={{ color: colors.primary, fontSize: 13, fontFamily: 'Inter_600SemiBold' }}>
+                  <Text style={{ color: colors.primary, ...font.captionStrong }}>
                     Show older reports
                   </Text>
                 )}
@@ -189,7 +191,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 12 },
   headerTitle: { fontSize: 20 },
-  intro: { fontSize: 12, lineHeight: 17, paddingHorizontal: 4, paddingBottom: 10 },
+  intro: { ...font.caption, paddingHorizontal: space.xs, paddingBottom: space.md },
   row: { flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 12, alignItems: 'flex-start' },
   iconWrap: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' },

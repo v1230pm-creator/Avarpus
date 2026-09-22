@@ -1,0 +1,19 @@
+kind = "design-system"
+previewPath = "/avarpus-design-system/"
+title = "Avarpus Design System"
+description = "Design tokens and web components extracted from the Avarpus mobile app palette and web app component library."
+version = "1.0.0"
+id = "artifacts/avarpus-design-system"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/avarpus-design-system/" ]
+localPort = 23393
+
+[services.development]
+run = "pnpm --filter @workspace/avarpus-design-system run dev"
+
+[services.env]
+PORT = "23393"
+BASE_PATH = "/avarpus-design-system/"

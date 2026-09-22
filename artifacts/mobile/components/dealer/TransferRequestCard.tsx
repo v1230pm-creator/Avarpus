@@ -5,6 +5,8 @@ import { useColors } from '@/hooks/useColors';
 import { FlatCard } from '@/components/ui/FlatCard';
 import { formatDateTime } from '@/utils/dealer-ledger';
 import type { DealerTransferRequest } from '@workspace/api-client-react';
+import { font } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 type FeatherName = React.ComponentProps<typeof Feather>['name'];
 
@@ -56,36 +58,36 @@ export function TransferRequestCard({
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8} testID={`transfer-request-${request.id}`} accessibilityRole="button">
-      <FlatCard style={{ padding: 12, gap: 8 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <FlatCard style={{ padding: space.xl, gap: space.sm }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: layout.avatarGap }}>
           <View style={[styles.avatar, { backgroundColor: line.color + '1A' }]}>
-            <Feather name={request.side === 'sender' ? 'upload' : 'download'} size={16} color={line.color} />
+            <Feather name={request.side === 'sender' ? 'upload' : 'download'} size={size.headerIcon} color={line.color} />
           </View>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_700Bold' }} numberOfLines={1}>
+            <Text style={{ ...font.itemTitle, color: colors.foreground }} numberOfLines={1}>
               {d.brand} {d.model}
             </Text>
-            <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>
+            <Text style={{ ...font.captionStrong, color: colors.mutedForeground }} numberOfLines={1}>
               {request.side === 'sender' ? `To ${other.businessName}` : `From ${other.businessName}`}
               {other.ownerName ? ` · ${other.ownerName}` : ''}
             </Text>
           </View>
-          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>{formatDateTime(request.createdAt)}</Text>
+          <Text style={{ ...font.caption, color: colors.mutedForeground }}>{formatDateTime(request.createdAt)}</Text>
         </View>
         {!!d.problem && (
-          <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }} numberOfLines={1}>
+          <Text style={{ ...font.body, color: colors.mutedForeground }} numberOfLines={1}>
             {d.problem}
           </Text>
         )}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <View style={[styles.badge, { backgroundColor: line.color + '1A' }]}>
             <Feather name={line.icon} size={11} color={line.color} />
-            <Text style={{ fontSize: 11, color: line.color, fontFamily: 'Inter_600SemiBold', flexShrink: 1 }} numberOfLines={1}>
+            <Text style={{ ...font.captionStrong, color: line.color, flexShrink: 1 }} numberOfLines={1}>
               {line.label}
             </Text>
           </View>
           {request.status === 'pending' && request.side === 'receiver' && canRespond && (
-            <Text style={{ fontSize: 11, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Accept / Decline ›</Text>
+            <Text style={{ ...font.captionStrong, color: colors.primary }}>Accept / Decline ›</Text>
           )}
         </View>
       </FlatCard>
@@ -94,6 +96,6 @@ export function TransferRequestCard({
 }
 
 const styles = StyleSheet.create({
-  avatar: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  badge: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  avatar: { width: size.avatar, height: size.avatar, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: space.xs, flexShrink: 1, paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.sm },
 });

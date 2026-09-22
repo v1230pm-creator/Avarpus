@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, notLike } from "drizzle-orm";
+import { and, eq, isNotNull, like, notLike } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { logger } from "./logger";
 import { ObjectNotFoundError, ObjectStorageService } from "./objectStorage";
@@ -114,5 +114,61 @@ export async function repairLegacyProfilePhotoPaths(): Promise<ProfilePhotoRepai
     }
   }
   logger.info({ result }, "Legacy profile photo path repair completed");
+  return result;
+}
+
+export interface MissingProfilePhotoResult {
+  scanned: number;
+  /** Rows whose final object is definitively gone; reference cleared. */
+  cleared: number;
+  /** Rows changed concurrently, or whose storage check errored; left as is. */
+  skipped: number;
+  failed: number;
+}
+
+/**
+ * A canonical row whose object no longer exists in storage (a photo lost to
+ * an earlier cross-environment sweep, or removed out of band) makes every
+ * client request 404 and shows the account as "has a photo" when nothing can
+ * render. Clear such references so the account cleanly falls back to
+ * initials and can upload again. Only `ObjectNotFoundError` may clear a row:
+ * any other storage failure leaves it untouched. Never deletes an object.
+ */
+export async function clearMissingProfilePhotoReferences(): Promise<MissingProfilePhotoResult> {
+  const result: MissingProfilePhotoResult = { scanned: 0, cleared: 0, skipped: 0, failed: 0 };
+  const rows = await db
+    .select({ id: usersTable.id, profilePhoto: usersTable.profilePhoto })
+    .from(usersTable)
+    .where(and(isNotNull(usersTable.profilePhoto), like(usersTable.profilePhoto, "/objects/uploads/profiles/%")));
+  result.scanned = rows.length;
+  if (rows.length === 0) return result;
+
+  for (const row of rows) {
+    const stored = row.profilePhoto;
+    if (!stored) continue;
+    try {
+      try {
+        await objectStorageService.getObjectEntityFile(stored);
+        continue;
+      } catch (error) {
+        if (!(error instanceof ObjectNotFoundError)) throw error;
+      }
+      const updated = await db
+        .update(usersTable)
+        .set({ profilePhoto: null })
+        .where(and(eq(usersTable.id, row.id), eq(usersTable.profilePhoto, stored)))
+        .returning({ id: usersTable.id });
+      if (updated.length === 0) {
+        result.skipped += 1;
+        continue;
+      }
+      result.cleared += 1;
+      logger.warn({ userId: row.id, objectPath: stored }, "Profile photo object missing from storage; reference cleared");
+    } catch (error) {
+      result.failed += 1;
+      logger.warn({ err: error, userId: row.id }, "Profile photo existence check failed for user");
+    }
+  }
+  logger.info({ result }, "Missing profile photo reference check completed");
   return result;
 }

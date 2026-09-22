@@ -22,6 +22,8 @@ import { FlatCard, FadeInView, useIsDark } from '@/components/ui/Glass';
 import { PurchaseFormSheet } from '@/components/forms/PurchaseFormSheet';
 import { Purchase } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/helpers';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 const PAYMENT_STATUS_COLORS = {
   paid: 'success',
@@ -36,7 +38,7 @@ function PurchaseCard({ purchase, onPress }: { purchase: Purchase; onPress: () =
     <FlatCard style={styles.card}>
       <View style={styles.cardTop}>
         <View style={[styles.invoiceBadge, { backgroundColor: colors.primary + '15' }]}>
-          <Text style={[styles.invoiceId, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{purchase.invoiceNo}</Text>
+          <Text style={[styles.invoiceId, { color: colors.primary, fontFamily: fontFamily.bold }]}>{purchase.invoiceNo}</Text>
         </View>
         <Badge
           label={purchase.paymentStatus.charAt(0).toUpperCase() + purchase.paymentStatus.slice(1)}
@@ -46,29 +48,29 @@ function PurchaseCard({ purchase, onPress }: { purchase: Purchase; onPress: () =
         {purchase.isSample && <SampleBadge />}
       </View>
 
-      <Text style={[styles.supplier, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{purchase.supplier}</Text>
-      <Text style={[styles.itemsText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+      <Text style={[styles.supplier, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>{purchase.supplier}</Text>
+      <Text style={[styles.itemsText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
         {purchase.purchaseId} · {purchase.paymentMethod}
       </Text>
 
       <View style={[styles.itemList, { borderTopColor: colors.border }]}>
-        <Text style={[styles.itemLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+        <Text style={[styles.itemLine, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]} numberOfLines={1}>
           • {purchase.itemName} × {purchase.quantity} @ {formatCurrency(purchase.purchasePrice)}
         </Text>
       </View>
 
       <View style={styles.cardFooter}>
         <View>
-          <Text style={[styles.totalAmount, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.totalAmount, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
             {formatCurrency(purchase.total)}
           </Text>
           {purchase.paymentStatus !== 'paid' && (
-            <Text style={[styles.balanceText, { color: colors.warning, fontFamily: 'Inter_500Medium' }]}>
+            <Text style={[styles.balanceText, { color: colors.warning, fontFamily: fontFamily.medium }]}>
               {purchase.paymentStatus === 'partial' ? 'Partially paid' : `Due: ${formatCurrency(purchase.total)}`}
             </Text>
           )}
         </View>
-        <Text style={[styles.dateText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+        <Text style={[styles.dateText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
           {formatDate(purchase.date)}
         </Text>
       </View>
@@ -139,8 +141,8 @@ export default function PurchasesScreen() {
             <Feather name="arrow-left" size={22} color={colors.foreground} />
           </TouchableOpacity>
           <View>
-            <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Purchases</Text>
-            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Purchases</Text>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               {filtered.length} orders{totalDue > 0 ? ` · Due ${formatCurrency(totalDue)}` : ''}
             </Text>
           </View>
@@ -149,7 +151,7 @@ export default function PurchasesScreen() {
             style={[styles.addBtn, { backgroundColor: colors.primary }]}
             accessibilityLabel="Add purchase"
           >
-            <Feather name="plus" size={20} color="#FFFFFF" />
+            <Feather name="plus" size={size.inlineIcon} color={colors.primaryForeground} />
           </TouchableOpacity>
         </View>
 
@@ -164,7 +166,7 @@ export default function PurchasesScreen() {
               onChangeText={setSearch}
               placeholder="Search purchases..."
               placeholderTextColor={colors.mutedForeground}
-              style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+              style={[styles.searchInput, { color: colors.foreground, fontFamily: fontFamily.regular }]}
             />
             {!!search && <TouchableOpacity onPress={() => setSearch('')}><Feather name="x" size={16} color={colors.mutedForeground} /></TouchableOpacity>}
           </View>
@@ -180,7 +182,7 @@ export default function PurchasesScreen() {
                     borderColor: active ? colors.primary : (colors.border),
                   }]}
                 >
-                  <Text style={[styles.filterText, { color: active ? '#FFFFFF' : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>
+                  <Text style={[styles.filterText, { color: active ? colors.primaryForeground : colors.mutedForeground, fontFamily: active ? fontFamily.semibold : fontFamily.medium }]}>
                     {f}
                   </Text>
                 </TouchableOpacity>
@@ -216,29 +218,29 @@ export default function PurchasesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 12 },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  addBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20 },
-  headerSub: { fontSize: 12, marginTop: 2 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
+  backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  addBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  headerSub: { ...font.caption, marginTop: space.xs },
   searchWrap: { paddingHorizontal: 12, paddingBottom: 12, gap: 8 },
   searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14 },
-  searchInput: { flex: 1, height: 46, fontSize: 14 },
+  searchInput: { ...font.search, flex: 1, height: size.searchField },
   filterRow: { flexDirection: 'row', gap: 8 },
   filterTab: { flex: 1, paddingVertical: 8, borderRadius: 20, borderWidth: 1, alignItems: 'center' },
-  filterText: { fontSize: 12 },
+  filterText: { ...font.captionStrong },
   list: { paddingHorizontal: 12, paddingTop: 4, gap: 8 },
   card: { padding: 12, gap: 8 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   invoiceBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  invoiceId: { fontSize: 11 },
-  supplier: { fontSize: 16 },
-  itemsText: { fontSize: 12 },
+  invoiceId: { ...font.captionStrong },
+  supplier: { ...font.bodyStrong },
+  itemsText: { ...font.caption },
   itemList: { borderTopWidth: 1, paddingTop: 8, gap: 4 },
-  itemLine: { fontSize: 12 },
-  moreItems: { fontSize: 12 },
+  itemLine: { ...font.caption },
+  moreItems: { ...font.caption },
   cardFooter: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  totalAmount: { fontSize: 18 },
-  balanceText: { fontSize: 12 },
-  dateText: { fontSize: 12 },
+  totalAmount: { ...font.bodyStrong },
+  balanceText: { ...font.captionStrong },
+  dateText: { ...font.caption },
 });

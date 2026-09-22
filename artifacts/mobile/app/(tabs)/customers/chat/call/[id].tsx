@@ -30,6 +30,7 @@ import { useChatCallToken } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import type { CallMode, LiveKitCallProps } from '@/components/chat/LiveKitCallTypes';
 import { AvarpusLoadingScreen } from '@/components/ui/AvarpusSpinner';
+import { font, fontFamily } from '@/constants/typography';
 
 function supportsLiveKitNative(): boolean {
   return (
@@ -177,7 +178,7 @@ export default function CallScreen() {
           <Text
             style={[
               styles.errorTitle,
-              { color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
+              { color: colors.foreground, fontFamily: fontFamily.semibold },
             ]}
             testID="call-error-title"
           >
@@ -186,7 +187,7 @@ export default function CallScreen() {
           <Text
             style={[
               styles.errorBody,
-              { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+              { color: colors.mutedForeground, fontFamily: fontFamily.regular },
             ]}
             testID="call-error-body"
           >
@@ -197,7 +198,7 @@ export default function CallScreen() {
           <View style={[styles.e2eeRow, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}>
             <Feather name="shield" size={13} color={colors.mutedForeground} />
             <Text
-              style={[styles.e2eeNote, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}
+              style={[styles.e2eeNote, { color: colors.mutedForeground, fontFamily: fontFamily.medium }]}
               testID="e2ee-disabled-note"
             >
               End-to-end encryption is not enabled
@@ -213,7 +214,7 @@ export default function CallScreen() {
                 testID="retry-button"
               >
                 <Feather name="refresh-cw" size={16} color="#fff" />
-                <Text style={[styles.buttonText, { fontFamily: 'Inter_600SemiBold' }]}>
+                <Text style={[styles.buttonText, { fontFamily: fontFamily.semibold }]}>
                   Retry
                 </Text>
               </TouchableOpacity>
@@ -227,7 +228,7 @@ export default function CallScreen() {
               <Text
                 style={[
                   styles.backButtonText,
-                  { color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
+                  { color: colors.foreground, fontFamily: fontFamily.semibold },
                 ]}
               >
                 Go back
@@ -261,7 +262,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 15,
+    ...font.caption,
   },
   errorCard: {
     width: '100%',
@@ -273,13 +274,12 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   errorTitle: {
-    fontSize: 20,
+    ...font.itemTitle,
     textAlign: 'center',
   },
   errorBody: {
-    fontSize: 14,
+    ...font.small,
     textAlign: 'center',
-    lineHeight: 22,
   },
   e2eeRow: {
     flexDirection: 'row',
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   e2eeNote: {
-    fontSize: 12,
+    ...font.small,
   },
   errorActions: {
     flexDirection: 'row',
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
-    fontSize: 15,
+    ...font.button,
   },
   backButton: {
     paddingHorizontal: 20,
@@ -317,6 +317,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   backButtonText: {
-    fontSize: 15,
+    ...font.button,
   },
 });

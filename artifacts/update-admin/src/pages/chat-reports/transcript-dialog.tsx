@@ -141,9 +141,20 @@ export function TranscriptDialog({
                   </p>
                   <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     {message.hasAttachment && (
-                      <span className="flex items-center gap-1">
+                      <span
+                        className="flex items-center gap-1"
+                        data-testid={
+                          message.mediaState && message.mediaState !== "available"
+                            ? "transcript-media-unavailable"
+                            : "transcript-media-attached"
+                        }
+                      >
                         <Paperclip className="h-3 w-3" />
-                        {message.kind} attachment (not shown here)
+                        {message.mediaState === "purged"
+                          ? `${message.kind} attachment — media no longer available (removed from the relay after delivery)`
+                          : message.mediaState === "expired"
+                            ? `${message.kind} attachment — media no longer available (expired before it was collected)`
+                            : `${message.kind} attachment (not shown here)`}
                       </span>
                     )}
                     {message.deletedAt && (

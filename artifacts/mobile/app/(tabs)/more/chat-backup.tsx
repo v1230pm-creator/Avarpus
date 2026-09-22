@@ -31,6 +31,9 @@ import {
   type DriveBackupStatus,
 } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
+import { useMediaSummary } from '@/hooks/useChatMedia';
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   bytesToBase64,
@@ -50,6 +53,13 @@ type BackupPreparation = {
   driveEtag: string | null;
   uploadLeaseToken: string;
   encryptionSalt: string | null;
+  /** What the archive holds: media bytes are included only while the relay still has them. */
+  media?: {
+    includedCount: number;
+    includedBytes: number;
+    onDeviceOnlyCount: number;
+    skippedVideoCount: number;
+  };
 };
 
 type RecoveryPreparation = {
@@ -57,6 +67,61 @@ type RecoveryPreparation = {
   fileId: string;
   encryptionSalt: string;
 };
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
+/**
+ * What a lost or reset phone would take with it. Chat media lives on the
+ * phone; the server is only a temporary relay, so files whose relay copy is
+ * already gone exist nowhere else and cannot be restored from any backup.
+ */
+function OnThisPhoneSection({ colors }: { colors: ReturnType<typeof useColors> }) {
+  const summary = useMediaSummary();
+  if (!summary) return null;
+  const onlyHere = summary.onlyOnDeviceFiles;
+  return (
+    <>
+      <View style={[styles.divider, { borderTopColor: colors.border }]} />
+      <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>On this phone</Text>
+      <Text style={[styles.description, { color: colors.mutedForeground }]}>
+        Photos, videos, voice notes and files from your chats are kept on this phone. The server
+        holds a copy only for a while after they are delivered.
+      </Text>
+      <View style={styles.encryptionRow} testID="chat-backup-on-device">
+        <Feather name="smartphone" size={22} color={colors.mutedForeground} />
+        <View style={styles.encryptionCopy}>
+          <Text style={[styles.rowTitle, { color: colors.foreground }]}>
+            {plural(summary.files, 'media file')} saved on this phone
+          </Text>
+          <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>
+            {formatBytes(String(summary.bytes))}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.encryptionRow} testID="chat-backup-only-on-device">
+        <Feather
+          name={onlyHere > 0 ? 'alert-triangle' : 'check-circle'}
+          size={22}
+          color={onlyHere > 0 ? colors.warning : colors.success}
+        />
+        <View style={styles.encryptionCopy}>
+          <Text style={[styles.rowTitle, { color: colors.foreground }]}>
+            {onlyHere > 0
+              ? `${plural(onlyHere, 'media file')} only on this phone (${formatBytes(String(summary.onlyOnDeviceBytes))})`
+              : 'Everything here still has a server copy'}
+          </Text>
+          <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>
+            {onlyHere > 0
+              ? 'The server no longer has these. If this phone is lost or reset they are gone for good — a backup can list them but cannot include them.'
+              : 'For now every media file on this phone can still be saved again from the server if it goes missing.'}
+          </Text>
+        </View>
+      </View>
+    </>
+  );
+}
 
 function formatBytes(value: string | null | undefined): string {
   if (!value) return '0 B';
@@ -216,11 +281,19 @@ export default function ChatBackupScreen() {
       setEncryptionDialog(null);
       setRecoveryPasswordConfirmation('');
       setRecoveryPassword('');
+      const media = prepared.media;
+      const mediaNote = media
+        ? `${media.includedCount} media file${media.includedCount === 1 ? '' : 's'} (${formatBytes(String(media.includedBytes))}) included.${
+            media.onDeviceOnlyCount > 0
+              ? ` ${media.onDeviceOnlyCount} older media file${media.onDeviceOnlyCount === 1 ? ' is' : 's are'} kept only on this phone and not in this backup.`
+              : ''
+          }`
+        : '';
       Alert.alert(
         enabling ? 'Encryption enabled' : 'Backup complete',
         enabling
-          ? 'Your Drive backup is now encrypted on this device before upload. Encrypted backups are manual so the recovery password is never stored. Write it down: Avarpus cannot recover or reset it.'
-          : 'Your chats were encrypted on this device and backed up to Google Drive.',
+          ? `Your Drive backup is now encrypted on this device before upload. Encrypted backups are manual so the recovery password is never stored. Write it down: Avarpus cannot recover or reset it.${mediaNote ? `\n\n${mediaNote}` : ''}`
+          : `Your chats were encrypted on this device and backed up to Google Drive.${mediaNote ? `\n\n${mediaNote}` : ''}`,
       );
     } catch (error) {
       Alert.alert(
@@ -455,8 +528,9 @@ export default function ChatBackupScreen() {
       >
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Backup settings</Text>
         <Text style={[styles.description, { color: colors.mutedForeground }]}>
-          Back up your chats and media to Google Drive so you don't lose them when you get a new
-          Android phone.
+          Back up your chats to Google Drive so you don't lose them when you get a new Android
+          phone. Photos and files are included only while the server still holds a copy; older
+          media that now lives only on this phone is listed in the backup but its bytes are not.
         </Text>
 
         {statusQuery.isLoading ? (
@@ -598,6 +672,8 @@ export default function ChatBackupScreen() {
             </TouchableOpacity>
           </>
         ) : null}
+
+        <OnThisPhoneSection colors={colors} />
       </ScrollView>
 
       <Modal
@@ -724,27 +800,27 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     marginLeft: 8,
-    fontFamily: 'Inter_500Medium',
+    ...font.title,
   },
   sectionLabel: {
     fontSize: 14,
     marginTop: 18,
     paddingHorizontal: 17,
-    fontFamily: 'Inter_400Regular',
+    ...font.overline,
   },
   description: {
     fontSize: 14,
     lineHeight: 20,
     paddingHorizontal: 17,
     marginTop: 2,
-    fontFamily: 'Inter_400Regular',
+    ...font.body,
   },
   loader: { marginVertical: 42 },
   retryBlock: { padding: 24, alignItems: 'center' },
-  errorText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
-  retryText: { marginTop: 8, fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  errorText: { ...font.caption },
+  retryText: { marginTop: space.sm, ...font.captionStrong },
   backupSummary: { marginTop: 20, paddingHorizontal: 17, gap: 5 },
-  summaryText: { fontSize: 15, fontFamily: 'Inter_400Regular' },
+  summaryText: { ...font.caption },
   backupButton: {
     minWidth: 106,
     height: 43,
@@ -756,12 +832,12 @@ const styles = StyleSheet.create({
     marginTop: 26,
     paddingHorizontal: 24,
   },
-  backupButtonText: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  backupButtonText: { ...font.button },
   accountBlock: { paddingHorizontal: 17, marginTop: 31, paddingVertical: 5 },
-  accountTitle: { fontSize: 16, fontFamily: 'Inter_400Regular' },
-  accountSubtitle: { fontSize: 14, lineHeight: 20, fontFamily: 'Inter_400Regular' },
+  accountTitle: { ...font.bodyStrong },
+  accountSubtitle: { ...font.caption },
   storageBlock: { paddingHorizontal: 17, marginTop: 28, paddingVertical: 5 },
-  storageTitle: { fontSize: 15, fontFamily: 'Inter_400Regular' },
+  storageTitle: { ...font.captionStrong },
   settingRow: {
     minHeight: 74,
     paddingVertical: 12,
@@ -771,14 +847,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   rowCopy: { flex: 1, paddingRight: 14 },
-  rowTitle: { fontSize: 16, lineHeight: 21, fontFamily: 'Inter_400Regular' },
-  rowSubtitle: { fontSize: 14, lineHeight: 20, fontFamily: 'Inter_400Regular' },
+  rowTitle: { ...font.bodyStrong },
+  rowSubtitle: { ...font.caption },
   inlineError: {
     fontSize: 13,
     lineHeight: 19,
     paddingHorizontal: 17,
     marginTop: 4,
-    fontFamily: 'Inter_400Regular',
+    ...font.caption,
   },
   divider: { marginTop: 12, borderTopWidth: 1 },
   encryptionRow: {
@@ -800,18 +876,18 @@ const styles = StyleSheet.create({
     padding: 22,
     gap: 12,
   },
-  modalTitle: { fontSize: 20, fontFamily: 'Inter_600SemiBold' },
-  modalDescription: { fontSize: 14, lineHeight: 20, fontFamily: 'Inter_400Regular' },
+  modalTitle: { ...font.heading },
+  modalDescription: { ...font.caption },
   passwordInput: {
     minHeight: 48,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 12,
     fontSize: 16,
-    fontFamily: 'Inter_400Regular',
+    ...font.input,
   },
-  warningText: { fontSize: 13, lineHeight: 18, fontFamily: 'Inter_500Medium' },
-  validationError: { fontSize: 13, lineHeight: 18, fontFamily: 'Inter_500Medium' },
+  warningText: { ...font.smallStrong },
+  validationError: { ...font.smallStrong },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -820,7 +896,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   modalCancel: { paddingVertical: 10, paddingHorizontal: 4 },
-  modalCancelText: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  modalCancelText: { ...font.button },
   modalSubmit: {
     minWidth: 92,
     minHeight: 42,
@@ -829,5 +905,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
-  modalSubmitText: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  modalSubmitText: { ...font.button },
 });

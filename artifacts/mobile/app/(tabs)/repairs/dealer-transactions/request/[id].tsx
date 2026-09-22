@@ -27,6 +27,8 @@ import {
   getRepairsListQueryKey,
   getRepairsGetQueryKey,
 } from '@workspace/api-client-react';
+import { font } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 // One transfer request, seen from whichever side the caller is on.
 //   receiver + pending  → device preview + ACCEPT / DECLINE
@@ -157,15 +159,15 @@ export default function TransferRequestScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 14 }]}>
+      <View style={[styles.header, { paddingTop: topPad + layout.rowPaddingVertical }]}>
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}>
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
             {request?.side === 'receiver' ? 'Incoming Request' : 'Transfer Request'}
           </Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
             {request?.side === 'receiver' ? 'Nothing enters your queue until you accept' : 'Your record stays unchanged until they accept'}
           </Text>
         </View>
@@ -177,59 +179,59 @@ export default function TransferRequestScreen() {
       ) : error && !data ? (
         <DataErrorState onRetry={() => { void refetch(); }} />
       ) : !request || !line || !other || !d ? null : (
-        <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: insets.bottom + 40, gap: 12 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ padding: layout.screenPadding, paddingBottom: insets.bottom + space.xxxl, gap: space.md }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={[styles.stateBadge, { backgroundColor: line.color + '14' }]} testID="transfer-state">
             <Feather name={line.icon} size={14} color={line.color} />
-            <Text style={{ fontSize: 12, color: line.color, fontFamily: 'Inter_600SemiBold', flexShrink: 1 }}>{line.label}</Text>
+            <Text style={{ ...font.captionStrong, color: line.color, flexShrink: 1 }}>{line.label}</Text>
           </View>
 
           <FlatCard style={{ padding: 14, gap: 6 }}>
-            <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
+            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
               {request.side === 'sender' ? 'SENDING TO' : request.status === 'accepted' ? 'RECEIVED FROM' : 'REQUEST FROM'}
             </Text>
-            <Text style={{ fontSize: 16, color: colors.foreground, fontFamily: 'Inter_700Bold' }}>{other.businessName}</Text>
-            <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>
+            <Text style={{ ...font.itemTitle, color: colors.foreground }}>{other.businessName}</Text>
+            <Text style={{ ...font.captionStrong, color: colors.mutedForeground }}>
               Owner {other.ownerName}
             </Text>
-            <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+            <Text style={{ ...font.caption, color: colors.mutedForeground }}>
               Sent by {request.sentByName} · {formatDateTime(request.createdAt)}
             </Text>
             {!!request.message && (
               <View style={[styles.note, { backgroundColor: colors.primary + '0F', borderColor: colors.primary + '22' }]}>
                 <Feather name="message-square" size={13} color={colors.primary} />
-                <Text style={{ fontSize: 12, color: colors.foreground, fontFamily: 'Inter_400Regular', flex: 1 }}>{request.message}</Text>
+                <Text style={{ ...font.body, color: colors.foreground, flex: 1 }}>{request.message}</Text>
               </View>
             )}
             {!!request.respondedAt && (
-              <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+              <Text style={{ ...font.caption, color: colors.mutedForeground }}>
                 {request.status === 'cancelled' ? 'Cancelled' : request.status === 'declined' ? 'Declined' : 'Accepted'}
                 {request.respondedByName ? ` by ${request.respondedByName}` : ''} · {formatDateTime(request.respondedAt)}
               </Text>
             )}
             {!!request.declineReason && (
-              <Text style={{ fontSize: 12, color: colors.destructive, fontFamily: 'Inter_500Medium' }} testID="transfer-decline-reason">
+              <Text style={{ ...font.captionStrong, color: colors.destructive }} testID="transfer-decline-reason">
                 Reason: {request.declineReason}
               </Text>
             )}
           </FlatCard>
 
           <FlatCard style={{ padding: 14, gap: 10 }}>
-            <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>DEVICE DETAILS (AS SAVED BY THE SENDER)</Text>
+            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>DEVICE DETAILS (AS SAVED BY THE SENDER)</Text>
             {factRows.map((row) => (
               <View key={row.label} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
-                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{row.label}</Text>
-                <Text style={{ fontSize: 12, color: colors.foreground, fontFamily: 'Inter_600SemiBold', flex: 1, textAlign: 'right' }}>{row.value}</Text>
+                <Text style={{ ...font.captionStrong, color: colors.mutedForeground }}>{row.label}</Text>
+                <Text style={{ ...font.captionStrong, color: colors.foreground, flex: 1, textAlign: 'right' }}>{row.value}</Text>
               </View>
             ))}
             {request.side === 'receiver' && request.status === 'pending' && (
-              <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', lineHeight: 16 }}>
+              <Text style={{ ...font.small, color: colors.mutedForeground }}>
                 On accept, a new repair is created in your shop with exactly these details — no form to fill. The sender's customer is not shared; the customer on your record will be {other.businessName}.
               </Text>
             )}
           </FlatCard>
 
           {!!actionError && (
-            <Text style={{ fontSize: 12, color: colors.destructive, fontFamily: 'Inter_500Medium' }} testID="transfer-action-error">{actionError}</Text>
+            <Text style={{ ...font.captionStrong, color: colors.destructive }} testID="transfer-action-error">{actionError}</Text>
           )}
 
           {request.status === 'pending' && request.side === 'receiver' && (
@@ -258,7 +260,7 @@ export default function TransferRequestScreen() {
             ) : (
               <View style={[styles.note, { backgroundColor: colors.warning + '14', borderColor: colors.warning + '33' }]}>
                 <Feather name="lock" size={13} color={colors.warning} />
-                <Text style={{ fontSize: 12, color: colors.foreground, fontFamily: 'Inter_400Regular', flex: 1 }}>
+                <Text style={{ ...font.caption, color: colors.foreground, flex: 1 }}>
                   Only staff with the “update repairs” permission can accept or decline. Ask your shop owner.
                 </Text>
               </View>
@@ -313,11 +315,11 @@ export default function TransferRequestScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 10, gap: 6 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20 },
-  headerSub: { fontSize: 12 },
-  sectionLabel: { fontSize: 10, letterSpacing: 1 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  headerSub: { ...font.caption },
+  sectionLabel: { ...font.overline },
   stateBadge: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 12 },
   note: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderRadius: 12, padding: 10, marginTop: 4 },
 });

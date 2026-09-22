@@ -7,6 +7,7 @@ import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { FinanceEntry } from '@/types';
+import { font, fontFamily } from '@/constants/typography';
 import { getTodayStr, isValidDateStr } from '@/utils/helpers';
 import { approvalsCreate } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
@@ -131,7 +132,7 @@ export function FinanceFormSheet({ visible, onClose, entry }: Props) {
       {isBackdated && (
         <View style={[styles.warningBanner, { backgroundColor: colors.warning + '22', borderColor: colors.warning + '55' }]}>
           <Feather name="alert-triangle" size={16} color={colors.warning} />
-          <Text style={[styles.warningText, { color: colors.warning, fontFamily: 'Inter_500Medium' }]}>
+          <Text style={[styles.warningText, { color: colors.warning, fontFamily: fontFamily.medium }]}>
             This is a backdated entry. Dealer/Owner approval is required.
           </Text>
         </View>
@@ -154,5 +155,5 @@ export function FinanceFormSheet({ visible, onClose, entry }: Props) {
 
 const styles = StyleSheet.create({
   warningBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 4 },
-  warningText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  warningText: { ...font.small, flex: 1 },
 });

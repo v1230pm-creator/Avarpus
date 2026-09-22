@@ -9,6 +9,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { Avatar } from '@/components/ui/Avatar';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
@@ -173,7 +175,7 @@ export default function ProfileScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
           <Feather name="arrow-left" size={24} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>Profile</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Profile</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -263,7 +265,7 @@ export default function ProfileScreen() {
               <Text style={[styles.fieldInput, { color: colors.foreground }]} testID="profile-mobile-readonly">
                 {user?.mobile || '—'}
               </Text>
-              <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 2 }}>
+              <Text style={{ ...font.caption, color: colors.mutedForeground, marginTop: 2 }}>
                 This is your sign-in number. To use a different number, sign in with it.
               </Text>
             </View>
@@ -364,12 +366,12 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 14,
-    fontFamily: 'Inter_400Regular',
+    ...font.title,
     marginBottom: 4,
   },
   fieldInput: {
     fontSize: 16,
-    fontFamily: 'Inter_400Regular',
+    ...font.body,
     padding: 0,
     minHeight: 24,
   },
@@ -386,6 +388,6 @@ const styles = StyleSheet.create({
   saveBtnText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
+    ...font.button,
   },
 });

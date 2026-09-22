@@ -11,6 +11,8 @@ import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { onBlue } from '@/constants/brand';
+import { fontFamily } from '@/constants/typography';
+import { size as controlSize, space } from '@/constants/spacing';
 
 interface ButtonProps {
   title: string;
@@ -74,10 +76,10 @@ export function Button({
     onBlue: disabled ? onBlue.controlTextDisabled : onBlue.controlText,
   }[variant];
 
-  const padV = { sm: 8, md: 13, lg: 17 }[size];
-  const padH = { sm: 14, md: 20, lg: 26 }[size];
-  const fontSize = { sm: 13, md: 15, lg: 17 }[size];
-  const minHeight = { sm: 40, md: 48, lg: 56 }[size];
+  const padH = { sm: space.lg, md: space.xxl, lg: space.xxxl }[size];
+  const fontSize = { sm: 15, md: 17, lg: 18 }[size];
+  const lineHeight = { sm: 20, md: 22, lg: 24 }[size];
+  const minHeight = { sm: controlSize.buttonSm, md: controlSize.button, lg: controlSize.buttonLg }[size];
 
   // Layout styles (flex, width, margins…) must apply to the outer wrapper.
   // If they only reach the inner TouchableOpacity, the auto-sized wrapper
@@ -149,7 +151,7 @@ export function Button({
         {loading ? (
           <AvarpusSpinner color={txtColor} size={Math.max(16, fontSize + 2)} accessibilityLabel={null} />
         ) : (
-          <Text numberOfLines={1} style={[styles.text, { color: txtColor, fontSize, fontFamily: 'Inter_600SemiBold' }, textStyle]}>
+          <Text numberOfLines={1} style={[styles.text, { color: txtColor, fontSize, lineHeight }, textStyle]}>
             {title}
           </Text>
         )}
@@ -159,8 +161,8 @@ export function Button({
 }
 
 const styles = StyleSheet.create({
-  btn: { alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
-  text: { fontWeight: '600', lineHeight: 20, textAlign: 'center' },
+  btn: { alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: space.sm },
+  text: { fontFamily: fontFamily.semibold, textAlign: 'center' },
   onBlueElevation: {
     shadowColor: '#012B41',
     shadowOffset: { width: 0, height: 6 },

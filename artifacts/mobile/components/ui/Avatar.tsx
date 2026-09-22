@@ -3,6 +3,7 @@ import { Platform, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { useColors } from '@/hooks/useColors';
 import { KEYS, storage } from '@/utils/storage';
+import { fontFamily } from '@/constants/typography';
 
 const COLORS = ['#075FEA', '#315BA6', '#0A8062', '#A87824', '#9C3B4A', '#246A91'];
 
@@ -36,6 +37,19 @@ interface AvatarProps {
  */
 function isServerEntityPath(url: string): boolean {
   return url.startsWith('/objects/');
+}
+
+/**
+ * A final profile photo lives at a unique, never-rewritten key, so the URL
+ * fully identifies the bytes and the device may keep a copy: the avatar then
+ * survives a weak network or a slow server instead of dropping to initials.
+ * Everything else (device contact photos, staging keys, external URLs) can
+ * change behind a stable URL and is fetched fresh.
+ */
+const FINAL_PROFILE_PATH_RE = /^\/objects\/uploads\/profiles\/[0-9a-f-]{36}\/final\/[0-9a-f-]{36}$/i;
+
+function isImmutableProfilePhoto(url: string): boolean {
+  return FINAL_PROFILE_PATH_RE.test(url);
 }
 
 function isLoadableAvatarUrl(url: string | null | undefined): url is string {
@@ -143,7 +157,7 @@ export function Avatar({ name, url, size = 40, style, variant = 'solid' }: Avata
             }}
             style={{ width: size, height: size }}
             contentFit="cover"
-            cachePolicy="none"
+            cachePolicy={isImmutableProfilePhoto(url) ? 'memory-disk' : 'none'}
             onError={() =>
               setFailure((prev) =>
                 prev && prev.url === url
@@ -180,7 +194,7 @@ export function Avatar({ name, url, size = 40, style, variant = 'solid' }: Avata
           {
             fontSize: size * 0.36,
             color: isGlass ? '#C4B5FD' : '#FFFFFF',
-            fontFamily: 'Inter_600SemiBold',
+            fontFamily: fontFamily.semibold,
           },
         ]}
       >

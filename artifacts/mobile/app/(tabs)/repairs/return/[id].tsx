@@ -18,6 +18,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
@@ -52,8 +54,8 @@ function InfoRow({ label, value, color, bold }: { label: string; value: string; 
   const colors = useColors();
   return (
     <View style={styles.infoRow}>
-      <Text style={[styles.infoLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{label}</Text>
-      <Text style={[styles.infoValue, { color: color ?? colors.foreground, fontFamily: bold ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>{value}</Text>
+      <Text style={[styles.infoLabel, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>{label}</Text>
+      <Text style={[styles.infoValue, { color: color ?? colors.foreground, fontFamily: bold ? fontFamily.semibold : fontFamily.medium }]}>{value}</Text>
     </View>
   );
 }
@@ -256,9 +258,9 @@ export default function ReturnDetailScreen() {
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={[styles.returnId, { color: getReturnStatusColor(ret.status, colors), fontFamily: 'Inter_700Bold' }]}>{ret.returnId}</Text>
+          <Text style={[styles.returnId, { color: getReturnStatusColor(ret.status, colors), fontFamily: fontFamily.bold }]}>{ret.returnId}</Text>
           <View style={[styles.statusBadge, { backgroundColor: getReturnStatusColor(ret.status, colors) + '15' }]}>
-            <Text style={{ fontSize: 11, color: getReturnStatusColor(ret.status, colors), fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }}>
+            <Text style={{ fontSize: 13, color: getReturnStatusColor(ret.status, colors), fontFamily: fontFamily.semibold, textTransform: 'capitalize' }}>
               {ret.status.replace(/_/g, ' ')}
             </Text>
           </View>
@@ -271,7 +273,7 @@ export default function ReturnDetailScreen() {
         {/* Status Stepper / Actions */}
         <FadeInView animValue={anims[1]}>
           <Card>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>STATUS</Text>
+            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: fontFamily.medium }]}>STATUS</Text>
             {availableStatuses.length > 0 ? (
               <TouchableOpacity
                 onPress={() => setShowStatusPicker(true)}
@@ -279,7 +281,7 @@ export default function ReturnDetailScreen() {
                 style={{ backgroundColor: colors.success, borderRadius: colors.radius - 2, padding: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8 }}
               >
                 <Feather name="edit" size={18} color="#FFFFFF" />
-                <Text style={{ color: '#FFFFFF', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Update Status</Text>
+                <Text style={{ color: '#FFFFFF', fontFamily: fontFamily.semibold, fontSize: 14 }}>Update Status</Text>
               </TouchableOpacity>
             ) : (
               <Text style={{ fontSize: 13, color: colors.mutedForeground, fontStyle: 'italic', marginTop: 8 }}>
@@ -292,7 +294,7 @@ export default function ReturnDetailScreen() {
         {/* Case Info */}
         <FadeInView animValue={anims[2]}>
           <Card>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>AFTER-SALES CASE</Text>
+            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: fontFamily.medium }]}>AFTER-SALES CASE</Text>
             <InfoRow label="Reason" value={ret.reason.replace(/_/g, ' ')} />
             <InfoRow label="Complaint" value={ret.complaint} />
             {!!ret.deviceCondition && <InfoRow label="Condition" value={ret.deviceCondition} />}
@@ -303,7 +305,7 @@ export default function ReturnDetailScreen() {
         {/* Original Repair Info */}
         <FadeInView animValue={anims[2]}>
           <Card>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>ORIGINAL REPAIR</Text>
+            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: fontFamily.medium }]}>ORIGINAL REPAIR</Text>
             {!!ret.repairTicket && <InfoRow label="Ticket" value={ret.repairTicket} bold />}
             {!!ret.customerName && <InfoRow label="Customer" value={ret.customerName} />}
             <InfoRow label="Device" value={`${ret.brand} ${ret.model}`} />
@@ -314,8 +316,8 @@ export default function ReturnDetailScreen() {
             {ret.originalAmount !== undefined && <InfoRow label="Amount" value={formatCurrency(ret.originalAmount)} />}
             {ret.daysAfterDelivery !== undefined && (
               <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Days Since Delivery</Text>
-                <Text style={[styles.infoValue, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>{ret.daysAfterDelivery} Days</Text>
+                <Text style={[styles.infoLabel, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>Days Since Delivery</Text>
+                <Text style={[styles.infoValue, { color: colors.warning, fontFamily: fontFamily.semibold }]}>{ret.daysAfterDelivery} Days</Text>
               </View>
             )}
           </Card>
@@ -325,7 +327,7 @@ export default function ReturnDetailScreen() {
         <FadeInView animValue={anims[3]}>
           <Card>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>INSPECTION & REWORK</Text>
+              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: fontFamily.medium }]}>INSPECTION & REWORK</Text>
               <TouchableOpacity onPress={() => {
                 setEditDiagnosis(ret.diagnosis || '');
                 setEditWork(ret.workPerformed || '');
@@ -358,7 +360,7 @@ export default function ReturnDetailScreen() {
         <FadeInView animValue={anims[4]}>
           <Card>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>PARTS USED</Text>
+              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: fontFamily.medium }]}>PARTS USED</Text>
               <TouchableOpacity onPress={() => setShowAddPart(true)}>
                 <Feather name="plus-circle" size={18} color={colors.primary} />
               </TouchableOpacity>
@@ -370,9 +372,9 @@ export default function ReturnDetailScreen() {
                 <View key={p.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                   <View>
                     <Text style={{ fontSize: 14, color: colors.foreground }}>{p.partName}</Text>
-                    <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Qty: {p.quantity} @ {formatCurrency(p.unitCost)}</Text>
+                    <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Qty: {p.quantity} @ {formatCurrency(p.unitCost)}</Text>
                   </View>
-                  <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>
+                  <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: fontFamily.semibold }}>
                     {formatCurrency(p.quantity * p.unitCost)}
                   </Text>
                 </View>
@@ -385,10 +387,10 @@ export default function ReturnDetailScreen() {
         <FadeInView animValue={anims[5]}>
           <Card>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>REFUNDS</Text>
+              <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: fontFamily.medium }]}>REFUNDS</Text>
               <TouchableOpacity onPress={() => setShowRefundModal(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Feather name="plus-circle" size={16} color={colors.primary} />
-                <Text style={{ fontSize: 12, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>
+                <Text style={{ fontSize: 13, color: colors.primary, fontFamily: fontFamily.semibold }}>
                   {isDealer ? 'Create Refund' : 'Request Refund'}
                 </Text>
               </TouchableOpacity>
@@ -399,9 +401,9 @@ export default function ReturnDetailScreen() {
               refunds.map(rf => (
                 <View key={rf.id} style={{ padding: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 8, marginTop: 8 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <Text style={{ fontSize: 15, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{formatCurrency(rf.amount)}</Text>
+                    <Text style={{ fontSize: 15, color: colors.foreground, fontFamily: fontFamily.semibold }}>{formatCurrency(rf.amount)}</Text>
                     <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: rf.status === 'paid' ? colors.success + '22' : colors.warning + '22' }}>
-                      <Text style={{ fontSize: 10, color: rf.status === 'paid' ? colors.success : colors.warning, textTransform: 'uppercase', fontFamily: 'Inter_700Bold' }}>{rf.status.replace('_', ' ')}</Text>
+                      <Text style={{ fontSize: 13, color: rf.status === 'paid' ? colors.success : colors.warning, textTransform: 'uppercase', fontFamily: fontFamily.bold }}>{rf.status.replace('_', ' ')}</Text>
                     </View>
                   </View>
                   <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Reason: {rf.reason}</Text>
@@ -424,7 +426,7 @@ export default function ReturnDetailScreen() {
         {/* Totals Summary */}
         <FadeInView animValue={anims[6]}>
           <Card>
-            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>SUMMARY TOTALS</Text>
+            <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: fontFamily.medium }]}>SUMMARY TOTALS</Text>
             <InfoRow label="Parts Cost" value={formatCurrency(ret.partsCost)} />
             <InfoRow label="Labour Cost" value={formatCurrency(ret.labourCost)} />
             <View style={styles.divider} />
@@ -452,7 +454,7 @@ export default function ReturnDetailScreen() {
                     backgroundColor: editResolution === r ? colors.primary + '22' : colors.card
                   }}
                 >
-                  <Text style={{ fontSize: 12, color: editResolution === r ? colors.primary : colors.foreground }}>
+                  <Text style={{ fontSize: 13, color: editResolution === r ? colors.primary : colors.foreground }}>
                     {r.replace(/_/g, ' ')}
                   </Text>
                 </TouchableOpacity>
@@ -489,7 +491,7 @@ export default function ReturnDetailScreen() {
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Add Part</Text>
-            <Text style={{ fontSize: 12, color: colors.mutedForeground, marginBottom: 12 }}>
+            <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 12 }}>
               Select from inventory to deduct stock, or enter custom.
             </Text>
 
@@ -565,7 +567,7 @@ export default function ReturnDetailScreen() {
                   onPress={() => { setShowStatusPicker(false); handleStatusUpdate(s); }}
                   style={{ padding: 14, borderRadius: 8, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}
                 >
-                  <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: "Inter_500Medium", textTransform: "capitalize" }}>
+                  <Text style={{ ...font.captionStrong, color: colors.foreground, textTransform: "capitalize" }}>
                     {s.replace(/_/g, " ")}
                   </Text>
                 </TouchableOpacity>
@@ -583,22 +585,22 @@ export default function ReturnDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 10 },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  returnId: { fontSize: 18 },
-  statusBadge: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
+  backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  headerCenter: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  returnId: { ...font.title },
+  statusBadge: { paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.sm },
   notFound: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scroll: { padding: 12, gap: 10 },
-  cardLabel: { fontSize: 10, letterSpacing: 0.8, marginBottom: 4 },
+  scroll: { padding: layout.screenPadding, gap: space.md },
+  cardLabel: { ...font.overline, marginBottom: space.xs },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
-  infoLabel: { fontSize: 12 },
-  infoValue: { fontSize: 13, textAlign: 'right', flex: 1, marginLeft: 12 },
+  infoLabel: { ...font.label },
+  infoValue: { ...font.bodyStrong, textAlign: 'right', flex: 1, marginLeft: space.md },
   divider: { height: 1, marginVertical: 6, backgroundColor: '#333' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 16 },
-  modalContent: { borderWidth: 1, borderRadius: 12, padding: 16 },
-  modalTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 10 },
-  label: { fontSize: 12, fontFamily: 'Inter_500Medium', marginBottom: 4, marginTop: 6 },
+  modalContent: { borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.lg, padding: space.xl },
+  modalTitle: { ...font.heading, marginBottom: space.md },
+  label: { ...font.label, marginBottom: space.xs, marginTop: space.sm },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
 });

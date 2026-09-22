@@ -28,6 +28,7 @@ import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
 import * as Contacts from 'expo-contacts/legacy';
+import { font } from '@/constants/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -302,7 +303,7 @@ export default function ChatPeerProfileScreen() {
       {isError && !room ? (
         <View style={styles.errorBody}>
           <Feather name="alert-circle" size={40} color={colors.mutedForeground} />
-          <Text style={[styles.name, { color: colors.foreground, fontSize: 18, marginTop: 12 }]}>
+          <Text style={[styles.name, { color: colors.foreground, ...font.itemTitle, marginTop: 12 }]}>
             Profile unavailable
           </Text>
           <Text style={[styles.mobile, { color: colors.mutedForeground, textAlign: 'center' }]}>
@@ -527,7 +528,7 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
   iconButton: { padding: 8 },
-  headerTitle: { fontSize: 20, fontFamily: 'Inter_600SemiBold', marginLeft: 8 },
+  headerTitle: { ...font.itemTitle, marginLeft: 8 },
   scroll: { paddingHorizontal: 16 },
   errorBody: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 32 },
   hero: {
@@ -578,20 +579,18 @@ const styles = StyleSheet.create({
     borderWidth: 4,
   },
   name: {
-    fontSize: 26,
-    fontFamily: 'Inter_700Bold',
+    ...font.title,
     textAlign: 'center',
     marginTop: 8,
   },
   mobile: {
-    fontSize: 16,
-    fontFamily: 'Inter_400Regular',
+    ...font.label,
     textAlign: 'center',
     marginTop: 6,
   },
   presencePillWrap: { alignItems: 'center', marginTop: 10, minHeight: 26 },
   presencePill: { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 13 },
-  presence: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+  presence: { ...font.small },
   tilesRow: {
     flexDirection: 'row',
     gap: 10,
@@ -607,7 +606,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   tileDisabled: { opacity: 0.4 },
-  tileLabel: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  tileLabel: { ...font.smallStrong },
   card: {
     borderRadius: 22,
     borderWidth: 1,
@@ -623,10 +622,10 @@ const styles = StyleSheet.create({
   },
   rowIcon: { width: 28, marginRight: 8 },
   rowBody: { flex: 1 },
-  rowCaption: { fontSize: 13, fontFamily: 'Inter_400Regular' },
-  rowValue: { fontSize: 16, fontFamily: 'Inter_500Medium', marginTop: 3 },
-  rowTitle: { flex: 1, fontSize: 16, fontFamily: 'Inter_500Medium' },
-  rowTrailing: { fontSize: 15, fontFamily: 'Inter_400Regular', marginRight: 2 },
+  rowCaption: { ...font.small },
+  rowValue: { ...font.label, marginTop: 3 },
+  rowTitle: { flex: 1, ...font.label },
+  rowTrailing: { ...font.caption, marginRight: 2 },
   copyButton: {
     width: 42,
     height: 42,

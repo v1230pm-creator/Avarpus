@@ -71,13 +71,15 @@ describe.sequential("Chat/Profile abandoned upload cleanup", () => {
     }
   });
 
-  it("deletes old unclaimed Chat/Profile objects while ignoring unrelated namespaces", async () => {
+  it("deletes old registered, never-attached Chat/Profile-staging objects while ignoring unrelated namespaces", async () => {
     const profilePath = `/objects/uploads/profiles/${userId}/${randomUUID()}`;
     const chatPath = `/objects/uploads/global/chat/${roomId}/${randomUUID()}`;
     const statusPath = `/objects/uploads/status/${userId}/${randomUUID()}`;
     const profileDelete = vi.fn();
     const chatDelete = vi.fn();
     const statusDelete = vi.fn();
+    await registerPendingUpload({ objectPath: profilePath, ownerUserId: userId, purpose: "profile" });
+    await registerPendingUpload({ objectPath: chatPath, ownerUserId: userId, purpose: "chat" });
     const list = vi.spyOn(ObjectStorageService.prototype, "listObjectEntityFiles")
       .mockResolvedValue([
         listedFile(profilePath, profileDelete),
@@ -91,6 +93,8 @@ describe.sequential("Chat/Profile abandoned upload cleanup", () => {
         considered: 2,
         deleted: 2,
         ignored: 1,
+        protected: 0,
+        unregistered: 0,
         failed: 0,
       });
       expect(profileDelete).toHaveBeenCalledOnce();
@@ -99,6 +103,61 @@ describe.sequential("Chat/Profile abandoned upload cleanup", () => {
       expect(list).not.toHaveBeenCalledWith("uploads/");
       expect(list).toHaveBeenCalledWith("uploads/profiles/");
       expect(list).toHaveBeenCalledWith("uploads/global/chat/");
+      const rows = await db.select().from(pendingUploadsTable).where(
+        inArray(pendingUploadsTable.objectPath, [profilePath, chatPath]),
+      );
+      expect(rows).toHaveLength(0);
+    } finally {
+      list.mockRestore();
+    }
+  });
+
+  it("never deletes a final profile photo, even when old and unreferenced by this database", async () => {
+    // A final object belongs to whichever user row points at it — possibly in
+    // another environment's database sharing the same bucket. No reference
+    // check may decide its fate.
+    const finalPath = `/objects/uploads/profiles/${randomUUID()}/final/${randomUUID()}`;
+    const finalDelete = vi.fn();
+    const list = vi.spyOn(ObjectStorageService.prototype, "listObjectEntityFiles")
+      .mockResolvedValue([listedFile(finalPath, finalDelete)] as never);
+    try {
+      const result = await cleanupAbandonedChatAndProfileUploads();
+      expect(result).toMatchObject({
+        listed: 1,
+        considered: 0,
+        protected: 1,
+        deleted: 0,
+        failed: 0,
+      });
+      expect(finalDelete).not.toHaveBeenCalled();
+    } finally {
+      list.mockRestore();
+    }
+  });
+
+  it("leaves old objects this database never registered untouched", async () => {
+    // Uploads issued by another environment (or before the registry existed)
+    // have no pending_uploads row here; "no reference here" proves nothing.
+    const profilePath = `/objects/uploads/profiles/${randomUUID()}/${randomUUID()}`;
+    const chatPath = `/objects/uploads/global/chat/${randomUUID()}/${randomUUID()}`;
+    const profileDelete = vi.fn();
+    const chatDelete = vi.fn();
+    const list = vi.spyOn(ObjectStorageService.prototype, "listObjectEntityFiles")
+      .mockResolvedValue([
+        listedFile(profilePath, profileDelete),
+        listedFile(chatPath, chatDelete),
+      ] as never);
+    try {
+      const result = await cleanupAbandonedChatAndProfileUploads();
+      expect(result).toMatchObject({
+        listed: 2,
+        considered: 2,
+        unregistered: 2,
+        deleted: 0,
+        failed: 0,
+      });
+      expect(profileDelete).not.toHaveBeenCalled();
+      expect(chatDelete).not.toHaveBeenCalled();
     } finally {
       list.mockRestore();
     }
@@ -119,7 +178,6 @@ describe.sequential("Chat/Profile abandoned upload cleanup", () => {
       objectPath: chatPath,
       clientRequestId: `pending-upload-${suffix}`,
     }).returning();
-    await registerPendingUpload({ objectPath: profilePath, ownerUserId: userId, purpose: "profile" });
     await registerPendingUpload({ objectPath: chatPath, ownerUserId: userId, purpose: "chat" });
     const list = vi.spyOn(ObjectStorageService.prototype, "listObjectEntityFiles")
       .mockResolvedValue([
@@ -128,7 +186,7 @@ describe.sequential("Chat/Profile abandoned upload cleanup", () => {
       ] as never);
     try {
       const result = await cleanupAbandonedChatAndProfileUploads();
-      expect(result).toMatchObject({ retained: 2, deleted: 0, failed: 0 });
+      expect(result).toMatchObject({ protected: 1, retained: 1, deleted: 0, failed: 0 });
       expect(profileDelete).not.toHaveBeenCalled();
       expect(chatDelete).not.toHaveBeenCalled();
       const claims = await db.select().from(pendingUploadsTable).where(
@@ -249,6 +307,7 @@ describe.sequential("Chat/Profile abandoned upload cleanup", () => {
     const deleteFile = vi.fn()
       .mockRejectedValueOnce(new Error("temporary storage failure"))
       .mockResolvedValueOnce([]);
+    await registerPendingUpload({ objectPath, ownerUserId: userId, purpose: "profile" });
     const list = vi.spyOn(ObjectStorageService.prototype, "listObjectEntityFiles")
       .mockResolvedValue([listedFile(objectPath, deleteFile)] as never);
     try {

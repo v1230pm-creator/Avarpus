@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   errorText: {
-    fontSize: 12,
+    fontSize: 13,
     lineHeight: 18,
     width: '100%',
   },

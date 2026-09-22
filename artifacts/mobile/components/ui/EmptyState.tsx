@@ -3,6 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
+import { font } from '@/constants/typography';
+import { space } from '@/constants/spacing';
 
 interface EmptyStateProps {
   icon: keyof typeof Feather.glyphMap;
@@ -29,20 +31,20 @@ export function EmptyState({ icon, title, description, actionLabel, onAction }: 
       >
         <Feather name={icon} size={32} color={colors.primary} />
       </View>
-      <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{title}</Text>
+      <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
       {description && (
-        <Text style={[styles.desc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{description}</Text>
+        <Text style={[styles.desc, { color: colors.mutedForeground }]}>{description}</Text>
       )}
       {actionLabel && onAction && (
-        <Button title={actionLabel} onPress={onAction} variant="primary" size="sm" style={{ marginTop: 8 }} />
+        <Button title={actionLabel} onPress={onAction} variant="primary" size="sm" style={{ marginTop: space.sm }} />
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40, paddingVertical: 60 },
-  iconWrap: { width: 80, height: 80, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  title: { fontSize: 18, textAlign: 'center' },
-  desc: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md, paddingHorizontal: space.xxxl + space.sm, paddingVertical: 60 },
+  iconWrap: { width: 88, height: 88, alignItems: 'center', justifyContent: 'center', marginBottom: space.xs },
+  title: { ...font.heading, textAlign: 'center' },
+  desc: { ...font.body, textAlign: 'center' },
 });

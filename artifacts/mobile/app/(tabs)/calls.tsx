@@ -3,6 +3,8 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
+import { font } from '@/constants/typography';
+import { layout, radius, space } from '@/constants/spacing';
 
 export default function CallsScreen() {
   const colors = useColors();
@@ -10,7 +12,7 @@ export default function CallsScreen() {
   const topPadding = Platform.OS === 'web' ? insets.top + 67 : insets.top;
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPadding + 16, borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { paddingTop: topPadding + space.lg, backgroundColor: colors.background }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Calls</Text>
       </View>
       <View style={styles.empty}>
@@ -28,10 +30,10 @@ export default function CallsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { minHeight: 60, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
-  title: { fontSize: 22, fontFamily: 'Inter_700Bold' },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
-  icon: { width: 80, height: 80, borderRadius: 40, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  emptyTitle: { fontSize: 20, fontFamily: 'Inter_600SemiBold', marginBottom: 8 },
-  emptyText: { fontSize: 14, lineHeight: 22, textAlign: 'center', maxWidth: 300, fontFamily: 'Inter_400Regular' },
+  header: { minHeight: 60, paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
+  title: { ...font.display },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xxxl },
+  icon: { width: 80, height: 80, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center', marginBottom: space.xl },
+  emptyTitle: { ...font.heading, marginBottom: space.sm },
+  emptyText: { ...font.body, textAlign: 'center', maxWidth: 300 },
 });

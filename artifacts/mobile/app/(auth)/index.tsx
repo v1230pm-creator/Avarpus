@@ -17,6 +17,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { onBlue } from '@/constants/brand';
+import { font, fontFamily } from '@/constants/typography';
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -153,16 +154,16 @@ const styles = StyleSheet.create({
   logo: { width: '100%', height: '100%' },
   titleGroup: { alignItems: 'center' },
   detailsGroup: { alignItems: 'center' },
-  eyebrow: { fontSize: 10, fontFamily: 'Inter_600SemiBold', letterSpacing: 2.4, marginTop: 20 },
-  welcome: { fontSize: 17, fontFamily: 'Inter_500Medium', letterSpacing: 0.2, marginBottom: 2 },
-  brand: { fontSize: 32, fontFamily: 'Inter_600SemiBold', letterSpacing: 2.2, textAlign: 'center' },
+  eyebrow: { ...font.overline, letterSpacing: 2.4, marginTop: 20 },
+  welcome: { ...font.bodyStrong, letterSpacing: 0.2, marginBottom: 2 },
+  brand: { ...font.display, fontFamily: fontFamily.semibold, letterSpacing: 2.2, textAlign: 'center' },
   taglineRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
   taglineLine: { width: 28, height: 1 },
-  tagline: { fontSize: 11.5, fontFamily: 'Inter_500Medium', letterSpacing: 0.8 },
+  tagline: { ...font.smallStrong, letterSpacing: 0.8 },
   bottomBlock: { width: '100%', alignItems: 'center' },
   buttonArea: { width: '100%', height: 64, paddingHorizontal: 5, paddingBottom: 10 },
   primaryButton: { borderRadius: 28, minHeight: 54, maxHeight: 54 },
   termsWrapper: { marginTop: 24, alignItems: 'center' },
-  termsText: { fontSize: 12.5, fontFamily: 'Inter_500Medium', textAlign: 'center', lineHeight: 19 },
-  termsLink: { color: '#FFFFFF', fontFamily: 'Inter_600SemiBold', textDecorationLine: 'underline' },
+  termsText: { ...font.smallStrong, textAlign: 'center' },
+  termsLink: { color: '#FFFFFF', fontFamily: fontFamily.semibold, textDecorationLine: 'underline' },
 });

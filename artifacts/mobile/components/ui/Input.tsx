@@ -3,6 +3,8 @@ import { StyleProp, StyleSheet, Text, TextInput, TextInputProps, TouchableOpacit
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { onBlue } from '@/constants/brand';
+import { font, fontFamily } from '@/constants/typography';
+import { radius, size, space } from '@/constants/spacing';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -28,7 +30,7 @@ const DARK = {
   mutedForeground: '#7F8BA3',
   destructive: '#F87171',
   text: '#F5F7FA',
-  radius: 14,
+  radius: radius.md,
 };
 
 export function Input({
@@ -58,7 +60,7 @@ export function Input({
   return (
     <View style={[styles.container, containerStyle]}>
       {label && (
-        <Text style={[styles.label, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>
+        <Text style={[styles.label, { color: colors.foreground }]}>
           {label}
         </Text>
       )}
@@ -66,20 +68,19 @@ export function Input({
         backgroundColor: colors.input,
         borderColor,
         borderWidth: 1.5,
-        borderRadius: colors.radius - 2,
+        borderRadius: colors.radius,
       }, inputContainerStyle]}>
         {leftIcon && (
-          <Feather name={leftIcon} size={18} color={focused ? colors.primary : colors.mutedForeground} style={styles.leftIcon} />
+          <Feather name={leftIcon} size={size.inlineIcon} color={focused ? colors.primary : colors.mutedForeground} style={styles.leftIcon} />
         )}
         {!!leftText && !leftIcon && (
-          <Text style={[styles.leftIcon, { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: focused ? colors.primary : colors.mutedForeground }]}>{leftText}</Text>
+          <Text style={[styles.leftIcon, styles.leftText, { color: focused ? colors.primary : colors.mutedForeground }]}>{leftText}</Text>
         )}
         <TextInput
           style={[styles.input, {
             color: colors.text,
-            fontFamily: 'Inter_400Regular',
-            paddingLeft: (leftIcon || leftText) ? 0 : 14,
-            paddingRight: (isPassword || rightIcon) ? 0 : 14,
+            paddingLeft: (leftIcon || leftText) ? 0 : space.lg,
+            paddingRight: (isPassword || rightIcon) ? 0 : space.lg,
           }]}
           placeholderTextColor={colors.mutedForeground}
           onFocus={() => setFocused(true)}
@@ -89,7 +90,7 @@ export function Input({
         />
         {isPassword && (
           <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.rightIcon}>
-            <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color={colors.mutedForeground} />
+            <Feather name={showPassword ? 'eye-off' : 'eye'} size={size.inlineIcon} color={colors.mutedForeground} />
           </TouchableOpacity>
         )}
         {rightIcon && !isPassword && (
@@ -98,7 +99,7 @@ export function Input({
             style={styles.rightIcon}
             accessibilityLabel={rightIconAccessibilityLabel}
           >
-            <Feather name={rightIcon} size={18} color={colors.mutedForeground} />
+            <Feather name={rightIcon} size={size.inlineIcon} color={colors.mutedForeground} />
           </TouchableOpacity>
         )}
       </View>
@@ -110,11 +111,12 @@ export function Input({
 }
 
 const styles = StyleSheet.create({
-  container: { gap: 7, width: '100%' },
-  label: { fontSize: 12, lineHeight: 16, letterSpacing: 0.1 },
-  row: { minHeight: 52, flexDirection: 'row', alignItems: 'center' },
-  leftIcon: { width: 42, textAlign: 'center' },
-  rightIcon: { width: 44, height: 52, alignItems: 'center', justifyContent: 'center' },
-  input: { flex: 1, height: 50, minWidth: 0, fontSize: 15, lineHeight: 20, paddingVertical: 0 },
-  error: { fontSize: 12, lineHeight: 16, marginTop: -1 },
+  container: { gap: space.sm, width: '100%' },
+  label: font.captionStrong,
+  row: { minHeight: size.input, flexDirection: 'row', alignItems: 'center' },
+  leftIcon: { width: 48, textAlign: 'center' },
+  leftText: { ...font.bodyStrong, fontFamily: fontFamily.semibold },
+  rightIcon: { width: size.iconButton, height: size.input, alignItems: 'center', justifyContent: 'center' },
+  input: { flex: 1, height: size.input - 2, minWidth: 0, ...font.input, paddingVertical: 0 },
+  error: { ...font.small, marginTop: -2 },
 });

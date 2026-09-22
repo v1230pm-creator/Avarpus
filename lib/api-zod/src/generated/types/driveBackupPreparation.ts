@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DriveBackupMediaSummary } from './driveBackupMediaSummary';
 
 export interface DriveBackupPreparation {
   archiveBase64: string;
@@ -16,4 +17,5 @@ export interface DriveBackupPreparation {
   uploadLeaseToken: string;
   /** @nullable */
   encryptionSalt: string | null;
+  media: DriveBackupMediaSummary;
 }

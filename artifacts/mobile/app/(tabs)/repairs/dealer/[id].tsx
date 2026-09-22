@@ -28,6 +28,8 @@ import {
   useRepairsList,
   getRepairsListQueryKey,
 } from '@workspace/api-client-react';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 const STATUS_FILTERS = ['All', 'Received', 'Repair', 'Ready', 'Delivered'] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number];
@@ -39,8 +41,8 @@ function StatCard({ label, value, color, icon }: { label: string; value: string;
       <View style={[styles.statIcon, { backgroundColor: color + '18' }]}>
         <Feather name={icon} size={14} color={color} />
       </View>
-      <Text style={[styles.statValue, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>{value}</Text>
-      <Text style={[styles.statLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>{label}</Text>
+      <Text style={[styles.statValue, { color: colors.foreground }]} numberOfLines={1}>{value}</Text>
+      <Text style={[styles.statLabel, { color: colors.mutedForeground }]} numberOfLines={1}>{label}</Text>
     </FlatCard>
   );
 }
@@ -112,41 +114,41 @@ export default function DealerProfileScreen() {
   const header = useMemo(() => (
     <View style={{ gap: 10 }}>
       {dealer && (
-        <FlatCard style={{ padding: 12, gap: 8 }}>
+        <FlatCard style={{ padding: space.xl, gap: space.sm }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={[styles.avatar, { backgroundColor: colors.primary + '18' }]}>
               <Feather name="briefcase" size={16} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 16, color: colors.foreground, fontFamily: 'Inter_700Bold' }}>{dealer.name}</Text>
+              <Text style={{ ...font.itemTitle, color: colors.foreground }}>{dealer.name}</Text>
               {!!dealer.shopName && (
-                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{dealer.shopName}</Text>
+                <Text style={{ ...font.captionStrong, color: colors.mutedForeground }}>{dealer.shopName}</Text>
               )}
             </View>
             <View style={[styles.codeBadge, { backgroundColor: colors.primary + '15' }]}>
-              <Text style={{ fontSize: 10, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{dealer.dealerCode}</Text>
+              <Text style={{ ...font.smallStrong, color: colors.primary }}>{dealer.dealerCode}</Text>
             </View>
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Feather name="phone" size={10} color={colors.mutedForeground} />
-              <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{dealer.mobile}</Text>
+              <Text style={{ ...font.caption, color: colors.mutedForeground }}>{dealer.mobile}</Text>
             </View>
             {!!dealer.location && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Feather name="map-pin" size={10} color={colors.mutedForeground} />
-                <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{dealer.location}</Text>
+                <Text style={{ ...font.caption, color: colors.mutedForeground }}>{dealer.location}</Text>
               </View>
             )}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Feather name="calendar" size={10} color={colors.mutedForeground} />
-              <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Since {formatDate(dealer.createdAt)}</Text>
+              <Text style={{ ...font.caption, color: colors.mutedForeground }}>Since {formatDate(dealer.createdAt)}</Text>
             </View>
           </View>
           {!isDealerPortalRole(user?.role) && (
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 8, width: '100%' }}>
               <TouchableOpacity
-                style={{ flex: 1, backgroundColor: colors.primary, paddingVertical: 10, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                style={{ flex: 1, backgroundColor: colors.primary, paddingVertical: space.md, borderRadius: radius.sm, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: space.sm }}
                 onPress={() =>
                   router.push(
                     `/(tabs)/customers/chat/${dealer.id}?targetId=${dealer.id}&type=dealer&name=${encodeURIComponent(dealer.name)}`,
@@ -154,17 +156,17 @@ export default function DealerProfileScreen() {
                 }
                 activeOpacity={0.8}
               >
-                <Feather name="message-square" size={14} color="#FFFFFF" />
-                <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 13 }}>Message</Text>
+                <Feather name="message-square" size={size.inlineIcon} color={colors.primaryForeground} />
+                 <Text style={{ ...font.button, color: colors.primaryForeground }}>Message</Text>
               </TouchableOpacity>
               {canAccess('payments') && (
                 <TouchableOpacity
-                  style={{ flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, paddingVertical: 10, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                  style={{ flex: 1, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingVertical: space.md, borderRadius: radius.sm, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: space.sm }}
                   onPress={() => router.push(`/(tabs)/khata/party/dealer/${dealer.id}?name=${encodeURIComponent(dealer.name)}`)}
                   activeOpacity={0.8}
                 >
                   <Feather name="book" size={14} color={colors.foreground} />
-                  <Text style={{ color: colors.foreground, fontWeight: '600', fontSize: 13 }}>Khata</Text>
+                   <Text style={{ ...font.button, color: colors.foreground }}>Khata</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -195,7 +197,7 @@ export default function DealerProfileScreen() {
           onChangeText={setSearch}
           placeholder="Search this dealer's repairs..."
           placeholderTextColor={colors.mutedForeground}
-          style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+          style={[styles.searchInput, { color: colors.foreground }]}
         />
         {!!search && (
           <TouchableOpacity onPress={() => setSearch('')}>
@@ -217,7 +219,7 @@ export default function DealerProfileScreen() {
                 borderColor: active ? colors.primary : 'transparent',
               }]}
             >
-              <Text style={{ fontSize: 13, color: active ? '#FFFFFF' : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium' }}>{f}</Text>
+              <Text style={{ ...font.captionStrong, color: active ? colors.primaryForeground : colors.mutedForeground, fontFamily: active ? fontFamily.semibold : fontFamily.medium }}>{f}</Text>
             </TouchableOpacity>
           );
         })}
@@ -246,13 +248,13 @@ export default function DealerProfileScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
 
-      <View style={[styles.header, { paddingTop: topPad + 14 }]}>
+      <View style={[styles.header, { paddingTop: topPad + layout.rowPaddingVertical }]}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}>
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Dealer Profile</Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Dealer Profile</Text>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
             {repairsData?.total ?? 0} repairs
           </Text>
         </View>
@@ -262,7 +264,7 @@ export default function DealerProfileScreen() {
       <FlatList
         data={accumulated}
         keyExtractor={(r) => r.id}
-        contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 100, gap: 10 }}
+        contentContainerStyle={{ paddingHorizontal: layout.screenPadding, paddingBottom: size.tabBar + space.xxl, gap: space.md }}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={header}
         refreshControl={<RefreshControl refreshing={repairsLoading && page === 1} onRefresh={onRefresh} tintColor={colors.primary} />}
@@ -291,26 +293,26 @@ export default function DealerProfileScreen() {
           const balance = Math.max(0, total - item.advance);
           return (
             <TouchableOpacity onPress={() => router.push(`/(tabs)/repairs/${item.id}`)} activeOpacity={0.8}>
-              <FlatCard style={{ padding: 12, gap: 6 }}>
+              <FlatCard style={{ padding: space.xl, gap: space.sm }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <View style={[styles.codeBadge, { backgroundColor: colors.primary + '15' }]}>
-                    <Text style={{ fontSize: 10, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{item.repairId}</Text>
+                    <Text style={{ ...font.smallStrong, color: colors.primary }}>{item.repairId}</Text>
                   </View>
                   <PriorityBadge priority={item.priority} />
                   <RepairStatusBadge status={item.status} />
                 </View>
-                <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{item.customerName}</Text>
-                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+                <Text style={{ ...font.itemTitle, color: colors.foreground }}>{item.customerName}</Text>
+                <Text style={{ ...font.body, color: colors.mutedForeground }}>
                   {item.deviceType} · {item.brand} {item.model}
                 </Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 11, color: colors.mutedForeground }}>
+                  <Text style={{ ...font.caption, color: colors.mutedForeground }}>
                     Total: {formatCurrency(total)}{balance > 0 ? '' : ' · Paid'}
                   </Text>
-                  <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{formatDate(item.createdAt)}</Text>
+                  <Text style={{ ...font.caption, color: colors.mutedForeground }}>{formatDate(item.createdAt)}</Text>
                 </View>
                 {balance > 0 && (
-                  <Text style={{ fontSize: 11, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>Pending: {formatCurrency(balance)}</Text>
+                  <Text style={{ ...font.captionStrong, color: colors.warning }}>Pending: {formatCurrency(balance)}</Text>
                 )}
               </FlatCard>
             </TouchableOpacity>
@@ -323,18 +325,18 @@ export default function DealerProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 10, gap: 6 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20 },
-  headerSub: { fontSize: 12 },
-  avatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  codeBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  headerSub: { ...font.caption },
+  avatar: { width: size.avatar, height: size.avatar, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
+  codeBadge: { paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.sm },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   statCard: { width: '48%', flexGrow: 1, padding: 10, gap: 4 },
   statIcon: { width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  statValue: { fontSize: 14 },
-  statLabel: { fontSize: 10 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 },
-  searchInput: { flex: 1, height: 40, fontSize: 13 },
-  filterTab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
+  statValue: { ...font.bodyStrong },
+  statLabel: { ...font.small },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, borderRadius: size.searchRadius },
+  searchInput: { flex: 1, height: size.searchField, ...font.search },
+  filterTab: { paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
 });

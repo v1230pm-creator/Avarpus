@@ -72,7 +72,15 @@ const mockUseChatRoomsList = jest.fn();
 const mockUseChatMessagesSend = jest.fn();
 const mockUseChatRoomsCreate = jest.fn();
 const mockUseChatContactsMatch = jest.fn();
+const mockUseChatUploadUrl = jest.fn();
 const mockInvalidateQueries = jest.fn().mockResolvedValue(undefined);
+const mockGetInfoAsync = jest.fn();
+const mockUploadAsync = jest.fn();
+jest.mock('expo-file-system/legacy', () => ({
+  getInfoAsync: (...args: any[]) => mockGetInfoAsync(...args),
+  uploadAsync: (...args: any[]) => mockUploadAsync(...args),
+  FileSystemUploadType: { BINARY_CONTENT: 'binary' },
+}));
 
 jest.mock('@workspace/api-client-react', () => ({
   useChatMessagesList: (...args: any[]) => mockUseChatMessagesList(...args),
@@ -80,6 +88,7 @@ jest.mock('@workspace/api-client-react', () => ({
   useChatMessagesSend: (...args: any[]) => mockUseChatMessagesSend(...args),
   useChatRoomsCreate: (...args: any[]) => mockUseChatRoomsCreate(...args),
   useChatContactsMatch: (...args: any[]) => mockUseChatContactsMatch(...args),
+  useChatUploadUrl: (...args: any[]) => mockUseChatUploadUrl(...args),
   getChatRoomsListQueryKey: () => ['/api/chat/rooms'],
   getChatRoomsGetQueryKey: (roomId: string) => [`/api/chat/rooms/${roomId}`],
   getChatMessagesListQueryKey: (roomId: string) => [`/api/chat/rooms/${roomId}/messages`],
@@ -103,6 +112,7 @@ const rooms = [
 let sendAsync: jest.Mock;
 let createAsync: jest.Mock;
 let matchAsync: jest.Mock;
+let uploadUrlAsync: jest.Mock;
 let router: { push: jest.Mock; back: jest.Mock; replace: jest.Mock };
 
 beforeEach(() => {
@@ -118,6 +128,10 @@ beforeEach(() => {
   mockUseChatMessagesSend.mockReturnValue({ mutateAsync: sendAsync, isPending: false });
   mockUseChatRoomsCreate.mockReturnValue({ mutateAsync: createAsync, isPending: false });
   mockUseChatContactsMatch.mockReturnValue({ mutateAsync: matchAsync });
+  uploadUrlAsync = jest.fn().mockResolvedValue({ uploadURL: 'https://upload.example/put', objectPath: '/objects/uploads/global/chat/room-2/fresh' });
+  mockUseChatUploadUrl.mockReturnValue({ mutateAsync: uploadUrlAsync, isPending: false });
+  mockGetInfoAsync.mockResolvedValue({ exists: true, size: 4096, uri: 'file:///media/IMG.jpg', isDirectory: false });
+  mockUploadAsync.mockResolvedValue({ status: 200, headers: {}, body: '' });
   mockGetContactsPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
   mockGetContactsAsync.mockResolvedValue({ data: [] });
 });
@@ -222,6 +236,44 @@ describe('Forward screen', () => {
     await waitFor(() => expect(sendAsync).toHaveBeenCalledTimes(2));
     expect(createAsync).not.toHaveBeenCalled();
     expect(sendAsync.mock.calls[0][0].roomId).toBe('room-1');
+  });
+
+  it('re-uploads the local copy when the relay copy of a forwarded photo is gone', async () => {
+    const purged = { ...photo, mediaState: 'purged', localMediaPath: 'file:///media/IMG.jpg', mimeType: 'image/jpeg', objectPath: '/objects/uploads/global/chat/room-1/old' };
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ roomId: 'room-1', messageIds: 'msg-photo' });
+    mockUseChatMessagesList.mockReturnValue({ data: { messages: [purged], hasMore: false } });
+    render(<ForwardScreen />);
+    fireEvent.press(screen.getByTestId('forward-target-room:room-2'));
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('forward-send'));
+    });
+    await waitFor(() => expect(sendAsync).toHaveBeenCalledTimes(1));
+    expect(uploadUrlAsync).toHaveBeenCalledWith({ roomId: 'room-2', data: { name: 'IMG.jpg', size: 4096, contentType: 'image/jpeg' } });
+    expect(mockUploadAsync).toHaveBeenCalledWith('https://upload.example/put', 'file:///media/IMG.jpg', expect.objectContaining({ httpMethod: 'PUT' }));
+    expect(sendAsync.mock.calls[0][0].data).toEqual(expect.objectContaining({
+      kind: 'image',
+      forwardOf: { roomId: 'room-1', messageId: 'msg-photo' },
+      objectPath: '/objects/uploads/global/chat/room-2/fresh',
+    }));
+    expect(router.replace).toHaveBeenCalledWith('/(tabs)/customers/chat/room-2?name=Bob%20Repairs');
+  });
+
+  it('refuses to forward purged media this phone never stored, without uploading anything', async () => {
+    const { Alert } = require('react-native');
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const purged = { ...photo, mediaState: 'expired', objectPath: '/objects/uploads/global/chat/room-1/old' };
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ roomId: 'room-1', messageIds: 'msg-photo' });
+    mockUseChatMessagesList.mockReturnValue({ data: { messages: [purged], hasMore: false } });
+    render(<ForwardScreen />);
+    fireEvent.press(screen.getByTestId('forward-target-room:room-2'));
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('forward-send'));
+    });
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('Some forwards failed', expect.stringContaining('never saved on this phone')));
+    expect(uploadUrlAsync).not.toHaveBeenCalled();
+    expect(sendAsync).not.toHaveBeenCalled();
+    expect(router.back).not.toHaveBeenCalled();
+    alertSpy.mockRestore();
   });
 
   it('reports per-recipient failures without dropping the successful ones', async () => {

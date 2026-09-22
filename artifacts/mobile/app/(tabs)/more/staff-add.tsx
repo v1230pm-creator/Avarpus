@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { useColors } from '@/hooks/useColors';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
+import { font, fontFamily } from '@/constants/typography';
 
 // Roles an owner can assign. "owner" invites a co-owner (partner, brother,
 // second proprietor) with the same full access; super_admin can never be
@@ -130,8 +131,8 @@ export default function AddStaffScreen() {
           <Feather name="arrow-left" size={20} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Add Staff</Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Connect an existing Avarpus account</Text>
+          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Add Staff</Text>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>Connect an existing Avarpus account</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -142,7 +143,7 @@ export default function AddStaffScreen() {
           showsVerticalScrollIndicator={false}
         >
           <FadeInView animValue={anims[0]} style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>ROLE & PERMISSIONS</Text>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: fontFamily.semibold }]}>ROLE & PERMISSIONS</Text>
           <View style={styles.roleGrid}>
             {STAFF_ROLES.map((r) => {
               const active = role === r;
@@ -161,10 +162,10 @@ export default function AddStaffScreen() {
                   activeOpacity={0.8}
                 >
                   <Feather name={ROLE_ICONS[r]} size={18} color={active ? colors.primary : colors.mutedForeground} />
-                  <Text style={[styles.roleName, { color: active ? colors.primary : colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                  <Text style={[styles.roleName, { color: active ? colors.primary : colors.foreground, fontFamily: fontFamily.semibold }]}>
                     {ROLE_LABELS[r] ?? r}
                   </Text>
-                  <Text style={[styles.roleHint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  <Text style={[styles.roleHint, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                     {ROLE_PERMISSION_HINTS[r]}
                   </Text>
                 </TouchableOpacity>
@@ -174,12 +175,12 @@ export default function AddStaffScreen() {
 
           {isPortalRole && (
             <View style={{ gap: 8 }}>
-              <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>LINK TO DEALER</Text>
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: fontFamily.semibold }]}>LINK TO DEALER</Text>
               {errors.dealer ? (
-                <Text style={{ fontSize: 12, color: colors.destructive, fontFamily: 'Inter_500Medium' }}>{errors.dealer}</Text>
+                <Text style={{ ...font.captionStrong, color: colors.destructive }}>{errors.dealer}</Text>
               ) : null}
               {(dealersData?.dealers || []).length === 0 ? (
-                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+                <Text style={{ ...font.caption, color: colors.mutedForeground }}>
                   No dealers yet — add a dealer first from Repairs → Dealers.
                 </Text>
               ) : (
@@ -196,10 +197,10 @@ export default function AddStaffScreen() {
                         borderColor: active ? colors.primary : colors.primary + '18',
                       }}
                     >
-                      <Text style={{ fontSize: 11, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{d.dealerCode}</Text>
+                      <Text style={{ ...font.captionStrong, color: colors.primary }}>{d.dealerCode}</Text>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{d.name}</Text>
-                        {!!d.shopName && <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{d.shopName}</Text>}
+                        <Text style={{ ...font.bodyStrong, color: colors.foreground }}>{d.name}</Text>
+                        {!!d.shopName && <Text style={{ ...font.caption, color: colors.mutedForeground }}>{d.shopName}</Text>}
                       </View>
                       {active && <Feather name="check" size={16} color={colors.primary} />}
                     </TouchableOpacity>
@@ -211,7 +212,7 @@ export default function AddStaffScreen() {
           </FadeInView>
 
           <FadeInView animValue={anims[1]} style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>DETAILS</Text>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: fontFamily.semibold }]}>DETAILS</Text>
           <View style={{ gap: 8 }}>
             {isPortalRole && <>
               <Input label="Full Name" value={name} onChangeText={setName}
@@ -232,7 +233,7 @@ export default function AddStaffScreen() {
           <FadeInView animValue={anims[2]} style={styles.section}>
           <View style={[styles.infoBox, { backgroundColor: colors.primary + '0F', borderColor: colors.primary + '22', borderRadius: 16 }]}>
             <Feather name="info" size={14} color={colors.primary} />
-            <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               {isPortalRole
                 ? 'This creates a restricted B2B dealer portal login.'
                 : role === 'owner'
@@ -242,7 +243,7 @@ export default function AddStaffScreen() {
           </View>
 
           {errors.form ? (
-            <Text accessibilityRole="alert" style={{ fontSize: 13, color: colors.destructive, fontFamily: 'Inter_500Medium' }}>{errors.form}</Text>
+            <Text accessibilityRole="alert" style={{ ...font.captionStrong, color: colors.destructive }}>{errors.form}</Text>
           ) : null}
           <Button
             title={isPortalRole ? 'Create Portal Account' : role === 'owner' ? 'Create Co-owner Invitation' : 'Create Staff Invitation'}
@@ -265,11 +266,11 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: 13 },
   scroll: { padding: 12, gap: 8 },
   section: { gap: 8 },
-  sectionLabel: { fontSize: 11, letterSpacing: 1, marginTop: 4 },
+  sectionLabel: { ...font.overline, marginTop: 4 },
   roleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   roleCard: { width: '48%', flexGrow: 1, borderWidth: 1.5, padding: 12, gap: 6 },
   roleName: { fontSize: 13 },
-  roleHint: { fontSize: 11, lineHeight: 15 },
+  roleHint: { ...font.caption },
   infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, padding: 12 },
-  infoText: { fontSize: 12, flex: 1, lineHeight: 18 },
+  infoText: { ...font.caption, flex: 1 },
 });

@@ -24,6 +24,8 @@ import { groupLedgerByParty, type KhataPartyType } from '@/utils/khata-ledger';
 import { CustomerFormSheet } from '@/components/forms/CustomerFormSheet';
 import { useDealerTransactionsLedger, type DealerLedgerParty } from '@workspace/api-client-react';
 import { dealerBalanceLabel } from '@/utils/dealer-ledger';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 type FilterState = 'all' | KhataPartyType | 'supplier' | 'due' | 'today';
 
@@ -270,7 +272,7 @@ function FullKhataOverviewScreen() {
               onChangeText={setSearch}
               placeholder="Search customer or supplier..."
               placeholderTextColor={colors.mutedForeground}
-              style={{ flex: 1, color: colors.foreground, fontFamily: 'Inter_400Regular' }}
+              style={{ flex: 1, color: colors.foreground, fontFamily: fontFamily.regular }}
               autoFocus
             />
             {!!search && (
@@ -325,7 +327,7 @@ function FullKhataOverviewScreen() {
                 onPress={() => setFilter(value)}
                 style={[styles.filterChip, { backgroundColor: active ? colors.primary + '15' : colors.card, borderColor: active ? colors.primary : colors.border }]}
               >
-                <Text style={{ color: active ? colors.primary : colors.mutedForeground, fontSize: 13, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium' }}>
+                <Text style={{ color: active ? colors.primary : colors.mutedForeground, ...font.label, fontFamily: active ? fontFamily.semibold : fontFamily.medium }}>
                   {labels[value]}
                 </Text>
               </TouchableOpacity>
@@ -431,10 +433,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
-  headerTitle: { fontSize: 20, fontFamily: 'Inter_700Bold' },
-  headerSubtitle: { fontSize: 13, fontFamily: 'Inter_500Medium', marginTop: 2 },
+  headerTitle: { ...font.title },
+  headerSubtitle: { ...font.caption, marginTop: space.xs },
   scroll: { paddingBottom: 100 },
-  sectionTitle: { fontSize: 13, fontFamily: 'Inter_600SemiBold', marginBottom: 12, marginHorizontal: 16 },
+  sectionTitle: { ...font.heading, marginBottom: space.md, marginHorizontal: layout.screenPadding },
 
   netBalanceCard: {
     marginHorizontal: 16,
@@ -457,37 +459,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  netBalanceLabel: { fontSize: 12, fontFamily: 'Inter_500Medium' },
-  netBalanceValue: { fontSize: 20, fontFamily: 'Inter_700Bold' },
-  netBalanceHint: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: -4 },
+  netBalanceLabel: { ...font.captionStrong },
+  netBalanceValue: { ...font.heading },
+  netBalanceHint: { ...font.caption, marginTop: -space.xs },
   netBalanceDivider: { width: 1, height: '100%' },
 
   partyList: { paddingHorizontal: 16, paddingBottom: 24 },
   partyRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    gap: 12,
+    paddingVertical: layout.rowPaddingVertical,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: layout.avatarGap,
   },
   partyInfo: { flex: 1, justifyContent: 'center' },
-  partyName: { fontSize: 15, fontFamily: 'Inter_600SemiBold', marginBottom: 2 },
-  partyDate: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  partyName: { ...font.itemTitle, marginBottom: space.xs },
+  partyDate: { ...font.caption },
   partyAmountBox: { alignItems: 'flex-end', justifyContent: 'center' },
-  partyAmount: { fontSize: 15, fontFamily: 'Inter_700Bold', marginBottom: 2 },
-  partyDueLabel: { fontSize: 11, fontFamily: 'Inter_500Medium' },
+  partyAmount: { ...font.bodyStrong, marginBottom: space.xs },
+  partyDueLabel: { ...font.captionStrong },
 
-  emptyText: { fontSize: 14, textAlign: 'center', marginTop: 40, fontFamily: 'Inter_500Medium' },
+  emptyText: { ...font.body, textAlign: 'center', marginTop: 40 },
   
   fab: {
     position: 'absolute',
-    right: 16,
+    right: layout.screenPadding,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 28,
+    width: size.fab,
+    height: size.fab,
+    borderRadius: size.fabRadius,
+    justifyContent: 'center',
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -496,8 +501,7 @@ const styles = StyleSheet.create({
   },
   fabText: {
     color: '#fff',
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
+    ...font.button,
   },
 
   repairHubRow: {
@@ -516,6 +520,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  repairHubLabel: { flex: 1, fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  repairHubValue: { fontSize: 13, fontFamily: 'Inter_700Bold' },
+  repairHubLabel: { flex: 1, ...font.bodyStrong },
+  repairHubValue: { ...font.captionStrong },
 });

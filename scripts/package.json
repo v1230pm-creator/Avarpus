@@ -6,6 +6,7 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "validate:brand-assets": "node ./src/validate-brand-assets.mjs",
+    "validate:test-registration": "node ./src/check-test-registration.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

@@ -2,6 +2,7 @@
 - [Database schema ownership](drizzle-journal-drift.md) — API startup must not run migrations; development schema push and Replit Publish own schema application.
 - [App lock enforcement](app-lock.md) — opt-in biometric/device-credential lock; inactivity may relock but must never sign out an unlocked account.
 - [Lock-state mutations](lock-state-mutations.md) — settings toggles require OS authentication and must re-read persisted state after write failures.
+- [Stale Expo typed routes](expo-typed-routes-stale.md) — mobile typecheck TS2345 on an existing route = stale git-ignored `.expo/types/router.d.ts`; run `expo customize tsconfig.json`, not a code fix.
 - [Stale api-client d.ts](api-client-dist-types.md) — mobile typecheck reads lib types from dist declarations; rebuild them after changing lib exports or you get phantom TS2305 errors.
 - [Role naming](role-naming.md) — the privileged role is `super_admin` everywhere; introducing an `admin` role breaks client permissions/labels.
 - [Registration & staff model](registration-model.md) — public signup is dealer-only (server-forced); staff only via RBAC /staff endpoints; demo seeding off by default.
@@ -14,7 +15,7 @@
 - [Returns & refunds](returns-refunds.md) — return cases have a strict server state machine; refunds are separate rows with a cumulative repair-level cap; closed cases frozen; FOR UPDATE + conditional claims everywhere.
 - [Expo package version pinning](expo-package-versions.md) — plain pnpm add grabs SDK-incompatible expo-* majors that crash at runtime; always npx expo install.
 - [Mobile Jest setup quirks](mobile-jest-setup.md) — pnpm-aware transformIgnorePatterns, global fake timers to avoid hangs, mock at API-client boundary not context.
-- [API validation steps](api-validation-steps.md) — api-server test scripts must run via run-isolated.mjs (private per-run build dir); shared dist/ gets clobbered by any concurrent build. Toast assertions scope to the Notifications region.
+- [API validation steps](api-validation-steps.md) — spawn scripts: one run-isolated.mjs step each; one no-file-list `api-vitest` step (api lock, then heavy lock, CI=1); supertest via shared-port alias.
 - [brace-expansion override scoping](brace-expansion-override.md) — blanket CVE overrides of deep deps break RN codegen; scope per major; codegen CLI reproduces EAS failures locally.
 - [Android APK builds](android-apk-builds.md) — APK only via expo.dev GitHub builds (base dir artifacts/mobile); pnpm/Node/image pins in eas.json are load-bearing; user holds the keystore.
 - [Android focus loss fix](android-focus-collapsable.md) — focus-styled input wrappers need collapsable={false} or Android view flattening blurs the TextInput and kills the keyboard.
@@ -62,6 +63,7 @@
 - [Pending upload cleanup fencing](pending-upload-cleanup-fencing.md) — cleanup must use exclusive token-fenced leases, revalidation, bounded side effects, and narrow namespace listings.
 - [Native chat attachment safety](native-chat-attachment-safety.md) — keep sheet drags off nested galleries, paginate device media, and confirm precise location before sending.
 - [Drive backup privacy](drive-backup-privacy.md) — cloud backup defaults off; never claim end-to-end encryption until a user-held recovery secret protects archive contents.
+- [Google OAuth consent status](google-oauth-consent-status.md) — Google's "Access blocked … verification process" 403 = consent screen still in Testing; scopes are non-sensitive, so Publish app needs no review.
 - [Artifact service environment](artifact-service-env.md) — runtime-required variables belong in service-level env, but a missing port is not proven until startup logs confirm it.
 - [Headless workspace builds](headless-workspace-builds.md) — root build checks may use non-routable placeholders, but artifact builds must keep real deployment-env safeguards.
 - [Public install link](install-distribution-link.md) — outsider-facing install links use the official website download page; dev domains and exp:// sessions are banned.
@@ -88,6 +90,7 @@
 - [Dealer-to-dealer ledger](dealer-to-dealer-ledger.md) — repair row is the shared transaction; per-(shop,direction) books never netted; labels from balance sign + server side; money is a separate permission.
 - [Object entity paths](object-entity-paths.md) — build stored `/objects/…` paths from the written key, never `publicUrl()`; non-canonical rows are unloadable and the sweep deletes their objects.
 - [OTP throttle refunds](otp-throttle-refunds.md) — dead SMS provider surfaces as 429 after 3 tries; refund only per-mobile for provable pre-dispatch failures, release siblings on denial.
+- [OTP "not arriving" diagnosis](otp-delivery-diagnosis.md) — accepted ≠ delivered; pair each accepted send with a later verify in deployment logs; Hanu live API wants 10-digit numbers + templatesid.
 - [Dealer directory search](dealer-directory-search.md) — verified owner = `dealer` OR `super_admin`; normalise typed mobiles then match exactly; gate by `repairs_update`; failed search ≠ "not found".
 - [Dealer transfer requests](dealer-transfer-requests.md) — sending a repair to another shop is an offer; receiver row exists only after accept; reads gated by `repairs`, mutations by `repairs_update`.
 - [Co-owners](co-owners.md) — many `owner` memberships per Shop via the owner invite + claim; mirrored as `dealer`; owners resolved from memberships, not users.shopId; co-owners unmanageable by each other.
@@ -95,3 +98,14 @@
 - [Chat attachments — any file type](chat-attachments-any-type.md) — no allow-list; server sniffs stored bytes and demotes spoofed viewer MIME; queue ref is sole authority; owned temp files deleted on every exit.
 - [Staff removal & activation codes](staff-removal-and-activation.md) — one code bound to the invitee account, never re-verified; removal is one tx; switch/claim lock the membership or backfill resurrects access.
 - [Permanent account deletion](account-deletion.md) — in-session OTP failures return 400 never 401 (401 signs the app out); hold the 401 handler until explicit logout; ambiguous transport after execute.
+- [Self-hosted API (VPS)](self-hosted-api.md) — gcs/Resend env switches make the API portable; keep the VPS service stopped until objects+DB are migrated or cleanup sweeps delete photos.
+- [Chat delta sync & receipts](chat-delta-sync.md) — DB-clock watermarks, µs cursors, settle lag; every stream applies room auth; receipts first-seen-only except the `lost` ack (stored reversal while relay available).
+- [Local-first chat store](local-first-chat-store.md) — device store renders chat, server syncs; mirror mutations into the store or requestSync; SQLite behind a .web.ts null sibling.
+- [Avarpus design-system package](design-system-package.md) — user gate: do not apply to app screens until told; chart tokens need hsl() wrap; deep links carry page+theme; prettier subagent demos.
+- [Device-owned chat media](device-owned-chat-media.md) — render the device copy or nothing; relay only via the download manager; index rows are claims — verify, drop, `lost`-ack; real SQLite in Jest via node:sqlite.
+- [Chat media relay purge](chat-relay-purge.md) — relay bytes disposable, rows permanent; purge from stored receipts/pins/hard cap; a stored receipt is a claim devices must keep verifying (`lost` ack); run history fail-safe.
+- [Chat receipt retention](chat-receipt-retention.md) — prune receipts only on settled media (never `available`), by receipt age or tombstone, after the purge; reads must survive zero receipts.
+- [Validation run starvation](validation-run-starvation.md) — one exclusive heavy-checks flock keeps the all-steps run at ~5 min; run everything in one startValidationRun; supervisor leaks per listening port.
+- [Mobile & web validation steps](mobile-web-validation-steps.md) — heavy steps share `/tmp/heavy-checks.lock`, Jest at 1 worker; web `test` is a catch-all; the guard step fails any unreached test file.
+- [Test registration guard](test-registration-guard.md) — every test file must be reached by an isValidation step; static chain resolution, fail-closed on unreadable discovery; vitest positionals are substrings.
+- [Shared bucket vs per-env databases](shared-bucket-sweeps.md) — one bucket, many databases: storage-deleting sweeps only in the deployment, delete only self-registered objects, final profile photos exempt everywhere.

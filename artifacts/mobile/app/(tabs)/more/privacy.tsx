@@ -14,6 +14,8 @@ import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { storage } from '@/utils/storage';
 import { isBiometricLockEnabled } from '@/utils/appLock';
 
@@ -351,7 +353,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: '#E9EEF1',
     fontSize: 23,
-    fontFamily: 'Inter_400Regular',
+    ...font.title,
     marginLeft: 1,
   },
   sectionHeading: {
@@ -359,7 +361,7 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 8,
     fontSize: 15,
-    fontFamily: 'Inter_400Regular',
+    ...font.overline,
   },
   row: {
     minHeight: 76,
@@ -380,14 +382,14 @@ const styles = StyleSheet.create({
     color: '#E9EEF1',
     fontSize: 17,
     lineHeight: 22,
-    fontFamily: 'Inter_400Regular',
+    ...font.bodyStrong,
   },
   rowSubtitle: {
     color: '#899399',
     marginTop: 2,
     fontSize: 15,
     lineHeight: 20,
-    fontFamily: 'Inter_400Regular',
+    ...font.caption,
   },
   rowValue: {
     color: '#899399',
@@ -396,7 +398,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
     textAlign: 'right',
-    fontFamily: 'Inter_400Regular',
+    ...font.body,
   },
   divider: {
     height: StyleSheet.hairlineWidth,

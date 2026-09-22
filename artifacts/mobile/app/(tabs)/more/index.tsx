@@ -10,6 +10,8 @@ import { Avatar } from '@/components/ui/Avatar';
 import { ROLE_LABELS } from '@/utils/helpers';
 import { useApprovalsList, useLatestAppUpdate, useNotificationsList } from '@workspace/api-client-react';
 import { getAppBuildNumber, getAppVersion } from '@/utils/appVersion';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 interface MenuItem {
   id: string;
@@ -100,7 +102,7 @@ export default function MoreScreen() {
           >
             <Feather name="arrow-left" size={24} color={colors.foreground} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
             {businessOnly ? 'Shop Settings' : 'Settings'}
           </Text>
         </View>
@@ -111,10 +113,10 @@ export default function MoreScreen() {
         <View style={[styles.userCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Avatar name={user?.name ?? 'User'} url={user?.profilePhoto} size={52} />
           <View style={styles.userInfo}>
-            <Text style={[styles.userName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{user?.name}</Text>
-            <Text style={[styles.userEmail, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{user?.email}</Text>
+            <Text style={[styles.userName, { color: colors.foreground }]}>{user?.name}</Text>
+            <Text style={[styles.userEmail, { color: colors.mutedForeground }]}>{user?.email}</Text>
             <View style={[styles.roleBadge, { backgroundColor: colors.primary + '15' }]}>
-              <Text style={[styles.roleText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
+              <Text style={[styles.roleText, { color: colors.primary }]}>
                 {ROLE_LABELS[user?.role ?? 'reception']}
               </Text>
             </View>
@@ -125,7 +127,7 @@ export default function MoreScreen() {
           const items = visibleItems.filter((item) => item.section === section);
           if (!items.length) return null;
           return <View key={section} style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
             {section === 'personal' ? 'PERSONAL ACCOUNT' : 'BUSINESS WORKSPACE'}
           </Text>
           <View style={[styles.menuGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -158,8 +160,8 @@ export default function MoreScreen() {
                 )}
               </View>
               <View style={styles.menuContent}>
-                <Text style={[styles.menuLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{item.label}</Text>
-                <Text style={[styles.menuDesc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{item.description}</Text>
+                <Text style={[styles.menuLabel, { color: colors.foreground }]}>{item.label}</Text>
+                <Text style={[styles.menuDesc, { color: colors.mutedForeground }]}>{item.description}</Text>
               </View>
               <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
             </TouchableOpacity>
@@ -174,11 +176,11 @@ export default function MoreScreen() {
           activeOpacity={0.7}
         >
           <Feather name="log-out" size={18} color={colors.destructive} />
-          <Text style={[styles.logoutText, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>Sign Out</Text>
+          <Text style={[styles.logoutText, { color: colors.destructive }]}>Sign Out</Text>
         </TouchableOpacity>
         
         {/* Version info */}
-        <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+        <Text style={[styles.version, { color: colors.mutedForeground }]}>
           Avarpus v{currentVersion} (Build {currentBuild})
         </Text>
       </ScrollView>
@@ -202,51 +204,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  headerTitle: { fontSize: 20, letterSpacing: -0.5 },
+  headerTitle: { ...font.title },
   headerAction: {
-    width: 32,
-    height: 32,
+    width: size.iconButton,
+    height: size.iconButton,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  scroll: { paddingHorizontal: 16, paddingTop: 14, gap: 16 },
+  scroll: { paddingHorizontal: layout.screenPadding, paddingTop: space.lg, gap: space.lg },
   userCard: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    gap: 12,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
+    gap: layout.avatarGap,
+    padding: space.xl,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   userInfo: { flex: 1, minWidth: 0, gap: 3 },
-  userName: { fontSize: 18, lineHeight: 23, letterSpacing: -0.3 },
-  userEmail: { fontSize: 13, lineHeight: 18 },
-  roleBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, marginTop: 5 },
-  roleText: { fontSize: 11, lineHeight: 14 },
+  userName: { ...font.itemTitle },
+  userEmail: { ...font.caption },
+  roleBadge: { alignSelf: 'flex-start', paddingHorizontal: space.md, paddingVertical: space.xs, borderRadius: radius.pill, marginTop: space.xs },
+  roleText: { ...font.badge },
   menuGroup: { 
-    borderRadius: 16,
-    borderWidth: 1,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden' 
   },
-  section: { gap: 8 },
-  sectionLabel: { fontSize: 11, lineHeight: 16, letterSpacing: 0.8, paddingHorizontal: 4 },
-  menuItem: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 11 },
-  menuItemBorder: { borderBottomWidth: 1 },
-  menuIconWrap: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  section: { gap: space.sm },
+  sectionLabel: { ...font.overline, paddingHorizontal: space.xs },
+  menuItem: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: layout.rowPaddingVertical },
+  menuItemBorder: { borderBottomWidth: StyleSheet.hairlineWidth },
+  menuIconWrap: { width: size.avatarSm, height: size.avatarSm, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
   badgeWrap: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, borderWidth: 2, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  badgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
+  badgeText: { color: '#FFF', ...font.badge },
   menuContent: { flex: 1, minWidth: 0, gap: 2 },
-  menuLabel: { fontSize: 15, lineHeight: 20 },
-  menuDesc: { fontSize: 12, lineHeight: 17 },
+  menuLabel: { ...font.labelStrong },
+  menuDesc: { ...font.caption },
   logoutBtn: { 
     minHeight: 52,
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'center', 
     gap: 8, 
-    borderWidth: 1,
-    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.lg,
   },
-  logoutText: { fontSize: 15, lineHeight: 20 },
-  version: { textAlign: 'center', fontSize: 12, lineHeight: 16, paddingVertical: 8 },
+  logoutText: { ...font.button },
+  version: { ...font.caption, textAlign: 'center', paddingVertical: space.sm },
 });

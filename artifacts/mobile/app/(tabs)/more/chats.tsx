@@ -14,6 +14,8 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { storage } from '@/utils/storage';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 const CHAT_SETTINGS_KEY = 'avarpus_chat_settings';
 
@@ -55,7 +57,7 @@ function ToggleRow({
       <Switch
         value={value}
         onValueChange={onValueChange}
-        trackColor={{ false: colors.backgroundSecondary, true: colors.success }}
+        trackColor={{ false: colors.backgroundSecondary, true: colors.primary }}
         thumbColor={value ? colors.foreground : colors.mutedForeground}
         ios_backgroundColor={colors.backgroundSecondary}
         accessibilityRole="switch"
@@ -85,7 +87,7 @@ function ActionRow({
       accessibilityRole="button"
       accessibilityLabel={title}
     >
-      <Feather name={icon} size={22} color={colors.mutedForeground} />
+       <Feather name={icon} size={size.inlineIcon} color={colors.mutedForeground} />
       <Text style={[styles.actionTitle, { color: colors.foreground }]}>{title}</Text>
     </TouchableOpacity>
   );
@@ -153,7 +155,7 @@ export default function ChatsSettingsScreen() {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Feather name="arrow-left" size={24} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Chats</Text>
       </View>
@@ -240,6 +242,12 @@ export default function ChatsSettingsScreen() {
           colors={colors}
         />
         <ActionRow
+          icon="hard-drive"
+          title="Storage and data"
+          onPress={() => router.push('/(tabs)/more/chat-storage')}
+          colors={colors}
+        />
+        <ActionRow
           icon="file-text"
           title="Transfer chats"
           onPress={() =>
@@ -271,54 +279,47 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
+    paddingHorizontal: layout.screenPadding,
+    paddingBottom: space.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  backButton: { padding: 10 },
+  backButton: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   headerTitle: {
-    fontSize: 20,
-    marginLeft: 8,
-    fontFamily: 'Inter_500Medium',
+    ...font.title,
+    marginLeft: space.sm,
   },
   sectionLabel: {
-    fontSize: 14,
-    marginTop: 24,
-    marginBottom: 8,
-    paddingHorizontal: 25,
-    fontFamily: 'Inter_400Regular',
+    ...font.overline,
+    marginTop: space.xxl,
+    marginBottom: space.sm,
+    paddingHorizontal: layout.screenPadding,
   },
   settingRow: {
-    minHeight: 74,
-    paddingVertical: 12,
-    paddingHorizontal: 25,
+    minHeight: 64,
+    paddingVertical: layout.rowPaddingVertical,
+    paddingHorizontal: layout.screenPadding,
     flexDirection: 'row',
     alignItems: 'center',
   },
-  settingCopy: { flex: 1, paddingRight: 14 },
+  settingCopy: { flex: 1, paddingRight: space.lg },
   settingTitle: {
-    fontSize: 16,
-    lineHeight: 21,
-    fontFamily: 'Inter_400Regular',
+    ...font.bodyStrong,
   },
   settingSubtitle: {
-    fontSize: 14,
-    lineHeight: 19,
-    fontFamily: 'Inter_400Regular',
+    ...font.caption,
   },
   sectionDivider: {
     marginTop: 10,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   actionRow: {
-    minHeight: 58,
-    paddingHorizontal: 25,
+    minHeight: 64,
+    paddingHorizontal: layout.screenPadding,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 24,
+    gap: space.xxl,
   },
   actionTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter_400Regular',
+    ...font.bodyStrong,
   },
 });

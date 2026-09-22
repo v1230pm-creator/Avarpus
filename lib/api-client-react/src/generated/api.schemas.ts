@@ -191,6 +191,147 @@ export interface SupportNotificationSettingsInput {
   recipientEmail: string | null;
 }
 
+/**
+ * @nullable
+ */
+export type ChatRelayRunSummarySkipped = typeof ChatRelayRunSummarySkipped[keyof typeof ChatRelayRunSummarySkipped] | null;
+
+
+export const ChatRelayRunSummarySkipped = {
+  disabled: 'disabled',
+  min_build_not_met: 'min_build_not_met',
+} as const;
+
+export interface ChatRelayRunSummary {
+  ranAt: string;
+  /** @nullable */
+  skipped: ChatRelayRunSummarySkipped;
+  /** @nullable */
+  skippedReason: string | null;
+  examined: number;
+  purged: number;
+  expired: number;
+  alreadyGone: number;
+  /** Delete-for-everyone tombstones whose relay object was removed; swept on every run regardless of the switch. */
+  tombstonesPurged?: number;
+  kept: number;
+  failed: number;
+  bytesReclaimed: number;
+  /** @nullable */
+  abortedError: string | null;
+}
+
+export interface ChatRelaySettings {
+  enabled: boolean;
+  graceDays: number;
+  expiryDays: number;
+  /** First app build that keeps chat media on the device. */
+  requiredAppBuild: number;
+  /**
+     * Build number of the newest published critical release, which the console treats as the minimum supported app build. Null when none.
+     * @nullable
+     */
+  minimumSupportedBuild: number | null;
+  canEnable: boolean;
+  /** @nullable */
+  enableBlockedReason: string | null;
+  /** @nullable */
+  updatedAt: string | null;
+  /** @nullable */
+  updatedByName: string | null;
+  lastRun: ChatRelayRunSummary | null;
+}
+
+/**
+ * Relay objects still available right now.
+ */
+export interface ChatRelayHeld {
+  objects: number;
+  /** Sum of the sizes recorded at attach time; legacy rows without one are not included. */
+  bytes: number;
+  /** Objects whose size was never recorded (their bytes are missing from `bytes`). */
+  unknownSizeObjects: number;
+  /** Objects kept as evidence under an open abuse report; exempt from every purge rule. */
+  pinnedObjects: number;
+  pinnedBytes: number;
+}
+
+export type ChatRelayRunRecordTrigger = typeof ChatRelayRunRecordTrigger[keyof typeof ChatRelayRunRecordTrigger];
+
+
+export const ChatRelayRunRecordTrigger = {
+  scheduled: 'scheduled',
+  manual: 'manual',
+} as const;
+
+/**
+ * @nullable
+ */
+export type ChatRelayRunRecordSkipped = typeof ChatRelayRunRecordSkipped[keyof typeof ChatRelayRunRecordSkipped] | null;
+
+
+export const ChatRelayRunRecordSkipped = {
+  disabled: 'disabled',
+  min_build_not_met: 'min_build_not_met',
+} as const;
+
+export interface ChatRelayRunRecord {
+  id: string;
+  ranAt: string;
+  trigger: ChatRelayRunRecordTrigger;
+  /** @nullable */
+  skipped: ChatRelayRunRecordSkipped;
+  graceDays: number;
+  expiryDays: number;
+  examined: number;
+  /** Media removed after every recipient had stored it. */
+  purged: number;
+  /** Media removed at the hard cap although not every recipient had stored it. */
+  expired: number;
+  alreadyGone: number;
+  tombstonesPurged: number;
+  kept: number;
+  raced: number;
+  failed: number;
+  bytesReclaimed: number;
+  /** @nullable */
+  abortedError: string | null;
+  /**
+     * Relay objects still available right after this run; null when the measurement failed.
+     * @nullable
+     */
+  heldObjects: number | null;
+  /** @nullable */
+  heldBytes: number | null;
+}
+
+export interface ChatRelayHistory {
+  /** Runs older than this many days are pruned. */
+  windowDays: number;
+  /** Hard cap on retained runs (newest kept). */
+  maxRuns: number;
+  generatedAt: string;
+  held: ChatRelayHeld;
+  /** Newest first. */
+  runs: ChatRelayRunRecord[];
+}
+
+export interface ChatRelaySettingsInput {
+  enabled: boolean;
+  /**
+     * Days after send before media every recipient stored may be purged.
+     * @minimum 1
+     * @maximum 365
+     */
+  graceDays: number;
+  /**
+     * Days after send after which media is purged regardless of receipts.
+     * @minimum 1
+     * @maximum 3650
+     */
+  expiryDays: number;
+}
+
 export interface ProfileUpdateInput {
   name?: string;
   /**
@@ -2162,6 +2303,50 @@ export interface ChatMessageQuote {
   deleted: boolean;
 }
 
+/**
+ * Relay state of the server-side media copy. Only present for media kinds. `available` means the media endpoint can still serve it; `purged` and `expired` mean the relay copy is gone (device copies are the only remaining source); `pinned` media is never dropped.
+ */
+export type ChatMessageMediaState = typeof ChatMessageMediaState[keyof typeof ChatMessageMediaState];
+
+
+export const ChatMessageMediaState = {
+  available: 'available',
+  purged: 'purged',
+  expired: 'expired',
+  pinned: 'pinned',
+} as const;
+
+export type ChatMessageDeliveryStatus = typeof ChatMessageDeliveryStatus[keyof typeof ChatMessageDeliveryStatus];
+
+
+export const ChatMessageDeliveryStatus = {
+  sent: 'sent',
+  delivered: 'delivered',
+  read: 'read',
+} as const;
+
+export type ChatMessageDeliverySource = typeof ChatMessageDeliverySource[keyof typeof ChatMessageDeliverySource];
+
+
+export const ChatMessageDeliverySource = {
+  receipts: 'receipts',
+  legacy: 'legacy',
+} as const;
+
+/**
+ * Receipt summary for a message sent by the current caller (absent on messages sent by others). Built from per-recipient acknowledgements when any exist; otherwise from the legacy recipient-app-synced signal, which older builds still rely on (source=legacy, never stored).
+ */
+export interface ChatMessageDelivery {
+  status: ChatMessageDeliveryStatus;
+  /** First time any recipient acknowledged receiving the message. */
+  deliveredAt?: string;
+  /** Set once every recipient has acknowledged saving the media bytes on device — the point after which the server relay copy is no longer needed. Never set for text messages. */
+  storedAt?: string;
+  /** First time a recipient's read marker covered this message. */
+  readAt?: string;
+  source: ChatMessageDeliverySource;
+}
+
 export interface ChatMessage {
   id: string;
   roomId: string;
@@ -2185,6 +2370,11 @@ export interface ChatMessage {
   /** Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable. */
   deletedAt?: string;
   createdAt: string;
+  /** Last shared-row change (send, tombstone, edit, media relay state). Delta sync orders messages by this value. */
+  updatedAt?: string;
+  /** Relay state of the server-side media copy. Only present for media kinds. `available` means the media endpoint can still serve it; `purged` and `expired` mean the relay copy is gone (device copies are the only remaining source); `pinned` media is never dropped. */
+  mediaState?: ChatMessageMediaState;
+  delivery?: ChatMessageDelivery;
 }
 
 export interface ChatRoom {
@@ -2284,6 +2474,16 @@ export interface DriveBackupStatus {
   lastError: string | null;
 }
 
+/**
+ * What the archive did with attachments. Media is embedded only while its relay copy still exists on the server; attachments that live only on devices are listed in the archive but their bytes are not included.
+ */
+export interface DriveBackupMediaSummary {
+  includedCount: number;
+  includedBytes: number;
+  onDeviceOnlyCount: number;
+  skippedVideoCount: number;
+}
+
 export interface DriveBackupPreparation {
   archiveBase64: string;
   accessToken: string;
@@ -2294,6 +2494,7 @@ export interface DriveBackupPreparation {
   uploadLeaseToken: string;
   /** @nullable */
   encryptionSalt: string | null;
+  media: DriveBackupMediaSummary;
 }
 
 export interface DriveBackupCompletionInput {
@@ -2456,6 +2657,20 @@ export interface ChatReportList {
   openCount: number;
 }
 
+/**
+ * Whether the server still holds the attachment. Null for messages without one. `purged`/`expired` mean only device copies remain and the transcript must say the media is no longer available.
+ * @nullable
+ */
+export type ChatReportTranscriptMessageMediaState = typeof ChatReportTranscriptMessageMediaState[keyof typeof ChatReportTranscriptMessageMediaState] | null;
+
+
+export const ChatReportTranscriptMessageMediaState = {
+  available: 'available',
+  pinned: 'pinned',
+  purged: 'purged',
+  expired: 'expired',
+} as const;
+
 export interface ChatReportTranscriptMessage {
   id: string;
   senderId: string;
@@ -2463,6 +2678,11 @@ export interface ChatReportTranscriptMessage {
   kind: string;
   body: string;
   hasAttachment: boolean;
+  /**
+     * Whether the server still holds the attachment. Null for messages without one. `purged`/`expired` mean only device copies remain and the transcript must say the media is no longer available.
+     * @nullable
+     */
+  mediaState: ChatReportTranscriptMessageMediaState;
   /** @nullable */
   deletedAt: string | null;
   createdAt: string;
@@ -2522,6 +2742,114 @@ export interface ChatRoomCreateInput {
   clientRequestId?: string;
 }
 
+export type ChatAckInputAcksItemState = typeof ChatAckInputAcksItemState[keyof typeof ChatAckInputAcksItemState];
+
+
+export const ChatAckInputAcksItemState = {
+  delivered: 'delivered',
+  stored: 'stored',
+  lost: 'lost',
+} as const;
+
+export type ChatAckInputAcksItem = {
+  messageId: string;
+  state: ChatAckInputAcksItemState;
+};
+
+export interface ChatAckInput {
+  /**
+     * @minItems 1
+     * @maxItems 200
+     */
+  acks: ChatAckInputAcksItem[];
+}
+
+export type ChatAckResultIgnoredItemReason = typeof ChatAckResultIgnoredItemReason[keyof typeof ChatAckResultIgnoredItemReason];
+
+
+export const ChatAckResultIgnoredItemReason = {
+  own_message: 'own_message',
+  no_media: 'no_media',
+  relay_gone: 'relay_gone',
+} as const;
+
+export type ChatAckResultIgnoredItem = {
+  messageId: string;
+  reason: ChatAckResultIgnoredItemReason;
+};
+
+export interface ChatAckResult {
+  /** Message ids whose receipt row now reflects the requested state (including repeats). */
+  acknowledged: string[];
+  /** Message ids that were valid to see but not acknowledgeable by the caller. */
+  ignored: ChatAckResultIgnoredItem[];
+}
+
+/**
+ * A message the caller hid for themselves ("delete for me").
+ */
+export interface ChatSyncHidden {
+  messageId: string;
+  roomId: string;
+  hiddenAt: string;
+}
+
+/**
+ * A member's read marker in one of the caller's rooms (including the caller's own, for multi-device).
+ */
+export interface ChatSyncReadState {
+  roomId: string;
+  userId: string;
+  /** @nullable */
+  lastReadMessageId: string | null;
+  lastReadAt: string;
+}
+
+/**
+ * A recipient's acknowledgement of a message the caller sent.
+ */
+export interface ChatSyncReceipt {
+  messageId: string;
+  roomId: string;
+  userId: string;
+  deliveredAt: string;
+  /** @nullable */
+  storedAt: string | null;
+  updatedAt: string;
+}
+
+/**
+ * The caller's own inbox state for a room. deletedAt set means the caller deleted the chat from their inbox.
+ */
+export interface ChatSyncPreference {
+  roomId: string;
+  isPinned: boolean;
+  isMuted: boolean;
+  isArchived: boolean;
+  /** @nullable */
+  deletedAt: string | null;
+  updatedAt: string;
+}
+
+export interface ChatSyncResult {
+  /** New, edited and tombstoned messages, ordered by (updatedAt, id). Messages the caller hid are omitted. */
+  messages: ChatMessage[];
+  hidden: ChatSyncHidden[];
+  readStates: ChatSyncReadState[];
+  receipts: ChatSyncReceipt[];
+  preferences: ChatSyncPreference[];
+  /** Rooms the caller became a member of since the cursor, in the caller's view. */
+  rooms: ChatRoom[];
+  /** Opaque; pass back as cursor. Monotonic even when nothing changed. */
+  nextCursor: string;
+  /** True when at least one list was cut at the limit; call again with nextCursor before idling. */
+  hasMore: boolean;
+  /** Only on the initial call (no cursor). Messages created before this time were not included; load them per room with the messages endpoint's `before` pagination. */
+  backfillBefore?: string;
+  /** Server time of this response. */
+  syncedAt: string;
+}
+
 /**
  * Message to copy when forwarding. The caller must be a member of roomId.
  */
@@ -2542,7 +2870,7 @@ export const ChatMessageSendInputKind = {
 } as const;
 
 /**
- * Send a message. clientRequestId is REQUIRED and must be stable across retries; the server dedupes on (roomId, senderId, clientRequestId) and derives the Matrix transaction id deterministically so retries never create a second row nor a second provider event. For kind=audio a room-scoped objectPath and an integer durationMs (1..600000) are REQUIRED; durationMs must be omitted for non-audio kinds. With forwardOf the kind, body, media and duration are copied from the source message (media is duplicated into the target room's storage scope); the supplied kind must match the source kind and objectPath / durationMs must be omitted. replyToMessageId must name a visible message in the same room; it cannot be combined with forwardOf.
+ * Send a message. clientRequestId is REQUIRED and must be stable across retries; the server dedupes on (roomId, senderId, clientRequestId) and derives the Matrix transaction id deterministically so retries never create a second row nor a second provider event. For kind=audio a room-scoped objectPath and an integer durationMs (1..600000) are REQUIRED; durationMs must be omitted for non-audio kinds. With forwardOf the kind, body, media and duration are copied from the source message (media is duplicated into the target room's storage scope); the supplied kind must match the source kind and durationMs must be omitted. When the source's relay copy is gone (mediaState purged/expired) the forwarding device may supply objectPath: a fresh room-scoped upload of its own local copy, verified like a first-hand attachment. Without it such a forward fails with 400 CHAT_MEDIA_EXPIRED. replyToMessageId must name a visible message in the same room; it cannot be combined with forwardOf.
  */
 export interface ChatMessageSendInput {
   kind: ChatMessageSendInputKind;
@@ -2773,6 +3101,11 @@ export const PublicRequestAdminListKind = {
   support: 'support',
   account_deletion: 'account_deletion',
 } as const;
+
+export type ChatRelayPurgeRun200 = {
+  result: ChatRelayRunSummary;
+  settings: ChatRelaySettings;
+};
 
 export type AuthOtpRequest200 = {
   message: string;
@@ -3523,5 +3856,22 @@ export type ChatMessagesSend200 = {
 
 export type ChatMessagesDelete200 = {
   deletedIds: string[];
+};
+
+export type ChatSyncParams = {
+/**
+ * Opaque cursor from a previous response. Omit for the initial window.
+ */
+cursor?: string;
+/**
+ * Restrict the feed to one room the caller is a member of.
+ */
+roomId?: string;
+/**
+ * Maximum items per list (default 100).
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
 };
 

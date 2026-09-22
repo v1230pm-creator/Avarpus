@@ -93,12 +93,26 @@ import type {
   ChatReportReason,
   ChatRoomCreateInputKind,
 } from '@workspace/api-client-react';
+import { useChatStore } from '@/context/ChatStoreContext';
+import { useLocalMessages, useLocalOutbox, useLocalRoom } from '@/hooks/useLocalChat';
+import { localMediaPathOf, useChatMediaSource, type ChatMediaState } from '@/hooks/useChatMedia';
+import { LOST_MEDIA_ACTION, LOST_MEDIA_TITLE, MediaPlaceholder, placeholderStateFor } from '@/components/chat/MediaPlaceholder';
+import { discardOutboxMedia, finalizeSentMedia, keepSentMedia, mediaExtensionFor, relayAvailable } from '@/utils/chatMedia';
+import { ChatSyncBanner } from '@/components/chat/ChatSyncBanner';
+import { makeTextOutboxItem, outboxToMessage } from '@/utils/chatOutbox';
+import type { ChatDeliveryStatus, OutboxItem } from '@/utils/chatStore';
+import { font, fontFamily } from '@/constants/typography';
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB — matches the API's per-attachment cap
 const MAX_RECORDING_MS = 10 * 60 * 1000; // 10 minutes
 const DELETE_FOR_EVERYONE_WINDOW_MS = 24 * 60 * 60 * 1000; // sender may retract from everyone only within 24 hours
+
+/** Optimistic (`opt-`) and outbox (`out-`) rows have no server id yet: not selectable/forwardable/deletable. */
+function isLocalOnlyId(id: string): boolean {
+  return id.startsWith('opt-') || id.startsWith('out-');
+}
 
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'bmp']);
 /** Keep the original image extension when saving so the gallery classifies it correctly. */
@@ -250,31 +264,41 @@ function ChatWallpaper({ colors }: { colors: any }) {
 
 // ── Sub-components ────────────────────────────────────────────────────────
 
+/**
+ * Photo bubble. Renders the device copy when there is one; otherwise, in
+ * device-owned mode, a download tile (auto downloads start on their own when
+ * the policy allows), and only on web / without a store the relay stream.
+ */
 function ImageAttachment({
-  roomId,
-  messageId,
+  msg,
   token,
+  media,
 }: {
-  roomId: string;
-  messageId: string;
+  msg: ChatMessage;
   token: string | null;
+  media: ChatMediaState;
 }) {
-  const mediaPath = getChatMessageMediaUrl(roomId, messageId);
-  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : '';
-  const uri = `${baseUrl}${mediaPath}`;
-
+  const { source, download, requestDownload } = media;
+  if (source.kind === 'local' || source.kind === 'remote') {
+    return (
+      <Image
+        source={source.kind === 'local' ? { uri: source.uri } : { uri: source.uri, headers: source.headers }}
+        style={styles.imageAttachment}
+        contentFit="cover"
+        accessibilityLabel="Image attachment"
+        testID={`image-attachment-${msg.id}`}
+      />
+    );
+  }
+  const state = placeholderStateFor(source, download);
   return (
-    <Image
-      source={{
-        uri,
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      }}
+    <MediaPlaceholder
+      state={state}
+      noun="photo"
+      detail={state === 'failed' ? download?.error ?? null : msg.sizeBytes ? formatBytes(msg.sizeBytes) : 'Photo'}
+      onPress={requestDownload}
       style={styles.imageAttachment}
-      contentFit="cover"
-      accessibilityLabel="Image attachment"
-      testID={`image-attachment-${messageId}`}
+      testID={`image-placeholder-${msg.id}`}
     />
   );
 }
@@ -286,6 +310,7 @@ function FileAttachment({
   isMine,
   opening,
   onOpen,
+  media,
 }: {
   msg: ChatMessage;
   token: string | null;
@@ -293,49 +318,109 @@ function FileAttachment({
   isMine: boolean;
   opening: boolean;
   onOpen: (msg: ChatMessage, token: string | null) => void;
+  media: ChatMediaState;
 }) {
   const mime = receivedMimeType(msg);
   const visual = fileTypeVisual(mime, msg.body);
-  const meta = [visual.label, msg.sizeBytes ? formatBytes(msg.sizeBytes) : null].filter(Boolean).join(' · ');
+  const { source, download, requestDownload } = media;
+  const unavailable = source.kind === 'unavailable';
+  const pending = source.kind === 'pending';
+  const failed = pending && download?.state === 'failed';
+  const lost = pending && download?.state === 'lost';
+  const downloading = pending && !!download && !failed && !lost;
+  const meta = unavailable
+    ? source.reason === 'expired'
+      ? 'Expired before it was downloaded'
+      : 'No longer available'
+    : failed
+      ? download?.error ?? 'Download failed. Tap to retry.'
+      : lost
+        ? `${LOST_MEDIA_TITLE} · ${LOST_MEDIA_ACTION}`
+        : [visual.label, msg.sizeBytes ? formatBytes(msg.sizeBytes) : null].filter(Boolean).join(' · ');
+  const handlePress = () => {
+    if (unavailable || downloading) return;
+    if (pending) requestDownload();
+    else onOpen(msg, token);
+  };
   return (
     <TouchableOpacity
       style={[styles.fileRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
-      onPress={() => onOpen(msg, token)}
-      disabled={opening}
-      accessibilityLabel={`Open ${msg.body}`}
+      onPress={handlePress}
+      disabled={opening || unavailable}
+      accessibilityLabel={
+        unavailable
+          ? `${msg.body} is no longer available`
+          : lost
+            ? `${msg.body} is not on this phone any more. Save it again from the server`
+            : pending
+              ? `Download ${msg.body}`
+              : `Open ${msg.body}`
+      }
       testID={`file-attachment-${msg.id}`}
     >
       <View style={[styles.fileIconBadge, { backgroundColor: colors.primary + '1A' }]}>
-        <Feather name={visual.icon} size={18} color={colors.primary} />
+        <Feather name={unavailable ? 'slash' : visual.icon} size={18} color={unavailable ? colors.mutedForeground : colors.primary} />
       </View>
       <View style={styles.fileRowCopy}>
         <Text
-          style={[styles.fileRowName, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}
+          style={[styles.fileRowName, { color: colors.foreground, fontFamily: fontFamily.medium }]}
           numberOfLines={2}
         >
           {msg.body}
         </Text>
-        <Text style={[styles.fileRowMeta, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+        <Text
+          style={[styles.fileRowMeta, { color: failed ? colors.destructive : colors.mutedForeground, fontFamily: fontFamily.regular }]}
+          numberOfLines={2}
+        >
           {meta}
         </Text>
       </View>
-      {opening ? (
+      {opening || downloading ? (
         <AvarpusSpinner size={16} />
-      ) : (
-        <Feather name="external-link" size={16} color={isMine ? colors.primary : colors.mutedForeground} />
+      ) : unavailable ? null : (
+        <Feather
+          name={failed ? 'refresh-cw' : lost ? 'download-cloud' : pending ? 'download' : 'external-link'}
+          size={16}
+          color={isMine ? colors.primary : colors.mutedForeground}
+        />
       )}
     </TouchableOpacity>
   );
 }
 
-/** Video bubble: dark tile with a play badge; the clip streams on tap. */
+/**
+ * Video bubble: dark tile with a play badge once the clip is on the device
+ * (or streamable in network-only mode); otherwise a download tile.
+ */
 function VideoAttachment({
   msg,
   onOpen,
+  media,
 }: {
   msg: ChatMessage;
   onOpen: (msg: ChatMessage) => void;
+  media: ChatMediaState;
 }) {
+  const { source, download, requestDownload } = media;
+  if (source.kind === 'pending' || source.kind === 'unavailable') {
+    const state = placeholderStateFor(source, download);
+    return (
+      <MediaPlaceholder
+        state={state}
+        noun="video"
+        detail={
+          state === 'failed'
+            ? download?.error ?? null
+            : [msg.durationMs ? formatDuration(msg.durationMs) : null, msg.sizeBytes ? formatBytes(msg.sizeBytes) : 'Video']
+                .filter(Boolean)
+                .join(' · ')
+        }
+        onPress={requestDownload}
+        style={styles.videoAttachment}
+        testID={`video-placeholder-${msg.id}`}
+      />
+    );
+  }
   return (
     <TouchableOpacity
       style={styles.videoAttachment}
@@ -358,30 +443,107 @@ function VideoAttachment({
   );
 }
 
-/** Compact audio player bubble — WhatsApp-like. */
-function AudioAttachment({
-  roomId,
+/**
+ * Voice note that is not on the device yet: same row shape as the player,
+ * with the play button standing in for download / retry / unavailable.
+ */
+function AudioPendingRow({
   messageId,
   durationMs,
-  token,
+  colors,
+  isMine,
+  media,
+}: {
+  messageId: string;
+  durationMs: number | undefined;
+  colors: any;
+  isMine: boolean;
+  media: ChatMediaState;
+}) {
+  const { source, download, requestDownload } = media;
+  const state = placeholderStateFor(source.kind === 'unavailable' ? source : { kind: 'pending' }, download);
+  const gone = state === 'unavailable' || state === 'expired';
+  const mutedColor = isMine ? 'rgba(255,255,255,0.65)' : colors.mutedForeground;
+  const trackBg = isMine ? 'rgba(255,255,255,0.3)' : colors.border;
+  const label =
+    state === 'expired'
+      ? 'Expired'
+      : state === 'unavailable'
+      ? 'No longer available'
+      : state === 'failed'
+        ? 'Tap to retry'
+        : state === 'lost'
+          ? LOST_MEDIA_ACTION
+          : state === 'downloading'
+            ? 'Downloading…'
+            : durationMs
+              ? formatDuration(durationMs)
+              : 'Voice message';
+  return (
+    <TouchableOpacity
+      onPress={state === 'download' || state === 'failed' || state === 'lost' ? requestDownload : undefined}
+      disabled={gone || state === 'downloading'}
+      style={styles.audioRow}
+      accessibilityLabel={
+        state === 'expired'
+          ? 'Voice note expired before it was downloaded'
+          : state === 'unavailable'
+          ? 'Voice note no longer available'
+          : state === 'lost'
+            ? 'Voice note is not on this phone any more. Save it again from the server'
+            : state === 'downloading'
+              ? 'Downloading voice note'
+              : 'Download voice note'
+      }
+      testID={`audio-attachment-${messageId}`}
+    >
+      <View style={[styles.audioPlayBtn, { backgroundColor: isMine ? 'rgba(255,255,255,0.25)' : colors.primary + '20' }]}>
+        {state === 'downloading' ? (
+          <AvarpusSpinner size={16} />
+        ) : (
+          <Feather
+            name={
+              state === 'unavailable'
+                ? 'slash'
+                : state === 'expired'
+                  ? 'clock'
+                  : state === 'failed'
+                    ? 'refresh-cw'
+                    : state === 'lost'
+                      ? 'download-cloud'
+                      : 'arrow-down'
+            }
+            size={18}
+            color={isMine ? '#FFFFFF' : colors.primary}
+          />
+        )}
+      </View>
+      <View style={styles.audioTrackArea}>
+        <View style={[styles.audioTrackBg, { backgroundColor: trackBg }]} />
+        <Text style={[styles.audioDuration, { color: mutedColor }]} numberOfLines={1}>
+          {label}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+/** Compact audio player bubble — WhatsApp-like. Plays from the device copy when there is one. */
+function AudioAttachment({
+  messageId,
+  durationMs,
+  source,
   colors,
   isMine,
 }: {
-  roomId: string;
   messageId: string;
   durationMs: number | undefined;
-  token: string | null;
+  source: { uri: string; headers?: Record<string, string> };
   colors: any;
   isMine: boolean;
 }) {
-  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : '';
-  const mediaPath = getChatMessageMediaUrl(roomId, messageId);
-  const uri = `${baseUrl}${mediaPath}`;
-
   const player = useAudioPlayer(
-    { uri, headers: token ? { Authorization: `Bearer ${token}` } : undefined },
+    { uri: source.uri, headers: source.headers },
     { updateInterval: 250 },
   );
   const status = useAudioPlayerStatus(player);
@@ -477,6 +639,7 @@ function MessageBubble({
   onOpenQuote?: (quoteId: string) => void;
   quoteSenderLabel?: string;
 }) {
+  const media = useChatMediaSource(msg, token);
   if (msg.deletedAt) {
     return (
       <View style={[styles.bubbleRow, isMine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
@@ -507,6 +670,13 @@ function MessageBubble({
   const handlePress = () => {
     if (selectionMode) {
       if (canSelect) onToggleSelect?.(msg);
+      return;
+    }
+    if (media.source.kind === 'unavailable') return;
+    if (media.source.kind === 'pending') {
+      // Not on the device yet: a tap fetches it (or retries); a running
+      // download is left alone. The viewer opens from disk afterwards.
+      if (!media.download || media.download.state === 'failed') media.requestDownload();
       return;
     }
     if (isImage) onOpenImage?.(msg);
@@ -564,9 +734,9 @@ function MessageBubble({
             </View>
           )}
           {isImage ? (
-            <ImageAttachment roomId={msg.roomId} messageId={msg.id} token={token} />
+            <ImageAttachment msg={msg} token={token} media={media} />
           ) : isVideo ? (
-            <VideoAttachment msg={msg} onOpen={(m) => (selectionMode ? handlePress() : onOpenVideo?.(m))} />
+            <VideoAttachment msg={msg} media={media} onOpen={(m) => (selectionMode ? handlePress() : onOpenVideo?.(m))} />
           ) : isFile ? (
             <FileAttachment
               msg={msg}
@@ -574,22 +744,32 @@ function MessageBubble({
               colors={colors}
               isMine={isMine}
               opening={openingFile}
+              media={media}
               onOpen={(m, t) => (selectionMode ? handlePress() : onOpenFile(m, t))}
             />
           ) : isAudio ? (
-            <AudioAttachment
-              roomId={msg.roomId}
-              messageId={msg.id}
-              durationMs={msg.durationMs}
-              token={token}
-              colors={colors}
-              isMine={isMine}
-            />
+            media.source.kind === 'local' || media.source.kind === 'remote' ? (
+              <AudioAttachment
+                messageId={msg.id}
+                durationMs={msg.durationMs}
+                source={media.source}
+                colors={colors}
+                isMine={isMine}
+              />
+            ) : (
+              <AudioPendingRow
+                messageId={msg.id}
+                durationMs={msg.durationMs}
+                colors={colors}
+                isMine={isMine}
+                media={media}
+              />
+            )
           ) : (
             <Text
               style={[
                 styles.bubbleText,
-                { color: isMine ? colors.primaryForeground : colors.foreground, fontFamily: 'Inter_400Regular' },
+                { color: isMine ? colors.primaryForeground : colors.foreground, fontFamily: fontFamily.regular },
               ]}
             >
               {msg.body}
@@ -605,11 +785,7 @@ function MessageBubble({
             >
               {formatMsgTime(msg.createdAt)}
             </Text>
-            {isMine && (
-              <Text style={[styles.deliveryTicks, { color: colors.success }]}>
-                ✓✓
-              </Text>
-            )}
+            {isMine && <DeliveryTicks msg={msg} colors={colors} />}
           </View>
         </View>
       </View>
@@ -621,6 +797,38 @@ function MessageBubble({
         />
       )}
     </Pressable>
+  );
+}
+
+/**
+ * Per-message state for the viewer's own bubbles: queued (clock) while the
+ * outbox holds it, a single tick once the server accepted it, double ticks
+ * when the peer's device acknowledged delivery, and green double ticks once
+ * the peer read it. Falls back to the server's own delivery field when the
+ * row did not come through the local store.
+ */
+function DeliveryTicks({ msg, colors }: { msg: ChatMessage; colors: any }) {
+  const status =
+    (msg as ChatMessage & { localStatus?: ChatDeliveryStatus }).localStatus ??
+    msg.delivery?.status ??
+    'sent';
+  const muted = 'rgba(255,255,255,0.72)';
+  if (status === 'failed') {
+    return (
+      <Feather name="alert-circle" size={12} color={colors.destructive} testID={`delivery-${msg.id}`} accessibilityLabel="Failed" />
+    );
+  }
+  if (status === 'queued' || status === 'sending') {
+    return <Feather name="clock" size={11} color={muted} testID={`delivery-${msg.id}`} accessibilityLabel="Queued" />;
+  }
+  return (
+    <Text
+      style={[styles.deliveryTicks, { color: status === 'read' ? colors.success : muted }]}
+      testID={`delivery-${msg.id}`}
+      accessibilityLabel={status === 'read' ? 'Read' : status === 'delivered' ? 'Delivered' : 'Sent'}
+    >
+      {status === 'sent' ? '✓' : '✓✓'}
+    </Text>
   );
 }
 
@@ -814,7 +1022,7 @@ function AttachmentSheet({
             <Text
               style={[
                 styles.attachmentSheetTitle,
-                { color: colors.foreground, fontFamily: 'Inter_700Bold' },
+                { color: colors.foreground, fontFamily: fontFamily.bold },
               ]}
             >
               {contactsMode
@@ -876,7 +1084,7 @@ function AttachmentSheet({
                       <Text
                         style={[
                           styles.contactName,
-                          { color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
+                          { color: colors.foreground, fontFamily: fontFamily.semibold },
                         ]}
                         numberOfLines={1}
                       >
@@ -886,7 +1094,7 @@ function AttachmentSheet({
                         <Text
                           style={[
                             styles.contactPhone,
-                            { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+                            { color: colors.mutedForeground, fontFamily: fontFamily.regular },
                           ]}
                         >
                           {phone}
@@ -935,7 +1143,7 @@ function AttachmentSheet({
               <Text
                 style={[
                   styles.attachmentRecentTitle,
-                  { color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
+                  { color: colors.foreground, fontFamily: fontFamily.semibold },
                 ]}
               >
                 Recents
@@ -1205,6 +1413,22 @@ export default function ChatScreen() {
   const clientRequestIdRef = useRef(makeClientRequestId('room'));
   const pendingSendRef = useRef<{ body: string; replyToId: string | null; clientRequestId: string } | null>(null);
 
+  // ── Local store ─────────────────────────────────────────────────────────
+  // With a device store open the conversation renders from local rows and
+  // sends through the durable outbox; without one (store failed to open) it
+  // falls back to the network queries and direct sends below.
+  const {
+    store: chatStore,
+    engine: chatEngine,
+    outbox: chatOutbox,
+    ready: storeReady,
+    status: syncStatus,
+    requestSync,
+    mediaFiles,
+  } = useChatStore();
+  const localFirst = !!chatStore;
+  const networkOnly = storeReady && !localFirst;
+
   // ── Shared upload/send state (file attachments + voice notes) ──────────
   /**
    * Outgoing attachment queue. Items are sent strictly in order; the head is
@@ -1216,6 +1440,7 @@ export default function ChatScreen() {
   // first and mirrors into state for rendering. It is never re-derived from
   // state, so an in-flight render cannot roll back an imperative update.
   const pendingUploadsRef = useRef<PendingUpload[]>([]);
+  const queueUploadsRef = useRef<((items: PendingUpload[], options?: { sendNow?: boolean }) => void) | null>(null);
   const pendingUpload = pendingUploads[0] ?? null;
   /** Total size of the batch when it was queued, for "n of N" progress. */
   const [pendingBatchTotal, setPendingBatchTotal] = useState(0);
@@ -1223,13 +1448,22 @@ export default function ChatScreen() {
   const clearPendingUpload = useCallback(() => {
     for (const item of pendingUploadsRef.current) {
       if (item.ownedTempFile) deleteVoiceTempFile(item.uri);
+      void chatStore?.removeOutbox(item.clientRequestId);
+      // The kept app-private copy has no message to belong to any more.
+      if (chatStore) void discardOutboxMedia(chatStore, mediaFiles, item.clientRequestId).catch(() => {});
     }
     pendingUploadsRef.current = [];
     setPendingUploads([]);
     setPendingBatchTotal(0);
-  }, []);
+  }, [chatStore, mediaFiles]);
+  const chatStoreRef = useRef(chatStore);
+  chatStoreRef.current = chatStore;
   useEffect(() => {
     return () => {
+      // With a store, the outbox row keeps the file until it is sent or
+      // discarded (retry survives leaving the screen); without one the temp
+      // file would leak, so dispose of it here.
+      if (chatStoreRef.current) return;
       for (const item of pendingUploadsRef.current) {
         if (item.ownedTempFile) deleteVoiceTempFile(item.uri);
       }
@@ -1321,7 +1555,14 @@ export default function ChatScreen() {
       refetchInterval: 10_000,
     },
   });
-  const room = roomData?.room;
+  // Local row renders the header instantly (and offline); the poll above
+  // keeps presence fresh and its result is written back to the store.
+  const localRoom = useLocalRoom(localFirst ? resolvedRoomId : null);
+  const room = roomData?.room ?? localRoom.data ?? undefined;
+  useEffect(() => {
+    if (!roomData?.room || !chatEngine) return;
+    void chatEngine.recordRoom(roomData.room);
+  }, [chatEngine, roomData]);
   const deviceContactNames = useDeviceContactNames();
   const roomName = deviceContactNames.nameFor(room?.peerMobile, room?.name ?? name);
   const presenceText = room?.peerOnline ? 'online' : formatLastSeen(room?.peerLastSeenAt);
@@ -1366,6 +1607,7 @@ export default function ChatScreen() {
         roomId: resolvedRoomId,
         data: { isArchived: nextArchived },
       });
+      await chatStore?.setRoomPreference(resolvedRoomId, { isArchived: nextArchived });
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: getChatRoomsGetQueryKey(resolvedRoomId),
@@ -1381,7 +1623,7 @@ export default function ChatScreen() {
     } finally {
       archivePreferenceInFlightRef.current = false;
     }
-  }, [preferencesUpdate, queryClient, resolvedRoomId, room]);
+  }, [chatStore, preferencesUpdate, queryClient, resolvedRoomId, room]);
 
   const submitReport = useCallback(
     (reason: ChatReportReason) => {
@@ -1528,19 +1770,52 @@ export default function ChatScreen() {
     refetch: msgsRefetch,
   } = useChatMessagesList(resolvedRoomId ?? '', undefined, {
     query: {
-      enabled: !!resolvedRoomId && providerAvailable,
+      enabled: !!resolvedRoomId && providerAvailable && networkOnly,
       queryKey: getChatMessagesListQueryKey(resolvedRoomId ?? ''),
-      refetchInterval: providerAvailable ? 4_000 : false,
+      refetchInterval: providerAvailable && networkOnly ? 4_000 : false,
     },
   });
 
-  const serverMessages = msgsData?.messages ?? [];
+  // Local-first timeline: rows come from the device store, the outbox
+  // contributes queued/failed bubbles, and the sync engine keeps both fresh.
+  const localTimeline = useLocalMessages(localFirst ? resolvedRoomId : null, providerAvailable);
+  const localOutbox = useLocalOutbox(localFirst ? resolvedRoomId : null);
+  useEffect(() => {
+    if (!localFirst || !resolvedRoomId || !providerAvailable) return;
+    void chatEngine?.ensureRoom(resolvedRoomId);
+    void requestSync('conversation');
+  }, [chatEngine, localFirst, providerAvailable, requestSync, resolvedRoomId]);
+
+  const serverMessages = useMemo<ChatMessage[]>(
+    () => (localFirst ? localTimeline.messages ?? [] : msgsData?.messages ?? []),
+    [localFirst, localTimeline.messages, msgsData],
+  );
+
+  const outboxMessages = useMemo<ChatMessage[]>(() => {
+    if (!localFirst || !localOutbox.data) return [];
+    const viewer = { id: user?.id ?? 'me', name: user?.name ?? 'Me' };
+    // Rows the on-screen attachment queue still owns render in its own bar.
+    const owned = new Set(pendingUploads.map((item) => item.clientRequestId));
+    return localOutbox.data
+      .filter((item) => item.state !== 'pending_upload' && !owned.has(item.clientRequestId))
+      .map((item) => outboxToMessage(item, viewer))
+      .reverse();
+  }, [localFirst, localOutbox.data, pendingUploads, user?.id, user?.name]);
+
+  const timelineLoading = localFirst
+    ? !storeReady || localTimeline.loading || ((localTimeline.messages?.length ?? 0) === 0 && localTimeline.loadingOlder)
+    : !storeReady || msgsLoading;
+  const timelineError = localFirst
+    ? (localTimeline.messages?.length ?? 0) === 0 && !!syncStatus.error && syncStatus.online && !syncStatus.syncing
+    : msgsError;
 
   const allMessages = useMemo(() => {
     const serverIds = new Set(serverMessages.map((m) => m.id));
+    const serverRequestIds = new Set(serverMessages.map((m) => m.clientRequestId).filter(Boolean));
     const pending = optimisticMsgs.filter((m) => !serverIds.has(m.id));
-    return [...pending, ...serverMessages];
-  }, [serverMessages, optimisticMsgs]);
+    const queued = outboxMessages.filter((m) => !serverRequestIds.has(m.clientRequestId));
+    return [...pending, ...queued, ...serverMessages];
+  }, [serverMessages, optimisticMsgs, outboxMessages]);
 
   // ── Push suppression while this room is on screen ───────────────────────
   // A message push for the open conversation would duplicate what the list
@@ -1559,6 +1834,18 @@ export default function ChatScreen() {
     const newestIncoming = serverMessages.find((m) => m.senderId !== user?.id);
     if (!newestIncoming) return;
     markReadMutation.mutate({ roomId: resolvedRoomId, data: { messageId: newestIncoming.id } });
+    // Mirror the read marker locally so the inbox badge clears at once, even
+    // offline; the server's own marker replaces it on the next delta.
+    if (chatStore && user?.id) {
+      void chatStore.applyReadStates([
+        {
+          roomId: resolvedRoomId,
+          userId: user.id,
+          lastReadMessageId: newestIncoming.id,
+          lastReadAt: new Date().toISOString(),
+        },
+      ]);
+    }
     // Reading here clears the room's delivered notifications from the tray.
     void dismissChatNotifications(resolvedRoomId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1581,6 +1868,23 @@ export default function ChatScreen() {
     setSendError(null);
     setText('');
     setReplyTo(null);
+
+    if (chatStore && chatOutbox) {
+      // Durable path: the outbox row is the optimistic bubble. It survives an
+      // app restart and is flushed in order once the device is online.
+      pendingSendRef.current = null;
+      void chatStore
+        .enqueueOutbox(
+          makeTextOutboxItem({ clientRequestId, roomId: resolvedRoomId, body: trimmed, replyTo: quoted }),
+        )
+        .then(() => chatOutbox.flush())
+        .catch(() => {
+          setSendError('Message could not be queued.');
+          setText(trimmed);
+          if (quoted) setReplyTo(quoted);
+        });
+      return;
+    }
 
     const optimistic: ChatMessage = {
       id: `opt-${clientRequestId}`,
@@ -1632,7 +1936,51 @@ export default function ChatScreen() {
         },
       },
     );
-  }, [resolvedRoomId, isBlocked, user, sendMutation, msgsRefetch, queryClient, replyTo]);
+  }, [resolvedRoomId, isBlocked, user, sendMutation, msgsRefetch, queryClient, replyTo, chatStore, chatOutbox]);
+
+  // Failed outbox rows: retry re-queues in place; discard drops the row.
+  const outboxItemFor = useCallback(
+    (msg: ChatMessage): OutboxItem | null =>
+      localOutbox.data?.find((item) => `out-${item.clientRequestId}` === msg.id) ?? null,
+    [localOutbox.data],
+  );
+
+  const handleOutboxRetry = useCallback(
+    (msg: ChatMessage) => {
+      const item = outboxItemFor(msg);
+      if (!item || !chatOutbox) return;
+      if (item.kind !== 'text' && !item.objectPath) {
+        // Upload never finished: hand it back to the attachment queue.
+        if (!item.localUri) return;
+        queueUploadsRef.current?.(
+          [
+            {
+              uri: item.localUri,
+              name: item.body,
+              size: item.sizeBytes ?? 0,
+              contentType: item.contentType ?? 'application/octet-stream',
+              clientRequestId: item.clientRequestId,
+              ...(item.durationMs !== undefined ? { durationMs: item.durationMs } : {}),
+              ...(item.ownedTempFile ? { ownedTempFile: true } : {}),
+            },
+          ],
+          { sendNow: true },
+        );
+        return;
+      }
+      void chatOutbox.retry(item.clientRequestId);
+    },
+    [chatOutbox, outboxItemFor],
+  );
+
+  const handleOutboxDiscard = useCallback(
+    (msg: ChatMessage) => {
+      const item = outboxItemFor(msg);
+      if (!item || !chatOutbox) return;
+      void chatOutbox.discard(item.clientRequestId);
+    },
+    [chatOutbox, outboxItemFor],
+  );
 
   const handleSend = useCallback(() => {
     sendTextValue(text);
@@ -1721,13 +2069,16 @@ export default function ChatScreen() {
         );
       pendingUploadsRef.current = persist(pendingUploadsRef.current);
       setPendingUploads(persist);
+      // The upload is the unrecoverable part; once it is done the outbox row
+      // holds everything needed to resend after a restart.
+      await chatStore?.updateOutbox(target.clientRequestId, { objectPath: uploaded, state: 'sending' });
     }
 
     // 3) Send the chat message (no optimistic — wait for server)
     setIsSendingUpload(true);
     try {
       const kind = messageKindFor(target.contentType, target.durationMs !== undefined);
-      await new Promise<void>((resolve, reject) => {
+      const sent = await new Promise<ChatMessage | null>((resolve, reject) => {
         const sendData: Parameters<typeof sendMutation.mutate>[0]['data'] = {
           kind,
           body: target.name,
@@ -1739,9 +2090,23 @@ export default function ChatScreen() {
         };
         sendMutation.mutate(
           { roomId: resolvedRoomId, data: sendData },
-          { onSuccess: () => resolve(), onError: reject },
+          { onSuccess: (res) => resolve(res?.message ?? null), onError: reject },
         );
       });
+      if (chatStore) {
+        await chatStore.batch(async () => {
+          if (sent) await chatStore.upsertMessages([sent]);
+          await chatStore.removeOutbox(target.clientRequestId);
+          // The kept original now belongs to the server message id.
+          if (sent) await finalizeSentMedia(chatStore, target.clientRequestId, sent.id);
+        });
+      }
+    } catch (err) {
+      await chatStore?.updateOutbox(target.clientRequestId, {
+        state: 'failed',
+        lastError: (err as any)?.data?.message ?? (err as any)?.message ?? 'Failed to send.',
+      });
+      throw err;
     } finally {
       setIsSendingUpload(false);
     }
@@ -1754,7 +2119,7 @@ export default function ChatScreen() {
     pendingUploadsRef.current = remaining;
     setPendingUploads(remaining);
     setUploadProgress(null);
-  }, [resolvedRoomId, uploadUrlMutation, sendMutation]);
+  }, [resolvedRoomId, uploadUrlMutation, sendMutation, chatStore]);
 
   const sendingQueueRef = useRef(false);
   /**
@@ -1777,18 +2142,21 @@ export default function ChatScreen() {
       setPendingBatchTotal(0);
     } catch (err: any) {
       setUploadProgress(null);
-      setUploadError(
-        err?.data?.message ?? err?.message ?? 'Failed to send. Tap Retry.',
-      );
+      const message = err?.data?.message ?? err?.message ?? 'Failed to send. Tap Retry.';
+      setUploadError(message);
+      // Keep the durable copy honest: after leaving this screen the item
+      // shows as a failed bubble with Retry/Discard instead of vanishing.
+      const head = pendingUploadsRef.current[0];
+      if (head) void chatStore?.updateOutbox(head.clientRequestId, { state: 'failed', lastError: message });
     } finally {
       sendingQueueRef.current = false;
     }
     if (sentAny) {
-      msgsRefetch();
+      if (!localFirst) msgsRefetch();
       void queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
       void queryClient.invalidateQueries({ queryKey: getChatRoomsGetQueryKey(resolvedRoomId) });
     }
-  }, [resolvedRoomId, uploadAndSendOne, msgsRefetch, queryClient]);
+  }, [resolvedRoomId, uploadAndSendOne, msgsRefetch, queryClient, chatStore, localFirst]);
 
   /** Append prepared items to the queue; optionally start sending at once. */
   const queueUploads = useCallback(
@@ -1799,10 +2167,35 @@ export default function ChatScreen() {
       setPendingUploads(next);
       setPendingBatchTotal((total) => Math.max(total, 0) + items.length);
       setUploadError(null);
+      if (chatStore && resolvedRoomId) {
+        // Durable metadata for each attachment so a retry survives a restart
+        // (bytes still upload through this screen's flow).
+        const now = new Date().toISOString();
+        for (const item of items) {
+          void chatStore.enqueueOutbox({
+            clientRequestId: item.clientRequestId,
+            roomId: resolvedRoomId,
+            kind: messageKindFor(item.contentType, item.durationMs !== undefined),
+            body: item.name,
+            localUri: item.uri,
+            contentType: item.contentType,
+            sizeBytes: item.size,
+            ...(item.durationMs !== undefined ? { durationMs: item.durationMs } : {}),
+            ...(item.ownedTempFile ? { ownedTempFile: true } : {}),
+            ...(item.uploadedObjectPath ? { objectPath: item.uploadedObjectPath } : {}),
+            state: 'pending_upload',
+            attempts: 0,
+            lastError: null,
+            nextAttemptAt: now,
+            createdAt: now,
+          });
+        }
+      }
       if (options?.sendNow) void handleSendUpload();
     },
-    [handleSendUpload],
+    [handleSendUpload, chatStore, resolvedRoomId],
   );
+  queueUploadsRef.current = queueUploads;
 
   const attachEnabled =
     providerAvailable &&
@@ -1811,6 +2204,32 @@ export default function ChatScreen() {
     uploadProgress === null &&
     !isSendingUpload &&
     recordingPhase === 'idle';
+
+  /**
+   * Sender-side original: copy (or move, when the file is already ours) the
+   * outgoing attachment into app-private storage and index it under the
+   * outbox key. The upload reads from that copy, the bubble renders from it
+   * straight away, and once the server accepts the message the row is
+   * re-keyed to the server id — the sender never downloads its own media.
+   * Falls back to the original URI when the copy fails.
+   */
+  const keepForSend = useCallback(
+    async (upload: PendingUpload): Promise<PendingUpload> => {
+      if (Platform.OS === 'web' || !chatStore || !mediaFiles || !resolvedRoomId) return upload;
+      const kept = await keepSentMedia(chatStore, mediaFiles, {
+        clientRequestId: upload.clientRequestId,
+        roomId: resolvedRoomId,
+        sourceUri: upload.uri,
+        mimeType: upload.contentType,
+        ext: mediaExtensionFor(upload.contentType, upload.name),
+        move: !!upload.ownedTempFile,
+      });
+      if (!kept) return upload;
+      const { ownedTempFile: _owned, ...rest } = upload;
+      return { ...rest, uri: kept.localPath };
+    },
+    [chatStore, mediaFiles, resolvedRoomId],
+  );
 
   // ── Attachment sheet and native pickers ──────────────────────────────────
   /**
@@ -1891,16 +2310,16 @@ export default function ChatScreen() {
         );
       }
 
-      return {
+      return keepForSend({
         uri: uploadUri,
         name,
         size,
         contentType,
         clientRequestId: makeClientRequestId('attach'),
         ...(ownedTempFile ? { ownedTempFile: true } : {}),
-      };
+      });
     },
-    [],
+    [keepForSend],
   );
 
   /** Prepare a batch; if any file cannot be read, nothing is queued. */
@@ -1923,12 +2342,13 @@ export default function ChatScreen() {
       } catch (error: any) {
         for (const item of prepared) {
           if (item.ownedTempFile) deleteVoiceTempFile(item.uri);
+          if (chatStore) void discardOutboxMedia(chatStore, mediaFiles, item.clientRequestId).catch(() => {});
         }
         setUploadError(error?.message ?? 'Could not read the selected file.');
         return null;
       }
     },
-    [prepareUpload],
+    [prepareUpload, chatStore, mediaFiles],
   );
 
   const loadRecentAssets = useCallback(async () => {
@@ -2220,7 +2640,7 @@ export default function ChatScreen() {
     try {
       const recording = await voice.finish();
       if (!recording) return;
-      const upload: PendingUpload = {
+      const upload: PendingUpload = await keepForSend({
         uri: recording.uri,
         name: recording.name,
         size: recording.size,
@@ -2228,15 +2648,41 @@ export default function ChatScreen() {
         clientRequestId: makeClientRequestId('voice'),
         durationMs: recording.durationMs,
         ownedTempFile: true,
-      };
+      });
       queueUploads([upload]);
       await handleSendUpload();
     } finally {
       setVoiceSending(false);
     }
-  }, [voice, voiceSending, queueUploads, handleSendUpload]);
+  }, [voice, voiceSending, queueUploads, handleSendUpload, keepForSend]);
 
   // ── Download / open / share ─────────────────────────────────────────────
+  /**
+   * Bytes for save/share/open actions: the device copy when the message has
+   * one (no network, works offline), otherwise a one-off fetch from the relay
+   * into the cache while the server still holds it. `temp` tells the caller
+   * whether the file is theirs to delete afterwards.
+   */
+  const materialiseMedia = useCallback(
+    async (message: ChatMessage, dest: string, authToken: string | null): Promise<{ uri: string; temp: boolean }> => {
+      const local = localMediaPathOf(message);
+      if (local) {
+        const info = await FileSystem.getInfoAsync(local).catch(() => ({ exists: false }));
+        if (info.exists) return { uri: local, temp: false };
+      }
+      if (!relayAvailable(message)) throw new Error('This attachment is no longer available.');
+      const result = await FileSystem.downloadAsync(chatMediaUri(message.roomId, message.id), dest, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      if (result.status && result.status !== 200) {
+        await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+        throw new Error(`Download failed (HTTP ${result.status})`);
+      }
+      return { uri: result.uri, temp: true };
+    },
+    [],
+  );
+
   /**
    * Fetch a file message's bytes to the private cache, then hand it to the
    * OS: Android opens it in the app registered for its type (PDF reader,
@@ -2268,12 +2714,7 @@ export default function ChatScreen() {
           return;
         }
         const dest = `${FileSystem.cacheDirectory}chat_media_${message.id}_${filename}`;
-        const dlResult = await FileSystem.downloadAsync(chatMediaUri(message.roomId, message.id), dest, {
-          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
-        });
-        if (dlResult.status && dlResult.status !== 200) {
-          throw new Error(`Download failed (HTTP ${dlResult.status})`);
-        }
+        const dlResult = await materialiseMedia(message, dest, authToken);
         if (Platform.OS === 'android') {
           try {
             const contentUri = await FileSystem.getContentUriAsync(dlResult.uri);
@@ -2295,11 +2736,12 @@ export default function ChatScreen() {
             // The share sheet has copied or handed off the bytes by now. (The
             // Android VIEW path above keeps its copy because the target app
             // may still be reading the content URI; its deterministic name
-            // means a re-open overwrites rather than accumulates.)
-            deleteVoiceTempFile(dlResult.uri);
+            // means a re-open overwrites rather than accumulates.) The
+            // device's own copy is never deleted here.
+            if (dlResult.temp) deleteVoiceTempFile(dlResult.uri);
           }
         } else {
-          deleteVoiceTempFile(dlResult.uri);
+          if (dlResult.temp) deleteVoiceTempFile(dlResult.uri);
           throw new Error('No app on this device can open this file.');
         }
       } catch (err: any) {
@@ -2308,11 +2750,12 @@ export default function ChatScreen() {
         setOpeningFileId(null);
       }
     },
-    [openingFileId],
+    [openingFileId, materialiseMedia],
   );
 
   const handleDownloadAttachment = useCallback(
-    async (roomId: string, messageId: string, filename: string, authToken: string | null) => {
+    async (message: ChatMessage, filename: string, authToken: string | null) => {
+      const { roomId, id: messageId } = message;
       try {
         if (Platform.OS === 'web') {
           const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
@@ -2335,16 +2778,7 @@ export default function ChatScreen() {
         } else {
           const safe = sanitiseFilename(filename);
           const dest = `${FileSystem.cacheDirectory}chat_media_${messageId}_${safe}`;
-          const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
-            ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-            : '';
-          const mediaUrl = `${baseUrl}${getChatMessageMediaUrl(roomId, messageId)}`;
-          const dlResult = await FileSystem.downloadAsync(mediaUrl, dest, {
-            headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
-          });
-          if (dlResult.status && dlResult.status !== 200) {
-            throw new Error(`Download failed (HTTP ${dlResult.status})`);
-          }
+          const dlResult = await materialiseMedia(message, dest, authToken);
           const sharingAvailable = await Sharing.isAvailableAsync();
           if (sharingAvailable) {
             await Sharing.shareAsync(dlResult.uri, { dialogTitle: safe });
@@ -2354,14 +2788,14 @@ export default function ChatScreen() {
         setSendError(err?.message ?? 'Could not download attachment.');
       }
     },
-    [],
+    [materialiseMedia],
   );
 
   // ── Save a photo to the device gallery (image viewer download) ──────────
   const handleSaveToGallery = useCallback(async (message: ChatMessage) => {
     const extension = imageExtensionFor(message.body);
     if (Platform.OS === 'web') {
-      await handleDownloadAttachment(message.roomId, message.id, `photo-${message.id}.${extension}`, token);
+      await handleDownloadAttachment(message, `photo-${message.id}.${extension}`, token);
       return;
     }
     const current = await MediaLibrary.getPermissionsAsync(true);
@@ -2372,24 +2806,19 @@ export default function ChatScreen() {
       throw new Error('Allow photo access to save this image.');
     }
     const dest = `${FileSystem.cacheDirectory}chat_photo_${message.id}.${extension}`;
-    const result = await FileSystem.downloadAsync(chatMediaUri(message.roomId, message.id), dest, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (result.status && result.status !== 200) {
-      throw new Error(`Download failed (HTTP ${result.status})`);
-    }
+    const result = await materialiseMedia(message, dest, token);
     try {
       await MediaLibrary.saveToLibraryAsync(result.uri);
     } finally {
-      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+      if (result.temp) await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
     }
-  }, [handleDownloadAttachment, token]);
+  }, [handleDownloadAttachment, materialiseMedia, token]);
 
   // ── Save a video to the device gallery (video viewer download) ──────────
   const handleSaveVideo = useCallback(async (message: ChatMessage) => {
     const extension = fileExtension(message.body) || 'mp4';
     if (Platform.OS === 'web') {
-      await handleDownloadAttachment(message.roomId, message.id, `video-${message.id}.${extension}`, token);
+      await handleDownloadAttachment(message, `video-${message.id}.${extension}`, token);
       return;
     }
     const current = await MediaLibrary.getPermissionsAsync(true, ['video']);
@@ -2400,18 +2829,13 @@ export default function ChatScreen() {
       throw new Error('Allow media access to save this video.');
     }
     const dest = `${FileSystem.cacheDirectory}chat_video_${message.id}.${extension}`;
-    const result = await FileSystem.downloadAsync(chatMediaUri(message.roomId, message.id), dest, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (result.status && result.status !== 200) {
-      throw new Error(`Download failed (HTTP ${result.status})`);
-    }
+    const result = await materialiseMedia(message, dest, token);
     try {
       await MediaLibrary.saveToLibraryAsync(result.uri);
     } finally {
-      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+      if (result.temp) await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
     }
-  }, [handleDownloadAttachment, token]);
+  }, [handleDownloadAttachment, materialiseMedia, token]);
 
   // ── Selection / reply / forward / delete ────────────────────────────────
   const selectionMode = selectedIds.size > 0;
@@ -2437,7 +2861,7 @@ export default function ChatScreen() {
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
   const handleLongPressMessage = useCallback((msg: ChatMessage) => {
-    if (msg.id.startsWith('opt-') || msg.deletedAt) return;
+    if (isLocalOnlyId(msg.id) || msg.deletedAt) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       next.add(msg.id);
@@ -2446,7 +2870,7 @@ export default function ChatScreen() {
   }, []);
 
   const handleToggleSelect = useCallback((msg: ChatMessage) => {
-    if (msg.id.startsWith('opt-') || msg.deletedAt) return;
+    if (isLocalOnlyId(msg.id) || msg.deletedAt) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(msg.id)) next.delete(msg.id);
@@ -2469,7 +2893,7 @@ export default function ChatScreen() {
   }, [clearSelection]);
 
   const openForward = useCallback((messages: ChatMessage[]) => {
-    const ids = messages.filter((m) => !m.deletedAt && !m.id.startsWith('opt-')).map((m) => m.id);
+    const ids = messages.filter((m) => !m.deletedAt && !isLocalOnlyId(m.id)).map((m) => m.id);
     if (!resolvedRoomId || ids.length === 0) return;
     clearSelection();
     setViewerMessage(null);
@@ -2491,6 +2915,11 @@ export default function ChatScreen() {
       });
       const deletedIds = new Set(result.deletedIds);
       const nowIso = new Date().toISOString();
+      if (chatStore) {
+        // Local echo; the delta feed confirms it (hidden / tombstone rows).
+        if (scope === 'me') await chatStore.hideMessages(result.deletedIds);
+        else await chatStore.tombstoneMessages(result.deletedIds, nowIso);
+      }
       queryClient.setQueryData(
         getChatMessagesListQueryKey(resolvedRoomId),
         (previous: { messages: ChatMessage[] } | undefined) => {
@@ -2509,7 +2938,8 @@ export default function ChatScreen() {
       if (replyTo && deletedIds.has(replyTo.id)) setReplyTo(null);
       if (viewerMessage && deletedIds.has(viewerMessage.id)) setViewerMessage(null);
       clearSelection();
-      void msgsRefetch();
+      if (localFirst) void requestSync('manual');
+      else void msgsRefetch();
       void queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
     } catch (err: any) {
       const code = err?.data?.code ?? err?.data?.error;
@@ -2521,13 +2951,14 @@ export default function ChatScreen() {
             : err?.data?.message ?? err?.message ?? 'Could not delete these messages.';
       // A batch can fail part-way (items redacted before the failure stay
       // deleted), so always resync rather than trusting the local rows.
-      void msgsRefetch();
+      if (localFirst) void requestSync('manual');
+      else void msgsRefetch();
       Alert.alert('Delete failed', message);
     }
-  }, [clearSelection, deleteMutation, msgsRefetch, queryClient, replyTo, resolvedRoomId, viewerMessage]);
+  }, [chatStore, clearSelection, deleteMutation, localFirst, msgsRefetch, queryClient, replyTo, requestSync, resolvedRoomId, viewerMessage]);
 
   const confirmDelete = useCallback((messages: ChatMessage[]) => {
-    const live = messages.filter((m) => !m.deletedAt && !m.id.startsWith('opt-'));
+    const live = messages.filter((m) => !m.deletedAt && !isLocalOnlyId(m.id));
     if (live.length === 0) return;
     const allMine = live.every((m) => m.senderId === user?.id);
     // Mirrors the server rule: a sender can retract from everyone only within
@@ -2635,7 +3066,7 @@ export default function ChatScreen() {
         <Avatar name={roomName} size={34} url={room?.profilePhoto} />
         <View style={styles.headerTitleContainer}>
           <Text
-            style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold', fontSize: 15 }]}
+            style={[styles.headerTitle, { color: colors.foreground, ...font.captionStrong, fontFamily: fontFamily.bold }]}
             numberOfLines={1}
           >
             {roomName}
@@ -2645,7 +3076,7 @@ export default function ChatScreen() {
               {room?.peerOnline && (
                 <View style={[styles.presenceDot, { backgroundColor: colors.success }]} />
               )}
-              <Text style={[styles.headerSubtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>
+              <Text style={[styles.headerSubtitle, { color: colors.mutedForeground, ...font.small }]}>
                 {presenceText}
               </Text>
             </View>
@@ -2703,18 +3134,26 @@ export default function ChatScreen() {
         <View style={[styles.chatSafetyCard, { backgroundColor: colors.warningLight }]}>
           <Feather name="lock" size={13} color={colors.warning} />
           <View style={styles.chatSafetyCopy}>
-            <Text style={[styles.chatSafetyTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+            <Text style={[styles.chatSafetyTitle, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
               Avarpus private conversation
             </Text>
-            <Text style={[styles.chatSafetyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.chatSafetyText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               Communication only.
             </Text>
-            <Text style={[styles.chatSafetyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.chatSafetyText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               End-to-end encryption is not enabled
             </Text>
           </View>
         </View>
       </View>
+
+      {localFirst && providerAvailable && resolvedRoomId ? (
+        <ChatSyncBanner
+          status={syncStatus}
+          hasLocalData={(localTimeline.messages?.length ?? 0) > 0}
+          onRetry={() => void requestSync('manual')}
+        />
+      ) : null}
 
       {/* Body */}
       <View style={styles.chatBody}>
@@ -2734,7 +3173,7 @@ export default function ChatScreen() {
               <Text
                 style={[
                   styles.noticeTitle,
-                  { color: colors.foreground, fontFamily: 'Inter_700Bold' },
+                  { color: colors.foreground, fontFamily: fontFamily.bold },
                 ]}
               >
                 Chat setup pending
@@ -2742,7 +3181,7 @@ export default function ChatScreen() {
               <Text
                 style={[
                   styles.noticeText,
-                  { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+                  { color: colors.mutedForeground, fontFamily: fontFamily.regular },
                 ]}
               >
                 Messaging, attachments, voice notes and calls will be available after the
@@ -2753,7 +3192,7 @@ export default function ChatScreen() {
                 <Text
                   style={[
                     styles.safetyText,
-                    { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' },
+                    { color: colors.mutedForeground, fontFamily: fontFamily.medium },
                   ]}
                 >
                   Nothing is sent or stored from this screen.
@@ -2767,7 +3206,7 @@ export default function ChatScreen() {
             <Text
               style={[
                 styles.noticeTitle,
-                { color: colors.foreground, fontFamily: 'Inter_700Bold', marginTop: 12 },
+                { color: colors.foreground, fontFamily: fontFamily.bold, marginTop: 12 },
               ]}
             >
               Could not open chat
@@ -2777,7 +3216,7 @@ export default function ChatScreen() {
                 styles.noticeText,
                 {
                   color: colors.mutedForeground,
-                  fontFamily: 'Inter_400Regular',
+                  fontFamily: fontFamily.regular,
                   textAlign: 'center',
                   marginTop: 6,
                 },
@@ -2793,39 +3232,39 @@ export default function ChatScreen() {
                 requestRoomCreation();
               }}
             >
-              <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>
+              <Text style={{ color: '#fff', ...font.smallStrong }}>
                 Retry
               </Text>
             </TouchableOpacity>
           </View>
-        ) : !resolvedRoomId || msgsLoading ? (
+        ) : !resolvedRoomId || timelineLoading ? (
           <View style={styles.centeredState}>
             <AvarpusSpinner size={20} />
             <Text
               style={[
                 styles.stateText,
-                { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+                { color: colors.mutedForeground, fontFamily: fontFamily.regular },
               ]}
             >
               {!resolvedRoomId ? 'Opening chat room…' : 'Loading messages…'}
             </Text>
           </View>
-        ) : msgsError ? (
+        ) : timelineError ? (
           <View style={styles.centeredState}>
             <Feather name="alert-circle" size={28} color={colors.destructive} />
             <Text
               style={[
                 styles.noticeTitle,
-                { color: colors.foreground, fontFamily: 'Inter_700Bold', marginTop: 10 },
+                { color: colors.foreground, fontFamily: fontFamily.bold, marginTop: 10 },
               ]}
             >
               Could not load messages
             </Text>
             <TouchableOpacity
               style={[styles.retryBtn, { backgroundColor: colors.primary }]}
-              onPress={() => msgsRefetch()}
+              onPress={() => (localFirst ? void requestSync('manual') : msgsRefetch())}
             >
-              <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>
+              <Text style={{ color: '#fff', ...font.smallStrong }}>
                 Retry
               </Text>
             </TouchableOpacity>
@@ -2840,6 +3279,15 @@ export default function ChatScreen() {
             showsVerticalScrollIndicator={false}
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
+            onEndReachedThreshold={0.6}
+            onEndReached={localFirst ? () => void localTimeline.loadOlder() : undefined}
+            ListFooterComponent={
+              localFirst && localTimeline.loadingOlder ? (
+                <View style={styles.historyLoading}>
+                  <AvarpusSpinner size={16} />
+                </View>
+              ) : null
+            }
             renderItem={({ item, index }) => {
               const nextMessage = allMessages[index + 1];
               const showDateSeparator =
@@ -2853,7 +3301,7 @@ export default function ChatScreen() {
                     token={token}
                     onOpenFile={handleOpenFile}
                     openingFile={openingFileId === item.id}
-                    selectable={!item.id.startsWith('opt-')}
+                    selectable={!isLocalOnlyId(item.id)}
                     selected={selectedIds.has(item.id)}
                     selectionMode={selectionMode}
                     onSelectStart={handleLongPressMessage}
@@ -2865,6 +3313,30 @@ export default function ChatScreen() {
                       item.replyTo ? senderLabelFor(item.replyTo.senderId, item.replyTo.senderName) : undefined
                     }
                   />
+                  {item.id.startsWith('out-') &&
+                    (item as ChatMessage & { localStatus?: ChatDeliveryStatus }).localStatus === 'failed' && (
+                      <View style={styles.outboxActions} testID={`outbox-failed-${item.id}`}>
+                        <Text style={[styles.outboxFailedText, { color: colors.destructive }]} numberOfLines={1}>
+                          Not sent
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => handleOutboxRetry(item)}
+                          accessibilityRole="button"
+                          accessibilityLabel="Retry sending"
+                          hitSlop={8}
+                        >
+                          <Text style={[styles.outboxActionText, { color: colors.primary }]}>Retry</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleOutboxDiscard(item)}
+                          accessibilityRole="button"
+                          accessibilityLabel="Discard message"
+                          hitSlop={8}
+                        >
+                          <Text style={[styles.outboxActionText, { color: colors.mutedForeground }]}>Discard</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   {showDateSeparator && <DateSeparator date={item.createdAt} colors={colors} />}
                 </View>
               );
@@ -2874,7 +3346,7 @@ export default function ChatScreen() {
                 <Text
                   style={[
                     styles.stateText,
-                    { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+                    { color: colors.mutedForeground, fontFamily: fontFamily.regular },
                   ]}
                 >
                   No messages yet. Send the first one!
@@ -2973,13 +3445,13 @@ export default function ChatScreen() {
         const info = (
           <View style={styles.attachmentPreviewInfo}>
             <Text
-              style={[styles.attachmentPreviewName, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}
+              style={[styles.attachmentPreviewName, { color: colors.foreground, fontFamily: fontFamily.medium }]}
               numberOfLines={1}
             >
               {pendingUpload.name}
             </Text>
             <Text
-              style={[styles.attachmentPreviewSize, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}
+              style={[styles.attachmentPreviewSize, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}
               numberOfLines={1}
               testID="pending-upload-meta"
             >
@@ -3051,7 +3523,7 @@ export default function ChatScreen() {
                         <Feather name={itemVisual.icon} size={13} color={colors.primary} />
                       )}
                       <Text
-                        style={[styles.attachmentQueueName, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+                        style={[styles.attachmentQueueName, { color: colors.foreground, fontFamily: fontFamily.regular }]}
                         numberOfLines={1}
                       >
                         {item.name}
@@ -3102,7 +3574,7 @@ export default function ChatScreen() {
           >
             <TextInput
               ref={composerInputRef}
-              style={[styles.input, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+              style={[styles.input, { color: colors.foreground, fontFamily: fontFamily.regular }]}
               placeholder={providerAvailable ? 'Message…' : 'Messaging is not available yet'}
               placeholderTextColor={colors.mutedForeground}
               value={text}
@@ -3184,7 +3656,7 @@ export default function ChatScreen() {
         >
           <Feather name="mic-off" size={14} color={colors.destructive} />
           <Text
-            style={[styles.errorText, { color: colors.destructive, fontFamily: 'Inter_400Regular' }]}
+            style={[styles.errorText, { color: colors.destructive, fontFamily: fontFamily.regular }]}
           >
             Microphone permission denied. Enable it in Settings to send voice notes.
           </Text>
@@ -3207,7 +3679,7 @@ export default function ChatScreen() {
         >
           <Feather name="alert-circle" size={14} color={colors.destructive} />
           <Text
-            style={[styles.errorText, { color: colors.destructive, fontFamily: 'Inter_400Regular' }]}
+            style={[styles.errorText, { color: colors.destructive, fontFamily: fontFamily.regular }]}
             numberOfLines={2}
           >
             {recorderError}
@@ -3233,7 +3705,7 @@ export default function ChatScreen() {
           <Text
             style={[
               styles.errorText,
-              { color: colors.destructive, fontFamily: 'Inter_400Regular' },
+              { color: colors.destructive, fontFamily: fontFamily.regular },
             ]}
             numberOfLines={2}
           >
@@ -3248,8 +3720,7 @@ export default function ChatScreen() {
             <Text
               style={{
                 color: colors.destructive,
-                fontFamily: 'Inter_600SemiBold',
-                fontSize: 12,
+                ...font.smallStrong,
                 marginLeft: 4,
               }}
             >
@@ -3284,7 +3755,7 @@ export default function ChatScreen() {
           <Text
             style={[
               styles.errorText,
-              { color: colors.destructive, fontFamily: 'Inter_400Regular' },
+              { color: colors.destructive, fontFamily: fontFamily.regular },
             ]}
             numberOfLines={2}
           >
@@ -3379,10 +3850,10 @@ const styles = StyleSheet.create({
   },
   iconButton: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitleContainer: { flex: 1, paddingHorizontal: 8, justifyContent: 'center' },
-  headerTitle: { fontSize: 16 },
+  headerTitle: { ...font.labelStrong },
   presenceRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   presenceDot: { width: 6, height: 6, borderRadius: 3 },
-  headerSubtitle: { fontSize: 11 },
+  headerSubtitle: { ...font.small },
   disabledHeaderAction: {
     width: 32,
     height: 42,
@@ -3405,8 +3876,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   chatSafetyCopy: { flexShrink: 1 },
-  chatSafetyTitle: { fontSize: 11 },
-  chatSafetyText: { fontSize: 10, marginTop: 1 },
+  chatSafetyTitle: { ...font.smallStrong },
+  chatSafetyText: { ...font.small, marginTop: 1 },
   chatBody: { flex: 1, overflow: 'hidden' },
   wallpaperBase: { ...StyleSheet.absoluteFill, opacity: 0.72 },
   wallpaperMotif: { position: 'absolute' },
@@ -3417,7 +3888,7 @@ const styles = StyleSheet.create({
     padding: 24,
     gap: 8,
   },
-  stateText: { fontSize: 14 },
+  stateText: { ...font.small },
   noticeCard: {
     alignItems: 'center',
     padding: 24,
@@ -3434,8 +3905,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 14,
   },
-  noticeTitle: { fontSize: 17, marginBottom: 8 },
-  noticeText: { fontSize: 13, textAlign: 'center', lineHeight: 20 },
+  noticeTitle: { ...font.bodyStrong, marginBottom: 8 },
+  noticeText: { ...font.small, textAlign: 'center' },
   safetyNote: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3445,7 +3916,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 12,
   },
-  safetyText: { flexShrink: 1, fontSize: 11 },
+  safetyText: { flexShrink: 1, ...font.small },
   retryBtn: {
     marginTop: 12,
     paddingHorizontal: 24,
@@ -3467,10 +3938,21 @@ const styles = StyleSheet.create({
   bubbleMine: { borderBottomRightRadius: 4 },
   bubbleTheirs: { borderBottomLeftRadius: 4, borderWidth: StyleSheet.hairlineWidth },
   bubbleMedia: { padding: 6 },
-  bubbleText: { fontSize: 14, lineHeight: 19 },
+  bubbleText: { ...font.small },
   bubbleFooter: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: 3, marginTop: 1 },
-  bubbleTime: { fontSize: 10 },
-  deliveryTicks: { fontSize: 10, letterSpacing: -2 },
+  bubbleTime: { ...font.small },
+  deliveryTicks: { ...font.small, letterSpacing: -2 },
+  historyLoading: { paddingVertical: 12, alignItems: 'center' },
+  outboxActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 8,
+    paddingBottom: 6,
+  },
+  outboxFailedText: { ...font.smallStrong },
+  outboxActionText: { ...font.smallStrong },
   dateSeparator: {
     alignSelf: 'center',
     paddingHorizontal: 10,
@@ -3479,8 +3961,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 8,
   },
-  dateSeparatorText: { fontSize: 10, fontFamily: 'Inter_500Medium' },
-  deletedMsg: { fontSize: 12, fontStyle: 'italic', fontFamily: 'Inter_400Regular' },
+  dateSeparatorText: { ...font.smallStrong },
+  deletedMsg: { ...font.small, fontStyle: 'italic' },
   deletedBubble: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3490,7 +3972,7 @@ const styles = StyleSheet.create({
   },
   selectableRow: { position: 'relative' },
   forwardedRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2, paddingHorizontal: 2 },
-  forwardedText: { fontSize: 11, fontStyle: 'italic', fontFamily: 'Inter_400Regular' },
+  forwardedText: { ...font.small, fontStyle: 'italic' },
   quoteInBubble: { marginBottom: 4, minWidth: 160 },
   imageAttachment: {
     width: 200,
@@ -3510,8 +3992,8 @@ const styles = StyleSheet.create({
     maxWidth: 260,
   },
   fileRowCopy: { flex: 1, minWidth: 0 },
-  fileRowName: { fontSize: 13 },
-  fileRowMeta: { fontSize: 11, marginTop: 2 },
+  fileRowName: { ...font.smallStrong },
+  fileRowMeta: { ...font.small, marginTop: 2 },
   fileIconBadge: {
     width: 36,
     height: 36,
@@ -3549,7 +4031,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 3,
   },
-  videoMetaText: { color: '#FFFFFF', fontSize: 11, fontFamily: 'Inter_500Medium' },
+  videoMetaText: { color: '#FFFFFF', ...font.smallStrong },
   audioRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3575,7 +4057,7 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 2,
   },
-  audioDuration: { fontSize: 10 },
+  audioDuration: { ...font.small },
   recordingBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3630,7 +4112,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  attachSendCountText: { fontSize: 10, fontFamily: 'Inter_700Bold' },
+  attachSendCountText: { ...font.badge },
   attachmentQueueScroll: { width: '100%', marginTop: 2 },
   attachmentQueueRow: { flexDirection: 'row', gap: 6, paddingRight: 8 },
   attachmentQueueChip: {
@@ -3644,10 +4126,10 @@ const styles = StyleSheet.create({
     maxWidth: 160,
   },
   attachmentQueueThumb: { width: 20, height: 20, borderRadius: 4 },
-  attachmentQueueName: { fontSize: 11, flexShrink: 1 },
+  attachmentQueueName: { ...font.small, flexShrink: 1 },
   attachmentPreviewInfo: { flex: 1 },
-  attachmentPreviewName: { fontSize: 13 },
-  attachmentPreviewSize: { fontSize: 11, marginTop: 2 },
+  attachmentPreviewName: { ...font.smallStrong },
+  attachmentPreviewSize: { ...font.small, marginTop: 2 },
   attachSendBtn: {
     width: 32,
     height: 32,
@@ -3685,7 +4167,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    ...font.input,
     maxHeight: 120,
     paddingVertical: 12,
     paddingHorizontal: 12,
@@ -3705,7 +4187,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderTopWidth: 1,
   },
-  errorText: { flex: 1, fontSize: 12 },
+  errorText: { flex: 1, ...font.small },
   attachmentSheetOverlay: {
     ...StyleSheet.absoluteFill,
     justifyContent: 'flex-end',
@@ -3751,7 +4233,7 @@ const styles = StyleSheet.create({
   attachmentSheetTitle: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 17,
+    ...font.body,
   },
   attachmentSheetHeaderSpacer: { width: 38 },
   attachmentActionRow: {
@@ -3773,7 +4255,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  attachmentActionLabel: { fontSize: 11, fontFamily: 'Inter_500Medium' },
+  attachmentActionLabel: { ...font.smallStrong },
   attachmentRecentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3781,7 +4263,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 9,
   },
-  attachmentRecentTitle: { fontSize: 14 },
+  attachmentRecentTitle: { ...font.smallStrong },
   attachmentSeeAll: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3789,7 +4271,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingLeft: 8,
   },
-  attachmentSeeAllText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  attachmentSeeAllText: { ...font.smallStrong },
   attachmentStrip: { paddingHorizontal: 14, gap: 8 },
   attachmentRecentScroll: { flex: 1 },
   attachmentPermissionNote: {
@@ -3802,8 +4284,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 7,
   },
-  attachmentPermissionText: { flex: 1, fontSize: 12, lineHeight: 16 },
-  attachmentPermissionAction: { fontSize: 12, fontWeight: '700' },
+  attachmentPermissionText: { flex: 1, ...font.small },
+  attachmentPermissionAction: { ...font.smallStrong },
   attachmentGrid: {
     paddingHorizontal: 12,
     gap: 7,
@@ -3883,7 +4365,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  attachmentSendFabBadgeText: { fontSize: 11, fontFamily: 'Inter_700Bold' },
+  attachmentSendFabBadgeText: { ...font.badge },
   attachmentVideoBadge: {
     position: 'absolute',
     right: 6,
@@ -3903,7 +4385,7 @@ const styles = StyleSheet.create({
   attachmentEndText: {
     width: '100%',
     textAlign: 'center',
-    fontSize: 12,
+    ...font.small,
     paddingVertical: 18,
   },
   attachmentLoadingRow: {
@@ -3919,7 +4401,7 @@ const styles = StyleSheet.create({
     gap: 7,
     paddingHorizontal: 24,
   },
-  attachmentEmptyText: { fontSize: 12, textAlign: 'center' },
+  attachmentEmptyText: { ...font.small, textAlign: 'center' },
   attachmentEmptyButton: {
     marginTop: 4,
     paddingHorizontal: 14,
@@ -3927,7 +4409,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
   },
-  attachmentEmptyButtonText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  attachmentEmptyButtonText: { ...font.smallStrong },
   contactPickerList: { flex: 1 },
   contactPickerContent: { paddingHorizontal: 14 },
   contactRow: {
@@ -3945,6 +4427,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   contactCopy: { flex: 1 },
-  contactName: { fontSize: 14 },
-  contactPhone: { fontSize: 12, marginTop: 2 },
+  contactName: { ...font.smallStrong },
+  contactPhone: { ...font.small, marginTop: 2 },
 });

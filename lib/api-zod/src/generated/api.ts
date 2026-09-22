@@ -264,6 +264,163 @@ export const SupportNotificationSettingsUpdateResponse = zod.object({
 
 
 /**
+ * @summary Read the chat media relay purge policy and the last run summary
+ */
+export const ChatRelaySettingsGetResponse = zod.object({
+  "enabled": zod.boolean(),
+  "graceDays": zod.number(),
+  "expiryDays": zod.number(),
+  "requiredAppBuild": zod.number().describe('First app build that keeps chat media on the device.'),
+  "minimumSupportedBuild": zod.number().nullable().describe('Build number of the newest published critical release, which the console treats as the minimum supported app build. Null when none.\n'),
+  "canEnable": zod.boolean(),
+  "enableBlockedReason": zod.string().nullable(),
+  "updatedAt": zod.coerce.date().nullable(),
+  "updatedByName": zod.string().nullable(),
+  "lastRun": zod.union([zod.object({
+  "ranAt": zod.coerce.date(),
+  "skipped": zod.union([zod.literal('disabled'),zod.literal('min_build_not_met'),zod.literal(null)]).nullable(),
+  "skippedReason": zod.string().nullable(),
+  "examined": zod.number(),
+  "purged": zod.number(),
+  "expired": zod.number(),
+  "alreadyGone": zod.number(),
+  "tombstonesPurged": zod.number().optional().describe('Delete-for-everyone tombstones whose relay object was removed; swept on every run regardless of the switch.'),
+  "kept": zod.number(),
+  "failed": zod.number(),
+  "bytesReclaimed": zod.number(),
+  "abortedError": zod.string().nullable()
+}),zod.null()])
+})
+
+
+/**
+ * Turning the purge ON is refused (409, code CHAT_RELAY_MIN_BUILD_NOT_MET) until the newest published critical release's build number is at least the build that keeps chat media on the device. Turning it OFF and changing the day values are always allowed.
+ * @summary Update the chat media relay purge policy
+ */
+export const chatRelaySettingsUpdateBodyGraceDaysMax = 365;
+
+export const chatRelaySettingsUpdateBodyExpiryDaysMax = 3650;
+
+
+
+export const ChatRelaySettingsUpdateBody = zod.object({
+  "enabled": zod.boolean(),
+  "graceDays": zod.number().min(1).max(chatRelaySettingsUpdateBodyGraceDaysMax).describe('Days after send before media every recipient stored may be purged.'),
+  "expiryDays": zod.number().min(1).max(chatRelaySettingsUpdateBodyExpiryDaysMax).describe('Days after send after which media is purged regardless of receipts.')
+})
+
+export const ChatRelaySettingsUpdateResponse = zod.object({
+  "enabled": zod.boolean(),
+  "graceDays": zod.number(),
+  "expiryDays": zod.number(),
+  "requiredAppBuild": zod.number().describe('First app build that keeps chat media on the device.'),
+  "minimumSupportedBuild": zod.number().nullable().describe('Build number of the newest published critical release, which the console treats as the minimum supported app build. Null when none.\n'),
+  "canEnable": zod.boolean(),
+  "enableBlockedReason": zod.string().nullable(),
+  "updatedAt": zod.coerce.date().nullable(),
+  "updatedByName": zod.string().nullable(),
+  "lastRun": zod.union([zod.object({
+  "ranAt": zod.coerce.date(),
+  "skipped": zod.union([zod.literal('disabled'),zod.literal('min_build_not_met'),zod.literal(null)]).nullable(),
+  "skippedReason": zod.string().nullable(),
+  "examined": zod.number(),
+  "purged": zod.number(),
+  "expired": zod.number(),
+  "alreadyGone": zod.number(),
+  "tombstonesPurged": zod.number().optional().describe('Delete-for-everyone tombstones whose relay object was removed; swept on every run regardless of the switch.'),
+  "kept": zod.number(),
+  "failed": zod.number(),
+  "bytesReclaimed": zod.number(),
+  "abortedError": zod.string().nullable()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Run one bounded relay purge cycle now and report bytes reclaimed
+ */
+export const ChatRelayPurgeRunResponse = zod.object({
+  "result": zod.object({
+  "ranAt": zod.coerce.date(),
+  "skipped": zod.union([zod.literal('disabled'),zod.literal('min_build_not_met'),zod.literal(null)]).nullable(),
+  "skippedReason": zod.string().nullable(),
+  "examined": zod.number(),
+  "purged": zod.number(),
+  "expired": zod.number(),
+  "alreadyGone": zod.number(),
+  "tombstonesPurged": zod.number().optional().describe('Delete-for-everyone tombstones whose relay object was removed; swept on every run regardless of the switch.'),
+  "kept": zod.number(),
+  "failed": zod.number(),
+  "bytesReclaimed": zod.number(),
+  "abortedError": zod.string().nullable()
+}),
+  "settings": zod.object({
+  "enabled": zod.boolean(),
+  "graceDays": zod.number(),
+  "expiryDays": zod.number(),
+  "requiredAppBuild": zod.number().describe('First app build that keeps chat media on the device.'),
+  "minimumSupportedBuild": zod.number().nullable().describe('Build number of the newest published critical release, which the console treats as the minimum supported app build. Null when none.\n'),
+  "canEnable": zod.boolean(),
+  "enableBlockedReason": zod.string().nullable(),
+  "updatedAt": zod.coerce.date().nullable(),
+  "updatedByName": zod.string().nullable(),
+  "lastRun": zod.union([zod.object({
+  "ranAt": zod.coerce.date(),
+  "skipped": zod.union([zod.literal('disabled'),zod.literal('min_build_not_met'),zod.literal(null)]).nullable(),
+  "skippedReason": zod.string().nullable(),
+  "examined": zod.number(),
+  "purged": zod.number(),
+  "expired": zod.number(),
+  "alreadyGone": zod.number(),
+  "tombstonesPurged": zod.number().optional().describe('Delete-for-everyone tombstones whose relay object was removed; swept on every run regardless of the switch.'),
+  "kept": zod.number(),
+  "failed": zod.number(),
+  "bytesReclaimed": zod.number(),
+  "abortedError": zod.string().nullable()
+}),zod.null()])
+})
+})
+
+
+/**
+ * Whole-relay purge runs (daily timer and "Run now") recorded over the retention window, newest first and capped, plus a live measurement of the relay objects still available. Room-scoped runs are not recorded. The console derives the trend (bytes reclaimed per day, purged versus expired share, relay size after each run) from this list.
+ * @summary Read the relay purge run history and what the relay still holds
+ */
+export const ChatRelayHistoryGetResponse = zod.object({
+  "windowDays": zod.number().describe('Runs older than this many days are pruned.'),
+  "maxRuns": zod.number().describe('Hard cap on retained runs (newest kept).'),
+  "generatedAt": zod.coerce.date(),
+  "held": zod.object({
+  "objects": zod.number(),
+  "bytes": zod.number().describe('Sum of the sizes recorded at attach time; legacy rows without one are not included.'),
+  "unknownSizeObjects": zod.number().describe('Objects whose size was never recorded (their bytes are missing from `bytes`).'),
+  "pinnedObjects": zod.number().describe('Objects kept as evidence under an open abuse report; exempt from every purge rule.'),
+  "pinnedBytes": zod.number()
+}).describe('Relay objects still available right now.'),
+  "runs": zod.array(zod.object({
+  "id": zod.string(),
+  "ranAt": zod.coerce.date(),
+  "trigger": zod.enum(['scheduled', 'manual']),
+  "skipped": zod.union([zod.literal('disabled'),zod.literal('min_build_not_met'),zod.literal(null)]).nullable(),
+  "graceDays": zod.number(),
+  "expiryDays": zod.number(),
+  "examined": zod.number(),
+  "purged": zod.number().describe('Media removed after every recipient had stored it.'),
+  "expired": zod.number().describe('Media removed at the hard cap although not every recipient had stored it.'),
+  "alreadyGone": zod.number(),
+  "tombstonesPurged": zod.number(),
+  "kept": zod.number(),
+  "raced": zod.number(),
+  "failed": zod.number(),
+  "bytesReclaimed": zod.number(),
+  "abortedError": zod.string().nullable(),
+  "heldObjects": zod.number().nullable().describe('Relay objects still available right after this run; null when the measurement failed.'),
+  "heldBytes": zod.number().nullable()
+})).describe('Newest first.')
+})
+
+
+/**
  * @summary Request an OTP for a mobile number
  */
 export const AuthOtpRequestBody = zod.object({
@@ -5637,7 +5794,13 @@ export const DriveBackupPrepareResponse = zod.object({
   "existingFileId": zod.string().nullable(),
   "driveEtag": zod.string().nullable(),
   "uploadLeaseToken": zod.string(),
-  "encryptionSalt": zod.string().nullable()
+  "encryptionSalt": zod.string().nullable(),
+  "media": zod.object({
+  "includedCount": zod.number(),
+  "includedBytes": zod.number(),
+  "onDeviceOnlyCount": zod.number(),
+  "skippedVideoCount": zod.number()
+}).describe('What the archive did with attachments. Media is embedded only while its relay copy still exists on the server; attachments that live only on devices are listed in the archive but their bytes are not included.\n')
 })
 
 
@@ -5770,7 +5933,16 @@ export const ChatRoomsListResponse = zod.object({
 }).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/video\/ file\/audio is served from the quoted message\'s own media endpoint.\n'),
   "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
   "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional().describe('Last shared-row change (send, tombstone, edit, media relay state). Delta sync orders messages by this value.\n'),
+  "mediaState": zod.enum(['available', 'purged', 'expired', 'pinned']).optional().describe('Relay state of the server-side media copy. Only present for media kinds. `available` means the media endpoint can still serve it; `purged` and `expired` mean the relay copy is gone (device copies are the only remaining source); `pinned` media is never dropped.\n'),
+  "delivery": zod.object({
+  "status": zod.enum(['sent', 'delivered', 'read']),
+  "deliveredAt": zod.string().optional().describe('First time any recipient acknowledged receiving the message.'),
+  "storedAt": zod.string().optional().describe('Set once every recipient has acknowledged saving the media bytes on device — the point after which the server relay copy is no longer needed. Never set for text messages.\n'),
+  "readAt": zod.string().optional().describe('First time a recipient\'s read marker covered this message.'),
+  "source": zod.enum(['receipts', 'legacy'])
+}).optional().describe('Receipt summary for a message sent by the current caller (absent on messages sent by others). Built from per-recipient acknowledgements when any exist; otherwise from the legacy recipient-app-synced signal, which older builds still rely on (source=legacy, never stored).\n')
 }).optional(),
   "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
   "peerOnline": zod.boolean().optional().describe('True while the other member has synced the application recently.'),
@@ -5838,7 +6010,16 @@ export const ChatRoomsCreateResponse = zod.object({
 }).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/video\/ file\/audio is served from the quoted message\'s own media endpoint.\n'),
   "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
   "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional().describe('Last shared-row change (send, tombstone, edit, media relay state). Delta sync orders messages by this value.\n'),
+  "mediaState": zod.enum(['available', 'purged', 'expired', 'pinned']).optional().describe('Relay state of the server-side media copy. Only present for media kinds. `available` means the media endpoint can still serve it; `purged` and `expired` mean the relay copy is gone (device copies are the only remaining source); `pinned` media is never dropped.\n'),
+  "delivery": zod.object({
+  "status": zod.enum(['sent', 'delivered', 'read']),
+  "deliveredAt": zod.string().optional().describe('First time any recipient acknowledged receiving the message.'),
+  "storedAt": zod.string().optional().describe('Set once every recipient has acknowledged saving the media bytes on device — the point after which the server relay copy is no longer needed. Never set for text messages.\n'),
+  "readAt": zod.string().optional().describe('First time a recipient\'s read marker covered this message.'),
+  "source": zod.enum(['receipts', 'legacy'])
+}).optional().describe('Receipt summary for a message sent by the current caller (absent on messages sent by others). Built from per-recipient acknowledgements when any exist; otherwise from the legacy recipient-app-synced signal, which older builds still rely on (source=legacy, never stored).\n')
 }).optional(),
   "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
   "peerOnline": zod.boolean().optional().describe('True while the other member has synced the application recently.'),
@@ -5897,7 +6078,16 @@ export const ChatRoomsArchivedListResponse = zod.object({
 }).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/video\/ file\/audio is served from the quoted message\'s own media endpoint.\n'),
   "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
   "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional().describe('Last shared-row change (send, tombstone, edit, media relay state). Delta sync orders messages by this value.\n'),
+  "mediaState": zod.enum(['available', 'purged', 'expired', 'pinned']).optional().describe('Relay state of the server-side media copy. Only present for media kinds. `available` means the media endpoint can still serve it; `purged` and `expired` mean the relay copy is gone (device copies are the only remaining source); `pinned` media is never dropped.\n'),
+  "delivery": zod.object({
+  "status": zod.enum(['sent', 'delivered', 'read']),
+  "deliveredAt": zod.string().optional().describe('First time any recipient acknowledged receiving the message.'),
+  "storedAt": zod.string().optional().describe('Set once every recipient has acknowledged saving the media bytes on device — the point after which the server relay copy is no longer needed. Never set for text messages.\n'),
+  "readAt": zod.string().optional().describe('First time a recipient\'s read marker covered this message.'),
+  "source": zod.enum(['receipts', 'legacy'])
+}).optional().describe('Receipt summary for a message sent by the current caller (absent on messages sent by others). Built from per-recipient acknowledgements when any exist; otherwise from the legacy recipient-app-synced signal, which older builds still rely on (source=legacy, never stored).\n')
 }).optional(),
   "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
   "peerOnline": zod.boolean().optional().describe('True while the other member has synced the application recently.'),
@@ -5959,7 +6149,16 @@ export const ChatRoomsGetResponse = zod.object({
 }).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/video\/ file\/audio is served from the quoted message\'s own media endpoint.\n'),
   "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
   "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional().describe('Last shared-row change (send, tombstone, edit, media relay state). Delta sync orders messages by this value.\n'),
+  "mediaState": zod.enum(['available', 'purged', 'expired', 'pinned']).optional().describe('Relay state of the server-side media copy. Only present for media kinds. `available` means the media endpoint can still serve it; `purged` and `expired` mean the relay copy is gone (device copies are the only remaining source); `pinned` media is never dropped.\n'),
+  "delivery": zod.object({
+  "status": zod.enum(['sent', 'delivered', 'read']),
+  "deliveredAt": zod.string().optional().describe('First time any recipient acknowledged receiving the message.'),
+  "storedAt": zod.string().optional().describe('Set once every recipient has acknowledged saving the media bytes on device — the point after which the server relay copy is no longer needed. Never set for text messages.\n'),
+  "readAt": zod.string().optional().describe('First time a recipient\'s read marker covered this message.'),
+  "source": zod.enum(['receipts', 'legacy'])
+}).optional().describe('Receipt summary for a message sent by the current caller (absent on messages sent by others). Built from per-recipient acknowledgements when any exist; otherwise from the legacy recipient-app-synced signal, which older builds still rely on (source=legacy, never stored).\n')
 }).optional(),
   "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
   "peerOnline": zod.boolean().optional().describe('True while the other member has synced the application recently.'),
@@ -6173,6 +6372,7 @@ export const ChatAdminReportTranscriptResponse = zod.object({
   "kind": zod.string(),
   "body": zod.string(),
   "hasAttachment": zod.boolean(),
+  "mediaState": zod.union([zod.literal('available'),zod.literal('pinned'),zod.literal('purged'),zod.literal('expired'),zod.literal(null)]).nullable().describe('Whether the server still holds the attachment. Null for messages without one. `purged`\/`expired` mean only device copies remain and the transcript must say the media is no longer available.\n'),
   "deletedAt": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date(),
   "isReportedMessage": zod.boolean(),
@@ -6338,7 +6538,16 @@ export const ChatMessagesListResponse = zod.object({
 }).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/video\/ file\/audio is served from the quoted message\'s own media endpoint.\n'),
   "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
   "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional().describe('Last shared-row change (send, tombstone, edit, media relay state). Delta sync orders messages by this value.\n'),
+  "mediaState": zod.enum(['available', 'purged', 'expired', 'pinned']).optional().describe('Relay state of the server-side media copy. Only present for media kinds. `available` means the media endpoint can still serve it; `purged` and `expired` mean the relay copy is gone (device copies are the only remaining source); `pinned` media is never dropped.\n'),
+  "delivery": zod.object({
+  "status": zod.enum(['sent', 'delivered', 'read']),
+  "deliveredAt": zod.string().optional().describe('First time any recipient acknowledged receiving the message.'),
+  "storedAt": zod.string().optional().describe('Set once every recipient has acknowledged saving the media bytes on device — the point after which the server relay copy is no longer needed. Never set for text messages.\n'),
+  "readAt": zod.string().optional().describe('First time a recipient\'s read marker covered this message.'),
+  "source": zod.enum(['receipts', 'legacy'])
+}).optional().describe('Receipt summary for a message sent by the current caller (absent on messages sent by others). Built from per-recipient acknowledgements when any exist; otherwise from the legacy recipient-app-synced signal, which older builds still rely on (source=legacy, never stored).\n')
 })),
   "hasMore": zod.boolean()
 })
@@ -6366,7 +6575,7 @@ export const ChatMessagesSendBody = zod.object({
   "roomId": zod.string(),
   "messageId": zod.string()
 }).optional().describe('Message to copy when forwarding. The caller must be a member of roomId.')
-}).describe('Send a message. clientRequestId is REQUIRED and must be stable across retries; the server dedupes on (roomId, senderId, clientRequestId) and derives the Matrix transaction id deterministically so retries never create a second row nor a second provider event. For kind=audio a room-scoped objectPath and an integer durationMs (1..600000) are REQUIRED; durationMs must be omitted for non-audio kinds. With forwardOf the kind, body, media and duration are copied from the source message (media is duplicated into the target room\'s storage scope); the supplied kind must match the source kind and objectPath \/ durationMs must be omitted. replyToMessageId must name a visible message in the same room; it cannot be combined with forwardOf.\n')
+}).describe('Send a message. clientRequestId is REQUIRED and must be stable across retries; the server dedupes on (roomId, senderId, clientRequestId) and derives the Matrix transaction id deterministically so retries never create a second row nor a second provider event. For kind=audio a room-scoped objectPath and an integer durationMs (1..600000) are REQUIRED; durationMs must be omitted for non-audio kinds. With forwardOf the kind, body, media and duration are copied from the source message (media is duplicated into the target room\'s storage scope); the supplied kind must match the source kind and durationMs must be omitted. When the source\'s relay copy is gone (mediaState purged\/expired) the forwarding device may supply objectPath: a fresh room-scoped upload of its own local copy, verified like a first-hand attachment. Without it such a forward fails with 400 CHAT_MEDIA_EXPIRED. replyToMessageId must name a visible message in the same room; it cannot be combined with forwardOf.\n')
 
 export const ChatMessagesSendResponse = zod.object({
   "message": zod.object({
@@ -6392,7 +6601,16 @@ export const ChatMessagesSendResponse = zod.object({
 }).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/video\/ file\/audio is served from the quoted message\'s own media endpoint.\n'),
   "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
   "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional().describe('Last shared-row change (send, tombstone, edit, media relay state). Delta sync orders messages by this value.\n'),
+  "mediaState": zod.enum(['available', 'purged', 'expired', 'pinned']).optional().describe('Relay state of the server-side media copy. Only present for media kinds. `available` means the media endpoint can still serve it; `purged` and `expired` mean the relay copy is gone (device copies are the only remaining source); `pinned` media is never dropped.\n'),
+  "delivery": zod.object({
+  "status": zod.enum(['sent', 'delivered', 'read']),
+  "deliveredAt": zod.string().optional().describe('First time any recipient acknowledged receiving the message.'),
+  "storedAt": zod.string().optional().describe('Set once every recipient has acknowledged saving the media bytes on device — the point after which the server relay copy is no longer needed. Never set for text messages.\n'),
+  "readAt": zod.string().optional().describe('First time a recipient\'s read marker covered this message.'),
+  "source": zod.enum(['receipts', 'legacy'])
+}).optional().describe('Receipt summary for a message sent by the current caller (absent on messages sent by others). Built from per-recipient acknowledgements when any exist; otherwise from the legacy recipient-app-synced signal, which older builds still rely on (source=legacy, never stored).\n')
 })
 })
 
@@ -6432,6 +6650,173 @@ export const ChatMarkReadBody = zod.object({
 
 export const ChatMarkReadResponse = zod.object({
   "message": zod.string()
+})
+
+
+/**
+ * Returns the changes a device needs to keep a local copy of the caller's chats current: new, edited and tombstoned messages, messages the caller hid for themselves, read-state changes in the caller's rooms, delivery receipts for the caller's own sent messages, the caller's room preference changes and rooms the caller joined. Each list is ordered by its own change time then id; the cursor is opaque and monotonic and keys on Avarpus ids only. Without a cursor the call returns a bounded recent window (applied to every list, rooms included, so bootstrap the room list with GET /chat/rooms) and sets backfillBefore: older history must be loaded per room with GET /chat/rooms/{roomId}/messages?before=. Rows changed within the last few seconds may be returned by more than one consecutive call until they settle; upsert by id. A cursor issued for one roomId filter cannot be reused for another. Calling this endpoint counts as the caller's app syncing (presence / legacy delivered signal), exactly like listing rooms does.
+ * @summary Everything that changed in the caller's inbox since a cursor
+ */
+export const chatSyncQueryLimitMax = 200;
+
+
+
+export const ChatSyncQueryParams = zod.object({
+  "cursor": zod.coerce.string().optional().describe('Opaque cursor from a previous response. Omit for the initial window.'),
+  "roomId": zod.coerce.string().optional().describe('Restrict the feed to one room the caller is a member of.'),
+  "limit": zod.coerce.number().int().min(1).max(chatSyncQueryLimitMax).optional().describe('Maximum items per list (default 100).')
+})
+
+export const ChatSyncResponse = zod.object({
+  "messages": zod.array(zod.object({
+  "id": zod.string(),
+  "roomId": zod.string(),
+  "shopId": zod.string().nullable(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "objectPath": zod.string().optional(),
+  "mimeType": zod.string().optional().describe('MIME type of the stored attachment as verified by the server at send time (image\/video\/file\/audio kinds). Absent for text and legacy rows.\n'),
+  "sizeBytes": zod.number().optional().describe('Integer byte size of the stored attachment, when known.'),
+  "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
+  "clientRequestId": zod.string().optional(),
+  "replyTo": zod.object({
+  "id": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "deleted": zod.boolean().describe('True when the quoted message is no longer available.')
+}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/video\/ file\/audio is served from the quoted message\'s own media endpoint.\n'),
+  "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
+  "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional().describe('Last shared-row change (send, tombstone, edit, media relay state). Delta sync orders messages by this value.\n'),
+  "mediaState": zod.enum(['available', 'purged', 'expired', 'pinned']).optional().describe('Relay state of the server-side media copy. Only present for media kinds. `available` means the media endpoint can still serve it; `purged` and `expired` mean the relay copy is gone (device copies are the only remaining source); `pinned` media is never dropped.\n'),
+  "delivery": zod.object({
+  "status": zod.enum(['sent', 'delivered', 'read']),
+  "deliveredAt": zod.string().optional().describe('First time any recipient acknowledged receiving the message.'),
+  "storedAt": zod.string().optional().describe('Set once every recipient has acknowledged saving the media bytes on device — the point after which the server relay copy is no longer needed. Never set for text messages.\n'),
+  "readAt": zod.string().optional().describe('First time a recipient\'s read marker covered this message.'),
+  "source": zod.enum(['receipts', 'legacy'])
+}).optional().describe('Receipt summary for a message sent by the current caller (absent on messages sent by others). Built from per-recipient acknowledgements when any exist; otherwise from the legacy recipient-app-synced signal, which older builds still rely on (source=legacy, never stored).\n')
+})).describe('New, edited and tombstoned messages, ordered by (updatedAt, id). Messages the caller hid are omitted.'),
+  "hidden": zod.array(zod.object({
+  "messageId": zod.string(),
+  "roomId": zod.string(),
+  "hiddenAt": zod.string()
+}).describe('A message the caller hid for themselves (\"delete for me\").')),
+  "readStates": zod.array(zod.object({
+  "roomId": zod.string(),
+  "userId": zod.string(),
+  "lastReadMessageId": zod.string().nullable(),
+  "lastReadAt": zod.string()
+}).describe('A member\'s read marker in one of the caller\'s rooms (including the caller\'s own, for multi-device).')),
+  "receipts": zod.array(zod.object({
+  "messageId": zod.string(),
+  "roomId": zod.string(),
+  "userId": zod.string(),
+  "deliveredAt": zod.string(),
+  "storedAt": zod.string().nullable(),
+  "updatedAt": zod.string()
+}).describe('A recipient\'s acknowledgement of a message the caller sent.')),
+  "preferences": zod.array(zod.object({
+  "roomId": zod.string(),
+  "isPinned": zod.boolean(),
+  "isMuted": zod.boolean(),
+  "isArchived": zod.boolean(),
+  "deletedAt": zod.string().nullable(),
+  "updatedAt": zod.string()
+}).describe('The caller\'s own inbox state for a room. deletedAt set means the caller deleted the chat from their inbox.')),
+  "rooms": zod.array(zod.object({
+  "id": zod.string(),
+  "shopId": zod.string().nullable(),
+  "scope": zod.enum(['shop', 'global_direct']),
+  "kind": zod.enum(['customer', 'dealer', 'direct']),
+  "name": zod.string(),
+  "customerId": zod.string().optional(),
+  "dealerId": zod.string().optional(),
+  "providerRoomId": zod.string().optional(),
+  "peerUserId": zod.string().optional().describe('The other member for a direct room, resolved for the current caller.'),
+  "peerMobile": zod.string().optional().describe('The other member\'s normalized mobile number, used to match against the caller\'s device contacts.'),
+  "profilePhoto": zod.string().optional().describe('The other member\'s profile image for a direct room.'),
+  "peerKey": zod.string().optional().describe('Deterministic sorted pair of participant user IDs for one-to-one rooms.'),
+  "isBlocked": zod.boolean().optional().describe('True when either member has blocked the other.'),
+  "blockedByMe": zod.boolean().optional().describe('True when the current caller created the active block.'),
+  "isArchived": zod.boolean().describe('Caller-specific archive state.'),
+  "isPinned": zod.boolean().describe('Caller-specific pin state.'),
+  "isMuted": zod.boolean().describe('Caller-specific mute state.'),
+  "createdById": zod.string().optional(),
+  "createdByName": zod.string().optional(),
+  "createdAt": zod.string(),
+  "unreadCount": zod.number().optional(),
+  "lastMessage": zod.object({
+  "id": zod.string(),
+  "roomId": zod.string(),
+  "shopId": zod.string().nullable(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "objectPath": zod.string().optional(),
+  "mimeType": zod.string().optional().describe('MIME type of the stored attachment as verified by the server at send time (image\/video\/file\/audio kinds). Absent for text and legacy rows.\n'),
+  "sizeBytes": zod.number().optional().describe('Integer byte size of the stored attachment, when known.'),
+  "durationMs": zod.number().optional().describe('Integer duration in milliseconds. Only set for kind=audio (voice notes).\n'),
+  "clientRequestId": zod.string().optional(),
+  "replyTo": zod.object({
+  "id": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "kind": zod.enum(['text', 'image', 'video', 'file', 'audio', 'system']),
+  "body": zod.string(),
+  "deleted": zod.boolean().describe('True when the quoted message is no longer available.')
+}).optional().describe('Snapshot of the message being replied to. Media for a quoted image\/video\/ file\/audio is served from the quoted message\'s own media endpoint.\n'),
+  "forwarded": zod.boolean().optional().describe('True when this message was forwarded from another message.'),
+  "deletedAt": zod.string().optional().describe('Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable.\n'),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional().describe('Last shared-row change (send, tombstone, edit, media relay state). Delta sync orders messages by this value.\n'),
+  "mediaState": zod.enum(['available', 'purged', 'expired', 'pinned']).optional().describe('Relay state of the server-side media copy. Only present for media kinds. `available` means the media endpoint can still serve it; `purged` and `expired` mean the relay copy is gone (device copies are the only remaining source); `pinned` media is never dropped.\n'),
+  "delivery": zod.object({
+  "status": zod.enum(['sent', 'delivered', 'read']),
+  "deliveredAt": zod.string().optional().describe('First time any recipient acknowledged receiving the message.'),
+  "storedAt": zod.string().optional().describe('Set once every recipient has acknowledged saving the media bytes on device — the point after which the server relay copy is no longer needed. Never set for text messages.\n'),
+  "readAt": zod.string().optional().describe('First time a recipient\'s read marker covered this message.'),
+  "source": zod.enum(['receipts', 'legacy'])
+}).optional().describe('Receipt summary for a message sent by the current caller (absent on messages sent by others). Built from per-recipient acknowledgements when any exist; otherwise from the legacy recipient-app-synced signal, which older builds still rely on (source=legacy, never stored).\n')
+}).optional(),
+  "lastMessageStatus": zod.enum(['sent', 'delivered', 'read']).optional().describe('Receipt state for the latest message when it was sent by the current caller.'),
+  "peerOnline": zod.boolean().optional().describe('True while the other member has synced the application recently.'),
+  "peerLastSeenAt": zod.coerce.date().optional().describe('Last time the other member synced the application.')
+})).describe('Rooms the caller became a member of since the cursor, in the caller\'s view.'),
+  "nextCursor": zod.string().describe('Opaque; pass back as cursor. Monotonic even when nothing changed.'),
+  "hasMore": zod.boolean().describe('True when at least one list was cut at the limit; call again with nextCursor before idling.'),
+  "backfillBefore": zod.string().optional().describe('Only on the initial call (no cursor). Messages created before this time were not included; load them per room with the messages endpoint\'s `before` pagination.\n'),
+  "syncedAt": zod.string().describe('Server time of this response.')
+})
+
+
+/**
+ * Batch, idempotent. `delivered` records that this device received the message; `stored` records that the media bytes are saved on device and implies delivered. Only first-seen timestamps are kept, so repeating an ack never moves them. `lost` is the one sanctioned reversal: the device found its saved copy missing or damaged, so the caller's `stored` receipt is cleared again (a later `stored` sets it afresh). It applies only while the server still holds the relay copy — once the media is `purged`/`expired` there is nothing left to protect and the ack is reported under ignored as `relay_gone`. The caller must be a member of every message's room (404 for any message it cannot see, nothing recorded). The caller's own messages and `stored`/`lost` acks for messages without media are reported under ignored rather than rejected.
+ * @summary Acknowledge received (delivered), locally saved (stored) or lost-again (lost) messages
+ */
+export const chatAcknowledgeBodyAcksMax = 200;
+
+
+
+export const ChatAcknowledgeBody = zod.object({
+  "acks": zod.array(zod.object({
+  "messageId": zod.string(),
+  "state": zod.enum(['delivered', 'stored', 'lost'])
+})).min(1).max(chatAcknowledgeBodyAcksMax)
+})
+
+export const ChatAcknowledgeResponse = zod.object({
+  "acknowledged": zod.array(zod.string()).describe('Message ids whose receipt row now reflects the requested state (including repeats).'),
+  "ignored": zod.array(zod.object({
+  "messageId": zod.string(),
+  "reason": zod.enum(['own_message', 'no_media', 'relay_gone'])
+})).describe('Message ids that were valid to see but not acknowledgeable by the caller.')
 })
 
 

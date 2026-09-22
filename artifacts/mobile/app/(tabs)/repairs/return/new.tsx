@@ -16,6 +16,8 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
+import { font } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
@@ -57,10 +59,10 @@ export default function NewReturnScreen() {
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
 
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ color: colors.mutedForeground }}>Repair not found</Text>
+          <Text style={{ color: colors.mutedForeground, ...font.body }}>Repair not found</Text>
         </View>
       </View>
     );
@@ -91,40 +93,40 @@ export default function NewReturnScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
 
-      <FadeInView animValue={anims[0]} style={[styles.header, { paddingTop: topPad + 14 }]}>
+      <FadeInView animValue={anims[0]} style={[styles.header, { paddingTop: topPad + layout.rowPaddingVertical }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>
           New Return Intake
         </Text>
         <View style={{ width: 44 }} />
       </FadeInView>
 
-      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]} bottomOffset={24}>
+      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: size.tabBar + space.xxl }]} bottomOffset={space.xxl}>
 
         <FadeInView animValue={anims[1]}>
           <Card>
-            <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
+            <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
               ORIGINAL REPAIR
             </Text>
-            <Text style={{ fontSize: 16, color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginTop: 8 }}>
+            <Text style={{ ...font.bodyStrong, color: colors.foreground, marginTop: space.sm }}>
               {repair.repairId} • {repair.customerName}
             </Text>
-            <Text style={{ fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 4 }}>
+            <Text style={{ ...font.body, color: colors.mutedForeground, marginTop: space.xs }}>
               {repair.brand} {repair.model}
             </Text>
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
-              <Text style={{ fontSize: 13, color: colors.mutedForeground }}>
+            <View style={{ flexDirection: 'row', gap: space.md, marginTop: space.sm }}>
+              <Text style={{ ...font.caption, color: colors.mutedForeground }}>
                 Charges: {formatCurrency(repair.repairCharge + repair.partsCharge)}
               </Text>
             </View>
           </Card>
         </FadeInView>
 
-        <FadeInView animValue={anims[2]} style={{ gap: 16, marginTop: 12 }}>
+        <FadeInView animValue={anims[2]} style={{ gap: space.lg, marginTop: space.md }}>
           <View>
-            <Text style={[styles.label, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>Return Reason</Text>
+            <Text style={[styles.label, { color: colors.foreground }]}>Return Reason</Text>
             <View style={styles.reasonGrid}>
               {RETURN_REASONS.map((r) => {
                 const active = reason === r.id;
@@ -135,15 +137,14 @@ export default function NewReturnScreen() {
                     style={[
                       styles.reasonChip,
                       {
-                        backgroundColor: active ? colors.primary : colors.card,
+                        backgroundColor: active ? colors.primary : colors.secondary,
                         borderColor: active ? colors.primary : colors.border,
                       },
                     ]}
                   >
                     <Text style={{
-                      fontSize: 13,
-                      fontFamily: active ? 'Inter_600SemiBold' : 'Inter_400Regular',
-                      color: active ? '#FFF' : colors.foreground,
+                      ...font.label,
+                      color: active ? colors.primaryForeground : colors.foreground,
                     }}>
                       {r.label}
                     </Text>
@@ -154,32 +155,32 @@ export default function NewReturnScreen() {
           </View>
 
           <View>
-            <Text style={[styles.label, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>Customer Complaint *</Text>
+            <Text style={[styles.label, { color: colors.foreground }]}>Customer Complaint *</Text>
             <TextInput
               value={complaint}
               onChangeText={setComplaint}
               placeholder="What is the issue?"
               placeholderTextColor={colors.mutedForeground}
-              style={[styles.input, styles.textArea, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+              style={[styles.input, styles.textArea, { backgroundColor: colors.secondary, borderColor: colors.border, color: colors.foreground }]}
               multiline
               numberOfLines={3}
             />
           </View>
 
           <View>
-            <Text style={[styles.label, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>Device Condition on Return</Text>
+            <Text style={[styles.label, { color: colors.foreground }]}>Device Condition on Return</Text>
             <TextInput
               value={deviceCondition}
               onChangeText={setDeviceCondition}
               placeholder="Scratches, physical damage, power on/off?"
               placeholderTextColor={colors.mutedForeground}
-              style={[styles.input, styles.textArea, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+              style={[styles.input, styles.textArea, { backgroundColor: colors.secondary, borderColor: colors.border, color: colors.foreground }]}
               multiline
               numberOfLines={3}
             />
           </View>
 
-          <Button title="Create Return Case" onPress={handleSubmit} loading={saving} style={{ marginTop: 12 }} />
+          <Button title="Create Return Case" onPress={handleSubmit} loading={saving} style={{ marginTop: space.md }} />
         </FadeInView>
 
       </KeyboardAwareScrollViewCompat>
@@ -189,14 +190,14 @@ export default function NewReturnScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 10 },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 16 },
-  scroll: { padding: 12 },
-  sectionTitle: { fontSize: 10, letterSpacing: 1 },
-  label: { fontSize: 13, marginBottom: 6, marginLeft: 4 },
-  reasonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  reasonChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
+  backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  scroll: { padding: layout.screenPadding },
+  sectionTitle: { ...font.overline },
+  label: { ...font.label, marginBottom: space.sm, marginLeft: space.xs },
+  reasonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  reasonChip: { paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
+  input: { borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.sm, paddingHorizontal: space.md, paddingVertical: space.md, ...font.input },
   textArea: { height: 90, textAlignVertical: 'top' },
 });

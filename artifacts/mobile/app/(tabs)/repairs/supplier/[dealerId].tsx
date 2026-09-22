@@ -27,6 +27,8 @@ import {
   useDealersSuppliersRepairsList,
   getDealersSuppliersRepairsListQueryKey,
 } from '@workspace/api-client-react';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -114,7 +116,7 @@ export default function SupplierRepairsScreen() {
           onChangeText={setSearch}
           placeholder="Search job no, device, problem..."
           placeholderTextColor={colors.mutedForeground}
-          style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+          style={[styles.searchInput, { color: colors.foreground }]}
         />
         {!!search && (
           <TouchableOpacity onPress={() => setSearch('')} accessibilityRole="button" accessibilityLabel="Clear search">
@@ -136,7 +138,7 @@ export default function SupplierRepairsScreen() {
                 borderColor: active ? colors.primary : 'transparent',
               }]}
             >
-              <Text style={{ fontSize: 13, color: active ? '#FFFFFF' : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium' }}>{f}</Text>
+              <Text style={{ ...font.captionStrong, color: active ? colors.primaryForeground : colors.mutedForeground, fontFamily: active ? fontFamily.semibold : fontFamily.medium }}>{f}</Text>
             </TouchableOpacity>
           );
         })}
@@ -146,20 +148,20 @@ export default function SupplierRepairsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 14 }]}>
+      <View style={[styles.header, { paddingTop: topPad + layout.rowPaddingVertical }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Go back"
           style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}
         >
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
             {name || 'Supplier repairs'}
           </Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
             {repairsData ? `${repairsData.total} repairs · read-only` : 'My repairs at this shop'}
           </Text>
         </View>
@@ -173,7 +175,7 @@ export default function SupplierRepairsScreen() {
           data={accumulated}
           keyExtractor={(r) => r.id}
           extraData={expandedId}
-          contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: insets.bottom + 100, gap: 10 }}
+          contentContainerStyle={{ paddingHorizontal: layout.screenPadding, paddingBottom: insets.bottom + size.tabBar + space.xxl, gap: space.md }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           ListHeaderComponent={header}
@@ -230,30 +232,30 @@ function SupplierRepairCard({ repair, expanded, onPress }: { repair: Repair; exp
       accessibilityLabel={`${repair.repairId}, ${repair.brand} ${repair.model}`}
       testID={`supplier-repair-${repair.id}`}
     >
-      <FlatCard style={{ padding: 12, gap: 6 }}>
+      <FlatCard style={{ padding: space.xl, gap: space.sm }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={[styles.codeBadge, { backgroundColor: colors.primary + '15' }]}>
-            <Text style={{ fontSize: 10, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{repair.repairId}</Text>
+            <Text style={{ ...font.smallStrong, color: colors.primary }}>{repair.repairId}</Text>
           </View>
           <PriorityBadge priority={repair.priority} />
           <RepairStatusBadge status={repair.status} />
           <View style={{ flex: 1 }} />
           <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={colors.mutedForeground} />
         </View>
-        <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>
+        <Text style={{ ...font.itemTitle, color: colors.foreground }}>
           {repair.brand} {repair.model}
         </Text>
-        <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }} numberOfLines={expanded ? undefined : 2}>
+        <Text style={{ ...font.body, color: colors.mutedForeground }} numberOfLines={expanded ? undefined : 2}>
           {repair.deviceType} · {repair.problem}
         </Text>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ fontSize: 11, color: colors.mutedForeground }}>
+          <Text style={{ ...font.caption, color: colors.mutedForeground }}>
             Total {formatCurrency(total)}{balance > 0 ? '' : ' · Paid'}
           </Text>
-          <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Received {formatDate(repair.receiveDate)}</Text>
+          <Text style={{ ...font.caption, color: colors.mutedForeground }}>Received {formatDate(repair.receiveDate)}</Text>
         </View>
         {balance > 0 && (
-          <Text style={{ fontSize: 11, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>Pending {formatCurrency(balance)}</Text>
+          <Text style={{ ...font.captionStrong, color: colors.warning }}>Pending {formatCurrency(balance)}</Text>
         )}
 
         {expanded && (
@@ -290,8 +292,8 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   const colors = useColors();
   return (
     <View style={{ flexDirection: 'row', gap: 10 }}>
-      <Text style={{ width: 92, fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{label}</Text>
-      <Text style={{ flex: 1, fontSize: 12, color: colors.foreground, fontFamily: 'Inter_400Regular' }}>{value}</Text>
+      <Text style={{ width: 92, ...font.captionStrong, color: colors.mutedForeground }}>{label}</Text>
+      <Text style={{ flex: 1, ...font.caption, color: colors.foreground }}>{value}</Text>
     </View>
   );
 }
@@ -299,25 +301,25 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 function BillRow({ label, value, strong, tone }: { label: string; value: string; strong?: boolean; tone?: string }) {
   const colors = useColors();
   const color = tone ?? (strong ? colors.foreground : colors.mutedForeground);
-  const fontFamily = strong ? 'Inter_700Bold' : 'Inter_500Medium';
+  const rowFontFamily = strong ? fontFamily.bold : fontFamily.medium;
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-      <Text style={{ fontSize: 12, color, fontFamily }}>{label}</Text>
-      <Text style={{ fontSize: 12, color, fontFamily }}>{value}</Text>
+      <Text style={{ ...font.captionStrong, color, fontFamily: rowFontFamily }}>{label}</Text>
+      <Text style={{ ...font.captionStrong, color, fontFamily: rowFontFamily }}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 10, gap: 6 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20 },
-  headerSub: { fontSize: 12 },
-  codeBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 },
-  searchInput: { flex: 1, height: 40, fontSize: 13 },
-  filterTab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  headerSub: { ...font.caption },
+  codeBadge: { paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.sm },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, borderRadius: size.searchRadius },
+  searchInput: { flex: 1, height: size.searchField, ...font.search },
+  filterTab: { paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
   details: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 4, gap: 6 },
-  bill: { borderRadius: 10, padding: 10, gap: 4, marginTop: 4 },
+  bill: { borderRadius: radius.sm, padding: space.md, gap: space.xs, marginTop: space.xs },
 });

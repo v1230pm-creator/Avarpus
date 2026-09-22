@@ -8,6 +8,7 @@ import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import { Purchase } from '@/types';
 import { formatCurrency, getTodayStr, isValidDateStr } from '@/utils/helpers';
+import { font, fontFamily } from '@/constants/typography';
 import { approvalsCreate } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 
@@ -153,7 +154,7 @@ export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
       {isBackdated && (
         <View style={[styles.warningBanner, { backgroundColor: colors.warning + '22', borderColor: colors.warning + '55' }]}>
           <Feather name="alert-triangle" size={16} color={colors.warning} />
-          <Text style={[styles.warningText, { color: colors.warning, fontFamily: 'Inter_500Medium' }]}>
+          <Text style={[styles.warningText, { color: colors.warning, fontFamily: fontFamily.medium }]}>
             This is a backdated entry. Dealer/Owner approval is required.
           </Text>
         </View>
@@ -174,8 +175,8 @@ export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
         <Input label="Unit Price *" value={purchasePrice} onChangeText={setPurchasePrice} placeholder="0" keyboardType="decimal-pad" error={errors.purchasePrice} containerStyle={styles.half} />
       </View>
       <View style={styles.totalRow}>
-        <Text style={[styles.totalLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>Total</Text>
-        <Text style={[styles.totalValue, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{formatCurrency(total)}</Text>
+        <Text style={[styles.totalLabel, { color: colors.mutedForeground, fontFamily: fontFamily.medium }]}>Total</Text>
+        <Text style={[styles.totalValue, { color: colors.foreground, fontFamily: fontFamily.bold }]}>{formatCurrency(total)}</Text>
       </View>
       <SelectInput label="Payment Status" options={STATUS_OPTIONS} value={paymentStatus} onChange={setPaymentStatus} labelMap={STATUS_LABELS} />
       <SelectInput label="Payment Method" options={PAYMENT_METHODS} value={paymentMethod} onChange={setPaymentMethod} />
@@ -187,8 +188,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 12 },
   half: { flex: 1 },
   totalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
-  totalLabel: { fontSize: 13 },
-  totalValue: { fontSize: 18 },
+  totalLabel: { ...font.label },
+  totalValue: { ...font.bodyStrong },
   warningBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 4 },
-  warningText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  warningText: { ...font.small, flex: 1 },
 });

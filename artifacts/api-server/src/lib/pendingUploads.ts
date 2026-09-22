@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, gt, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   chatMessagesTable,
   db,
@@ -18,15 +18,23 @@ export const ABANDONED_UPLOAD_GRACE_MS = 48 * 60 * 60 * 1000;
 export const UPLOAD_PROCESSING_LEASE_MS = 30 * 60 * 1000;
 export const CHAT_PROVIDER_SEND_TIMEOUT_MS = 30 * 1000;
 
-const PROFILE_OBJECT_RE =
-  /^\/objects\/uploads\/profiles\/[0-9a-f-]{36}\/(?:final\/)?[0-9a-f-]{36}$/i;
+// A profile upload lands in the staging shape first; attaching it copies the
+// verified bytes to the `final/` shape, which is the only shape a user row
+// ever points at. Final objects are permanent: no sweep may touch them.
+const PROFILE_STAGING_OBJECT_RE =
+  /^\/objects\/uploads\/profiles\/[0-9a-f-]{36}\/[0-9a-f-]{36}$/i;
+export const PROFILE_FINAL_OBJECT_RE =
+  /^\/objects\/uploads\/profiles\/[0-9a-f-]{36}\/final\/[0-9a-f-]{36}$/i;
 const CHAT_OBJECT_RE =
   /^\/objects\/uploads\/(?:global|[0-9a-f-]{36})\/chat\/[0-9a-f-]{36}\/[0-9a-f-]{36}$/i;
 
 const objectStorageService = new ObjectStorageService();
 
-function purposeForPath(objectPath: string): PendingUploadPurpose | null {
-  if (PROFILE_OBJECT_RE.test(objectPath)) return "profile";
+type SweepClass = PendingUploadPurpose | "profile-final";
+
+function classifyPath(objectPath: string): SweepClass | null {
+  if (PROFILE_FINAL_OBJECT_RE.test(objectPath)) return "profile-final";
+  if (PROFILE_STAGING_OBJECT_RE.test(objectPath)) return "profile";
   if (CHAT_OBJECT_RE.test(objectPath)) return "chat";
   return null;
 }
@@ -171,12 +179,24 @@ export type PendingUploadCleanupResult = {
   retained: number;
   tooNew: number;
   ignored: number;
+  /** Final profile photos: permanent, never evaluated for deletion. */
+  protected: number;
+  /**
+   * Objects this database never issued an upload URL for. They belong to
+   * another environment sharing the bucket, or predate the registry; either
+   * way this process cannot know they are abandoned, so they are left alone.
+   */
+  unregistered: number;
   failed: number;
 };
 
 /**
- * Delete only old, unreferenced objects in the exact Chat and Profile upload
- * shapes. Failed deletes remain in storage and are retried by the next run.
+ * Delete only old, abandoned objects in the exact Chat and Profile-staging
+ * upload shapes — and only those this database registered itself
+ * (`pending_uploads`) and never attached. Final profile photos are never
+ * candidates: a user's photo is permanent until the user replaces it or the
+ * account is deleted. Failed deletes remain in storage and are retried by the
+ * next run.
  */
 export async function cleanupAbandonedChatAndProfileUploads(
   now = new Date(),
@@ -188,6 +208,8 @@ export async function cleanupAbandonedChatAndProfileUploads(
     retained: 0,
     tooNew: 0,
     ignored: 0,
+    protected: 0,
+    unregistered: 0,
     failed: 0,
   };
   const prefixes = new Set<string>([
@@ -225,9 +247,13 @@ export async function cleanupAbandonedChatAndProfileUploads(
   const cutoff = now.getTime() - ABANDONED_UPLOAD_GRACE_MS;
 
   for (const { file, objectPath } of objects) {
-    const purpose = purposeForPath(objectPath);
+    const purpose = classifyPath(objectPath);
     if (!purpose) {
       result.ignored += 1;
+      continue;
+    }
+    if (purpose === "profile-final") {
+      result.protected += 1;
       continue;
     }
     result.considered += 1;
@@ -248,15 +274,19 @@ export async function cleanupAbandonedChatAndProfileUploads(
     try {
       await db.transaction(async (tx) => {
         await lockObjectPath(tx, objectPath);
-        const [activeClaim] = await tx
-          .select({ objectPath: pendingUploadsTable.objectPath })
+        const [registration] = await tx
+          .select({ claimUntil: pendingUploadsTable.claimUntil })
           .from(pendingUploadsTable)
-          .where(and(
-            eq(pendingUploadsTable.objectPath, objectPath),
-            gt(pendingUploadsTable.claimUntil, now),
-          ))
+          .where(eq(pendingUploadsTable.objectPath, objectPath))
           .limit(1);
-        if (activeClaim) {
+        if (!registration) {
+          // Not ours to judge: another environment's upload, or one attached
+          // before the registry existed. Deleting on "no reference here"
+          // would destroy data that a different database still points at.
+          result.unregistered += 1;
+          return;
+        }
+        if (registration.claimUntil !== null && registration.claimUntil > now) {
           result.retained += 1;
           return;
         }

@@ -106,6 +106,15 @@ describe("restricted-account messaging allowlists", () => {
       expect(allowed(req("POST", `/chat/rooms/${roomId}/upload-url`))).toBe(true);
       expect(allowed(req("GET", `/chat/rooms/${roomId}/messages/${messageId}/media`))).toBe(true);
     });
+
+    it(`allows ${label} delta sync and delivery acknowledgements`, () => {
+      expect(allowed(req("GET", "/chat/sync"))).toBe(true);
+      expect(allowed(req("POST", "/chat/acks"))).toBe(true);
+      // Additive only: no other verb opens up on the new paths.
+      expect(allowed(req("POST", "/chat/sync"))).toBe(false);
+      expect(allowed(req("GET", "/chat/acks"))).toBe(false);
+      expect(allowed(req("DELETE", "/chat/acks"))).toBe(false);
+    });
   }
 
   it("keeps unrelated business endpoints closed", () => {

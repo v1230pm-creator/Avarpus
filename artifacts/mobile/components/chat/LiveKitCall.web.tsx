@@ -8,6 +8,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
 import type { LiveKitCallProps } from './LiveKitCallTypes';
 
 export function LiveKitCall({ onHangup }: LiveKitCallProps) {
@@ -21,19 +22,19 @@ export function LiveKitCall({ onHangup }: LiveKitCallProps) {
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Feather name="smartphone" size={40} color={colors.primary} />
         <Text
-          style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}
+          style={[styles.title, { color: colors.foreground, fontFamily: fontFamily.bold }]}
           accessibilityRole="header"
         >
           Calls require the installed app
         </Text>
-        <Text style={[styles.body, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+        <Text style={[styles.body, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
           Voice and video calls are available in the Avarpus Android or iOS app.
           They are not supported in the browser or Expo Go.
         </Text>
         <View style={[styles.e2eeRow, { backgroundColor: colors.backgroundSecondary }]}>
           <Feather name="shield" size={14} color={colors.mutedForeground} />
           <Text
-            style={[styles.e2eeText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}
+            style={[styles.e2eeText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}
             testID="e2ee-disabled-note"
           >
             End-to-end encryption is not enabled
@@ -45,7 +46,7 @@ export function LiveKitCall({ onHangup }: LiveKitCallProps) {
           accessibilityLabel="Go back"
           testID="web-back-button"
         >
-          <Text style={[styles.backButtonText, { fontFamily: 'Inter_600SemiBold' }]}>Go back</Text>
+          <Text style={[styles.backButtonText, { fontFamily: fontFamily.semibold }]}>Go back</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -69,12 +70,12 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   title: {
-    fontSize: 20,
+    ...font.itemTitle,
     textAlign: 'center',
     marginTop: 8,
   },
   body: {
-    fontSize: 14,
+    ...font.small,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -88,7 +89,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   e2eeText: {
-    fontSize: 12,
+    ...font.small,
   },
   backButton: {
     paddingHorizontal: 28,
@@ -98,6 +99,6 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    ...font.button,
   },
 });

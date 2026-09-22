@@ -4,6 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { useAudioPlayer, useAudioPlayerStatus, useAudioRecorderState, type AudioRecorder } from 'expo-audio';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import type { VoiceRecorderPhase } from '@/hooks/useVoiceRecorder';
+import { font, fontFamily } from '@/constants/typography';
 
 const BAR_WIDTH = 3;
 const BAR_GAP = 2;
@@ -138,7 +139,7 @@ function PreviewRow({
         inactiveColor={colors.mutedForeground + '66'}
       />
       <Text
-        style={[styles.clock, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}
+        style={[styles.clock, { color: colors.foreground, fontFamily: fontFamily.medium }]}
         accessibilityLabel="Recording length"
       >
         {formatClock(isPlaying || currentSec > 0 ? currentSec * 1000 : durationMs)}
@@ -239,7 +240,7 @@ export function VoiceRecorderPanel({
           <View style={styles.liveClock}>
             <Animated.View style={[styles.dot, { backgroundColor: colors.destructive, opacity: blink }]} />
             <Text
-              style={[styles.clock, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}
+              style={[styles.clock, { color: colors.foreground, fontFamily: fontFamily.medium }]}
               accessibilityLabel="Recording elapsed time"
             >
               {formatClock(elapsedMs)}
@@ -281,7 +282,7 @@ export function VoiceRecorderPanel({
           accessibilityRole="button"
         >
           <Feather name={isPaused ? 'mic' : 'pause'} size={22} color={colors.foreground} />
-          <Text style={[styles.pillText, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{pillLabel}</Text>
+          <Text style={[styles.pillText, { color: colors.foreground, fontFamily: fontFamily.medium }]}>{pillLabel}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -326,7 +327,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  clock: { fontSize: 22, minWidth: 56, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  clock: { ...font.heading, minWidth: 56, textAlign: 'center', fontVariant: ['tabular-nums'] },
   waveform: {
     flex: 1,
     height: BAR_MAX_HEIGHT + 4,
@@ -362,5 +363,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
   },
-  pillText: { fontSize: 17 },
+  pillText: { ...font.bodyStrong },
 });

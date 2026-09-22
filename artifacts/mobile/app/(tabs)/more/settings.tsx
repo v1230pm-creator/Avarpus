@@ -4,6 +4,8 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { useAuth } from '@/context/AuthContext';
 import { Avatar } from '@/components/ui/Avatar';
 
@@ -233,11 +235,14 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingBottom: 8,
+    paddingHorizontal: layout.screenPadding,
+    paddingBottom: space.sm,
   },
   headerIconBtn: {
-    padding: 10,
+    width: size.iconButton,
+    height: size.iconButton,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerActions: {
     flexDirection: 'row',
@@ -245,13 +250,12 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    height: 40,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingRight: 40,
-    fontSize: 15,
-    fontFamily: 'Inter_400Regular',
-    marginLeft: 4,
+    height: size.searchField,
+    borderRadius: size.searchRadius,
+    paddingHorizontal: space.lg,
+    paddingRight: size.iconButton,
+    ...font.search,
+    marginLeft: space.xs,
   },
   clearSearchBtn: {
     position: 'absolute',
@@ -261,13 +265,13 @@ const styles = StyleSheet.create({
   },
   profileSection: {
     alignItems: 'center',
-    paddingTop: 32,
-    paddingBottom: 24,
-    borderBottomWidth: 1,
+    paddingTop: space.xxxl,
+    paddingBottom: space.xxl,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'transparent',
   },
   profileImageContainer: {
-    marginBottom: 16,
+    marginBottom: space.lg,
     position: 'relative',
   },
   profileNameContainer: {
@@ -276,8 +280,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   profileName: {
-    fontSize: 22,
-    fontFamily: 'Inter_600SemiBold',
+    ...font.heading,
   },
   profileAddIcon: {
     marginLeft: 6,
@@ -289,36 +292,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   listContainer: {
-    paddingTop: 8,
+    paddingTop: space.sm,
   },
   listItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    minHeight: 64,
+    paddingVertical: layout.rowPaddingVertical,
+    paddingHorizontal: layout.screenPadding,
   },
   listIconContainer: {
-    width: 32,
-    alignItems: 'flex-start',
+    width: size.avatarSm,
+    height: size.avatarSm,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   listTextContainer: {
     flex: 1,
   },
   listTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter_400Regular',
+    ...font.bodyStrong,
     marginBottom: 2,
   },
   listSubtitle: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
+    ...font.caption,
   },
   emptyState: {
     padding: 32,
     alignItems: 'center',
   },
   emptyStateText: {
-    fontSize: 15,
-    fontFamily: 'Inter_400Regular',
+    ...font.caption,
   },
 });

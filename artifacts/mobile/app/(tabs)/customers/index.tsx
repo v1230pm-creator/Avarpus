@@ -26,27 +26,29 @@ import { FadeInView, useIsDark } from '@/components/ui/Glass';
 import { CustomerFormSheet } from '@/components/forms/CustomerFormSheet';
 import { Customer } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/helpers';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 function CustomerCard({ customer, onPress, theme }: { customer: Customer; onPress: () => void; theme: any }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
       <FlatCard style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <Avatar name={customer.name} size={44} />
+        <Avatar name={customer.name} size={size.avatar} />
         <View style={styles.cardContent}>
-          <Text style={[styles.customerName, { color: theme.text, fontFamily: 'Inter_600SemiBold' }]}>{customer.name}</Text>
-          <Text style={[styles.mobile, { color: theme.textMuted, fontFamily: 'Inter_400Regular' }]}>{customer.mobile}</Text>
+          <Text style={[styles.customerName, { color: theme.text, fontFamily: fontFamily.semibold }]}>{customer.name}</Text>
+          <Text style={[styles.mobile, { color: theme.textMuted, fontFamily: fontFamily.regular }]}>{customer.mobile}</Text>
           <View style={styles.cardMeta}>
             {customer.isSample && <SampleBadge />}
             <View style={[styles.metaBadge, { backgroundColor: theme.primary + '15' }]}>
               <Feather name="tool" size={10} color={theme.primary} />
-              <Text style={[styles.metaText, { color: theme.primary, fontFamily: 'Inter_500Medium' }]}>
+              <Text style={[styles.metaText, { color: theme.primary, fontFamily: fontFamily.medium }]}>
                 {customer.totalRepairs} repairs
               </Text>
             </View>
             {customer.dueAmount > 0 && (
               <View style={[styles.metaBadge, { backgroundColor: theme.warning + '15' }]}>
                 <Feather name="alert-circle" size={10} color={theme.warning} />
-                <Text style={[styles.metaText, { color: theme.warning, fontFamily: 'Inter_600SemiBold' }]}>
+                <Text style={[styles.metaText, { color: theme.warning, fontFamily: fontFamily.semibold }]}>
                   Due {formatCurrency(customer.dueAmount)}
                 </Text>
               </View>
@@ -68,11 +70,11 @@ export default function CustomersScreen() {
     bg: colors.background,
     card: colors.card,
     border: colors.border,
-    primary: isDark ? '#2563EB' : colors.primary,
+    primary: colors.primary,
     text: colors.foreground,
     textMuted: colors.mutedForeground,
     inputBg: colors.input,
-    warning: isDark ? '#F59E0B' : colors.warning,
+    warning: colors.warning,
   };
 
   const { user } = useAuth();
@@ -118,11 +120,11 @@ export default function CustomersScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      <FadeInView animValue={headerAnim} style={[styles.header, { paddingTop: topPad + 12, backgroundColor: theme.bg }]}>
+      <FadeInView animValue={headerAnim} style={[styles.header, { paddingTop: topPad + space.lg, backgroundColor: theme.bg }]}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={[styles.headerTitle, { color: theme.text, fontFamily: 'Inter_700Bold' }]}>Customers</Text>
-            <Text style={[styles.headerSub, { color: theme.textMuted, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.headerTitle, { color: theme.text }]}>Customers</Text>
+            <Text style={[styles.headerSub, { color: theme.textMuted }]}>
               {filtered.length} records
             </Text>
           </View>
@@ -145,7 +147,7 @@ export default function CustomersScreen() {
               style={[styles.addBtn, { backgroundColor: theme.primary }]}
             >
               <Feather name="plus" size={16} color="#FFFFFF" />
-              <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Add</Text>
+              <Text style={styles.addBtnText}>Add</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -153,17 +155,17 @@ export default function CustomersScreen() {
           backgroundColor: theme.inputBg,
           borderColor: theme.border,
         }]}>
-          <Feather name="search" size={14} color={theme.textMuted} />
+          <Feather name="search" size={size.inlineIcon} color={theme.textMuted} />
           <TextInput
             value={search}
             onChangeText={setSearch}
             placeholder="Search by name or mobile..."
             placeholderTextColor={theme.textMuted}
-            style={[styles.searchInput, { color: theme.text, fontFamily: 'Inter_400Regular' }]}
+            style={[styles.searchInput, { color: theme.text }]}
           />
           {!!search && (
             <TouchableOpacity onPress={() => setSearch('')}>
-              <Feather name="x" size={14} color={theme.textMuted} />
+              <Feather name="x" size={size.inlineIcon} color={theme.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -203,22 +205,22 @@ export default function CustomersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingBottom: 12, gap: 10 },
+  header: { paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 24, letterSpacing: -0.5 },
-  headerSub: { fontSize: 12, marginTop: 2 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  addBtnText: { color: '#FFFFFF', fontSize: 13 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12 },
-  searchInput: { flex: 1, height: 40, fontSize: 13 },
-  list: { paddingHorizontal: 16, paddingTop: 8, gap: 8 },
+  headerTitle: { ...font.display },
+  headerSub: { ...font.caption, marginTop: space.xs },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingHorizontal: space.md, height: size.iconButton, borderRadius: radius.sm },
+  addBtnText: { color: '#FFFFFF', ...font.button },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: space.sm, borderWidth: StyleSheet.hairlineWidth, borderRadius: size.searchRadius, paddingHorizontal: space.lg, height: size.searchField },
+  searchInput: { flex: 1, ...font.search },
+  list: { paddingHorizontal: layout.screenPadding, paddingTop: space.sm, gap: space.sm },
   card: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,
+    flexDirection: 'row', alignItems: 'center', gap: layout.avatarGap, paddingVertical: layout.rowPaddingVertical, paddingHorizontal: space.xl,
   },
   cardContent: { flex: 1, gap: 4 },
-  customerName: { fontSize: 14 },
-  mobile: { fontSize: 12 },
+  customerName: { ...font.itemTitle },
+  mobile: { ...font.body },
   cardMeta: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 2 },
   metaBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 12 },
-  metaText: { fontSize: 10 },
+  metaText: { ...font.caption },
 });

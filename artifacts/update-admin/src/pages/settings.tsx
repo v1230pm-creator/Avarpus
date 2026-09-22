@@ -19,6 +19,8 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
 import { SignedInDevices } from "@/components/signed-in-devices";
+import { ChatRelaySettings } from "@/components/chat-relay-settings";
+import { ChatRelayTrend } from "@/components/chat-relay-trend";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -194,6 +196,10 @@ export default function Settings() {
             )}
           </CardContent>
         </Card>
+
+        <ChatRelaySettings />
+
+        <ChatRelayTrend />
 
         <SignedInDevices />
       </div>

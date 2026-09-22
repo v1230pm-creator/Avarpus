@@ -1,8 +1,8 @@
 import React from 'react';
-import { Platform, StyleSheet, View, ViewStyle } from 'react-native';
+import { Platform, StyleSheet, View, ViewStyle, useColorScheme } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useColors } from '@/hooks/useColors';
-import { useIsDark } from '@/components/ui/Glass';
+import { radius, space } from '@/constants/spacing';
 
 interface CardProps {
   children: React.ReactNode;
@@ -15,9 +15,9 @@ interface CardProps {
  * Premium surface card. Kept intentionally restrained so the app reads as
  * secure and operational rather than overly glassy.
  */
-export function Card({ children, style, variant = 'default', padding = 16 }: CardProps) {
+export function Card({ children, style, variant = 'default', padding = space.xl }: CardProps) {
   const colors = useColors();
-  const isDark = useIsDark();
+  const isDark = useColorScheme() === 'dark';
   return (
     <View
       style={[
@@ -27,8 +27,9 @@ export function Card({ children, style, variant = 'default', padding = 16 }: Car
           borderColor: variant === 'outline' ? colors.primary : colors.border,
           padding,
           shadowColor: colors.primary,
-          shadowOpacity: variant === 'elevated' ? (isDark ? 0.16 : 0.08) : isDark ? 0.08 : 0.04,
-          elevation: variant === 'elevated' ? 3 : 1,
+          // Dark surfaces separate by tone; shadows only lift the light theme.
+          shadowOpacity: variant === 'elevated' ? (isDark ? 0.1 : 0.08) : isDark ? 0 : 0.04,
+          elevation: variant === 'elevated' ? 2 : 0,
         },
         style,
       ]}
@@ -47,8 +48,8 @@ export function Card({ children, style, variant = 'default', padding = 16 }: Car
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: 16,
-    borderWidth: 1,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 12,

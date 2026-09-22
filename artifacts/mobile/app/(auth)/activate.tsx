@@ -8,6 +8,7 @@ import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollV
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { onBlue } from '@/constants/brand';
+import { font, fontFamily } from '@/constants/typography';
 
 export default function ActivateScreen() {
   const insets = useSafeAreaInsets();
@@ -60,8 +61,8 @@ export default function ActivateScreen() {
         </TouchableOpacity>
 
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.text, fontFamily: 'Inter_700Bold' }]}>Activate Account</Text>
-          <Text style={[styles.subtitle, { color: theme.textMuted, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.title, { color: theme.text, fontFamily: fontFamily.bold }]}>Activate Account</Text>
+          <Text style={[styles.subtitle, { color: theme.textMuted, fontFamily: fontFamily.regular }]}>
             Enter the single-use activation token you received. You will then sign in with a mobile OTP.
           </Text>
         </View>
@@ -69,7 +70,7 @@ export default function ActivateScreen() {
         {!!error && (
           <View style={[styles.errorBox, { backgroundColor: theme.dangerBg, borderColor: theme.dangerBg }]}>
             <Feather name="alert-circle" size={14} color={theme.danger} />
-            <Text style={[styles.errorText, { color: theme.danger, fontFamily: 'Inter_500Medium' }]}>{error}</Text>
+            <Text style={[styles.errorText, { color: theme.danger, fontFamily: fontFamily.medium }]}>{error}</Text>
           </View>
         )}
 
@@ -106,7 +107,7 @@ export default function ActivateScreen() {
 
         <View style={[styles.notice, { backgroundColor: theme.infoBg }]}>
           <Feather name="info" size={14} color={theme.textMuted} />
-          <Text style={[styles.noticeText, { color: theme.textMuted, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.noticeText, { color: theme.textMuted, fontFamily: fontFamily.regular }]}>
             This token is single-use and time-limited. Contact the shop owner if it has expired.
           </Text>
         </View>
@@ -120,17 +121,17 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 16, gap: 16, flexGrow: 1 },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
   header: { gap: 6 },
-  title: { fontSize: 24, letterSpacing: -0.5 },
-  subtitle: { fontSize: 14, lineHeight: 20 },
+  title: { ...font.title },
+  subtitle: { ...font.small },
   card: { padding: 16, borderRadius: 12, borderWidth: 1, gap: 12 },
   errorBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
     borderRadius: 8, padding: 10, borderWidth: 1,
   },
-  errorText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  errorText: { flex: 1, ...font.small },
   notice: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
     borderRadius: 10, padding: 14,
   },
-  noticeText: { flex: 1, fontSize: 12, lineHeight: 16 },
+  noticeText: { flex: 1, ...font.small },
 });

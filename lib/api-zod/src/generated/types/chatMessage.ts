@@ -5,7 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ChatMessageDelivery } from './chatMessageDelivery';
 import type { ChatMessageKind } from './chatMessageKind';
+import type { ChatMessageMediaState } from './chatMessageMediaState';
 import type { ChatMessageQuote } from './chatMessageQuote';
 
 export interface ChatMessage {
@@ -31,4 +33,9 @@ export interface ChatMessage {
   /** Set when the sender deleted the message for everyone. The row is a tombstone: body is empty and media is unreachable. */
   deletedAt?: string;
   createdAt: string;
+  /** Last shared-row change (send, tombstone, edit, media relay state). Delta sync orders messages by this value. */
+  updatedAt?: string;
+  /** Relay state of the server-side media copy. Only present for media kinds. `available` means the media endpoint can still serve it; `purged` and `expired` mean the relay copy is gone (device copies are the only remaining source); `pinned` media is never dropped. */
+  mediaState?: ChatMessageMediaState;
+  delivery?: ChatMessageDelivery;
 }

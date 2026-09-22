@@ -9,6 +9,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState } from '@/components/ui/DataStates';
 import { formatCurrency } from '@/utils/helpers';
 import { useDealersSuppliersList, type SupplierLink } from '@workspace/api-client-react';
+import { font } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 // Shops that file the signed-in person as one of THEIR dealers. Each card is
 // one supplier relationship: the supplier's contact, my dealer code there and
@@ -31,18 +33,18 @@ export default function SuppliersScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 14 }]}>
+      <View style={[styles.header, { paddingTop: topPad + layout.rowPaddingVertical }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Go back"
           style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}
         >
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>My Suppliers</Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>My Suppliers</Text>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
             Shops repairing devices you send in
           </Text>
         </View>
@@ -57,7 +59,7 @@ export default function SuppliersScreen() {
         <FlatList
           data={suppliers}
           keyExtractor={(link) => link.dealerId}
-          contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: insets.bottom + 100, gap: 10 }}
+          contentContainerStyle={{ paddingHorizontal: layout.screenPadding, paddingBottom: insets.bottom + size.tabBar + space.xxl, gap: space.md }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={isFetching && !!data} onRefresh={() => { void refetch(); }} tintColor={colors.primary} />}
           ListEmptyComponent={
@@ -77,16 +79,16 @@ export default function SuppliersScreen() {
                 accessibilityLabel={`Open repairs at ${item.supplier.businessName}`}
                 testID={`supplier-card-${item.dealerId}`}
               >
-                <FlatCard style={{ padding: 12, gap: 10 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <FlatCard style={{ padding: space.xl, gap: space.md }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: layout.avatarGap }}>
                     <View style={[styles.avatar, { backgroundColor: colors.primary + '1A' }]}>
                       <Feather name="tool" size={18} color={colors.primary} />
                     </View>
                     <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={{ fontSize: 15, color: colors.foreground, fontFamily: 'Inter_700Bold' }} numberOfLines={1}>
+                      <Text style={{ ...font.itemTitle, color: colors.foreground }} numberOfLines={1}>
                         {item.supplier.businessName}
                       </Text>
-                      <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>
+                      <Text style={{ ...font.captionStrong, color: colors.mutedForeground }} numberOfLines={1}>
                         {item.supplier.ownerName} · {item.supplier.ownerMobile}
                       </Text>
                     </View>
@@ -102,9 +104,9 @@ export default function SuppliersScreen() {
 
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     <View style={[styles.codeBadge, { backgroundColor: colors.primary + '15' }]}>
-                      <Text style={{ fontSize: 10, color: colors.primary, fontFamily: 'Inter_700Bold' }}>{item.dealerCode}</Text>
+                      <Text style={{ ...font.smallStrong, color: colors.primary }}>{item.dealerCode}</Text>
                     </View>
-                    <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>
+                    <Text style={{ ...font.captionStrong, color: colors.mutedForeground }} numberOfLines={1}>
                       Listed as {item.dealerName}
                     </Text>
                   </View>
@@ -116,10 +118,10 @@ export default function SuppliersScreen() {
                     <Stat label="Delivered" value={String(item.stats.delivered)} color={colors.success} />
                   </View>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>
+                    <Text style={{ ...font.captionStrong, color: colors.mutedForeground }}>
                       Repair value {formatCurrency(item.stats.totalRepairValue)}
                     </Text>
-                    <Text style={{ fontSize: 11, color: item.stats.pendingAmount > 0 ? colors.warning : colors.success, fontFamily: 'Inter_600SemiBold' }}>
+                    <Text style={{ ...font.captionStrong, color: item.stats.pendingAmount > 0 ? colors.warning : colors.success }}>
                       {item.stats.pendingAmount > 0 ? `Pending ${formatCurrency(item.stats.pendingAmount)}` : 'Nothing pending'}
                     </Text>
                   </View>
@@ -137,21 +139,21 @@ function Stat({ label, value, color }: { label: string; value: string; color: st
   const colors = useColors();
   return (
     <View style={[styles.stat, { backgroundColor: color + '12' }]}>
-      <Text style={{ fontSize: 15, color, fontFamily: 'Inter_700Bold' }}>{value}</Text>
-      <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>{label}</Text>
+      <Text style={{ ...font.bodyStrong, color }}>{value}</Text>
+      <Text style={{ ...font.small, color: colors.mutedForeground }} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 10, gap: 6 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20 },
-  headerSub: { fontSize: 12 },
-  avatar: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  callBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  codeBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  headerSub: { ...font.caption },
+  avatar: { width: size.avatar, height: size.avatar, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
+  callBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  codeBadge: { paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.sm },
   statsRow: { flexDirection: 'row', gap: 6 },
-  stat: { flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: 'center', gap: 1 },
+  stat: { flex: 1, borderRadius: radius.sm, paddingVertical: space.sm, alignItems: 'center', gap: space.xs },
 });

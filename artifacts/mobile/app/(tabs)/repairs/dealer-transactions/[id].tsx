@@ -23,6 +23,8 @@ import {
   type RepairPayment,
   type Refund,
 } from '@workspace/api-client-react';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 // The ONE shared dealer-to-dealer transaction, read by either party. Both
 // shops see the same code, the same acceptance state, the same money and the
@@ -101,9 +103,9 @@ export default function DealerTransactionDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 14 }]}>
+      <View style={[styles.header, { paddingTop: topPad + layout.rowPaddingVertical }]}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]} accessibilityLabel="Go back">
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>{data?.transactionCode ?? 'Transaction'}</Text>
@@ -121,11 +123,11 @@ export default function DealerTransactionDetailScreen() {
       ) : error && !data ? (
         <DataErrorState onRetry={() => { void refetch(); }} />
       ) : !repair || !data ? null : (
-        <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: insets.bottom + 40, gap: 12 }} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={{ padding: layout.screenPadding, paddingBottom: insets.bottom + space.xxxl, gap: space.md }} showsVerticalScrollIndicator={false}>
           {/* Acceptance state — explicit, never implied by status */}
           <View style={[styles.acceptanceBadge, { backgroundColor: (waiting ? colors.warning : colors.success) + '14' }]}>
             <Feather name={waiting ? 'clock' : 'check-circle'} size={14} color={waiting ? colors.warning : colors.success} />
-            <Text style={{ fontSize: 12, color: waiting ? colors.warning : colors.success, fontFamily: 'Inter_600SemiBold', flexShrink: 1 }}>
+            <Text style={{ ...font.captionStrong, color: waiting ? colors.warning : colors.success, flexShrink: 1 }}>
               {waiting
                 ? 'Waiting for Acceptance'
                 : `Received${repair.sourceDealerReceivedAt ? ` on ${formatDateTime(repair.sourceDealerReceivedAt)}` : ''}${repair.receivedByName ? ` by ${repair.receivedByName}` : ''}`}
@@ -134,22 +136,22 @@ export default function DealerTransactionDetailScreen() {
 
           <FlatCard style={{ padding: 14, gap: 10 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={{ fontSize: 16, color: colors.foreground, fontFamily: 'Inter_700Bold', flex: 1 }}>{repair.brand} {repair.model}</Text>
+              <Text style={{ ...font.itemTitle, color: colors.foreground, flex: 1 }}>{repair.brand} {repair.model}</Text>
               <RepairStatusBadge status={repair.status as RepairStatus} />
             </View>
-            <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{repair.deviceType}</Text>
-            {!!repair.imei && <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>IMEI {repair.imei}</Text>}
-            {!!repair.serialNumber && <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>Serial {repair.serialNumber}</Text>}
+            <Text style={{ ...font.captionStrong, color: colors.mutedForeground }}>{repair.deviceType}</Text>
+            {!!repair.imei && <Text style={{ ...font.caption, color: colors.mutedForeground }}>IMEI {repair.imei}</Text>}
+            {!!repair.serialNumber && <Text style={{ ...font.caption, color: colors.mutedForeground }}>Serial {repair.serialNumber}</Text>}
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_500Medium' }}>{repair.problem}</Text>
+            <Text style={{ ...font.body, color: colors.foreground }}>{repair.problem}</Text>
             {!!repair.diagnosis && (
-              <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>Diagnosis: {repair.diagnosis}</Text>
+              <Text style={{ ...font.caption, color: colors.mutedForeground }}>Diagnosis: {repair.diagnosis}</Text>
             )}
             {!!repair.workPerformed && (
-              <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>Work: {repair.workPerformed}</Text>
+              <Text style={{ ...font.caption, color: colors.mutedForeground }}>Work: {repair.workPerformed}</Text>
             )}
             {!!repair.expectedDate && (
-              <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>Expected by {formatDate(repair.expectedDate)}</Text>
+              <Text style={{ ...font.caption, color: colors.mutedForeground }}>Expected by {formatDate(repair.expectedDate)}</Text>
             )}
             {isReceiver && (
               <TouchableOpacity
@@ -158,7 +160,7 @@ export default function DealerTransactionDetailScreen() {
                 accessibilityRole="button"
               >
                 <Feather name="tool" size={14} color={colors.primary} />
-                <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Open repair record</Text>
+                <Text style={{ ...font.labelStrong, color: colors.primary }}>Open repair record</Text>
               </TouchableOpacity>
             )}
           </FlatCard>
@@ -173,8 +175,8 @@ export default function DealerTransactionDetailScreen() {
                   <Feather name="briefcase" size={18} color={colors.primary} />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_700Bold' }}>{counterpart.businessName}</Text>
-                  <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{counterpart.ownerName} · {counterpart.ownerMobile}</Text>
+                  <Text style={{ ...font.itemTitle, color: colors.foreground }}>{counterpart.businessName}</Text>
+                  <Text style={{ ...font.captionStrong, color: colors.mutedForeground }}>{counterpart.ownerName} · {counterpart.ownerMobile}</Text>
                 </View>
                 <TouchableOpacity
                   accessibilityLabel={`Call ${counterpart.businessName}`}
@@ -198,9 +200,9 @@ export default function DealerTransactionDetailScreen() {
             <FlatCard style={{ padding: 14, gap: 10, borderColor: colors.warning + '44', borderWidth: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Feather name="clock" size={16} color={colors.warning} />
-                <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Confirm physical receipt</Text>
+                <Text style={{ ...font.bodyStrong, color: colors.foreground }}>Confirm physical receipt</Text>
               </View>
-              <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+              <Text style={{ ...font.caption, color: colors.mutedForeground }}>
                 Work cannot start until you confirm the device from {counterpart?.businessName ?? 'the source dealer'} has physically arrived.
               </Text>
               <Button title="Accept & Mark as Received" onPress={markReceived} loading={receiveMutation.isPending} fullWidth />
@@ -236,22 +238,22 @@ export default function DealerTransactionDetailScreen() {
               )}
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
               <View style={styles.moneyRow}>
-                <Text style={[styles.moneyLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                <Text style={[styles.moneyLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
                   {balanceLabel}
                 </Text>
-                <Text style={[styles.moneyValue, { color: balanceLabel === 'You Owe' ? colors.destructive : colors.success, fontSize: 16 }]}>
+                <Text style={[styles.moneyValue, { color: balanceLabel === 'You Owe' ? colors.destructive : colors.success }]}>
                   {formatCurrency(Math.abs(financials.balance))}
                 </Text>
               </View>
               {!financials.billPosted && (
-                <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+                <Text style={{ ...font.small, color: colors.mutedForeground }}>
                   The bill posts to the ledger once the repair is marked ready.
                 </Text>
               )}
               {!!counterpart && (
                 <TouchableOpacity onPress={openLedger} style={styles.inlineLink} accessibilityRole="button">
                   <Feather name="book-open" size={14} color={colors.primary} />
-                  <Text style={{ fontSize: 13, color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>
+                  <Text style={{ ...font.labelStrong, color: colors.primary }}>
                     Open {counterpart.businessName} ledger
                   </Text>
                 </TouchableOpacity>
@@ -272,14 +274,14 @@ export default function DealerTransactionDetailScreen() {
                     style={[styles.listRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
                   >
                     <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold', textDecorationLine: voided ? 'line-through' : 'none' }}>
+                      <Text style={{ ...font.bodyStrong, color: colors.foreground, textDecorationLine: voided ? 'line-through' : 'none' }}>
                         {voided ? 'Payment Voided' : paidLabel}
                       </Text>
-                      <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+                      <Text style={{ ...font.caption, color: colors.mutedForeground }}>
                         {formatDateTime(p.createdAt)} · {p.method}{p.receivedByName ? ` · ${p.receivedByName}` : ''}
                       </Text>
                     </View>
-                    <Text style={{ fontSize: 14, color: voided ? colors.mutedForeground : colors.foreground, fontFamily: 'Inter_700Bold' }}>
+                    <Text style={{ ...font.bodyStrong, color: voided ? colors.mutedForeground : colors.foreground }}>
                       {formatCurrency(p.amount)}
                     </Text>
                     <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
@@ -294,14 +296,14 @@ export default function DealerTransactionDetailScreen() {
                   style={[styles.listRow, (i > 0 || payments.length > 0) && { borderTopWidth: 1, borderTopColor: colors.border }]}
                 >
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>
+                    <Text style={{ ...font.bodyStrong, color: colors.foreground }}>
                       {isReceiver ? 'Refund By You' : 'Refund To You'}{r.status !== 'paid' ? ` · ${r.status}` : ''}
                     </Text>
-                    <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+                    <Text style={{ ...font.caption, color: colors.mutedForeground }}>
                       {formatDateTime(r.paidAt ?? r.createdAt)} · {r.method}
                     </Text>
                   </View>
-                  <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_700Bold' }}>{formatCurrency(r.amount)}</Text>
+                  <Text style={{ ...font.bodyStrong, color: colors.foreground }}>{formatCurrency(r.amount)}</Text>
                   <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
                 </TouchableOpacity>
               ))}
@@ -320,10 +322,10 @@ export default function DealerTransactionDetailScreen() {
                       {!last && <View style={[styles.line, { backgroundColor: colors.border }]} />}
                     </View>
                     <View style={{ flex: 1, paddingBottom: last ? 0 : 14 }}>
-                      <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: last ? 'Inter_600SemiBold' : 'Inter_500Medium' }}>
+                      <Text style={{ ...font.captionStrong, color: colors.foreground, fontFamily: last ? fontFamily.semibold : fontFamily.medium }}>
                         {dealerEventTitle(ev)}
                       </Text>
-                      <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+                      <Text style={{ ...font.caption, color: colors.mutedForeground }}>
                         {formatDateTime(ev.createdAt)}{ev.userName ? ` · ${ev.userName}` : ''}
                       </Text>
                     </View>
@@ -340,19 +342,19 @@ export default function DealerTransactionDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 10, gap: 6 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20, fontFamily: 'Inter_700Bold' },
-  headerSub: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  sectionLabel: { fontSize: 10, letterSpacing: 1, fontFamily: 'Inter_600SemiBold' },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  headerSub: { ...font.caption },
+  sectionLabel: { ...font.overline },
   divider: { height: 1, width: '100%' },
-  avatar: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  iconBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: size.avatar, height: size.avatar, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   acceptanceBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
   inlineLink: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 4 },
   moneyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  moneyLabel: { fontSize: 12, fontFamily: 'Inter_500Medium' },
-  moneyValue: { fontSize: 13, fontFamily: 'Inter_700Bold' },
+  moneyLabel: { ...font.captionStrong },
+  moneyValue: { ...font.bodyStrong },
   listRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
   dot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
   line: { width: 2, flex: 1, marginTop: 2 },

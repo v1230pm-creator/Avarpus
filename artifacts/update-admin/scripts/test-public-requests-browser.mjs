@@ -136,9 +136,16 @@ async function installApiFixture(page) {
 }
 
 async function run() {
+  // run-browser-suites.mjs builds once into a private directory and points every
+  // suite at it; a by-hand run without UPDATE_ADMIN_BUILD_DIR serves dist/public.
+  const buildDir = process.env.UPDATE_ADMIN_BUILD_DIR;
   const preview = spawn(
     "pnpm",
-    ["exec", "vite", "preview", "--config", "vite.config.ts", "--host", "127.0.0.1"],
+    [
+      "exec", "vite", "preview", "--config", "vite.config.ts",
+      "--host", "127.0.0.1", "--strictPort",
+      ...(buildDir ? ["--outDir", buildDir] : []),
+    ],
     {
       cwd: new URL("..", import.meta.url),
       env: { ...process.env, PORT: String(port), BASE_PATH: "/update-admin/" },

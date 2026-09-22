@@ -12,6 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@/components/ui/Button';
+import { font } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 interface FormSheetProps {
   visible: boolean;
@@ -35,11 +37,11 @@ export function FormSheet({ visible, title, onClose, onSubmit, submitLabel = 'Sa
     <Modal visible={visible} animationType="slide" transparent onRequestClose={loading ? undefined : onClose}>
       <View style={styles.backdrop}>
         <KeyboardAvoidingCompat style={styles.avoider}>
-          <View style={[styles.sheet, { backgroundColor: colors.background, paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <View style={[styles.sheet, { backgroundColor: colors.background, paddingBottom: Math.max(insets.bottom, space.lg) }]}>
             <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.sheetTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{title}</Text>
+              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>{title}</Text>
               <TouchableOpacity onPress={onClose} disabled={loading} style={styles.closeBtn} accessibilityLabel="Close form">
-                <Feather name="x" size={22} color={colors.mutedForeground} />
+                <Feather name="x" size={24} color={colors.mutedForeground} />
               </TouchableOpacity>
             </View>
             <ScrollView
@@ -62,13 +64,13 @@ export function FormSheet({ visible, title, onClose, onSubmit, submitLabel = 'Sa
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   avoider: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' },
+  sheet: { borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, maxHeight: '90%' },
   sheetHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14, borderBottomWidth: 1,
+    paddingHorizontal: layout.screenPadding, paddingTop: space.xl, paddingBottom: space.lg, borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  sheetTitle: { fontSize: 18 },
-  closeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  body: { padding: 20, gap: 14 },
-  footer: { paddingHorizontal: 20, paddingTop: 8 },
+  sheetTitle: font.heading,
+  closeBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center', marginRight: -space.sm },
+  body: { padding: layout.screenPadding, gap: space.lg },
+  footer: { paddingHorizontal: layout.screenPadding, paddingTop: space.sm },
 });

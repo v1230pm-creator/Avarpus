@@ -32,20 +32,18 @@ function resolveOutDir() {
   return outDir;
 }
 
-async function buildAll() {
-  const distDir = resolveOutDir();
-  await rm(distDir, { recursive: true, force: true });
-
-  // Copy DB migrations so they are available at runtime from dist/migrations/
-  const migrationsSource = path.resolve(artifactDir, "../../lib/db/migrations");
-  await cp(migrationsSource, path.resolve(distDir, "migrations"), { recursive: true });
-
-  await esbuild({
-    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+// esbuild options for bundling this artifact's TypeScript for Node. The server
+// bundle (src/index.ts → dist/index.mjs) is the main consumer; validation
+// scripts reuse the same options to bundle a single library module (for
+// example the relay purge) into their private run directory, so a test drives
+// the exact code the server ships instead of a hand-maintained copy.
+export function bundleOptions({ entryPoints, outdir }) {
+  return {
+    entryPoints,
     platform: "node",
     bundle: true,
     format: "esm",
-    outdir: distDir,
+    outdir,
     outExtension: { ".js": ".mjs" },
     logLevel: "info",
     // Some packages may not be bundleable, so we externalize them, we can add more here as needed.
@@ -143,10 +141,34 @@ globalThis.__filename = __bannerUrl.fileURLToPath(import.meta.url);
 globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
     },
-  });
+  };
 }
 
-buildAll().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+async function buildAll() {
+  const distDir = resolveOutDir();
+  await rm(distDir, { recursive: true, force: true });
+
+  // Copy DB migrations so they are available at runtime from dist/migrations/
+  const migrationsSource = path.resolve(artifactDir, "../../lib/db/migrations");
+  await cp(migrationsSource, path.resolve(distDir, "migrations"), { recursive: true });
+
+  await esbuild(
+    bundleOptions({
+      entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+      outdir: distDir,
+    }),
+  );
+}
+
+// Build only when run as a script (`node ./build.mjs`); importing this module
+// for `bundleOptions` must not touch dist/.
+const invokedDirectly =
+  process.argv[1] !== undefined
+  && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (invokedDirectly) {
+  buildAll().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

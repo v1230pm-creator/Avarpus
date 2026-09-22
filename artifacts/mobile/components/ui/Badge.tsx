@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { RepairStatus, RepairPriority } from '@/types';
+import { fontFamily } from '@/constants/typography';
 
 type BadgeVariant = 'default' | 'success' | 'warning' | 'error' | 'info' | 'muted';
 
@@ -30,13 +31,13 @@ export function Badge({ label, variant = 'default', style, size = 'md' }: BadgeP
     info: colors.info,
     muted: colors.mutedForeground,
   };
-  const padH = size === 'sm' ? 7 : 10;
-  const padV = size === 'sm' ? 2 : 4;
-  const fs = size === 'sm' ? 10 : 11;
+  const padH = size === 'sm' ? 10 : 12;
+  const padV = size === 'sm' ? 3 : 5;
+  const fs = size === 'sm' ? 12 : 13;
 
   return (
     <View style={[styles.badge, { backgroundColor: bg[variant], paddingHorizontal: padH, paddingVertical: padV, borderRadius: 100 }, style]}>
-      <Text style={[styles.text, { color: fg[variant], fontSize: fs }]}>{label}</Text>
+      <Text style={[styles.text, { color: fg[variant], fontSize: fs, lineHeight: fs + 4 }]}>{label}</Text>
     </View>
   );
 }
@@ -80,5 +81,5 @@ export function PaymentBadge({ status }: { status: 'paid' | 'unpaid' | 'partial'
 
 const styles = StyleSheet.create({
   badge: { alignSelf: 'flex-start' },
-  text: { fontFamily: 'Inter_600SemiBold', letterSpacing: 0.2 },
+  text: { fontFamily: fontFamily.semibold, letterSpacing: 0.2 },
 });

@@ -22,12 +22,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { Avatar } from '@/components/ui/Avatar';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
 import { useAvarpusContacts, normalizeIndianPhone, type DevicePhoneContact } from '@/hooks/useAvarpusContacts';
 import { storage, KEYS } from '@/utils/storage';
+import * as FileSystem from 'expo-file-system/legacy';
 import {
   useChatMessagesList,
   getChatMessagesListQueryKey,
   useChatMessagesSend,
+  useChatUploadUrl,
   useChatRoomsCreate,
   useChatRoomsList,
   getChatRoomsListQueryKey,
@@ -35,6 +38,10 @@ import {
 } from '@workspace/api-client-react';
 import type { ChatContact, ChatMessage, ChatRoom } from '@workspace/api-client-react';
 import { SELECTION_ACCENT, chatMediaUri, describeMessage } from '@/components/chat/messageActions';
+import { useChatStore } from '@/context/ChatStoreContext';
+import { localMediaPathOf } from '@/hooks/useChatMedia';
+import { relayAvailable, isMediaKind } from '@/utils/chatMedia';
+import { receivedMimeType } from '@/components/chat/attachments';
 
 /** One selectable destination: an existing room or a matched contact. */
 type ContactListItem =
@@ -92,10 +99,31 @@ export default function ForwardScreen() {
       staleTime: 30_000,
     },
   });
+  // With the device store open the source rows are read locally, so messages
+  // older than the server's first page (and offline history) still forward.
+  const { store: chatStore, media: chatMedia, requestSync } = useChatStore();
+  const [localSource, setLocalSource] = useState<ChatMessage[] | null>(null);
+  useEffect(() => {
+    if (!chatStore) {
+      setLocalSource(null);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(messageIds.map((id) => chatStore.getMessage(id)))
+      .then((rows) => {
+        if (!cancelled) setLocalSource(rows.filter((m): m is NonNullable<typeof m> => !!m));
+      })
+      .catch(() => {
+        if (!cancelled) setLocalSource([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [chatStore, messageIds]);
   const sourceMessages = useMemo(() => {
-    const byId = new Map((sourceData?.messages ?? []).map((m) => [m.id, m]));
+    const byId = new Map([...(sourceData?.messages ?? []), ...(localSource ?? [])].map((m) => [m.id, m]));
     return messageIds.map((id) => byId.get(id)).filter((m): m is ChatMessage => !!m && !m.deletedAt);
-  }, [messageIds, sourceData?.messages]);
+  }, [localSource, messageIds, sourceData?.messages]);
 
   // ── Destinations ────────────────────────────────────────────────────────
   const { data: roomsData, isLoading: roomsLoading } = useChatRoomsList({
@@ -164,6 +192,64 @@ export default function ForwardScreen() {
 
   const sendMutation = useChatMessagesSend();
   const roomsCreate = useChatRoomsCreate();
+  const uploadUrlMutation = useChatUploadUrl();
+
+  // Fresh uploads made for forwards whose relay copy is gone, keyed by
+  // (target room, source message). A retry after a partial failure reuses the
+  // path instead of uploading the same bytes again.
+  const reuploadedRef = useRef(new Map<string, string>());
+
+  /**
+   * The server can only copy a forward's media while it still holds the relay
+   * copy. Once that is purged or expired, this device's own copy is the only
+   * source: upload it into the target room like a first-hand attachment and
+   * let the server verify it. Refused with a clear message when this device
+   * never stored the media either.
+   */
+  const reuploadLocalCopy = useCallback(
+    async (roomId: string, message: ChatMessage): Promise<string> => {
+      const key = `${roomId}|${message.id}`;
+      const remembered = reuploadedRef.current.get(key);
+      if (remembered) return remembered;
+      const localPath = localMediaPathOf(message);
+      if (!localPath) {
+        throw new Error(
+          'This media is no longer on the server and was never saved on this phone, so it cannot be forwarded.',
+        );
+      }
+      const info = await FileSystem.getInfoAsync(localPath);
+      const size = info.exists && 'size' in info ? Number(info.size) : NaN;
+      if (!info.exists || !Number.isFinite(size) || size <= 0) {
+        throw new Error('The saved copy of this media could not be read from this phone.');
+      }
+      const contentType = receivedMimeType(message);
+      const upload = await uploadUrlMutation.mutateAsync({
+        roomId,
+        data: { name: message.body || 'attachment', size, contentType },
+      });
+      if (Platform.OS === 'web') {
+        const blob = await (await fetch(localPath)).blob();
+        const put = await fetch(upload.uploadURL, {
+          method: 'PUT',
+          headers: { 'Content-Type': contentType },
+          body: blob,
+        });
+        if (!put.ok) throw new Error(`Upload failed (HTTP ${put.status})`);
+      } else {
+        const result = await FileSystem.uploadAsync(upload.uploadURL, localPath, {
+          httpMethod: 'PUT',
+          headers: { 'Content-Type': contentType },
+          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        });
+        if (result.status < 200 || result.status >= 300) {
+          throw new Error(`Upload failed (HTTP ${result.status})`);
+        }
+      }
+      reuploadedRef.current.set(key, upload.objectPath);
+      return upload.objectPath;
+    },
+    [uploadUrlMutation],
+  );
 
   // Idempotency keys are stable per (target, message) for the lifetime of
   // this screen, so a retry after a partial failure replays the same keys and
@@ -212,6 +298,8 @@ export default function ForwardScreen() {
             }
           }
           for (const message of sourceMessages) {
+            const needsOwnCopy = isMediaKind(message.kind) && !relayAvailable(message);
+            const objectPath = needsOwnCopy ? await reuploadLocalCopy(room.id, message) : undefined;
             await sendMutation.mutateAsync({
               roomId: room.id,
               data: {
@@ -219,6 +307,7 @@ export default function ForwardScreen() {
                 body: message.body,
                 clientRequestId: requestIdFor(`${target.key}|${message.id}`),
                 forwardOf: { roomId: sourceRoomId, messageId: message.id },
+                ...(objectPath ? { objectPath } : {}),
               },
             });
           }
@@ -242,6 +331,8 @@ export default function ForwardScreen() {
       }
     } finally {
       void queryClient.invalidateQueries({ queryKey: getChatRoomsListQueryKey() });
+      // Pull the forwarded copies (and any room this created) into the store.
+      void requestSync('manual');
       sendingRef.current = false;
       setSending(false);
     }
@@ -265,7 +356,7 @@ export default function ForwardScreen() {
       return;
     }
     router.back();
-  }, [note, queryClient, requestIdFor, roomsCreate, router, selectedList, sendMutation, sourceMessages, sourceRoomId]);
+  }, [note, queryClient, requestIdFor, requestSync, reuploadLocalCopy, roomsCreate, router, selectedList, sendMutation, sourceMessages, sourceRoomId]);
 
   const openContactPicker = useCallback(() => {
     setContactPickerOpen(true);
@@ -392,10 +483,16 @@ export default function ForwardScreen() {
         <View style={styles.previewRow}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.previewStrip}>
             {sourceMessages.map((message) =>
-              message.kind === 'image' ? (
+              // Device-owned mode never streams the relay for a preview; a photo
+              // that is not on the device is forwarded by reference (chip below).
+              message.kind === 'image' && (localMediaPathOf(message) || (!chatMedia && relayAvailable(message))) ? (
                 <Image
                   key={message.id}
-                  source={{ uri: chatMediaUri(sourceRoomId, message.id), headers: token ? { Authorization: `Bearer ${token}` } : undefined }}
+                  source={
+                    localMediaPathOf(message)
+                      ? { uri: localMediaPathOf(message)! }
+                      : { uri: chatMediaUri(sourceRoomId, message.id), headers: token ? { Authorization: `Bearer ${token}` } : undefined }
+                  }
                   style={styles.previewThumb}
                   contentFit="cover"
                   accessibilityLabel="Photo to forward"
@@ -407,6 +504,8 @@ export default function ForwardScreen() {
                   style={[styles.previewChip, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
                   testID={`forward-preview-${message.id}`}
                 >
+                  {message.kind === 'image' && <Feather name="camera" size={12} color={colors.mutedForeground} />}
+                  {message.kind === 'video' && <Feather name="video" size={12} color={colors.mutedForeground} />}
                   {message.kind === 'audio' && <Feather name="mic" size={12} color={colors.mutedForeground} />}
                   {message.kind === 'file' && <Feather name="file" size={12} color={colors.mutedForeground} />}
                   <Text style={[styles.previewChipText, { color: colors.foreground }]} numberOfLines={1}>
@@ -468,7 +567,7 @@ export default function ForwardScreen() {
                 Contacts permission was denied. Allow access so Avarpus can show who is registered.
               </Text>
               <TouchableOpacity onPress={() => void Linking.openSettings()} style={[styles.settingsBtn, { borderColor: colors.border }]}>
-                <Text style={{ color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Open settings</Text>
+                <Text style={{ color: colors.primary, ...font.labelStrong }}>Open settings</Text>
               </TouchableOpacity>
             </View>
           ) : contacts.status === 'loading' && !contacts.loaded ? (
@@ -503,7 +602,7 @@ export default function ForwardScreen() {
                       <Text style={[styles.rowMeta, { color: colors.mutedForeground }]}>{item.contact.phone}</Text>
                     </View>
                     <TouchableOpacity onPress={() => void inviteContact(item.contact.phone)} accessibilityLabel={`Invite ${item.contact.name}`}>
-                      <Text style={{ color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>Invite</Text>
+                      <Text style={{ color: colors.primary, ...font.labelStrong }}>Invite</Text>
                     </TouchableOpacity>
                   </View>
                 )
@@ -536,16 +635,16 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   headerIcon: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, fontSize: 17, fontFamily: 'Inter_700Bold', paddingHorizontal: 6 },
-  searchInput: { flex: 1, fontSize: 16, fontFamily: 'Inter_400Regular', paddingHorizontal: 6, height: 44 },
-  sectionLabel: { fontSize: 12, fontFamily: 'Inter_600SemiBold', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 },
+  headerTitle: { flex: 1, ...font.bodyStrong, fontFamily: fontFamily.bold, paddingHorizontal: 6 },
+  searchInput: { flex: 1, ...font.input, paddingHorizontal: 6, height: 44 },
+  sectionLabel: { ...font.overline, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
   rowBody: { flex: 1 },
-  rowName: { fontSize: 15, fontFamily: 'Inter_500Medium' },
-  rowMeta: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  rowName: { ...font.captionStrong },
+  rowMeta: { ...font.small, marginTop: 2 },
   circle: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
-  emptyText: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 19 },
+  emptyText: { ...font.small, textAlign: 'center' },
   settingsBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, paddingTop: 8, gap: 8 },
   previewRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -561,7 +660,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  previewChipText: { fontSize: 12, fontFamily: 'Inter_400Regular', flexShrink: 1 },
+  previewChipText: { ...font.small, flexShrink: 1 },
   noteInput: {
     flex: 1,
     minWidth: 120,
@@ -569,10 +668,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 14,
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
+    ...font.input,
   },
   selectedRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  selectedNames: { flex: 1, fontSize: 13, fontFamily: 'Inter_500Medium' },
+  selectedNames: { flex: 1, ...font.smallStrong },
   sendButton: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
 });

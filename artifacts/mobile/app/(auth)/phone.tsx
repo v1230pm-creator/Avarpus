@@ -11,6 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { onBlue } from '@/constants/brand';
 import { AvarpusLoadingScreen } from '@/components/ui/AvarpusSpinner';
+import { font } from '@/constants/typography';
 
 export default function PhoneScreen() {
   const { signedOutNotice, clearSignedOutNotice } = useAuth();
@@ -168,11 +169,11 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, paddingHorizontal: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52 },
   backButton: { width: 42, height: 42, marginLeft: -8, alignItems: 'center', justifyContent: 'center' },
-  headerBrand: { fontSize: 21, fontFamily: 'Inter_600SemiBold', letterSpacing: 1.8 },
+  headerBrand: { ...font.itemTitle, letterSpacing: 1.8 },
   headerSpacer: { width: 34 },
   content: { flex: 1, alignItems: 'center', paddingTop: 46 },
-  title: { fontSize: 28, lineHeight: 36, letterSpacing: -0.5, fontFamily: 'Inter_600SemiBold', textAlign: 'center' },
-  subtitle: { maxWidth: 330, fontSize: 14.5, lineHeight: 21, fontFamily: 'Inter_500Medium', textAlign: 'center', marginTop: 18 },
+  title: { ...font.title, textAlign: 'center' },
+  subtitle: { maxWidth: 330, ...font.captionStrong, textAlign: 'center', marginTop: 18 },
   phoneForm: { width: '100%', maxWidth: 306, marginTop: 34 },
   countryRow: {
     height: 48,
@@ -182,14 +183,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 12,
   },
-  countryText: { fontSize: 18, fontFamily: 'Inter_500Medium' },
+  countryText: { ...font.search },
   phoneRow: { flexDirection: 'row', gap: 14, marginTop: 12 },
   codeField: { width: 82, height: 50, borderBottomWidth: 1.5, justifyContent: 'center' },
-  codeText: { fontSize: 18, fontFamily: 'Inter_500Medium' },
+  codeText: { ...font.search },
   numberField: { flex: 1, height: 50, borderBottomWidth: 1.5, justifyContent: 'center' },
-  numberInput: { height: 48, fontSize: 18, fontFamily: 'Inter_500Medium', paddingHorizontal: 0 },
+  numberInput: { height: 48, ...font.search, paddingHorizontal: 0 },
   nextButtonArea: { width: '100%', height: 64, marginTop: 'auto', paddingHorizontal: 5, paddingBottom: 10 },
   nextButton: { borderRadius: 28, minHeight: 54, maxHeight: 54 },
   alertBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginTop: 18 },
-  alertText: { fontSize: 12.5, flex: 1, fontFamily: 'Inter_500Medium', lineHeight: 17 },
+  alertText: { ...font.smallStrong, flex: 1 },
 });

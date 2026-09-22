@@ -1,4 +1,5 @@
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
 
@@ -47,6 +48,19 @@ jest.mock('expo-router', () => {
   };
 });
 
+// The tab bar's Chats badge (useChatUnreadCount) reaches the API client for
+// chat capabilities and the room list. Stub that boundary with idle queries:
+// the gate under test must decide from auth state alone, never from network.
+jest.mock('@workspace/api-client-react', () => {
+  const idleQuery = () => ({ data: undefined, isLoading: false, isError: false, refetch: jest.fn() });
+  return {
+    useChatCapabilities: jest.fn(idleQuery),
+    useChatRoomsList: jest.fn(idleQuery),
+    getChatCapabilitiesQueryKey: () => ['/api/chat/capabilities'],
+    getChatRoomsListQueryKey: () => ['/api/chat/rooms'],
+  };
+});
+
 jest.mock('@/utils/appLock', () => ({
   isLockEnabled: jest.fn(async () => false),
   isUnlocked: jest.fn(() => true),
@@ -78,6 +92,26 @@ jest.mock('react-native-safe-area-context', () => ({
 
 import TabLayout from '../app/(tabs)/_layout';
 
+// The layout mounts under the app root's QueryClientProvider; give it the same
+// provider here so React Query hooks in the tab bar resolve a client.
+function renderTabLayout() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = render(
+    <QueryClientProvider client={queryClient}>
+      <TabLayout />
+    </QueryClientProvider>,
+  );
+  return {
+    ...view,
+    rerender: () =>
+      view.rerender(
+        <QueryClientProvider client={queryClient}>
+          <TabLayout />
+        </QueryClientProvider>,
+      ),
+  };
+}
+
 describe.each(['dealer_owner', 'dealer_staff'])('%s portal recovery', (role) => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -94,7 +128,7 @@ describe.each(['dealer_owner', 'dealer_staff'])('%s portal recovery', (role) => 
   });
 
   it('hides portal data while inactive and resumes the same session after Retry', async () => {
-    const view = render(<TabLayout />);
+    const view = renderTabLayout();
 
     expect(screen.getByText('Dealer portal is inactive')).toBeTruthy();
     expect(screen.queryByText('Portal repair data')).toBeNull();
@@ -107,7 +141,7 @@ describe.each(['dealer_owner', 'dealer_staff'])('%s portal recovery', (role) => 
     await act(async () => {
       fireEvent.press(screen.getByText('Retry access'));
     });
-    view.rerender(<TabLayout />);
+    view.rerender();
 
     expect(mockRefreshFeatures).toHaveBeenCalledTimes(1);
     expect(mockLogout).not.toHaveBeenCalled();
@@ -125,7 +159,7 @@ it('does not apply the dealer inactive gate to customer portal sessions', () => 
   };
   mockSegments = ['(tabs)', 'index'];
 
-  render(<TabLayout />);
+  renderTabLayout();
 
   expect(screen.queryByText('Dealer portal is inactive')).toBeNull();
   expect(screen.getByText('Portal repair data')).toBeTruthy();

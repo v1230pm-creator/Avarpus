@@ -5,6 +5,7 @@ export * from "./roleFeatures";
 export * from "./notifications";
 export * from "./push";
 export * from "./chat";
+export * from "./chatRelayRuns";
 export * from "./emailDelivery";
 export * from "./phoneVerification";
 export * from "./status";

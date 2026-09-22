@@ -27,6 +27,8 @@ import { AvarpusLoadingScreen } from '@/components/ui/AvarpusSpinner';
 import { DataErrorBanner, DataErrorState } from '@/components/ui/DataStates';
 import { useColors } from '@/hooks/useColors';
 import { useDealerChat } from '@/hooks/useDealerChat';
+import { font } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 type Direction = 'payable' | 'receivable';
 
@@ -225,19 +227,19 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
+    paddingHorizontal: layout.screenPadding,
+    paddingBottom: space.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
-  headerSubtitle: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  scroll: { padding: 16, paddingBottom: 40 },
+  iconBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  headerSubtitle: { ...font.caption },
+  scroll: { padding: layout.screenPadding, paddingBottom: 40 },
   summaryBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -247,15 +249,15 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   summaryBox: { flex: 1, gap: 2 },
-  summaryLabel: { fontSize: 12, fontFamily: 'Inter_500Medium' },
-  summaryValue: { fontSize: 20, fontFamily: 'Inter_700Bold' },
-  summaryDirection: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  summaryLabel: { ...font.captionStrong },
+  summaryValue: { ...font.heading },
+  summaryDirection: { ...font.captionStrong },
   summaryDivider: { width: 1, height: '100%', marginHorizontal: 16 },
   summaryRow: { flex: 1.2, gap: 10 },
   summaryMiniBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  summaryMiniLabel: { fontSize: 12, fontFamily: 'Inter_500Medium' },
-  summaryMiniValue: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  metaLine: { fontSize: 12, fontFamily: 'Inter_400Regular', marginBottom: 16 },
+  summaryMiniLabel: { ...font.captionStrong },
+  summaryMiniValue: { ...font.bodyStrong },
+  metaLine: { ...font.caption, marginBottom: space.lg },
   activityList: { gap: 10 },
   entryRow: {
     flexDirection: 'row',
@@ -266,10 +268,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   entryIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  entryTitle: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  entryMeta: { fontSize: 11, fontFamily: 'Inter_400Regular' },
-  entryAmount: { fontSize: 15, fontFamily: 'Inter_700Bold' },
-  entryDirection: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  entryRunning: { fontSize: 10, fontFamily: 'Inter_500Medium' },
-  emptyText: { fontSize: 14, textAlign: 'center', marginVertical: 40, fontFamily: 'Inter_500Medium' },
+  entryTitle: { ...font.bodyStrong },
+  entryMeta: { ...font.caption },
+  entryAmount: { ...font.bodyStrong },
+  entryDirection: { ...font.captionStrong },
+  entryRunning: { ...font.caption },
+  emptyText: { ...font.body, textAlign: 'center', marginVertical: 40 },
 });

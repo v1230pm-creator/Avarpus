@@ -1,6 +1,7 @@
 import React from 'react';
-import { StyleSheet, View, ViewProps, Platform, Animated, ViewStyle } from 'react-native';
+import { StyleSheet, View, ViewProps, Platform, Animated, ViewStyle, useColorScheme } from 'react-native';
 import { useColors } from '@/hooks/useColors';
+import { radius, space } from '@/constants/spacing';
 
 interface FlatCardProps extends ViewProps {
   animValue?: Animated.Value;
@@ -8,6 +9,7 @@ interface FlatCardProps extends ViewProps {
 
 export function FlatCard({ style, children, animValue, ...props }: FlatCardProps) {
   const colors = useColors();
+  const isDark = useColorScheme() === 'dark';
 
   const animatedStyle = animValue
     ? {
@@ -33,20 +35,23 @@ export function FlatCard({ style, children, animValue, ...props }: FlatCardProps
           backgroundColor: colors.card,
           borderColor: colors.border,
         },
-        Platform.select({
-          ios: {
-            shadowColor: colors.primary,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.08,
-            shadowRadius: 8,
-          },
-          android: {
-            elevation: 1,
-          },
-          web: {
-            boxShadow: `0 4px 14px ${colors.primary}12`,
-          },
-        }),
+        // Dark surfaces separate by tone alone; the light theme gets a soft lift.
+        isDark
+          ? null
+          : Platform.select({
+              ios: {
+                shadowColor: colors.primary,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+              },
+              android: {
+                elevation: 1,
+              },
+              web: {
+                boxShadow: `0 4px 14px ${colors.primary}12`,
+              },
+            }),
         animatedStyle,
         style,
       ]}
@@ -59,8 +64,8 @@ export function FlatCard({ style, children, animValue, ...props }: FlatCardProps
 
 const styles = StyleSheet.create({
   card: {
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
+    padding: space.xl,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
   },
 });

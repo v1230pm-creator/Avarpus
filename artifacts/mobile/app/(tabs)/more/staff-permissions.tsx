@@ -22,6 +22,7 @@ import {
 import { FlatCard } from '@/components/ui/FlatCard';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
 import { ROLE_LABELS } from '@/utils/helpers';
 
 const FEATURE_LABELS: Record<string, { label: string; description: string }> = {
@@ -160,11 +161,11 @@ export default function StaffPermissionsScreen() {
           <Feather name="arrow-left" size={20} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
             Permission Settings
           </Text>
           <Text
-            style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}
+            style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}
             numberOfLines={1}
           >
             {displayName}
@@ -193,10 +194,10 @@ export default function StaffPermissionsScreen() {
               <Feather name="user" size={20} color={colors.primary} />
             </View>
             <View style={styles.profileText}>
-              <Text style={[styles.name, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+              <Text style={[styles.name, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
                 {settings.user.name}
               </Text>
-              <Text style={[styles.role, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              <Text style={[styles.role, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                 {ROLE_LABELS[settings.user.role] ?? settings.user.role}
                 {customCount > 0 ? ` · ${customCount} custom` : ' · Role defaults'}
               </Text>
@@ -207,7 +208,7 @@ export default function StaffPermissionsScreen() {
                 onPress={resetAll}
                 style={[styles.resetBtn, { borderColor: colors.border }]}
               >
-                <Text style={[styles.resetText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
+                <Text style={[styles.resetText, { color: colors.primary, fontFamily: fontFamily.semibold }]}>
                   Reset
                 </Text>
               </TouchableOpacity>
@@ -216,12 +217,12 @@ export default function StaffPermissionsScreen() {
 
           <View style={[styles.infoBox, { backgroundColor: colors.primary + '0D', borderColor: colors.primary + '20' }]}>
             <Feather name="info" size={15} color={colors.primary} />
-            <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               Every switch starts from the account&apos;s role setting. A changed switch applies only to this person.
             </Text>
           </View>
 
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: fontFamily.semibold }]}>
             FEATURES & ACTIONS
           </Text>
           <FlatCard style={styles.permissionCard}>
@@ -242,7 +243,7 @@ export default function StaffPermissionsScreen() {
                 >
                   <View style={styles.permissionText}>
                     <View style={styles.labelRow}>
-                      <Text style={[styles.permissionLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                      <Text style={[styles.permissionLabel, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
                         {meta.label}
                       </Text>
                       <View
@@ -256,7 +257,7 @@ export default function StaffPermissionsScreen() {
                             styles.sourceText,
                             {
                               color: inherited ? colors.mutedForeground : colors.primary,
-                              fontFamily: 'Inter_600SemiBold',
+                              fontFamily: fontFamily.semibold,
                             },
                           ]}
                         >
@@ -264,7 +265,7 @@ export default function StaffPermissionsScreen() {
                         </Text>
                       </View>
                     </View>
-                    <Text style={[styles.permissionDesc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                    <Text style={[styles.permissionDesc, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                       {meta.description}
                     </Text>
                   </View>
@@ -273,14 +274,14 @@ export default function StaffPermissionsScreen() {
                     disabled={savingKey !== null}
                     onValueChange={(value) => toggle(key, value)}
                     trackColor={{ false: colors.muted, true: colors.primary }}
-                    thumbColor="#FFFFFF"
+                    thumbColor={colors.primaryForeground}
                   />
                 </View>
               );
             })}
           </FlatCard>
 
-          <Text style={[styles.footerNote, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.footerNote, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
             Changes are enforced by the server and refresh automatically on this person&apos;s signed-in devices.
           </Text>
         </ScrollView>
@@ -298,27 +299,27 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20 },
   headerSub: { fontSize: 13 },
   headerSpacer: { width: 40 },
-  message: { fontSize: 13, lineHeight: 19, textAlign: 'center', fontFamily: 'Inter_400Regular' },
+  message: { ...font.small, textAlign: 'center' },
   retryBtn: { paddingHorizontal: 22, paddingVertical: 11, borderRadius: 12 },
-  retryText: { color: '#FFFFFF', fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  retryText: { ...font.smallStrong },
   scroll: { padding: 12, gap: 8 },
   profileCard: { padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   profileIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   profileText: { flex: 1, gap: 2 },
   name: { fontSize: 16 },
-  role: { fontSize: 12 },
+  role: { ...font.caption },
   resetBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7 },
-  resetText: { fontSize: 12 },
+  resetText: { ...font.captionStrong },
   infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, borderWidth: 1, borderRadius: 12, padding: 12 },
-  infoText: { flex: 1, fontSize: 12, lineHeight: 18 },
-  sectionLabel: { fontSize: 11, letterSpacing: 1, marginTop: 4 },
+  infoText: { ...font.caption, flex: 1 },
+  sectionLabel: { ...font.overline, marginTop: 4 },
   permissionCard: { overflow: 'hidden' },
   permissionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 15 },
   permissionText: { flex: 1, gap: 4 },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' },
   permissionLabel: { fontSize: 14 },
-  permissionDesc: { fontSize: 11, lineHeight: 16 },
+  permissionDesc: { ...font.caption },
   sourceBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
-  sourceText: { fontSize: 9 },
-  footerNote: { fontSize: 11, lineHeight: 17, textAlign: 'center', paddingHorizontal: 8 },
+  sourceText: { ...font.small },
+  footerNote: { ...font.caption, textAlign: 'center', paddingHorizontal: 8 },
 });

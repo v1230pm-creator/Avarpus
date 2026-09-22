@@ -387,7 +387,38 @@ export function ChatsPage() {
                           }`}
                         >
                           <p className="text-xs font-medium">{message.senderName}</p>
-                          <p className="text-sm whitespace-pre-wrap break-words">{message.body}</p>
+                          <p className="text-sm whitespace-pre-wrap break-words">
+                            {message.deletedAt ? "This message was deleted." : message.body}
+                          </p>
+                          {message.objectPath && !message.deletedAt && (
+                            message.mediaState === "purged" || message.mediaState === "expired" ? (
+                              <p
+                                className="mt-1 rounded border border-dashed px-2 py-1 text-xs text-muted-foreground"
+                                data-testid={`text-media-unavailable-${message.id}`}
+                              >
+                                {message.kind === "image"
+                                  ? "Photo"
+                                  : message.kind === "video"
+                                    ? "Video"
+                                    : message.kind === "audio"
+                                      ? "Voice note"
+                                      : "File"}{" "}
+                                is no longer on the server — open this chat on your phone to
+                                view your saved copy.
+                              </p>
+                            ) : (
+                              <p className="mt-1 text-xs text-muted-foreground" data-testid={`text-media-attached-${message.id}`}>
+                                {message.kind === "image"
+                                  ? "Photo"
+                                  : message.kind === "video"
+                                    ? "Video"
+                                    : message.kind === "audio"
+                                      ? "Voice note"
+                                      : "File"}{" "}
+                                attachment — open on your phone to view.
+                              </p>
+                            )
+                          )}
                           <p className="mt-1 text-[10px] text-muted-foreground">
                             {format(new Date(message.createdAt), "MMM d, h:mm a")}
                           </p>

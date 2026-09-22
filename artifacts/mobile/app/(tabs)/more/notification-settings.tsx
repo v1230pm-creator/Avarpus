@@ -39,6 +39,8 @@ import {
   type PushDiagnostics,
   type PushPermissionState,
 } from '@/utils/pushNotifications';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 // Settings → Notifications. Preferences are per account and enforced by the
 // server at send time, so every device of the account behaves the same; the
@@ -457,7 +459,7 @@ const styles = StyleSheet.create({
     borderBottomColor: DIVIDER,
   },
   backButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { color: FOREGROUND, fontSize: 23, fontFamily: 'Inter_400Regular', marginLeft: 1 },
+  headerTitle: { color: FOREGROUND, ...font.title, marginLeft: 1 },
   statusCard: {
     marginHorizontal: 16,
     marginTop: 18,
@@ -468,8 +470,8 @@ const styles = StyleSheet.create({
     borderColor: DIVIDER,
   },
   statusHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  statusTitle: { fontSize: 17, fontFamily: 'Inter_600SemiBold' },
-  statusBody: { color: MUTED, marginTop: 10, fontSize: 15, lineHeight: 21, fontFamily: 'Inter_400Regular' },
+  statusTitle: { ...font.bodyStrong },
+  statusBody: { color: MUTED, marginTop: space.md, ...font.caption },
   primaryButton: {
     marginTop: 14,
     minHeight: 44,
@@ -478,7 +480,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#006DA8',
   },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  primaryButtonText: { color: '#FFFFFF', ...font.button },
   secondaryButton: {
     marginTop: 12,
     minHeight: 44,
@@ -489,27 +491,27 @@ const styles = StyleSheet.create({
     borderColor: '#2A353C',
     paddingHorizontal: 14,
   },
-  secondaryButtonText: { color: FOREGROUND, fontSize: 15, fontFamily: 'Inter_500Medium' },
+  secondaryButtonText: { color: FOREGROUND, ...font.button },
   sectionHeading: {
     paddingHorizontal: 25,
     paddingTop: 24,
     paddingBottom: 8,
     fontSize: 15,
     color: MUTED,
-    fontFamily: 'Inter_400Regular',
+    ...font.overline,
   },
   subHeading: { paddingHorizontal: 0, paddingTop: 18 },
   row: { minHeight: 76, paddingHorizontal: 25, justifyContent: 'center' },
   rowContent: { minHeight: 58, flexDirection: 'row', alignItems: 'center' },
   rowCopy: { flex: 1, justifyContent: 'center', paddingVertical: 8, paddingRight: 12 },
-  rowTitle: { color: FOREGROUND, fontSize: 17, lineHeight: 22, fontFamily: 'Inter_400Regular' },
+  rowTitle: { color: FOREGROUND, ...font.bodyStrong },
   dimmed: { opacity: 0.6 },
-  rowSubtitle: { color: MUTED, marginTop: 2, fontSize: 15, lineHeight: 20, fontFamily: 'Inter_400Regular' },
+  rowSubtitle: { color: MUTED, marginTop: 2, ...font.caption },
   divider: { height: StyleSheet.hairlineWidth, marginTop: 8, backgroundColor: DIVIDER },
-  footnote: { color: MUTED, paddingHorizontal: 25, paddingTop: 10, fontSize: 13, lineHeight: 18, fontFamily: 'Inter_400Regular' },
+  footnote: { color: MUTED, paddingHorizontal: layout.screenPadding, paddingTop: space.md, ...font.small },
   loadingRow: { paddingHorizontal: 25, paddingVertical: 12, gap: 8 },
-  errorText: { color: '#E0685E', fontSize: 14, lineHeight: 19, fontFamily: 'Inter_400Regular' },
-  linkText: { color: '#5FB8FF', fontSize: 15, fontFamily: 'Inter_500Medium' },
+  errorText: { color: '#E0685E', ...font.caption },
+  linkText: { color: '#5FB8FF', ...font.captionStrong },
   actionsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16 },
   actionButton: { flex: 1 },
   diagnostics: {
@@ -522,8 +524,8 @@ const styles = StyleSheet.create({
     borderColor: DIVIDER,
   },
   infoRow: { paddingVertical: 6 },
-  infoLabel: { color: MUTED, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.4, fontFamily: 'Inter_500Medium' },
-  infoValue: { color: FOREGROUND, marginTop: 2, fontSize: 14, lineHeight: 19, fontFamily: 'Inter_400Regular' },
+  infoLabel: { color: MUTED, ...font.overline },
+  infoValue: { color: FOREGROUND, marginTop: 2, ...font.caption },
   deviceRow: { paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: DIVIDER },
-  deviceTitle: { color: FOREGROUND, fontSize: 15, fontFamily: 'Inter_500Medium' },
+  deviceTitle: { color: FOREGROUND, ...font.captionStrong },
 });

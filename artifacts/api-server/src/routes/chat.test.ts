@@ -2949,7 +2949,8 @@ describe("Direct room creation: Matrix-mocked (kind=direct)", () => {
       expect(alerts[0]?.userId).toBe(directTarget2.id);
       expect(alerts[0]?.shopId).toBeNull();
       expect(alerts[0]?.type).toBe("chat_message");
-      expect(alerts[0]?.title).toBe("New message from Chat Dealer A");
+      // Title is the sender's display name alone, like a messaging app.
+      expect(alerts[0]?.title).toBe("Chat Dealer A");
       expect(alerts[0]?.body).toBe("Direct hello");
       expect(alerts[0]?.data).toMatchObject({
         roomId: createdDirectRoomId,

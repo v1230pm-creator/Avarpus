@@ -1,6 +1,8 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
+import { radius, space } from '@/constants/spacing';
 
 interface SelectInputProps {
   label: string;
@@ -18,12 +20,12 @@ export function SelectInput({ label, options, value, onChange, labelMap, style, 
   const Wrapper = horizontal ? ScrollView : View;
   const wrapperProps = horizontal ? {
     horizontal: true, showsHorizontalScrollIndicator: false,
-    contentContainerStyle: { gap: 8, paddingVertical: 2, alignItems: 'center' },
-  } : { style: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 } };
+    contentContainerStyle: { gap: space.sm, paddingVertical: 2, alignItems: 'center' },
+  } : { style: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: space.sm } };
 
   return (
-      <View style={[{ gap: 7, width: '100%' }, style]}>
-      <Text style={[styles.label, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{label}</Text>
+      <View style={[{ gap: space.sm, width: '100%' }, style]}>
+      <Text style={[styles.label, { color: colors.foreground }]}>{label}</Text>
       <Wrapper {...(wrapperProps as any)}>
         {options.map((opt) => {
           const selected = value === opt;
@@ -36,7 +38,7 @@ export function SelectInput({ label, options, value, onChange, labelMap, style, 
                 {
                   backgroundColor: selected ? colors.primary : colors.muted,
                   borderColor: selected ? colors.primary : colors.border,
-                  borderRadius: colors.radius - 4,
+                  borderRadius: radius.sm,
                 },
               ]}
               activeOpacity={0.7}
@@ -45,7 +47,7 @@ export function SelectInput({ label, options, value, onChange, labelMap, style, 
                 styles.chipText,
                 {
                   color: selected ? colors.primaryForeground : colors.mutedForeground,
-                  fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_400Regular',
+                  fontFamily: selected ? fontFamily.semibold : fontFamily.regular,
                 },
               ]}>
                 {labelMap ? labelMap[opt] : opt}
@@ -60,8 +62,8 @@ export function SelectInput({ label, options, value, onChange, labelMap, style, 
 }
 
 const styles = StyleSheet.create({
-  label: { fontSize: 12, lineHeight: 16, letterSpacing: 0.1 },
-  chip: { minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, borderWidth: 1 },
-  chipText: { fontSize: 13, lineHeight: 18 },
-  error: { fontSize: 12, lineHeight: 16 },
+  label: font.captionStrong,
+  chip: { minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.lg, borderWidth: 1 },
+  chipText: font.caption,
+  error: font.small,
 });

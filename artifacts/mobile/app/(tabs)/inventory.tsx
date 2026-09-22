@@ -20,6 +20,8 @@ import { FlatCard, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { InventoryFormSheet } from '@/components/forms/InventoryFormSheet';
 import { InventoryItem } from '@/types';
 import { formatCurrency } from '@/utils/helpers';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 const CATEGORIES = ['All', 'Products', 'Accessories', 'Spare Parts'] as const;
 type Cat = (typeof CATEGORIES)[number];
@@ -52,17 +54,17 @@ function InventoryCard({ item, onPress }: { item: InventoryItem; onPress: () => 
       >
         <View style={styles.cardTop}>
           <View style={{ flex: 1, gap: 4 }}>
-            <Text style={[styles.itemName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
+            <Text style={[styles.itemName, { color: colors.foreground, fontFamily: fontFamily.semibold }]} numberOfLines={1}>
               {item.name}
             </Text>
-            <Text style={[styles.brand, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.brand, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               {item.brand}
             </Text>
           </View>
           <View style={{ alignItems: 'flex-end', gap: 6 }}>
-            <Text style={[styles.price, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{formatCurrency(item.sellingPrice)}</Text>
+            <Text style={[styles.price, { color: colors.foreground, fontFamily: fontFamily.bold }]}>{formatCurrency(item.sellingPrice)}</Text>
             {item.canSeeCosts !== false && (
-              <Text style={[styles.costPrice, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              <Text style={[styles.costPrice, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                 Cost: {formatCurrency(item.purchasePrice)}
               </Text>
             )}
@@ -74,16 +76,16 @@ function InventoryCard({ item, onPress }: { item: InventoryItem; onPress: () => 
         <View style={styles.cardBottom}>
           <View style={styles.stockInfo}>
             <View style={[styles.stockBadge, { backgroundColor: isOut ? colors.destructive + '15' : isLow ? colors.warning + '15' : colors.success + '15' }]}>
-              <Text style={[styles.stockNum, { color: isOut ? colors.destructive : isLow ? colors.warning : colors.success, fontFamily: 'Inter_600SemiBold' }]}>
+              <Text style={[styles.stockNum, { color: isOut ? colors.destructive : isLow ? colors.warning : colors.success, fontFamily: fontFamily.semibold }]}>
                 {item.quantity} in stock
               </Text>
             </View>
             {isOut ? (
-               <Text style={[styles.minLabel, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>Out of Stock</Text>
+               <Text style={[styles.minLabel, { color: colors.destructive, fontFamily: fontFamily.medium }]}>Out of Stock</Text>
             ) : isLow ? (
-               <Text style={[styles.minLabel, { color: colors.warning, fontFamily: 'Inter_500Medium' }]}>Low Stock</Text>
+               <Text style={[styles.minLabel, { color: colors.warning, fontFamily: fontFamily.medium }]}>Low Stock</Text>
             ) : (
-               <Text style={[styles.minLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Min: {item.minStock}</Text>
+               <Text style={[styles.minLabel, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>Min: {item.minStock}</Text>
             )}
           </View>
           <View style={{ alignItems: 'flex-end', flexDirection: 'row', gap: 6 }}>
@@ -142,27 +144,27 @@ export default function InventoryScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
-      <FadeInView animValue={headerAnims[0]} style={[styles.header, { paddingTop: topPad + 16, borderBottomColor: colors.border }]}>
+      <FadeInView animValue={headerAnims[0]} style={[styles.header, { paddingTop: topPad + space.lg, backgroundColor: colors.background }]}>
         <View style={styles.headerRow}>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Inventory</Text>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Inventory</Text>
           <View style={styles.headerActions}>
             <TouchableOpacity activeOpacity={0.7} style={styles.iconBtn}>
-              <Feather name="search" size={20} color={colors.foreground} />
+              <Feather name="search" size={size.headerIcon} color={colors.foreground} />
             </TouchableOpacity>
             <TouchableOpacity onPress={openAdd} activeOpacity={0.7} style={styles.iconBtn}>
-              <Feather name="plus-square" size={20} color={colors.foreground} />
+              <Feather name="plus-square" size={size.headerIcon} color={colors.foreground} />
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={[styles.searchBar, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
-          <Feather name="search" size={16} color={colors.mutedForeground} />
+          <Feather name="search" size={size.inlineIcon} color={colors.mutedForeground} />
           <TextInput
             value={search}
             onChangeText={setSearch}
             placeholder="Search inventory..."
             placeholderTextColor={colors.mutedForeground}
-            style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+            style={[styles.searchInput, { color: colors.foreground }]}
           />
           {!!search && (
             <TouchableOpacity onPress={() => setSearch('')} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
@@ -192,7 +194,7 @@ export default function InventoryScreen() {
                     }
                   ]}
                 >
-                  <Text style={[styles.filterText, { color: active ? colors.primaryForeground : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium' }]}>
+                  <Text style={[styles.filterText, { color: active ? colors.primaryForeground : colors.mutedForeground, fontFamily: active ? fontFamily.semibold : fontFamily.medium }]}>
                     {item}
                   </Text>
                 </TouchableOpacity>
@@ -236,26 +238,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: layout.screenPadding,
     marginBottom: 12,
   },
-  headerTitle: { fontSize: 24, letterSpacing: -0.5 },
+  headerTitle: { ...font.display },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconBtn: {
-    padding: 4,
+    width: size.iconButton,
+    height: size.iconButton,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   searchBar: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     gap: 10, 
     paddingHorizontal: 14,
-    marginHorizontal: 16,
-    height: 40,
-    borderRadius: 8,
-    borderWidth: 1,
+    marginHorizontal: layout.screenPadding,
+    height: size.searchField,
+    borderRadius: size.searchRadius,
+    borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 12,
   },
-  searchInput: { flex: 1, height: '100%', fontSize: 14 },
+  searchInput: { flex: 1, height: '100%', ...font.search },
   tabsWrapper: {
     borderTopWidth: 1,
     borderTopColor: 'transparent', // controlled by container
@@ -271,18 +276,18 @@ const styles = StyleSheet.create({
     borderRadius: 16, 
     borderWidth: 1 
   },
-  filterText: { fontSize: 13 },
+  filterText: { ...font.label },
   list: { paddingHorizontal: 16, paddingTop: 16, gap: 12 },
   card: { padding: 14, gap: 12, borderRadius: 12 },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  itemName: { fontSize: 15, marginBottom: 2 },
-  brand: { fontSize: 13 },
+  itemName: { ...font.itemTitle, marginBottom: space.xs },
+  brand: { ...font.caption },
   divider: { height: 1, marginVertical: 2 },
   cardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   stockInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   stockBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  stockNum: { fontSize: 12 },
-  minLabel: { fontSize: 12 },
-  price: { fontSize: 15 },
-  costPrice: { fontSize: 12 },
+  stockNum: { ...font.captionStrong },
+  minLabel: { ...font.caption },
+  price: { ...font.bodyStrong },
+  costPrice: { ...font.caption },
 });

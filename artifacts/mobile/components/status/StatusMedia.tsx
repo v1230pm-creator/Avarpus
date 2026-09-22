@@ -3,6 +3,9 @@ import { AppState, Platform, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import type { StatusItem } from '@workspace/api-client-react';
+import { font } from '@/constants/typography';
+import { space } from '@/constants/spacing';
+import { useColors } from '@/hooks/useColors';
 
 function absoluteMediaUrl(path: string | null): string | null {
   if (!path) return null;
@@ -22,6 +25,7 @@ export function StatusMedia({
   token: string | null;
   autoPlay?: boolean;
 }) {
+  const colors = useColors();
   const uri = absoluteMediaUrl(item.mediaUrl);
   const source = useMemo(
     () => item.kind === 'video' && uri
@@ -49,12 +53,12 @@ export function StatusMedia({
 
   if (item.kind === 'text') {
     return (
-      <View style={styles.textStatus}>
+      <View style={[styles.textStatus, { backgroundColor: colors.primary }]}>
         <Text
           adjustsFontSizeToFit
           minimumFontScale={0.55}
           numberOfLines={12}
-          style={styles.textBody}
+          style={[styles.textBody, { color: colors.primaryForeground }]}
         >
           {item.body}
         </Text>
@@ -64,8 +68,8 @@ export function StatusMedia({
 
   if (!uri) {
     return (
-      <View style={styles.unavailable}>
-        <Text style={styles.unavailableText}>Media unavailable</Text>
+      <View style={[styles.unavailable, { backgroundColor: colors.background }]}>
+        <Text style={[styles.unavailableText, { color: colors.primaryForeground }]}>Media unavailable</Text>
       </View>
     );
   }
@@ -94,27 +98,22 @@ export function StatusMedia({
 const styles = StyleSheet.create({
   textStatus: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: '#165D8C',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 34,
+    paddingHorizontal: space.xxxl,
   },
   textBody: {
     color: '#FFFFFF',
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 31,
-    lineHeight: 40,
+    ...font.display,
     textAlign: 'center',
   },
   unavailable: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#101820',
   },
   unavailableText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter_500Medium',
-    fontSize: 14,
+    ...font.bodyStrong,
   },
 });

@@ -16,6 +16,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { RepairStatusBadge, PriorityBadge, SampleBadge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
@@ -68,7 +70,7 @@ function RepairCard({ repair, onPress, onLongPress }: { repair: Repair; onPress:
       testID={`repair-card-${repair.id}`}
       accessibilityHint={onLongPress ? 'Long press to send this device to another dealer' : undefined}
     >
-      <View style={{ padding: 14, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, marginBottom: 12, flexDirection: 'row' }}>
+      <View style={{ padding: space.xl, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radius.lg, marginBottom: space.md, flexDirection: 'row' }}>
         
         {/* Left Icon */}
         <View style={{ marginRight: 12 }}>
@@ -79,14 +81,14 @@ function RepairCard({ repair, onPress, onLongPress }: { repair: Repair; onPress:
 
         {/* Center/Left Content */}
         <View style={{ flex: 1, justifyContent: 'flex-start', paddingRight: 8 }}>
-          <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginBottom: 2 }}>{repair.repairId}</Text>
-          <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 4 }} numberOfLines={1}>{repair.problem}</Text>
-          <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 2 }}>{repair.deviceType} · {repair.brand} {repair.model}</Text>
-          <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 2 }}>{repair.customerName}</Text>
+          <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: fontFamily.semibold, marginBottom: 2 }}>{repair.repairId}</Text>
+          <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.regular, marginBottom: 4 }} numberOfLines={1}>{repair.problem}</Text>
+          <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.regular, marginBottom: 2 }}>{repair.deviceType} · {repair.brand} {repair.model}</Text>
+          <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.regular, marginBottom: 2 }}>{repair.customerName}</Text>
           {!!repair.sourceDealerBusinessName && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
               <Feather name="briefcase" size={11} color={colors.primary} />
-              <Text style={{ fontSize: 12, color: colors.primary, fontFamily: 'Inter_500Medium', flexShrink: 1 }} numberOfLines={1}>
+              <Text style={{ fontSize: 13, color: colors.primary, fontFamily: fontFamily.medium, flexShrink: 1 }} numberOfLines={1}>
                 Received from {repair.sourceDealerBusinessName}
                 {repair.sourceRepairTicket ? ` · ${repair.sourceRepairTicket}` : ''}
               </Text>
@@ -95,12 +97,12 @@ function RepairCard({ repair, onPress, onLongPress }: { repair: Repair; onPress:
           {!!badge && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }} testID={`repair-transfer-badge-${repair.id}`}>
               <Feather name={badge.icon} size={11} color={badge.color} />
-              <Text style={{ fontSize: 12, color: badge.color, fontFamily: 'Inter_500Medium', flexShrink: 1 }} numberOfLines={1}>
+              <Text style={{ fontSize: 13, color: badge.color, fontFamily: fontFamily.medium, flexShrink: 1 }} numberOfLines={1}>
                 {badge.label}
               </Text>
             </View>
           )}
-          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>{formatDate(repair.createdAt)}</Text>
+          <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.regular }}>{formatDate(repair.createdAt)}</Text>
         </View>
 
         {/* Right Content */}
@@ -108,13 +110,13 @@ function RepairCard({ repair, onPress, onLongPress }: { repair: Repair; onPress:
           <View style={{ marginBottom: 12 }}>
              <RepairStatusBadge status={repair.status} />
           </View>
-          <Text style={{ fontSize: 15, color: colors.success, fontFamily: 'Inter_600SemiBold', marginBottom: 6 }}>
+          <Text style={{ fontSize: 15, color: colors.success, fontFamily: fontFamily.semibold, marginBottom: 6 }}>
             {formatCurrency(total)}
           </Text>
-          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>
+          <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.regular }}>
              Paid / Deposit: {formatCurrency(paid)}
           </Text>
-           <Text style={{ fontSize: 11, color: balanceColor, fontFamily: rawBalance !== 0 ? 'Inter_600SemiBold' : 'Inter_400Regular' }}>
+           <Text style={{ fontSize: 13, color: balanceColor, fontFamily: rawBalance !== 0 ? fontFamily.semibold : fontFamily.regular }}>
              {balanceLabel}: {formatCurrency(Math.abs(rawBalance))}
           </Text>
         </View>
@@ -342,13 +344,13 @@ export default function RepairsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <FadeInView animValue={headerAnims[0]} style={[styles.header, { paddingTop: topPad + 16 }]}>
+      <FadeInView animValue={headerAnims[0]} style={[styles.header, { paddingTop: topPad + space.lg }]}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
               {isPortal ? 'My Repairs' : 'All Repairs'}
             </Text>
-            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: fontFamily.medium }]}>
               {isPortal
                 ? (isDealerPortal && myDealer?.dealer ? `${myDealer.dealer.dealerCode} · ${myDealer.dealer.name}` : `${totalCount} jobs`)
                 : filter === 'Dealers' ? `${totalCount} dealers` : `${totalCount} jobs`}
@@ -358,10 +360,10 @@ export default function RepairsScreen() {
             <TouchableOpacity
               onPress={() => router.push('/(tabs)/more')}
               style={{
-                width: 40, height: 40, borderRadius: 12,
-                backgroundColor: colors.backgroundSecondary,
+                 width: size.iconButton, height: size.iconButton, borderRadius: radius.sm,
+                 backgroundColor: colors.secondary,
                 alignItems: 'center', justifyContent: 'center',
-                borderWidth: 1, borderColor: colors.border,
+                 borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
                 marginRight: 4,
               }}
             >
@@ -377,8 +379,8 @@ export default function RepairsScreen() {
                 activeOpacity={0.85}
                 style={[styles.addBtn, { backgroundColor: colors.primary }]}
               >
-                <Feather name="plus" size={18} color="#FFFFFF" />
-                <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Dealer</Text>
+                 <Feather name="plus" size={size.inlineIcon} color={colors.primaryForeground} />
+                 <Text style={[styles.addBtnText, { color: colors.primaryForeground }]}>Dealer</Text>
               </TouchableOpacity>
             )}
             {canCreateRepair && filter !== 'Delivered' && filter !== 'Repair' && filter !== 'Ready' && filter !== 'Dealers' && (
@@ -387,8 +389,8 @@ export default function RepairsScreen() {
                 activeOpacity={0.85}
                 style={[styles.addBtn, { backgroundColor: colors.primary }]}
               >
-                <Feather name="plus" size={18} color="#FFFFFF" />
-                <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>New</Text>
+                 <Feather name="plus" size={size.inlineIcon} color={colors.primaryForeground} />
+                 <Text style={[styles.addBtnText, { color: colors.primaryForeground }]}>New</Text>
               </TouchableOpacity>
             )}
             {!isPortal && (
@@ -405,7 +407,7 @@ export default function RepairsScreen() {
 
         {/* Search */}
         <FlatCard style={styles.searchBar}>
-          <Feather name="search" size={16} color={colors.mutedForeground} />
+           <Feather name="search" size={size.headerIcon} color={colors.mutedForeground} />
           <View style={{ width: 16, alignItems: 'center' }}>
             {searchBusy ? <AvarpusSpinner size={14} /> : null}
           </View>
@@ -414,11 +416,11 @@ export default function RepairsScreen() {
             onChangeText={setSearch}
             placeholder="Search tickets, names, mobile..."
             placeholderTextColor={colors.mutedForeground}
-            style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+            style={[styles.searchInput, { color: colors.foreground, fontFamily: fontFamily.regular }]}
           />
           {!!search && (
             <TouchableOpacity onPress={() => setSearch('')}>
-              <Feather name="x" size={16} color={colors.mutedForeground} />
+               <Feather name="x" size={size.inlineIcon} color={colors.mutedForeground} />
             </TouchableOpacity>
           )}
         </FlatCard>
@@ -439,10 +441,10 @@ export default function RepairsScreen() {
                 <Feather name="repeat" size={18} color={colors.primary} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }} numberOfLines={1}>
+                <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: fontFamily.semibold }} numberOfLines={1}>
                   Dealer Transactions
                 </Text>
-                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.medium }} numberOfLines={1}>
                   Devices sent to and received from other shops
                 </Text>
               </View>
@@ -464,10 +466,10 @@ export default function RepairsScreen() {
                 <Feather name="truck" size={18} color={colors.info} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }} numberOfLines={1}>
+                <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: fontFamily.semibold }} numberOfLines={1}>
                   My repairs at {supplierLinks.length === 1 ? supplierLinks[0].supplier.businessName : `${supplierLinks.length} supplier shops`}
                 </Text>
-                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.medium }} numberOfLines={1}>
                   {(() => {
                     const inProgress = supplierLinks.reduce((n, link) => n + link.stats.received + link.stats.repairing, 0);
                     const ready = supplierLinks.reduce((n, link) => n + link.stats.ready, 0);
@@ -483,14 +485,14 @@ export default function RepairsScreen() {
         {!isPortal && offlineItems.length > 0 && (
           <View style={{ backgroundColor: colors.warning + '22', borderWidth: 1, borderColor: colors.warning + '44', padding: 12, borderRadius: 8, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, color: colors.warning, fontFamily: 'Inter_600SemiBold' }}>
+              <Text style={{ fontSize: 14, color: colors.warning, fontFamily: fontFamily.semibold }}>
                 {offlineItems.length} repair{offlineItems.length > 1 ? 's' : ''} saved offline
               </Text>
-              <Text style={{ fontSize: 12, color: colors.warning, marginTop: 2 }}>
+              <Text style={{ fontSize: 13, color: colors.warning, marginTop: 2 }}>
                 Photos/signatures will need to be re-added once synced.
               </Text>
               {offlineItems.some(i => i.status === 'failed') && (
-                <Text style={{ fontSize: 11, color: colors.destructive, marginTop: 2 }}>
+                <Text style={{ fontSize: 13, color: colors.destructive, marginTop: 2 }}>
                   Some items failed to sync due to errors.
                 </Text>
               )}
@@ -503,7 +505,7 @@ export default function RepairsScreen() {
               {isSyncing ? (
                 <AvarpusSpinner size={20} color="#FFF" />
               ) : (
-                <Text style={{ color: '#FFF', fontSize: 12, fontFamily: 'Inter_600SemiBold' }}>
+                <Text style={{ color: '#FFF', fontSize: 13, fontFamily: fontFamily.semibold }}>
                   {isConnected ? 'Sync Now' : 'Offline'}
                 </Text>
               )}
@@ -518,11 +520,11 @@ export default function RepairsScreen() {
               <Feather name="tool" size={18} color={colors.primary} />
             </View>
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', letterSpacing: 0.4 }}>SUPPLIER</Text>
-              <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' }} numberOfLines={1}>
+              <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.medium, letterSpacing: 0.4 }}>SUPPLIER</Text>
+              <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: fontFamily.semibold }} numberOfLines={1}>
                 {myDealer.supplier.businessName}
               </Text>
-              <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>
+              <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.medium }} numberOfLines={1}>
                 {myDealer.supplier.ownerName} · {myDealer.supplier.ownerMobile}
               </Text>
             </View>
@@ -548,8 +550,8 @@ export default function RepairsScreen() {
               { label: 'Delivered', value: String(myDealer.stats.delivered), color: colors.success },
             ].map((s) => (
               <FlatCard key={s.label} style={{ flex: 1, minWidth: '22%', padding: 10, alignItems: 'center', gap: 2 }}>
-                <Text style={{ fontSize: 16, color: s.color, fontFamily: 'Inter_700Bold' }}>{s.value}</Text>
-                <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{s.label}</Text>
+                <Text style={{ fontSize: 16, color: s.color, fontFamily: fontFamily.bold }}>{s.value}</Text>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.medium }}>{s.label}</Text>
               </FlatCard>
             ))}
           </View>
@@ -562,14 +564,14 @@ export default function RepairsScreen() {
           return (
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <FlatCard style={{ flex: 1, padding: 12, gap: 3 }}>
-                <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>TOTAL REPAIR VALUE</Text>
-                <Text style={{ fontSize: 17, color: colors.foreground, fontFamily: 'Inter_700Bold' }}>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.medium }}>TOTAL REPAIR VALUE</Text>
+                <Text style={{ fontSize: 17, color: colors.foreground, fontFamily: fontFamily.bold }}>
                   {formatCurrency(myKhata.totals.totalGiven)}
                 </Text>
               </FlatCard>
               <FlatCard style={{ flex: 1, padding: 12, gap: 3 }}>
-                <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{label.toUpperCase()}</Text>
-                <Text style={{ fontSize: 17, color, fontFamily: 'Inter_700Bold' }}>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.medium }}>{label.toUpperCase()}</Text>
+                <Text style={{ fontSize: 17, color, fontFamily: fontFamily.bold }}>
                   {formatCurrency(Math.abs(balance))}
                 </Text>
               </FlatCard>
@@ -578,7 +580,7 @@ export default function RepairsScreen() {
         })()}
 
         {/* Filter Tabs */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 2 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingBottom: space.xs }}>
           {(isPortal ? PORTAL_FILTERS : FILTERS).map((item) => {
             const active = isPortal ? portalFilter === item : filter === item;
             return (
@@ -587,13 +589,12 @@ export default function RepairsScreen() {
                 onPress={() => (isPortal ? setPortalFilter(item as any) : setFilter(item as Filter))}
                 activeOpacity={0.8}
                 style={[styles.filterTab, {
-                  backgroundColor: active ? colors.primary : colors.card,
-                  borderColor: active ? colors.primary : colors.border,
+                  backgroundColor: active ? colors.primary : colors.secondary,
+                  borderColor: active ? colors.primary : colors.secondary,
                 }]}
               >
                 <Text style={[styles.filterText, {
-                  color: active ? '#FFFFFF' : colors.mutedForeground,
-                  fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium',
+                  color: active ? colors.primaryForeground : colors.foreground,
                 }]}>{item}</Text>
               </TouchableOpacity>
             );
@@ -605,7 +606,7 @@ export default function RepairsScreen() {
             <View style={{ width: 16, height: 16, borderRadius: 4, borderWidth: 1, borderColor: colors.primary, backgroundColor: techOnly ? colors.primary : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
               {techOnly && <Feather name="check" size={12} color="#FFF" />}
             </View>
-            <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: 'Inter_500Medium' }}>Assigned to me only</Text>
+            <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: fontFamily.medium }}>Assigned to me only</Text>
           </TouchableOpacity>
         )}
         {filter === 'Delivered' && (
@@ -613,7 +614,7 @@ export default function RepairsScreen() {
             <View style={{ width: 16, height: 16, borderRadius: 4, borderWidth: 1, borderColor: colors.primary, backgroundColor: showCancelled ? colors.primary : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
               {showCancelled && <Feather name="check" size={12} color="#FFF" />}
             </View>
-            <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: 'Inter_500Medium' }}>Include Cancelled</Text>
+            <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: fontFamily.medium }}>Include Cancelled</Text>
           </TouchableOpacity>
         )}
       </FadeInView>
@@ -636,7 +637,7 @@ export default function RepairsScreen() {
           ListHeaderComponent={
             isOwner && overviewData?.stats ? (
               <FlatCard style={{ padding: 14, gap: 10, marginBottom: 2 }}>
-                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold', letterSpacing: 1 }}>DEALER REPAIRS OVERVIEW</Text>
+                <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.semibold, letterSpacing: 1 }}>DEALER REPAIRS OVERVIEW</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
                   {[
                     { label: 'Total Repairs', value: String(overviewData.stats.totalDealerRepairs), color: colors.primary },
@@ -647,8 +648,8 @@ export default function RepairsScreen() {
                     { label: 'Pending', value: formatCurrency(overviewData.stats.pendingPayments), color: colors.warning },
                   ].map((s) => (
                     <View key={s.label} style={{ minWidth: '28%' }}>
-                      <Text style={{ fontSize: 15, color: s.color, fontFamily: 'Inter_700Bold' }}>{s.value}</Text>
-                      <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>{s.label}</Text>
+                      <Text style={{ fontSize: 15, color: s.color, fontFamily: fontFamily.bold }}>{s.value}</Text>
+                      <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.medium }}>{s.label}</Text>
                     </View>
                   ))}
                 </View>
@@ -669,23 +670,23 @@ export default function RepairsScreen() {
               <FlatCard style={styles.card}>
                 <View style={styles.cardTop}>
                   <View style={[styles.repairIdBadge, { backgroundColor: colors.primary + '15' }]}>
-                    <Text style={[styles.repairId, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{item.dealerCode}</Text>
+                    <Text style={[styles.repairId, { color: colors.primary, fontFamily: fontFamily.bold }]}>{item.dealerCode}</Text>
                   </View>
                   {!item.isActive && (
                     <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, backgroundColor: colors.destructive + '22' }}>
-                      <Text style={{ fontSize: 10, color: colors.destructive, fontFamily: 'Inter_600SemiBold' }}>INACTIVE</Text>
+                      <Text style={{ fontSize: 13, color: colors.destructive, fontFamily: fontFamily.semibold }}>INACTIVE</Text>
                     </View>
                   )}
                 </View>
-                <Text style={[styles.customerName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{item.name}</Text>
-                <Text style={[styles.deviceLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                <Text style={[styles.customerName, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>{item.name}</Text>
+                <Text style={[styles.deviceLine, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                   {[item.shopName, item.location].filter(Boolean).join(' · ') || item.mobile}
                 </Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 4 }}>
-                  <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Total: <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>{item.totalRepairs}</Text></Text>
-                  <Text style={{ fontSize: 12, color: colors.warning }}>In Progress: {item.received + item.repairing}</Text>
-                  <Text style={{ fontSize: 12, color: colors.info }}>Ready: {item.ready}</Text>
-                  <Text style={{ fontSize: 12, color: colors.success }}>Delivered: {item.delivered}</Text>
+                  <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Total: <Text style={{ color: colors.foreground, fontFamily: fontFamily.semibold }}>{item.totalRepairs}</Text></Text>
+                  <Text style={{ fontSize: 13, color: colors.warning }}>In Progress: {item.received + item.repairing}</Text>
+                  <Text style={{ fontSize: 13, color: colors.info }}>Ready: {item.ready}</Text>
+                  <Text style={{ fontSize: 13, color: colors.success }}>Delivered: {item.delivered}</Text>
                 </View>
               </FlatCard>
             </TouchableOpacity>
@@ -710,32 +711,32 @@ export default function RepairsScreen() {
               <FlatCard style={styles.card}>
                 <View style={styles.cardTop}>
                   <View style={[styles.repairIdBadge, { backgroundColor: colors.warning + '15' }]}>
-                    <Text style={[styles.repairId, { color: colors.warning, fontFamily: 'Inter_700Bold' }]}>{item.returnId}</Text>
+                    <Text style={[styles.repairId, { color: colors.warning, fontFamily: fontFamily.bold }]}>{item.returnId}</Text>
                   </View>
                   <View style={[{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: getReturnStatusColor(item.status, colors) + '15' }]}>
-                    <Text style={{ fontSize: 11, color: getReturnStatusColor(item.status, colors), fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' }}>
+                    <Text style={{ fontSize: 13, color: getReturnStatusColor(item.status, colors), fontFamily: fontFamily.semibold, textTransform: 'capitalize' }}>
                       {item.status.replace(/_/g, ' ')}
                     </Text>
                   </View>
                 </View>
-                <Text style={[styles.customerName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{item.customerName || 'Unknown'}</Text>
-                <Text style={[styles.deviceLine, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                <Text style={[styles.customerName, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>{item.customerName || 'Unknown'}</Text>
+                <Text style={[styles.deviceLine, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                   {item.brand} {item.model}
                 </Text>
-                <Text style={[styles.problem, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+                <Text style={[styles.problem, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]} numberOfLines={1}>
                   Reason: {item.reason.replace(/_/g, ' ')}
                 </Text>
                 <View style={styles.cardBottom}>
                   {item.underWarranty ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <Feather name="shield" size={12} color={colors.success} />
-                      <Text style={{ fontSize: 11, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>Warranty</Text>
+                      <Text style={{ fontSize: 13, color: colors.success, fontFamily: fontFamily.semibold }}>Warranty</Text>
                     </View>
                   ) : (
-                    <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }}>Out of Warranty</Text>
+                    <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: fontFamily.medium }}>Out of Warranty</Text>
                   )}
                   <View style={styles.cardBottomRight}>
-                    <Text style={[styles.dateText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                    <Text style={[styles.dateText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                       {formatDate(item.createdAt)}
                     </Text>
                   </View>
@@ -793,24 +794,24 @@ export default function RepairsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingBottom: 12, gap: 14 },
+  header: { paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.lg },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 28 },
-  headerSub: { fontSize: 13, marginTop: 2 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14 },
-  addBtnText: { color: '#FFFFFF', fontSize: 14 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
-  searchInput: { flex: 1, height: 46, fontSize: 14 },
-  filterTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  filterText: { fontSize: 13 },
-  list: { paddingHorizontal: 16, paddingTop: 14, gap: 12 },
-  card: { padding: 14, gap: 6 },
+  headerTitle: { ...font.display },
+  headerSub: { ...font.caption, marginTop: space.xs },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.lg, height: size.buttonSm, borderRadius: radius.sm },
+  addBtnText: { ...font.button },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, height: size.searchField, borderRadius: size.searchRadius },
+  searchInput: { flex: 1, ...font.search },
+  filterTab: { paddingHorizontal: space.lg, paddingVertical: space.sm, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
+  filterText: { ...font.label },
+  list: { paddingHorizontal: layout.screenPadding, paddingTop: layout.rowPaddingVertical, gap: space.md },
+  card: { padding: space.xl, gap: space.sm, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   repairIdBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  repairId: { fontSize: 11 },
-  customerName: { fontSize: 15 },
-  deviceLine: { fontSize: 13 },
-  problem: { fontSize: 12 },
+  repairId: { fontSize: 13 },
+  customerName: { ...font.itemTitle },
+  deviceLine: { ...font.body },
+  problem: { ...font.caption },
   amountSummary: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -819,9 +820,9 @@ const styles = StyleSheet.create({
     paddingTop: 9,
   },
   amountSummaryCell: { alignItems: 'flex-end' },
-  amountSummaryLabel: { fontSize: 9, fontFamily: 'Inter_500Medium', marginBottom: 2 },
-  amountSummaryValue: { fontSize: 12, fontFamily: 'Inter_700Bold' },
+  amountSummaryLabel: { fontSize: 13, fontFamily: fontFamily.medium, marginBottom: 2 },
+  amountSummaryValue: { fontSize: 13, fontFamily: fontFamily.bold },
   cardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
   cardBottomRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  dateText: { fontSize: 12 },
+  dateText: { fontSize: 13 },
 });

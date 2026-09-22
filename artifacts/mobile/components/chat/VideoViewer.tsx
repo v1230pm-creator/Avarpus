@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ChatMessage } from '@workspace/api-client-react';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { chatMediaUri, formatRelativeTime } from './messageActions';
+import { localMediaPathOf } from '@/hooks/useChatMedia';
+import { font } from '@/constants/typography';
 
 interface VideoViewerProps {
   visible: boolean;
@@ -48,10 +50,12 @@ export function VideoViewer({
   const source = useMemo(
     () =>
       visible && message
-        ? {
-            uri: chatMediaUri(message.roomId, message.id),
-            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          }
+        ? localMediaPathOf(message)
+          ? { uri: localMediaPathOf(message)! }
+          : {
+              uri: chatMediaUri(message.roomId, message.id),
+              headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            }
         : null,
     [message, token, visible],
   );
@@ -151,7 +155,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
   headerCopy: { flex: 1, paddingHorizontal: 4 },
-  headerTitle: { color: '#fff', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  headerSubtitle: { color: 'rgba(255,255,255,0.72)', fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  headerTitle: { color: '#fff', ...font.captionStrong },
+  headerSubtitle: { color: 'rgba(255,255,255,0.72)', ...font.small, marginTop: 1 },
   iconButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
 });

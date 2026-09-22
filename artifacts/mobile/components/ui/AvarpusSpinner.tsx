@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useColors } from '@/hooks/useColors';
+import { fontFamily } from '@/constants/typography';
 
 /**
  * Avarpus loading mark.
@@ -128,7 +129,7 @@ export function AvarpusLoadingScreen({
         <Text
           style={[
             styles.message,
-            { color: color ?? colors.mutedForeground, fontFamily: 'Inter_500Medium' },
+            { color: color ?? colors.mutedForeground, fontFamily: fontFamily.medium },
           ]}
         >
           {message}
@@ -157,7 +158,7 @@ export function AvarpusLoadingOverlay({
         <AvarpusSpinner size={34} />
         {!!message && (
           <Text
-            style={[styles.overlayText, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}
+            style={[styles.overlayText, { color: colors.foreground, fontFamily: fontFamily.medium }]}
           >
             {message}
           </Text>
@@ -169,7 +170,7 @@ export function AvarpusLoadingOverlay({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 14 },
-  message: { fontSize: 13, textAlign: 'center' },
+  message: { fontSize: 15, lineHeight: 20, textAlign: 'center' },
   overlay: {
     position: 'absolute',
     top: 0,
@@ -189,5 +190,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     minWidth: 150,
   },
-  overlayText: { fontSize: 13, textAlign: 'center' },
+  overlayText: { fontSize: 15, lineHeight: 20, textAlign: 'center' },
 });

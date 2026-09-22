@@ -4,6 +4,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 export default function SettingsDetailScreen() {
   const params = useLocalSearchParams();
@@ -21,15 +23,15 @@ export default function SettingsDetailScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={24} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{title}</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>{title}</Text>
         <View style={styles.headerRight} />
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.iconWrap, { backgroundColor: colors.primary + '15' }]}>
           <Feather name="tool" size={40} color={colors.primary} />
         </View>
-        <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{title}</Text>
-        <Text style={[styles.desc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{description}</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
+        <Text style={[styles.desc, { color: colors.mutedForeground }]}>{description}</Text>
       </ScrollView>
     </View>
   );
@@ -40,17 +42,17 @@ const styles = StyleSheet.create({
   header: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    paddingHorizontal: 8, 
-    paddingBottom: 12,
+    paddingHorizontal: layout.screenPadding,
+    paddingBottom: space.md,
   },
-  backBtn: { padding: 8, marginRight: 8 },
-  headerTitle: { fontSize: 20 },
-  headerRight: { width: 40 },
+  backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center', marginRight: space.sm },
+  headerTitle: { ...font.title },
+  headerRight: { width: size.iconButton },
   content: { 
     flexGrow: 1, 
     alignItems: 'center', 
     justifyContent: 'center',
-    padding: 24,
+    padding: space.xxl,
     paddingBottom: 120,
   },
   iconWrap: { 
@@ -59,8 +61,8 @@ const styles = StyleSheet.create({
     borderRadius: 40, 
     alignItems: 'center', 
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: space.xxl,
   },
-  title: { fontSize: 20, marginBottom: 8, textAlign: 'center' },
-  desc: { fontSize: 15, textAlign: 'center', lineHeight: 22 },
+  title: { ...font.heading, marginBottom: space.sm, textAlign: 'center' },
+  desc: { ...font.body, textAlign: 'center' },
 });

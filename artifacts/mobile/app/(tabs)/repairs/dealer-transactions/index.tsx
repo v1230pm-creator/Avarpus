@@ -12,6 +12,8 @@ import { RepairStatusBadge } from '@/components/ui/Badge';
 import { TransferRequestCard } from '@/components/dealer/TransferRequestCard';
 import { useDealerTransactionsList, useDealerTransfersList } from '@workspace/api-client-react';
 import type { DealerTransactionsListDirection, DealerTransferRequest } from '@workspace/api-client-react';
+import { font } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 type Direction = 'incoming' | 'outgoing';
 type StatusFilter = 'all' | 'in_repair' | 'ready' | 'completed';
@@ -68,18 +70,18 @@ export default function DealerTransactionsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 14 }]}>
+      <View style={[styles.header, { paddingTop: topPad + layout.rowPaddingVertical }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Go back"
           style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}
         >
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Dealer Transactions</Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Dealer Transactions</Text>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
             Devices sent to and received from other shops
           </Text>
         </View>
@@ -100,7 +102,7 @@ export default function DealerTransactionsScreen() {
                 { backgroundColor: direction === d ? colors.primary : colors.surface, borderColor: colors.border },
               ]}
             >
-              <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: direction === d ? '#fff' : colors.foreground }}>
+              <Text style={{ ...font.labelStrong, color: direction === d ? colors.primaryForeground : colors.foreground }}>
                 {d === 'incoming' ? 'Incoming' : 'Outgoing'}
                 {pendingCount > 0 ? ` (${pendingCount})` : ''}
               </Text>
@@ -127,7 +129,7 @@ export default function DealerTransactionsScreen() {
               },
             ]}
           >
-            <Text style={{ fontSize: 12, fontFamily: 'Inter_600SemiBold', color: statusFilter === c.key ? colors.primary : colors.mutedForeground }}>
+             <Text style={{ ...font.captionStrong, color: statusFilter === c.key ? colors.primary : colors.mutedForeground }}>
               {c.label}
             </Text>
           </TouchableOpacity>
@@ -142,15 +144,15 @@ export default function DealerTransactionsScreen() {
         <FlatList
           data={repairs}
           keyExtractor={(r: any) => r.id}
-          contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: insets.bottom + 40, gap: 10 }}
+           contentContainerStyle={{ paddingHorizontal: layout.screenPadding, paddingBottom: insets.bottom + space.xxxl, gap: space.md }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={isFetching && !!data} onRefresh={refreshAll} tintColor={colors.primary} />}
           ListHeaderComponent={
             statusFilter === 'all' && (pendingRequests.length > 0 || settledRequests.length > 0) ? (
-              <View style={{ gap: 10, marginBottom: 6 }} testID={`transfer-requests-${direction}`}>
+               <View style={{ gap: space.md, marginBottom: space.sm }} testID={`transfer-requests-${direction}`}>
                 {pendingRequests.length > 0 && (
                   <>
-                    <Text style={[styles.groupLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
+                     <Text style={[styles.groupLabel, { color: colors.mutedForeground }]}>
                       {direction === 'incoming' ? 'INCOMING REQUESTS · ACCEPT TO ADD TO YOUR QUEUE' : 'WAITING FOR THE OTHER DEALER'}
                     </Text>
                     {pendingRequests.map((r) => (
@@ -166,7 +168,7 @@ export default function DealerTransactionsScreen() {
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 }}
                   >
                     <Feather name={showHistory ? 'chevron-down' : 'chevron-right'} size={14} color={colors.mutedForeground} />
-                    <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }}>
+                    <Text style={{ ...font.captionStrong, color: colors.mutedForeground }}>
                       {settledRequests.length} declined / cancelled request{settledRequests.length === 1 ? '' : 's'}
                     </Text>
                   </TouchableOpacity>
@@ -175,7 +177,7 @@ export default function DealerTransactionsScreen() {
                   <TransferRequestCard key={r.id} request={r} canRespond={false} onPress={() => openRequest(r)} />
                 ))}
                 {repairs.length > 0 && (
-                  <Text style={[styles.groupLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
+                   <Text style={[styles.groupLabel, { color: colors.mutedForeground }]}>
                     {direction === 'incoming' ? 'ACCEPTED · IN YOUR QUEUE' : 'ACCEPTED · WITH THE OTHER DEALER'}
                   </Text>
                 )}
@@ -201,16 +203,16 @@ export default function DealerTransactionsScreen() {
               activeOpacity={0.8}
               testID={`dealer-txn-card-${item.id}`}
             >
-              <FlatCard style={{ padding: 12, gap: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <FlatCard style={{ padding: space.xl, gap: space.sm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: layout.avatarGap }}>
                   <View style={[styles.avatar, { backgroundColor: colors.primary + '1A' }]}>
-                    <Feather name={direction === 'incoming' ? 'download' : 'upload'} size={16} color={colors.primary} />
+                    <Feather name={direction === 'incoming' ? 'download' : 'upload'} size={size.headerIcon} color={colors.primary} />
                   </View>
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: 'Inter_700Bold' }} numberOfLines={1}>
+                    <Text style={{ ...font.itemTitle, color: colors.foreground }} numberOfLines={1}>
                       {item.brand} {item.model}
                     </Text>
-                    <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>
+                    <Text style={{ ...font.captionStrong, color: colors.mutedForeground }} numberOfLines={1}>
                       {item.transactionCode ? `${item.transactionCode} · ` : ''}
                       {direction === 'incoming'
                         ? `From ${item.sourceDealerBusinessName ?? 'another shop'}`
@@ -220,13 +222,13 @@ export default function DealerTransactionsScreen() {
                   <RepairStatusBadge status={item.status} />
                 </View>
                 {!!item.problem && (
-                  <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }} numberOfLines={1}>
+                  <Text style={{ ...font.body, color: colors.mutedForeground }} numberOfLines={1}>
                     {item.problem}
                   </Text>
                 )}
                 <View style={[styles.pendingBadge, { backgroundColor: colors.success + '1A' }]}>
                   <Feather name="check-circle" size={11} color={colors.success} />
-                  <Text style={{ fontSize: 11, color: colors.success, fontFamily: 'Inter_600SemiBold' }}>
+                  <Text style={{ ...font.captionStrong, color: colors.success }}>
                     {direction === 'incoming' ? 'Accepted' : 'Accepted by the other dealer'}
                   </Text>
                 </View>
@@ -241,15 +243,15 @@ export default function DealerTransactionsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 10, gap: 6 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20 },
-  headerSub: { fontSize: 12 },
-  segmentRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, marginBottom: 10 },
-  segment: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
-  chipRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 12, marginBottom: 10, flexWrap: 'wrap' },
-  chip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
-  groupLabel: { fontSize: 10, letterSpacing: 1, marginTop: 4 },
-  avatar: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  pendingBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  headerSub: { ...font.caption },
+  segmentRow: { flexDirection: 'row', gap: space.sm, paddingHorizontal: layout.screenPadding, marginBottom: space.md },
+  segment: { flex: 1, paddingVertical: space.md, borderRadius: radius.sm, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center' },
+  chipRow: { flexDirection: 'row', gap: space.sm, paddingHorizontal: layout.screenPadding, marginBottom: space.md, flexWrap: 'wrap' },
+  chip: { paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
+  groupLabel: { ...font.overline, marginTop: space.xs },
+  avatar: { width: size.avatar, height: size.avatar, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
+  pendingBadge: { flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'flex-start', paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.sm },
 });

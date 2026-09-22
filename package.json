@@ -4,11 +4,13 @@
   "license": "MIT",
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
-    "build": "pnpm run typecheck && pnpm -r --filter '!@workspace/mockup-sandbox' --filter '!@workspace/update-admin' --filter '!@workspace/avarpus-web' --filter '!@workspace/mobile' --if-present run build && PORT=4173 BASE_PATH=/__mockup pnpm --filter @workspace/mockup-sandbox run build && PORT=4174 BASE_PATH=/update-admin/ pnpm --filter @workspace/update-admin run build && VITE_API_URL=${VITE_API_URL:-https://build-validation.invalid} BASE_PATH=/avarpus-web/ pnpm --filter @workspace/avarpus-web run build && EXPO_METRO_PORT=18081 pnpm --filter @workspace/mobile run build",
+    "build": "pnpm run typecheck && pnpm run build:artifacts",
+    "build:artifacts": "pnpm -r --workspace-concurrency=1 --filter '!@workspace/mockup-sandbox' --filter '!@workspace/update-admin' --filter '!@workspace/avarpus-web' --filter '!@workspace/avarpus-design-system' --filter '!@workspace/mobile' --if-present run build && PORT=4173 BASE_PATH=/__mockup pnpm --filter @workspace/mockup-sandbox run build && PORT=4175 BASE_PATH=/avarpus-design-system/ pnpm --filter @workspace/avarpus-design-system run build && PORT=4174 BASE_PATH=/update-admin/ pnpm --filter @workspace/update-admin run build && VITE_API_URL=${VITE_API_URL:-https://build-validation.invalid} BASE_PATH=/avarpus-web/ pnpm --filter @workspace/avarpus-web run build && EXPO_METRO_PORT=18081 pnpm --filter @workspace/mobile run build",
     "validate:deployment-readiness": "pnpm --filter @workspace/avarpus-web run validate:deployment-readiness",
     "validate:brand-assets": "pnpm --filter @workspace/scripts run validate:brand-assets",
+    "validate:test-registration": "pnpm --filter @workspace/scripts run validate:test-registration",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --workspace-concurrency=1 --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
   "private": true,
   "dependencies": {

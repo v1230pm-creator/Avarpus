@@ -24,6 +24,7 @@ import {
   setBaseUrlFallbacks,
 } from '@workspace/api-client-react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { ChatStoreProvider } from '@/context/ChatStoreContext';
 import { DataProvider } from '@/context/DataContext';
 import { storage, KEYS } from '@/utils/storage';
 import { AVARPUS_BLUE } from '@/constants/brand';
@@ -90,17 +91,19 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider queryClient={queryClient}>
             <IdentityBoundDataProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <KeyboardProviderCompat>
-                  <BackgroundRelock>
-                    <ConfirmDialogProvider>
-                      <RootLayoutNav dark={dark} />
-                      <PushNotificationsBridge />
-                    </ConfirmDialogProvider>
-                    <PrivacyShield />
-                  </BackgroundRelock>
-                </KeyboardProviderCompat>
-              </GestureHandlerRootView>
+              <ChatStoreProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <KeyboardProviderCompat>
+                    <BackgroundRelock>
+                      <ConfirmDialogProvider>
+                        <RootLayoutNav dark={dark} />
+                        <PushNotificationsBridge />
+                      </ConfirmDialogProvider>
+                      <PrivacyShield />
+                    </BackgroundRelock>
+                  </KeyboardProviderCompat>
+                </GestureHandlerRootView>
+              </ChatStoreProvider>
             </IdentityBoundDataProvider>
           </AuthProvider>
         </QueryClientProvider>

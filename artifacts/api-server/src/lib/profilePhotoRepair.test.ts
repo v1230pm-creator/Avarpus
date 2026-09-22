@@ -5,6 +5,7 @@ import { db, usersTable } from "@workspace/db";
 import { ObjectNotFoundError, ObjectStorageService } from "./objectStorage";
 import {
   canonicalProfilePathFromLegacy,
+  clearMissingProfilePhotoReferences,
   repairLeftNoLegacyReferences,
   repairLegacyProfilePhotoPaths,
 } from "./profilePhotoRepair";
@@ -162,5 +163,71 @@ describe.sequential("repairLegacyProfilePhotoPaths", () => {
     expect(remaining.find((row) => row.id === flakyUserId)?.profilePhoto).toBe(flakyCanonical);
     expect(remaining.every((row) => row.profilePhoto === null || row.profilePhoto.startsWith("/objects/"))).toBe(true);
     expect(again.failed).toBe(0);
+  });
+});
+
+describe.sequential("clearMissingProfilePhotoReferences", () => {
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const userIds: string[] = [];
+  let presentUserId = "";
+  let missingUserId = "";
+  let erroringUserId = "";
+  let presentPath = "";
+  let missingPath = "";
+  let erroringPath = "";
+
+  beforeAll(async () => {
+    let i = 0;
+    for (const label of ["present", "missing", "erroring"] as const) {
+      i += 1;
+      const [user] = await db.insert(usersTable).values({
+        name: `Photo Missing ${label}`,
+        email: `photo-missing-${label}-${suffix}@example.test`,
+        mobile: `77${i}${suffix.replace(/\D/g, "").slice(-7).padStart(7, "6")}`,
+        role: "customer",
+        isActive: true,
+        passwordHash: null,
+      }).returning();
+      userIds.push(user.id);
+      const path = `/objects/uploads/profiles/${user.id}/final/${randomUUID()}`;
+      await db.update(usersTable).set({ profilePhoto: path }).where(eq(usersTable.id, user.id));
+      if (label === "present") { presentUserId = user.id; presentPath = path; }
+      if (label === "missing") { missingUserId = user.id; missingPath = path; }
+      if (label === "erroring") { erroringUserId = user.id; erroringPath = path; }
+    }
+  });
+
+  afterAll(async () => {
+    vi.restoreAllMocks();
+    if (userIds.length > 0) {
+      await db.delete(usersTable).where(inArray(usersTable.id, userIds));
+    }
+  });
+
+  it("clears only references whose object is definitively gone and never deletes anything", async () => {
+    const deleted = vi.fn();
+    vi.spyOn(ObjectStorageService.prototype, "getObjectEntityFile").mockImplementation(
+      async (path: string) => {
+        if (path === presentPath) return { delete: deleted } as never;
+        if (path === erroringPath) throw new Error("sidecar unreachable");
+        if (path === missingPath) throw new ObjectNotFoundError();
+        return {} as never;
+      },
+    );
+
+    const result = await clearMissingProfilePhotoReferences();
+    expect(result.cleared).toBeGreaterThanOrEqual(1);
+    expect(result.failed).toBeGreaterThanOrEqual(1);
+    expect(deleted).not.toHaveBeenCalled();
+
+    const rows = await db
+      .select({ id: usersTable.id, profilePhoto: usersTable.profilePhoto })
+      .from(usersTable)
+      .where(inArray(usersTable.id, userIds));
+    const byId = new Map(rows.map((row) => [row.id, row.profilePhoto]));
+    expect(byId.get(presentUserId)).toBe(presentPath);
+    expect(byId.get(missingUserId)).toBeNull();
+    // A transient storage error must never clear a photo.
+    expect(byId.get(erroringUserId)).toBe(erroringPath);
   });
 });

@@ -48,6 +48,8 @@ import type {
   AuthOtpResend200,
   AuthSession,
   AuthSessions200,
+  ChatAckInput,
+  ChatAckResult,
   ChatAdminReportListParams,
   ChatAdminReportTranscriptParams,
   ChatBlockResult,
@@ -64,6 +66,10 @@ import type {
   ChatMessagesSend200,
   ChatMyReportList,
   ChatMyReportListParams,
+  ChatRelayHistory,
+  ChatRelayPurgeRun200,
+  ChatRelaySettings,
+  ChatRelaySettingsInput,
   ChatReportBatchDecision,
   ChatReportBatchWithdrawal,
   ChatReportInput,
@@ -79,6 +85,8 @@ import type {
   ChatRoomsGet200,
   ChatRoomsList200,
   ChatRoomsPreferencesUpdate200,
+  ChatSyncParams,
+  ChatSyncResult,
   ChatUploadUrlInput,
   ChatUploadUrlResult,
   CustomerInput,
@@ -902,6 +910,304 @@ export const useSupportNotificationSettingsUpdate = <TError = ErrorType<void>,
       > => {
       return useMutation(getSupportNotificationSettingsUpdateMutationOptions(options));
     }
+
+export const getChatRelaySettingsGetUrl = () => {
+
+
+
+
+  return `/api/settings/chat-relay`
+}
+
+/**
+ * @summary Read the chat media relay purge policy and the last run summary
+ */
+export const chatRelaySettingsGet = async ( options?: Parameters<typeof customFetch>[1]): Promise<ChatRelaySettings> => {
+
+  return customFetch<ChatRelaySettings>(getChatRelaySettingsGetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatRelaySettingsGetQueryKey = () => {
+    return [
+    `/api/settings/chat-relay`
+    ] as const;
+    }
+
+
+export const getChatRelaySettingsGetQueryOptions = <TData = Awaited<ReturnType<typeof chatRelaySettingsGet>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatRelaySettingsGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getChatRelaySettingsGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof chatRelaySettingsGet>>> = ({ signal }) => chatRelaySettingsGet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof chatRelaySettingsGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ChatRelaySettingsGetQueryResult = NonNullable<Awaited<ReturnType<typeof chatRelaySettingsGet>>>
+export type ChatRelaySettingsGetQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read the chat media relay purge policy and the last run summary
+ */
+
+export function useChatRelaySettingsGet<TData = Awaited<ReturnType<typeof chatRelaySettingsGet>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatRelaySettingsGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getChatRelaySettingsGetQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getChatRelaySettingsUpdateUrl = () => {
+
+
+
+
+  return `/api/settings/chat-relay`
+}
+
+/**
+ * Turning the purge ON is refused (409, code CHAT_RELAY_MIN_BUILD_NOT_MET) until the newest published critical release's build number is at least the build that keeps chat media on the device. Turning it OFF and changing the day values are always allowed.
+ * @summary Update the chat media relay purge policy
+ */
+export const chatRelaySettingsUpdate = async (chatRelaySettingsInput: ChatRelaySettingsInput, options?: Parameters<typeof customFetch>[1]): Promise<ChatRelaySettings> => {
+
+  return customFetch<ChatRelaySettings>(getChatRelaySettingsUpdateUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chatRelaySettingsInput)
+  }
+);}
+
+
+
+
+
+export const getChatRelaySettingsUpdateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatRelaySettingsUpdate>>, TError,{data: BodyType<ChatRelaySettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatRelaySettingsUpdate>>, TError,{data: BodyType<ChatRelaySettingsInput>}, TContext> => {
+
+const mutationKey = ['chatRelaySettingsUpdate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatRelaySettingsUpdate>>, {data: BodyType<ChatRelaySettingsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  chatRelaySettingsUpdate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatRelaySettingsUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof chatRelaySettingsUpdate>>>
+    export type ChatRelaySettingsUpdateMutationBody = BodyType<ChatRelaySettingsInput>
+    export type ChatRelaySettingsUpdateMutationError = ErrorType<void>
+
+    /**
+ * @summary Update the chat media relay purge policy
+ */
+export const useChatRelaySettingsUpdate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatRelaySettingsUpdate>>, TError,{data: BodyType<ChatRelaySettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatRelaySettingsUpdate>>,
+        TError,
+        {data: BodyType<ChatRelaySettingsInput>},
+        TContext
+      > => {
+      return useMutation(getChatRelaySettingsUpdateMutationOptions(options));
+    }
+
+export const getChatRelayPurgeRunUrl = () => {
+
+
+
+
+  return `/api/settings/chat-relay/run`
+}
+
+/**
+ * @summary Run one bounded relay purge cycle now and report bytes reclaimed
+ */
+export const chatRelayPurgeRun = async ( options?: Parameters<typeof customFetch>[1]): Promise<ChatRelayPurgeRun200> => {
+
+  return customFetch<ChatRelayPurgeRun200>(getChatRelayPurgeRunUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatRelayPurgeRunMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatRelayPurgeRun>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatRelayPurgeRun>>, TError,void, TContext> => {
+
+const mutationKey = ['chatRelayPurgeRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatRelayPurgeRun>>, void> = () => {
+
+
+          return  chatRelayPurgeRun(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatRelayPurgeRunMutationResult = NonNullable<Awaited<ReturnType<typeof chatRelayPurgeRun>>>
+
+    export type ChatRelayPurgeRunMutationError = ErrorType<void>
+
+    /**
+ * @summary Run one bounded relay purge cycle now and report bytes reclaimed
+ */
+export const useChatRelayPurgeRun = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatRelayPurgeRun>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatRelayPurgeRun>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getChatRelayPurgeRunMutationOptions(options));
+    }
+
+export const getChatRelayHistoryGetUrl = () => {
+
+
+
+
+  return `/api/settings/chat-relay/history`
+}
+
+/**
+ * Whole-relay purge runs (daily timer and "Run now") recorded over the retention window, newest first and capped, plus a live measurement of the relay objects still available. Room-scoped runs are not recorded. The console derives the trend (bytes reclaimed per day, purged versus expired share, relay size after each run) from this list.
+ * @summary Read the relay purge run history and what the relay still holds
+ */
+export const chatRelayHistoryGet = async ( options?: Parameters<typeof customFetch>[1]): Promise<ChatRelayHistory> => {
+
+  return customFetch<ChatRelayHistory>(getChatRelayHistoryGetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatRelayHistoryGetQueryKey = () => {
+    return [
+    `/api/settings/chat-relay/history`
+    ] as const;
+    }
+
+
+export const getChatRelayHistoryGetQueryOptions = <TData = Awaited<ReturnType<typeof chatRelayHistoryGet>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatRelayHistoryGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getChatRelayHistoryGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof chatRelayHistoryGet>>> = ({ signal }) => chatRelayHistoryGet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof chatRelayHistoryGet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ChatRelayHistoryGetQueryResult = NonNullable<Awaited<ReturnType<typeof chatRelayHistoryGet>>>
+export type ChatRelayHistoryGetQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read the relay purge run history and what the relay still holds
+ */
+
+export function useChatRelayHistoryGet<TData = Awaited<ReturnType<typeof chatRelayHistoryGet>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatRelayHistoryGet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getChatRelayHistoryGetQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getAuthOtpRequestUrl = () => {
 
@@ -13518,6 +13824,163 @@ export const useChatMarkRead = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getChatMarkReadMutationOptions(options));
+    }
+
+export const getChatSyncUrl = (params?: ChatSyncParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/chat/sync?${stringifiedParams}` : `/api/chat/sync`
+}
+
+/**
+ * Returns the changes a device needs to keep a local copy of the caller's chats current: new, edited and tombstoned messages, messages the caller hid for themselves, read-state changes in the caller's rooms, delivery receipts for the caller's own sent messages, the caller's room preference changes and rooms the caller joined. Each list is ordered by its own change time then id; the cursor is opaque and monotonic and keys on Avarpus ids only. Without a cursor the call returns a bounded recent window (applied to every list, rooms included, so bootstrap the room list with GET /chat/rooms) and sets backfillBefore: older history must be loaded per room with GET /chat/rooms/{roomId}/messages?before=. Rows changed within the last few seconds may be returned by more than one consecutive call until they settle; upsert by id. A cursor issued for one roomId filter cannot be reused for another. Calling this endpoint counts as the caller's app syncing (presence / legacy delivered signal), exactly like listing rooms does.
+ * @summary Everything that changed in the caller's inbox since a cursor
+ */
+export const chatSync = async (params?: ChatSyncParams, options?: Parameters<typeof customFetch>[1]): Promise<ChatSyncResult> => {
+
+  return customFetch<ChatSyncResult>(getChatSyncUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getChatSyncQueryKey = (params?: ChatSyncParams,) => {
+    return [
+    `/api/chat/sync`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getChatSyncQueryOptions = <TData = Awaited<ReturnType<typeof chatSync>>, TError = ErrorType<Message>>(params?: ChatSyncParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatSync>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getChatSyncQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof chatSync>>> = ({ signal }) => chatSync(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof chatSync>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ChatSyncQueryResult = NonNullable<Awaited<ReturnType<typeof chatSync>>>
+export type ChatSyncQueryError = ErrorType<Message>
+
+
+/**
+ * @summary Everything that changed in the caller's inbox since a cursor
+ */
+
+export function useChatSync<TData = Awaited<ReturnType<typeof chatSync>>, TError = ErrorType<Message>>(
+ params?: ChatSyncParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof chatSync>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getChatSyncQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getChatAcknowledgeUrl = () => {
+
+
+
+
+  return `/api/chat/acks`
+}
+
+/**
+ * Batch, idempotent. `delivered` records that this device received the message; `stored` records that the media bytes are saved on device and implies delivered. Only first-seen timestamps are kept, so repeating an ack never moves them. `lost` is the one sanctioned reversal: the device found its saved copy missing or damaged, so the caller's `stored` receipt is cleared again (a later `stored` sets it afresh). It applies only while the server still holds the relay copy — once the media is `purged`/`expired` there is nothing left to protect and the ack is reported under ignored as `relay_gone`. The caller must be a member of every message's room (404 for any message it cannot see, nothing recorded). The caller's own messages and `stored`/`lost` acks for messages without media are reported under ignored rather than rejected.
+ * @summary Acknowledge received (delivered), locally saved (stored) or lost-again (lost) messages
+ */
+export const chatAcknowledge = async (chatAckInput: ChatAckInput, options?: Parameters<typeof customFetch>[1]): Promise<ChatAckResult> => {
+
+  return customFetch<ChatAckResult>(getChatAcknowledgeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chatAckInput)
+  }
+);}
+
+
+
+
+
+export const getChatAcknowledgeMutationOptions = <TError = ErrorType<Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatAcknowledge>>, TError,{data: BodyType<ChatAckInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof chatAcknowledge>>, TError,{data: BodyType<ChatAckInput>}, TContext> => {
+
+const mutationKey = ['chatAcknowledge'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatAcknowledge>>, {data: BodyType<ChatAckInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  chatAcknowledge(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChatAcknowledgeMutationResult = NonNullable<Awaited<ReturnType<typeof chatAcknowledge>>>
+    export type ChatAcknowledgeMutationBody = BodyType<ChatAckInput>
+    export type ChatAcknowledgeMutationError = ErrorType<Message>
+
+    /**
+ * @summary Acknowledge received (delivered), locally saved (stored) or lost-again (lost) messages
+ */
+export const useChatAcknowledge = <TError = ErrorType<Message>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatAcknowledge>>, TError,{data: BodyType<ChatAckInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof chatAcknowledge>>,
+        TError,
+        {data: BodyType<ChatAckInput>},
+        TContext
+      > => {
+      return useMutation(getChatAcknowledgeMutationOptions(options));
     }
 
 export const getChatUploadUrlUrl = (roomId: string,) => {

@@ -102,3 +102,21 @@ jest.mock('expo-video', () => {
 jest.mock('expo-intent-launcher', () => ({
   startActivityAsync: jest.fn().mockResolvedValue({ resultCode: 0 }),
 }));
+// The device chat store is exercised through its in-memory implementation in
+// tests; the native SQLite binding must never be opened under Jest. Rejecting
+// here makes screens fall back to network-only rendering (the same path the
+// app takes when the store cannot be opened on a device).
+jest.mock('expo-sqlite', () => ({
+  openDatabaseAsync: jest.fn().mockRejectedValue(new Error('expo-sqlite is not available under Jest')),
+  deleteDatabaseAsync: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock('expo-network', () => ({
+  addNetworkStateListener: jest.fn(() => ({ remove: jest.fn() })),
+  getNetworkStateAsync: jest.fn().mockResolvedValue({ isConnected: true, isInternetReachable: true }),
+}));
+// AsyncStorage has no native module under Jest; the chat store bookkeeping
+// (which databases exist per account) reaches it from app-wide code such as
+// the tab layout. Suites that need specific stored values override this mock.
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);

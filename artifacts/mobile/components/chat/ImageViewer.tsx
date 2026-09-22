@@ -21,6 +21,8 @@ import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ChatMessage } from '@workspace/api-client-react';
 import { chatMediaUri, formatRelativeTime } from './messageActions';
+import { localMediaPathOf } from '@/hooks/useChatMedia';
+import { font } from '@/constants/typography';
 
 export type ImageViewerDownloadState = 'idle' | 'saving' | 'done' | 'error';
 
@@ -233,7 +235,10 @@ export function ImageViewer({
   }, [message, onClose, onReply, replyText]);
 
   if (!message) return null;
-  const uri = chatMediaUri(roomId, message.id);
+  // The device copy first; the relay only for rows without one (web /
+  // network-only mode). The bubble never opens the viewer for purged media.
+  const localPath = localMediaPathOf(message);
+  const uri = localPath ?? chatMediaUri(roomId, message.id);
   const timeLabel = formatRelativeTime(message.createdAt);
 
   return (
@@ -255,7 +260,7 @@ export function ImageViewer({
             ]}
           >
             <Image
-              source={{ uri, headers: token ? { Authorization: `Bearer ${token}` } : undefined }}
+              source={localPath ? { uri } : { uri, headers: token ? { Authorization: `Bearer ${token}` } : undefined }}
               style={{ width, height }}
               contentFit="contain"
               onLoadStart={() => setImageLoading(true)}
@@ -400,8 +405,8 @@ const styles = StyleSheet.create({
   },
   headerIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, paddingHorizontal: 4 },
-  headerName: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  headerTime: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  headerName: { color: '#FFFFFF', ...font.captionStrong },
+  headerTime: { color: 'rgba(255,255,255,0.7)', ...font.small, marginTop: 1 },
   menu: {
     position: 'absolute',
     right: 10,
@@ -416,7 +421,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
-  menuText: { color: '#111827', fontSize: 15, fontFamily: 'Inter_500Medium' },
+  menuText: { color: '#111827', ...font.captionStrong },
   footer: {
     position: 'absolute',
     left: 0,
@@ -427,7 +432,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
     gap: 8,
   },
-  downloadHint: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+  downloadHint: { color: 'rgba(255,255,255,0.85)', ...font.small, textAlign: 'center' },
   replyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   replyInput: {
     flex: 1,
@@ -436,8 +441,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: 'rgba(255,255,255,0.14)',
     color: '#FFFFFF',
-    fontSize: 15,
-    fontFamily: 'Inter_400Regular',
+    ...font.caption,
   },
   replySend: {
     width: 42,

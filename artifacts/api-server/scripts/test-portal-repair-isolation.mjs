@@ -598,6 +598,17 @@ function roomWriteActions(roomId, messageId) {
       body: { messageId },
     },
     {
+      action: "acknowledge delivery of a message in",
+      method: "POST",
+      path: "/chat/acks",
+      body: { acks: [{ messageId, state: "delivered" }] },
+    },
+    {
+      action: "delta-sync",
+      method: "GET",
+      path: `/chat/sync?roomId=${roomId}`,
+    },
+    {
       action: "report",
       method: "POST",
       path: `/chat/rooms/${roomId}/reports`,
@@ -648,6 +659,7 @@ async function chatWriteState(roomId, userId) {
     `SELECT
        (SELECT count(*) FROM chat_messages WHERE room_id = $1 AND sender_id = $2) AS messages,
        (SELECT count(*) FROM chat_read_state WHERE room_id = $1 AND user_id = $2) AS read_state,
+       (SELECT count(*) FROM chat_message_receipts WHERE room_id = $1 AND user_id = $2) AS receipts,
        (SELECT count(*) FROM chat_room_preferences WHERE room_id = $1 AND user_id = $2) AS preferences,
        (SELECT count(*) FROM chat_reports WHERE room_id = $1 AND reporter_user_id = $2) AS reports,
        (SELECT coalesce(
@@ -703,6 +715,7 @@ async function verifyRoomActions({ portalKind, label, room, member, roomMemberId
         `${scope} changed no chat rows by trying to ${spec.action} a foreign ${portalKind} ${label} room`,
         Number(state.messages) === 0
           && Number(state.read_state) === 0
+          && Number(state.receipts) === 0
           && Number(state.preferences) === 0
           && Number(state.reports) === 0
           && blockedIds.join(",") === expectedBlockedIds.join(","),

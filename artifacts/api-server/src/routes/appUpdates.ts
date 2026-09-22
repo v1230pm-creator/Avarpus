@@ -6,6 +6,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { requireRole } from "../middlewares/requireRole";
 import { asyncHandler } from "../lib/asyncHandler";
 import { uuidParam } from "../lib/validate";
+import { recordCriticalReleasePublished } from "../lib/appMinimumBuild";
 import {
   ObjectNotFoundError,
   ObjectStorageService,
@@ -805,6 +806,9 @@ router.post(
           status: 409,
           message: "Release changed concurrently; upload an APK and try again",
         };
+      }
+      if (updated.updateType === "critical") {
+        await recordCriticalReleasePublished(tx, updated.buildNumber);
       }
       return { ok: true as const, updated };
     });

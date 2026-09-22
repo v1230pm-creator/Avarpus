@@ -16,6 +16,8 @@ import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/
 import { formatCurrency } from '@/utils/helpers';
 import { Avatar } from '@/components/ui/Avatar';
 import { useColors } from '@/hooks/useColors';
+import { font } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 export default function ReceivablesScreen() {
   const insets = useSafeAreaInsets();
@@ -49,7 +51,7 @@ export default function ReceivablesScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 16, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+        <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1, paddingHorizontal: 16 }}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Outstanding (Receivables)</Text>
@@ -111,18 +113,18 @@ const styles = StyleSheet.create({
   header: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    paddingHorizontal: 16, 
-    paddingBottom: 16,
-    borderBottomWidth: 1,
+    paddingHorizontal: layout.screenPadding,
+    paddingBottom: space.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
-  scroll: { padding: 16, paddingBottom: 100 },
+  backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  scroll: { padding: layout.screenPadding, paddingBottom: 100 },
 
   cardContainer: {
-    borderRadius: 16,
-    borderWidth: 1,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   summaryBox: {
@@ -130,8 +132,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderBottomWidth: 1,
   },
-  summaryValue: { fontSize: 28, fontFamily: 'Inter_700Bold', marginBottom: 4 },
-  summaryLabel: { fontSize: 12, fontFamily: 'Inter_500Medium' },
+  summaryValue: { ...font.title, marginBottom: space.xs },
+  summaryLabel: { ...font.captionStrong },
   
   customerList: { padding: 16 },
   customerRow: {
@@ -139,8 +141,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
   },
-  customerName: { flex: 1, fontSize: 13, fontFamily: 'Inter_500Medium', paddingHorizontal: 12 },
-  customerDue: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  customerName: { flex: 1, ...font.bodyStrong, paddingHorizontal: space.md },
+  customerDue: { ...font.bodyStrong },
   
   viewAllBtn: {
     paddingVertical: 12,
@@ -148,6 +150,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 16,
   },
-  viewAllText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#FFF' },
-  emptyText: { fontSize: 13, textAlign: 'center', marginVertical: 20 },
+  viewAllText: { ...font.button, color: '#FFF' },
+  emptyText: { ...font.body, textAlign: 'center', marginVertical: space.xl },
 });

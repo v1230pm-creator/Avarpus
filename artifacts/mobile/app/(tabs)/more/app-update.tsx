@@ -20,6 +20,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { sha256 } from 'js-sha256';
 import { useColors } from '@/hooks/useColors';
+import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { getAvarpusLogo } from '@/constants/branding';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
@@ -749,7 +751,7 @@ export default function AppUpdateScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
           App Update
         </Text>
       </View>
@@ -758,10 +760,10 @@ export default function AppUpdateScreen() {
         <View style={[styles.brandCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Image source={getAvarpusLogo(colorScheme)} style={styles.brandLogo} resizeMode="contain" />
           <View style={styles.brandCopy}>
-            <Text style={[styles.brandTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[styles.brandTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
               Avarpus
             </Text>
-            <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               Official app releases and verified downloads
             </Text>
           </View>
@@ -774,16 +776,16 @@ export default function AppUpdateScreen() {
               <Feather name="smartphone" size={20} color={colors.primary} />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+              <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
                 Current Version
               </Text>
-              <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                 v{currentVersion} (Build {currentBuild})
               </Text>
             </View>
           </View>
           {lastChecked && (
-            <Text style={[styles.lastChecked, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.lastChecked, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               Last checked: {lastChecked.toLocaleDateString()} {lastChecked.toLocaleTimeString()}
             </Text>
           )}
@@ -798,7 +800,7 @@ export default function AppUpdateScreen() {
             ) : (
               <Feather name="refresh-cw" size={16} color="#FFF" />
             )}
-            <Text style={[styles.primaryBtnText, { fontFamily: 'Inter_600SemiBold' }]}>
+            <Text style={[styles.primaryBtnText, { fontFamily: fontFamily.semibold }]}>
               {checking ? 'Checking…' : 'Check for Updates'}
             </Text>
           </TouchableOpacity>
@@ -809,7 +811,7 @@ export default function AppUpdateScreen() {
           <View style={styles.card}>
             <View style={styles.rowBetween}>
               <Feather name="wifi-off" size={20} color={colors.destructive} />
-              <Text style={[styles.errorText, { color: colors.destructive, fontFamily: 'Inter_400Regular', flex: 1, marginLeft: 10 }]}>
+              <Text style={[styles.errorText, { color: colors.destructive, fontFamily: fontFamily.regular, flex: 1, marginLeft: 10 }]}>
                 {checkError}
               </Text>
             </View>
@@ -822,10 +824,10 @@ export default function AppUpdateScreen() {
             <View style={[styles.bigIcon, { backgroundColor: '#34D3991A' }]}>
               <Feather name="check-circle" size={30} color="#34D399" />
             </View>
-            <Text style={[styles.upToDate, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[styles.upToDate, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
               You&apos;re on the latest version.
             </Text>
-            <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
               Current Version: {currentVersion}
             </Text>
           </View>
@@ -839,11 +841,11 @@ export default function AppUpdateScreen() {
                 <Feather name="download-cloud" size={20} color={typeMeta.color} />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+                <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
                   New Update Available
                 </Text>
                 <View style={[styles.typeBadge, { backgroundColor: typeMeta.color + '1A' }]}>
-                  <Text style={[styles.typeBadgeText, { color: typeMeta.color, fontFamily: 'Inter_600SemiBold' }]}>
+                  <Text style={[styles.typeBadgeText, { color: typeMeta.color, fontFamily: fontFamily.semibold }]}>
                     {typeMeta.label}
                   </Text>
                 </View>
@@ -865,20 +867,20 @@ export default function AppUpdateScreen() {
             {/* What's new */}
             {notes.length > 0 && (
               <View style={[styles.notesBox, { borderColor: colors.border }]}>
-                <Text style={[styles.notesTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                <Text style={[styles.notesTitle, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
                   What&apos;s New in This Update
                 </Text>
                 {notes.map((group, gi) => (
                   <View key={gi} style={{ gap: 4 }}>
                     {group.category && (
-                      <Text style={[styles.noteCategory, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
+                      <Text style={[styles.noteCategory, { color: colors.primary, fontFamily: fontFamily.semibold }]}>
                         {group.category}
                       </Text>
                     )}
                     {group.items.map((item, ii) => (
                       <View key={ii} style={styles.noteRow}>
                         <View style={[styles.noteDot, { backgroundColor: colors.primary }]} />
-                        <Text style={[styles.noteText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                        <Text style={[styles.noteText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                           {item}
                         </Text>
                       </View>
@@ -897,7 +899,7 @@ export default function AppUpdateScreen() {
                 activeOpacity={0.8}
               >
                 <Feather name="play-circle" size={16} color={colors.primary} />
-                <Text style={[styles.secondaryBtnText, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                <Text style={[styles.secondaryBtnText, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
                   Watch Release Video
                 </Text>
               </TouchableOpacity>
@@ -907,7 +909,7 @@ export default function AppUpdateScreen() {
             {phase === 'idle' || phase === 'error' ? (
               <>
                 {downloadError && (
-                  <Text style={[styles.errorText, { color: colors.destructive, fontFamily: 'Inter_400Regular' }]}>
+                  <Text style={[styles.errorText, { color: colors.destructive, fontFamily: fontFamily.regular }]}>
                     {downloadError}
                   </Text>
                 )}
@@ -928,7 +930,7 @@ export default function AppUpdateScreen() {
                   ) : (
                     <Feather name="download" size={16} color="#FFF" />
                   )}
-                  <Text style={[styles.primaryBtnText, { fontFamily: 'Inter_600SemiBold' }]}>
+                  <Text style={[styles.primaryBtnText, { fontFamily: fontFamily.semibold }]}>
                     {downloadActionInFlight
                       ? 'Preparing Download...'
                       : phase === 'error'
@@ -947,29 +949,29 @@ export default function AppUpdateScreen() {
                   />
                 </View>
                 <View style={styles.rowBetween}>
-                  <Text style={[styles.progressText, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                  <Text style={[styles.progressText, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
                     {Math.round(progress * 100)}%
                   </Text>
-                  <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                     {formatBytes(written)} / {formatBytes(total || latest.apkSize)}
                   </Text>
                 </View>
                 <View style={styles.rowBetween}>
-                  <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                      {phase === 'paused'
                        ? downloadMode === 'native'
                          ? 'Waiting for network'
                          : 'Paused'
                        : `${formatBytes(speed)}/s`}
                   </Text>
-                  <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                     {formatBytes(Math.max(0, (total || latest.apkSize || 0) - written))} remaining
                   </Text>
                 </View>
                  {downloadMode === 'native' && (
                    <View style={styles.verifyRow}>
                      <Feather name="smartphone" size={15} color={colors.primary} />
-                     <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular', flex: 1 }]}>
+                     <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: fontFamily.regular, flex: 1 }]}>
                        Android is downloading this update in the background. You can safely close the app.
                      </Text>
                    </View>
@@ -979,18 +981,18 @@ export default function AppUpdateScreen() {
                      phase === 'downloading' ? (
                        <TouchableOpacity onPress={handlePause} style={[styles.smallBtn, { borderColor: colors.border }]} activeOpacity={0.8}>
                          <Feather name="pause" size={15} color={colors.foreground} />
-                         <Text style={[styles.smallBtnText, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Pause</Text>
+                         <Text style={[styles.smallBtnText, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Pause</Text>
                        </TouchableOpacity>
                      ) : (
                        <TouchableOpacity onPress={handleResume} style={[styles.smallBtn, { borderColor: colors.border }]} activeOpacity={0.8}>
                          <Feather name="play" size={15} color={colors.foreground} />
-                         <Text style={[styles.smallBtnText, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Resume</Text>
+                         <Text style={[styles.smallBtnText, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>Resume</Text>
                        </TouchableOpacity>
                      )
                    )}
                   <TouchableOpacity onPress={handleCancel} style={[styles.smallBtn, { borderColor: colors.destructive + '55' }]} activeOpacity={0.8}>
                     <Feather name="x" size={15} color={colors.destructive} />
-                    <Text style={[styles.smallBtnText, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>Cancel</Text>
+                    <Text style={[styles.smallBtnText, { color: colors.destructive, fontFamily: fontFamily.semibold }]}>Cancel</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -999,7 +1001,7 @@ export default function AppUpdateScreen() {
             {phase === 'verifying' && (
               <View style={styles.verifyRow}>
                 <AvarpusSpinner size={20} />
-                <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                   Verifying update security (SHA-256)…
                 </Text>
               </View>
@@ -1009,7 +1011,7 @@ export default function AppUpdateScreen() {
               <View style={{ gap: 8 }}>
                 <View style={styles.verifyRow}>
                   <Feather name="shield" size={16} color="#34D399" />
-                  <Text style={[styles.muted, { color: '#34D399', fontFamily: 'Inter_600SemiBold' }]}>
+                  <Text style={[styles.muted, { color: '#34D399', fontFamily: fontFamily.semibold }]}>
                     Update Downloaded Successfully — verified
                   </Text>
                 </View>
@@ -1019,9 +1021,9 @@ export default function AppUpdateScreen() {
                   style={[styles.primaryBtn, { backgroundColor: '#34D399' }]}
                 >
                   <Feather name="package" size={16} color="#FFF" />
-                  <Text style={[styles.primaryBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Install Update</Text>
+                  <Text style={[styles.primaryBtnText, { fontFamily: fontFamily.semibold }]}>Install Update</Text>
                 </TouchableOpacity>
-                <Text style={[styles.installHint, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                <Text style={[styles.installHint, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                   Your data is completely safe — this is a normal in-place update. All records, settings and your
                   login stay exactly as they are.
                 </Text>
@@ -1032,7 +1034,7 @@ export default function AppUpdateScreen() {
 
         {checked && isUpdateAvailable && latest && screenshotUrls.length > 0 && (
           <View style={[styles.card, { backgroundColor: colors.card }]}>
-            <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+            <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
               Release Preview
             </Text>
             <ScrollView
@@ -1059,7 +1061,7 @@ export default function AppUpdateScreen() {
         {checked && !checkError && (
           <View style={styles.card}>
             <TouchableOpacity onPress={loadChangelog} style={styles.rowBetween} activeOpacity={0.7}>
-              <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+              <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
                 View Full Changelog
               </Text>
               <Feather name={changelogOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
@@ -1069,7 +1071,7 @@ export default function AppUpdateScreen() {
                 {changelog === null ? (
                   <AvarpusSpinner size={20} />
                 ) : changelog.length === 0 ? (
-                  <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                     No previous releases.
                   </Text>
                 ) : (
@@ -1077,23 +1079,23 @@ export default function AppUpdateScreen() {
                     const relNotes = releaseNoteLines(rel.releaseNotes);
                     return (
                       <View key={rel.id} style={[styles.changelogItem, { borderColor: colors.border }]}>
-                        <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                        <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>
                           v{rel.version} (Build {rel.buildNumber})
                         </Text>
-                        <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                        <Text style={[styles.muted, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                           {rel.releaseDate ?? ''}
                         </Text>
                         {relNotes.map((g, gi) => (
                           <View key={gi} style={{ gap: 3, marginTop: 4 }}>
                             {g.category && (
-                              <Text style={[styles.noteCategory, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
+                              <Text style={[styles.noteCategory, { color: colors.primary, fontFamily: fontFamily.semibold }]}>
                                 {g.category}
                               </Text>
                             )}
                             {g.items.map((item, ii) => (
                               <View key={ii} style={styles.noteRow}>
                                 <View style={[styles.noteDot, { backgroundColor: colors.primary }]} />
-                                <Text style={[styles.noteText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                                <Text style={[styles.noteText, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>
                                   {item}
                                 </Text>
                               </View>
@@ -1118,8 +1120,8 @@ export default function AppUpdateScreen() {
 function MetaRow({ label, value, colors }: { label: string; value: string; colors: any }) {
   return (
     <View style={styles.metaRow}>
-      <Text style={[styles.metaLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{label}</Text>
-      <Text style={[styles.metaValue, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{value}</Text>
+      <Text style={[styles.metaLabel, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>{label}</Text>
+      <Text style={[styles.metaValue, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>{value}</Text>
     </View>
   );
 }
@@ -1140,25 +1142,25 @@ const styles = StyleSheet.create({
   iconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   bigIcon: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   cardTitle: { fontSize: 15 },
-  muted: { fontSize: 12.5 },
-  lastChecked: { fontSize: 12 },
+  muted: { ...font.caption },
+  lastChecked: { ...font.caption },
   upToDate: { fontSize: 17, textAlign: 'center' },
   primaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 12 },
   primaryBtnText: { color: '#FFF', fontSize: 14.5 },
   secondaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 11, borderRadius: 12, borderWidth: 1 },
   secondaryBtnText: { fontSize: 13.5 },
   typeBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, marginTop: 4 },
-  typeBadgeText: { fontSize: 11 },
+  typeBadgeText: { ...font.badge },
   metaGrid: { gap: 8 },
   metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  metaLabel: { fontSize: 12.5 },
+  metaLabel: { ...font.caption },
   metaValue: { fontSize: 13 },
   notesBox: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
   notesTitle: { fontSize: 14 },
-  noteCategory: { fontSize: 12, marginTop: 4 },
+  noteCategory: { ...font.smallStrong, marginTop: space.xs },
   noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   noteDot: { width: 5, height: 5, borderRadius: 3, marginTop: 6 },
-  noteText: { fontSize: 12.5, flex: 1, lineHeight: 18 },
+  noteText: { ...font.caption, flex: 1 },
   progressTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: 8, borderRadius: 4 },
   progressText: { fontSize: 14 },
@@ -1166,8 +1168,8 @@ const styles = StyleSheet.create({
   smallBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 11, borderRadius: 12, borderWidth: 1 },
   smallBtnText: { fontSize: 13 },
   verifyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  errorText: { fontSize: 12.5, lineHeight: 18 },
-  installHint: { fontSize: 12, lineHeight: 17, textAlign: 'center' },
+  errorText: { ...font.caption },
+  installHint: { ...font.caption, textAlign: 'center' },
   changelogItem: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 2 },
   screenshotRow: { gap: 10, paddingTop: 2 },
   screenshot: { width: 118, height: 210, borderWidth: 1, borderRadius: 12 },

@@ -11,6 +11,8 @@ import { useAuth } from '@/context/AuthContext';
 import { formatCurrency, getTodayStr } from '@/utils/helpers';
 import { buildReportHtml, type ReportData, type StaffMember } from '@/utils/reportHtml';
 import { useColors } from '@/hooks/useColors';
+import { font } from '@/constants/typography';
+import { layout, radius, space } from '@/constants/spacing';
 
 interface ReportType {
   id: string;
@@ -342,13 +344,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  headerTitle: { ...font.title },
   scroll: { padding: 12, paddingBottom: 100 },
   periodCard: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, gap: 10 },
-  periodLabel: { fontSize: 12, fontFamily: 'Inter_600SemiBold', textTransform: 'uppercase', letterSpacing: 0.7 },
+  periodLabel: { ...font.overline },
   periodOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   periodOption: { paddingHorizontal: 11, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
-  periodOptionText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  periodOptionText: { ...font.captionStrong },
 
   gridContainer: {
     flexDirection: 'row',
@@ -372,12 +374,11 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
+    ...font.bodyStrong,
     textAlign: 'center',
   },
   cardStatus: {
-    fontSize: 11,
-    fontFamily: 'Inter_500Medium',
+    ...font.captionStrong,
     marginTop: 4,
   },
 });

@@ -205,6 +205,94 @@ paths:
         "400": { description: Invalid email address }
         "401": { description: Authentication required }
         "403": { description: Super administrator required }
+  /settings/chat-relay:
+    get:
+      operationId: chatRelaySettingsGet
+      tags: [public]
+      security:
+        - bearerAuth: []
+      summary: Read the chat media relay purge policy and the last run summary
+      responses:
+        "200":
+          description: Current relay policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatRelaySettings"
+        "401": { description: Authentication required }
+        "403": { description: Super administrator required }
+    put:
+      operationId: chatRelaySettingsUpdate
+      tags: [public]
+      security:
+        - bearerAuth: []
+      summary: Update the chat media relay purge policy
+      description: >
+        Turning the purge ON is refused (409, code CHAT_RELAY_MIN_BUILD_NOT_MET)
+        until the newest published critical release's build number is at
+        least the build that keeps chat media on the device. Turning it OFF
+        and changing the day values are always allowed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRelaySettingsInput"
+      responses:
+        "200":
+          description: Updated relay policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatRelaySettings"
+        "400": { description: Invalid values }
+        "401": { description: Authentication required }
+        "403": { description: Super administrator required }
+        "409": { description: Minimum supported app build predates on-device media }
+  /settings/chat-relay/run:
+    post:
+      operationId: chatRelayPurgeRun
+      tags: [public]
+      security:
+        - bearerAuth: []
+      summary: Run one bounded relay purge cycle now and report bytes reclaimed
+      responses:
+        "200":
+          description: Run summary and refreshed settings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [result, settings]
+                properties:
+                  result:
+                    $ref: "#/components/schemas/ChatRelayRunSummary"
+                  settings:
+                    $ref: "#/components/schemas/ChatRelaySettings"
+        "401": { description: Authentication required }
+        "403": { description: Super administrator required }
+  /settings/chat-relay/history:
+    get:
+      operationId: chatRelayHistoryGet
+      tags: [public]
+      security:
+        - bearerAuth: []
+      summary: Read the relay purge run history and what the relay still holds
+      description: >
+        Whole-relay purge runs (daily timer and "Run now") recorded over the
+        retention window, newest first and capped, plus a live measurement of
+        the relay objects still available. Room-scoped runs are not recorded.
+        The console derives the trend (bytes reclaimed per day, purged versus
+        expired share, relay size after each run) from this list.
+      responses:
+        "200":
+          description: Run history and current relay footprint
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatRelayHistory"
+        "401": { description: Authentication required }
+        "403": { description: Super administrator required }
   /auth/otp/request:
     post:
       operationId: authOtpRequest
@@ -4169,6 +4257,97 @@ paths:
               schema:
                 $ref: "#/components/schemas/Message"
 
+  # ── Delta sync ───────────────────────────────────────────────────────────────
+  /chat/sync:
+    get:
+      operationId: chatSync
+      tags: [chat]
+      summary: Everything that changed in the caller's inbox since a cursor
+      description: >
+        Returns the changes a device needs to keep a local copy of the caller's
+        chats current: new, edited and tombstoned messages, messages the caller
+        hid for themselves, read-state changes in the caller's rooms, delivery
+        receipts for the caller's own sent messages, the caller's room
+        preference changes and rooms the caller joined. Each list is ordered by
+        its own change time then id; the cursor is opaque and monotonic and
+        keys on Avarpus ids only. Without a cursor the call returns a bounded
+        recent window (applied to every list, rooms included, so bootstrap the
+        room list with GET /chat/rooms) and sets backfillBefore: older history
+        must be loaded per room with GET /chat/rooms/{roomId}/messages?before=.
+        Rows changed within the last few seconds may be returned by more than
+        one consecutive call until they settle; upsert by id. A cursor
+        issued for one roomId filter cannot be reused for another. Calling this
+        endpoint counts as the caller's app syncing (presence / legacy
+        delivered signal), exactly like listing rooms does.
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string }, description: "Opaque cursor from a previous response. Omit for the initial window." }
+        - { name: roomId, in: query, required: false, schema: { type: string }, description: "Restrict the feed to one room the caller is a member of." }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200 }, description: "Maximum items per list (default 100)." }
+      responses:
+        "200":
+          description: Changes since the cursor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSyncResult"
+        "400":
+          description: Invalid cursor, limit, or a cursor issued for a different room filter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "404":
+          description: roomId is not a room the caller is a member of
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  # ── Delivery acknowledgements ────────────────────────────────────────────────
+  /chat/acks:
+    post:
+      operationId: chatAcknowledge
+      tags: [chat]
+      summary: Acknowledge received (delivered), locally saved (stored) or lost-again (lost) messages
+      description: >
+        Batch, idempotent. `delivered` records that this device received the
+        message; `stored` records that the media bytes are saved on device and
+        implies delivered. Only first-seen timestamps are kept, so repeating an
+        ack never moves them. `lost` is the one sanctioned reversal: the device
+        found its saved copy missing or damaged, so the caller's `stored`
+        receipt is cleared again (a later `stored` sets it afresh). It applies
+        only while the server still holds the relay copy — once the media is
+        `purged`/`expired` there is nothing left to protect and the ack is
+        reported under ignored as `relay_gone`. The caller must be a member of
+        every message's room (404 for any message it cannot see, nothing
+        recorded). The caller's own messages and `stored`/`lost` acks for
+        messages without media are reported under ignored rather than rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatAckInput"
+      responses:
+        "200":
+          description: Acknowledgements recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatAckResult"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "404":
+          description: At least one message is not in a room the caller is a member of
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
   # ── Private chat upload URL ──────────────────────────────────────────────────
   /chat/rooms/{roomId}/upload-url:
     post:
@@ -4540,6 +4719,171 @@ components:
           description: >
             Destination inbox for new public request alerts. Null or an empty
             string turns alert emails off.
+    ChatRelayRunSummary:
+      # type: number throughout — type: integer makes Orval emit z.int(), which is Zod 4-only
+      type: object
+      required:
+        - ranAt
+        - skipped
+        - skippedReason
+        - examined
+        - purged
+        - expired
+        - alreadyGone
+        - kept
+        - failed
+        - bytesReclaimed
+        - abortedError
+      properties:
+        ranAt: { type: string, format: date-time }
+        skipped:
+          type: [string, "null"]
+          enum: [disabled, min_build_not_met, null]
+        skippedReason: { type: [string, "null"] }
+        examined: { type: number }
+        purged: { type: number }
+        expired: { type: number }
+        alreadyGone: { type: number }
+        tombstonesPurged:
+          type: number
+          description: Delete-for-everyone tombstones whose relay object was removed; swept on every run regardless of the switch.
+        kept: { type: number }
+        failed: { type: number }
+        bytesReclaimed: { type: number }
+        abortedError: { type: [string, "null"] }
+    ChatRelaySettings:
+      type: object
+      required:
+        - enabled
+        - graceDays
+        - expiryDays
+        - requiredAppBuild
+        - minimumSupportedBuild
+        - canEnable
+        - enableBlockedReason
+        - updatedAt
+        - updatedByName
+        - lastRun
+      properties:
+        enabled: { type: boolean }
+        graceDays: { type: number }
+        expiryDays: { type: number }
+        requiredAppBuild:
+          type: number
+          description: First app build that keeps chat media on the device.
+        minimumSupportedBuild:
+          type: [number, "null"]
+          description: >
+            Build number of the newest published critical release, which the
+            console treats as the minimum supported app build. Null when none.
+        canEnable: { type: boolean }
+        enableBlockedReason: { type: [string, "null"] }
+        updatedAt: { type: [string, "null"], format: date-time }
+        updatedByName: { type: [string, "null"] }
+        lastRun:
+          oneOf:
+            - $ref: "#/components/schemas/ChatRelayRunSummary"
+            - type: "null"
+    ChatRelayHeld:
+      # type: number throughout — type: integer makes Orval emit z.int(), which is Zod 4-only
+      type: object
+      description: Relay objects still available right now.
+      required: [objects, bytes, unknownSizeObjects, pinnedObjects, pinnedBytes]
+      properties:
+        objects: { type: number }
+        bytes:
+          type: number
+          description: Sum of the sizes recorded at attach time; legacy rows without one are not included.
+        unknownSizeObjects:
+          type: number
+          description: Objects whose size was never recorded (their bytes are missing from `bytes`).
+        pinnedObjects:
+          type: number
+          description: Objects kept as evidence under an open abuse report; exempt from every purge rule.
+        pinnedBytes: { type: number }
+    ChatRelayRunRecord:
+      type: object
+      required:
+        - id
+        - ranAt
+        - trigger
+        - skipped
+        - graceDays
+        - expiryDays
+        - examined
+        - purged
+        - expired
+        - alreadyGone
+        - tombstonesPurged
+        - kept
+        - raced
+        - failed
+        - bytesReclaimed
+        - abortedError
+        - heldObjects
+        - heldBytes
+      properties:
+        id: { type: string }
+        ranAt: { type: string, format: date-time }
+        trigger:
+          type: string
+          enum: [scheduled, manual]
+        skipped:
+          type: [string, "null"]
+          enum: [disabled, min_build_not_met, null]
+        graceDays: { type: number }
+        expiryDays: { type: number }
+        examined: { type: number }
+        purged:
+          type: number
+          description: Media removed after every recipient had stored it.
+        expired:
+          type: number
+          description: Media removed at the hard cap although not every recipient had stored it.
+        alreadyGone: { type: number }
+        tombstonesPurged: { type: number }
+        kept: { type: number }
+        raced: { type: number }
+        failed: { type: number }
+        bytesReclaimed: { type: number }
+        abortedError: { type: [string, "null"] }
+        heldObjects:
+          type: [number, "null"]
+          description: Relay objects still available right after this run; null when the measurement failed.
+        heldBytes: { type: [number, "null"] }
+    ChatRelayHistory:
+      type: object
+      required: [windowDays, maxRuns, generatedAt, held, runs]
+      properties:
+        windowDays:
+          type: number
+          description: Runs older than this many days are pruned.
+        maxRuns:
+          type: number
+          description: Hard cap on retained runs (newest kept).
+        generatedAt: { type: string, format: date-time }
+        held:
+          $ref: "#/components/schemas/ChatRelayHeld"
+        runs:
+          type: array
+          description: Newest first.
+          items:
+            $ref: "#/components/schemas/ChatRelayRunRecord"
+    ChatRelaySettingsInput:
+      type: object
+      required: [enabled, graceDays, expiryDays]
+      properties:
+        enabled: { type: boolean }
+        graceDays:
+          type: number
+          minimum: 1
+          maximum: 365
+          description: Days after send before media every recipient stored may be purged.
+        expiryDays:
+          type: number
+          minimum: 1
+          maximum: 3650
+          description: Days after send after which media is purged regardless of receipts.
     ProfileUpdateInput:
       type: object
       properties:
@@ -6287,7 +6631,21 @@ components:
         driveEtag: { type: ["string", "null"] }
         uploadLeaseToken: { type: string }
         encryptionSalt: { type: ["string", "null"] }
-      required: [archiveBase64, accessToken, existingFileId, driveEtag, uploadLeaseToken, encryptionSalt]
+        media:
+          $ref: "#/components/schemas/DriveBackupMediaSummary"
+      required: [archiveBase64, accessToken, existingFileId, driveEtag, uploadLeaseToken, encryptionSalt, media]
+    DriveBackupMediaSummary:
+      type: object
+      description: >
+        What the archive did with attachments. Media is embedded only while
+        its relay copy still exists on the server; attachments that live only
+        on devices are listed in the archive but their bytes are not included.
+      properties:
+        includedCount: { type: number }
+        includedBytes: { type: number }
+        onDeviceOnlyCount: { type: number }
+        skippedVideoCount: { type: number }
+      required: [includedCount, includedBytes, onDeviceOnlyCount, skippedVideoCount]
     DriveBackupCompletionInput:
       type: object
       properties:
@@ -6506,6 +6864,13 @@ components:
         kind: { type: string }
         body: { type: string }
         hasAttachment: { type: boolean }
+        mediaState:
+          type: [string, "null"]
+          enum: [available, pinned, purged, expired, null]
+          description: >
+            Whether the server still holds the attachment. Null for messages
+            without one. `purged`/`expired` mean only device copies remain and
+            the transcript must say the media is no longer available.
         deletedAt: { type: [string, "null"], format: date-time }
         createdAt: { type: string, format: date-time }
         isReportedMessage: { type: boolean }
@@ -6517,6 +6882,7 @@ components:
         - kind
         - body
         - hasAttachment
+        - mediaState
         - deletedAt
         - createdAt
         - isReportedMessage
@@ -6607,7 +6973,166 @@ components:
             Set when the sender deleted the message for everyone. The row is a
             tombstone: body is empty and media is unreachable.
         createdAt: { type: string }
+        updatedAt:
+          type: string
+          description: >
+            Last shared-row change (send, tombstone, edit, media relay state).
+            Delta sync orders messages by this value.
+        mediaState:
+          type: string
+          enum: [available, purged, expired, pinned]
+          description: >
+            Relay state of the server-side media copy. Only present for media
+            kinds. `available` means the media endpoint can still serve it;
+            `purged` and `expired` mean the relay copy is gone (device copies
+            are the only remaining source); `pinned` media is never dropped.
+        delivery:
+          $ref: "#/components/schemas/ChatMessageDelivery"
       required: [id, roomId, shopId, senderId, senderName, kind, body, createdAt]
+    ChatMessageDelivery:
+      type: object
+      description: >
+        Receipt summary for a message sent by the current caller (absent on
+        messages sent by others). Built from per-recipient acknowledgements when
+        any exist; otherwise from the legacy recipient-app-synced signal, which
+        older builds still rely on (source=legacy, never stored).
+      properties:
+        status:
+          type: string
+          enum: [sent, delivered, read]
+        deliveredAt:
+          type: string
+          description: First time any recipient acknowledged receiving the message.
+        storedAt:
+          type: string
+          description: >
+            Set once every recipient has acknowledged saving the media bytes on
+            device — the point after which the server relay copy is no longer
+            needed. Never set for text messages.
+        readAt:
+          type: string
+          description: First time a recipient's read marker covered this message.
+        source:
+          type: string
+          enum: [receipts, legacy]
+      required: [status, source]
+    ChatAckInput:
+      type: object
+      properties:
+        acks:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            type: object
+            properties:
+              messageId: { type: string }
+              state: { type: string, enum: [delivered, stored, lost] }
+            required: [messageId, state]
+      required: [acks]
+    ChatAckResult:
+      type: object
+      properties:
+        acknowledged:
+          type: array
+          description: Message ids whose receipt row now reflects the requested state (including repeats).
+          items: { type: string }
+        ignored:
+          type: array
+          description: Message ids that were valid to see but not acknowledgeable by the caller.
+          items:
+            type: object
+            properties:
+              messageId: { type: string }
+              reason:
+                type: string
+                enum: [own_message, no_media, relay_gone]
+            required: [messageId, reason]
+      required: [acknowledged, ignored]
+    ChatSyncHidden:
+      type: object
+      description: A message the caller hid for themselves ("delete for me").
+      properties:
+        messageId: { type: string }
+        roomId: { type: string }
+        hiddenAt: { type: string }
+      required: [messageId, roomId, hiddenAt]
+    ChatSyncReadState:
+      type: object
+      description: A member's read marker in one of the caller's rooms (including the caller's own, for multi-device).
+      properties:
+        roomId: { type: string }
+        userId: { type: string }
+        lastReadMessageId: { type: ["string", "null"] }
+        lastReadAt: { type: string }
+      required: [roomId, userId, lastReadMessageId, lastReadAt]
+    ChatSyncReceipt:
+      type: object
+      description: A recipient's acknowledgement of a message the caller sent.
+      properties:
+        messageId: { type: string }
+        roomId: { type: string }
+        userId: { type: string }
+        deliveredAt: { type: string }
+        storedAt: { type: ["string", "null"] }
+        updatedAt: { type: string }
+      required: [messageId, roomId, userId, deliveredAt, storedAt, updatedAt]
+    ChatSyncPreference:
+      type: object
+      description: The caller's own inbox state for a room. deletedAt set means the caller deleted the chat from their inbox.
+      properties:
+        roomId: { type: string }
+        isPinned: { type: boolean }
+        isMuted: { type: boolean }
+        isArchived: { type: boolean }
+        deletedAt: { type: ["string", "null"] }
+        updatedAt: { type: string }
+      required: [roomId, isPinned, isMuted, isArchived, deletedAt, updatedAt]
+    ChatSyncResult:
+      type: object
+      properties:
+        messages:
+          type: array
+          description: New, edited and tombstoned messages, ordered by (updatedAt, id). Messages the caller hid are omitted.
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+        hidden:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatSyncHidden"
+        readStates:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatSyncReadState"
+        receipts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatSyncReceipt"
+        preferences:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatSyncPreference"
+        rooms:
+          type: array
+          description: Rooms the caller became a member of since the cursor, in the caller's view.
+          items:
+            $ref: "#/components/schemas/ChatRoom"
+        nextCursor:
+          type: string
+          description: Opaque; pass back as cursor. Monotonic even when nothing changed.
+        hasMore:
+          type: boolean
+          description: True when at least one list was cut at the limit; call again with nextCursor before idling.
+        backfillBefore:
+          type: string
+          description: >
+            Only on the initial call (no cursor). Messages created before this
+            time were not included; load them per room with the messages
+            endpoint's `before` pagination.
+        syncedAt:
+          type: string
+          description: Server time of this response.
+      required: [messages, hidden, readStates, receipts, preferences, rooms, nextCursor, hasMore, syncedAt]
     ChatMessageQuote:
       type: object
       description: >
@@ -6641,9 +7166,13 @@ components:
         (1..600000) are REQUIRED; durationMs must be omitted for non-audio kinds.
         With forwardOf the kind, body, media and duration are copied from the
         source message (media is duplicated into the target room's storage
-        scope); the supplied kind must match the source kind and objectPath /
-        durationMs must be omitted. replyToMessageId must name a visible
-        message in the same room; it cannot be combined with forwardOf.
+        scope); the supplied kind must match the source kind and durationMs
+        must be omitted. When the source's relay copy is gone (mediaState
+        purged/expired) the forwarding device may supply objectPath: a fresh
+        room-scoped upload of its own local copy, verified like a first-hand
+        attachment. Without it such a forward fails with 400
+        CHAT_MEDIA_EXPIRED. replyToMessageId must name a visible message in
+        the same room; it cannot be combined with forwardOf.
       properties:
         kind: { type: string, enum: [text, image, video, file, audio] }
         body: { type: string }

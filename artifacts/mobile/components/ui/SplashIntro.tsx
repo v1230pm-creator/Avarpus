@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   tagline: {
     color: '#FFFFFF',
     opacity: 0.82,
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 2.4,
   },
 });

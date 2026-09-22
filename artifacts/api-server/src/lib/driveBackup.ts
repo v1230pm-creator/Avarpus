@@ -19,7 +19,7 @@ import {
   type DbDriveBackupSettings,
 } from "@workspace/db";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { ObjectStorageService } from "./objectStorage";
+import { ObjectNotFoundError, ObjectStorageService } from "./objectStorage";
 
 export const DRIVE_SCOPES = [
   "openid",
@@ -56,6 +56,14 @@ export type BackupRecoverySummary = {
   messageCount: number;
 };
 
+export type BackupMediaSummary = {
+  includedCount: number;
+  includedBytes: number;
+  /** Attachments whose relay copy is gone; listed in the archive, bytes omitted. */
+  onDeviceOnlyCount: number;
+  skippedVideoCount: number;
+};
+
 export type ClientBackupPreparation = {
   archiveBase64: string;
   accessToken: string;
@@ -63,6 +71,7 @@ export type ClientBackupPreparation = {
   driveEtag: string | null;
   uploadLeaseToken: string;
   encryptionSalt: string | null;
+  media: BackupMediaSummary;
 };
 
 export type ClientRecoveryPreparation = {
@@ -328,7 +337,16 @@ export async function getDriveBackupStatus(userId: string): Promise<BackupStatus
   };
 }
 
-async function buildArchive(userId: string, includeVideos: boolean): Promise<Buffer> {
+type BuiltArchive = { archive: Buffer; media: BackupMediaSummary };
+
+/**
+ * Build the plaintext archive. The server is only a temporary relay for chat
+ * media, so an attachment is embedded only while its relay copy still exists;
+ * otherwise the message is kept with `media: null` and
+ * `mediaAvailability: "on_device_only"` so the archive is honest about what it
+ * holds instead of failing or silently dropping the message.
+ */
+async function buildArchive(userId: string, includeVideos: boolean): Promise<BuiltArchive> {
   const memberships = await db
     .select({
       roomId: chatRoomMembersTable.roomId,
@@ -356,6 +374,7 @@ async function buildArchive(userId: string, includeVideos: boolean): Promise<Buf
             kind: chatMessagesTable.kind,
             body: chatMessagesTable.body,
             objectPath: chatMessagesTable.objectPath,
+            mediaState: chatMessagesTable.mediaState,
             durationMs: chatMessagesTable.durationMs,
             clientRequestId: chatMessagesTable.clientRequestId,
             createdAt: chatMessagesTable.createdAt,
@@ -376,42 +395,67 @@ async function buildArchive(userId: string, includeVideos: boolean): Promise<Buf
   const objectStorage = new ObjectStorageService();
   let embeddedMediaBytes = 0;
   const messagesByRoom = new Map<string, Array<Record<string, unknown>>>();
+  const summary: BackupMediaSummary = {
+    includedCount: 0,
+    includedBytes: 0,
+    onDeviceOnlyCount: 0,
+    skippedVideoCount: messages.length - filteredMessages.length,
+  };
 
   for (const message of filteredMessages) {
+    const { mediaState, ...rest } = message;
     let media: Record<string, unknown> | null = null;
+    let mediaAvailability: "included" | "on_device_only" | null = null;
     if (message.objectPath) {
-      const file = await objectStorage.getObjectEntityFile(message.objectPath);
-      const [metadata] = await file.getMetadata();
-      const declaredSize = Number(metadata.size ?? 0);
-      if (
-        !Number.isFinite(declaredSize) ||
-        declaredSize < 0 ||
-        embeddedMediaBytes + declaredSize > 35 * 1024 * 1024
-      ) {
-        throw new Error("Backup media exceeds the 50 MB safety limit");
+      let file: Awaited<ReturnType<ObjectStorageService["getObjectEntityFile"]>> | null = null;
+      if (mediaState === "available") {
+        try {
+          file = await objectStorage.getObjectEntityFile(message.objectPath);
+        } catch (error) {
+          if (!(error instanceof ObjectNotFoundError)) throw error;
+          file = null;
+        }
       }
-      const [bytes] = await file.download();
-      embeddedMediaBytes += bytes.byteLength;
-      if (embeddedMediaBytes > 35 * 1024 * 1024) {
-        throw new Error("Backup media exceeds the 50 MB safety limit");
+      if (file) {
+        const [metadata] = await file.getMetadata();
+        const declaredSize = Number(metadata.size ?? 0);
+        if (
+          !Number.isFinite(declaredSize) ||
+          declaredSize < 0 ||
+          embeddedMediaBytes + declaredSize > 35 * 1024 * 1024
+        ) {
+          throw new Error("Backup media exceeds the 50 MB safety limit");
+        }
+        const [bytes] = await file.download();
+        embeddedMediaBytes += bytes.byteLength;
+        if (embeddedMediaBytes > 35 * 1024 * 1024) {
+          throw new Error("Backup media exceeds the 50 MB safety limit");
+        }
+        media = {
+          contentType: metadata.contentType ?? "application/octet-stream",
+          sizeBytes: String(bytes.byteLength),
+          encoding: "base64",
+          data: bytes.toString("base64"),
+        };
+        mediaAvailability = "included";
+        summary.includedCount += 1;
+        summary.includedBytes += bytes.byteLength;
+      } else {
+        mediaAvailability = "on_device_only";
+        summary.onDeviceOnlyCount += 1;
       }
-      media = {
-        contentType: metadata.contentType ?? "application/octet-stream",
-        sizeBytes: String(bytes.byteLength),
-        encoding: "base64",
-        data: bytes.toString("base64"),
-      };
     }
     const roomMessages = messagesByRoom.get(message.roomId) ?? [];
-    roomMessages.push({ ...message, media });
+    roomMessages.push({ ...rest, media, mediaAvailability });
     messagesByRoom.set(message.roomId, roomMessages);
   }
 
-  return Buffer.from(
+  const archive = Buffer.from(
     JSON.stringify({
       format: "avarpus-chat-backup",
       version: 1,
       createdAt: new Date().toISOString(),
+      media: summary,
       rooms: memberships.map((room) => ({
         ...room,
         messages: messagesByRoom.get(room.roomId) ?? [],
@@ -419,6 +463,7 @@ async function buildArchive(userId: string, includeVideos: boolean): Promise<Buf
     }),
     "utf8",
   );
+  return { archive, media: summary };
 }
 
 function multipartBody(metadata: object, content: Buffer): { boundary: string; body: Buffer } {
@@ -590,7 +635,7 @@ export async function prepareClientDriveBackup(
       driveEtag = metadata.headers?.get("etag") ?? null;
       if (!driveEtag) throw new Error("BACKUP_DRIVE_VERSION_UNAVAILABLE");
     }
-    const archive = await buildArchive(userId, settings.includeVideos);
+    const { archive, media } = await buildArchive(userId, settings.includeVideos);
     if (archive.byteLength > 50 * 1024 * 1024) {
       throw new Error("Backup is larger than the 50 MB safety limit");
     }
@@ -610,6 +655,7 @@ export async function prepareClientDriveBackup(
       driveEtag,
       uploadLeaseToken,
       encryptionSalt: settings.recoveryPasswordSalt,
+      media,
     };
   });
 }
@@ -800,7 +846,7 @@ async function runDriveBackupUnlocked(
         throw new Error("BACKUP_RECOVERY_PASSWORD_INVALID");
       }
     }
-    let archive = await buildArchive(userId, settings.includeVideos);
+    let { archive } = await buildArchive(userId, settings.includeVideos);
     if (settings.encryptionEnabled) {
       archive = encryptBackupArchive(
         archive,

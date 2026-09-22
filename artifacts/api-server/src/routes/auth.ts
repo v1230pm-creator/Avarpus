@@ -47,9 +47,11 @@ import { ObjectStorageService } from "../lib/objectStorage";
 import {
   claimPendingUpload,
   completePendingUpload,
+  PROFILE_FINAL_OBJECT_RE,
   refreshPendingUploadClaim,
   releasePendingUpload,
 } from "../lib/pendingUploads";
+import { resolveStorageSweepPolicy } from "../lib/storageSweeps";
 import { lockNormalizedMobiles } from "../lib/mobileIdentityLock";
 import {
   AuthMeUpdateBody,
@@ -70,6 +72,35 @@ import {
 const router: IRouter = Router();
 router.param("id", uuidParam);
 const objectStorageService = new ObjectStorageService();
+
+/**
+ * Final profile photos are exempt from every sweep, so the request that
+ * creates or displaces one is the only place that may reclaim it:
+ * - a final copied in this request but never attached (claim expired, row
+ *   update failed) is deleted right away — nothing can reference it yet;
+ * - the photo a successful update displaced is deleted only where this
+ *   database owns the bucket (see storageSweeps.ts): environments share the
+ *   bucket, so a row copied between them could name a photo another
+ *   environment still shows.
+ * Best effort: a failed delete leaves a harmless orphan, never a broken photo.
+ */
+async function deleteFinalProfilePhotoQuietly(
+  objectPath: string,
+  req: Request,
+  why: "unattached" | "displaced",
+): Promise<void> {
+  if (!PROFILE_FINAL_OBJECT_RE.test(objectPath)) return;
+  if (why === "displaced" && !resolveStorageSweepPolicy().enabled) {
+    req.log.info({ objectPath }, "Displaced profile photo retained: storage sweeps disabled in this environment");
+    return;
+  }
+  try {
+    const file = await objectStorageService.getObjectEntityFile(objectPath);
+    await file.delete({ ignoreNotFound: true });
+  } catch (error) {
+    req.log.warn({ err: error, objectPath, why }, "Profile photo object cleanup failed");
+  }
+}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Says what is actually wrong: the SMS provider only delivers to 10-digit
@@ -763,6 +794,7 @@ router.patch("/auth/me", requireAuth, asyncHandler(async (req, res) => {
   }> = {};
   let claimedProfileUploadPath: string | null = null;
   let claimedProfileUploadToken: string | null = null;
+  let createdFinalPhotoPath: string | null = null;
   if (name !== undefined) {
     const validatedName = validateDisplayName(name);
     if ("message" in validatedName) {
@@ -823,6 +855,7 @@ router.patch("/auth/me", requireAuth, asyncHandler(async (req, res) => {
         res.status(400).json({ message: validation.message });
         return;
       }
+      createdFinalPhotoPath = validation.finalPath;
       const renewed = await refreshPendingUploadClaim({
         objectPath: profilePhoto,
         ownerUserId: me.id,
@@ -830,6 +863,7 @@ router.patch("/auth/me", requireAuth, asyncHandler(async (req, res) => {
         token: claimedProfileUploadToken,
       });
       if (!renewed) {
+        await deleteFinalProfilePhotoQuietly(createdFinalPhotoPath, req, "unattached");
         res.status(409).json({
           message: "Profile photo processing expired. Please upload it again.",
           code: "PROFILE_PHOTO_CLAIM_EXPIRED",
@@ -878,11 +912,27 @@ router.patch("/auth/me", requireAuth, asyncHandler(async (req, res) => {
     return;
   }
   try {
-    const [updated] = await db
-      .update(usersTable)
-      .set(set)
-      .where(eq(usersTable.id, me.id))
-      .returning();
+    // The row is locked while it is read and rewritten so the photo reported
+    // as displaced is exactly the one this update replaced — never one a
+    // concurrent request just attached.
+    const { updated, displacedPhoto } = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ profilePhoto: usersTable.profilePhoto })
+        .from(usersTable)
+        .where(eq(usersTable.id, me.id))
+        .for("update");
+      const [row] = await tx
+        .update(usersTable)
+        .set(set)
+        .where(eq(usersTable.id, me.id))
+        .returning();
+      const previous = current?.profilePhoto ?? null;
+      const displaced =
+        set.profilePhoto !== undefined && previous !== null && previous !== set.profilePhoto
+          ? previous
+          : null;
+      return { updated: row, displacedPhoto: displaced };
+    });
     if (claimedProfileUploadPath && claimedProfileUploadToken) {
       await completePendingUpload({
         objectPath: claimedProfileUploadPath,
@@ -893,8 +943,14 @@ router.patch("/auth/me", requireAuth, asyncHandler(async (req, res) => {
         req.log.warn({ err: claimError }, "Attached profile upload claim cleanup failed");
       });
     }
+    if (displacedPhoto) {
+      await deleteFinalProfilePhotoQuietly(displacedPhoto, req, "displaced");
+    }
     res.json({ user: publicUser(updated) });
   } catch (error: unknown) {
+    if (createdFinalPhotoPath) {
+      await deleteFinalProfilePhotoQuietly(createdFinalPhotoPath, req, "unattached");
+    }
     if (claimedProfileUploadPath && claimedProfileUploadToken) {
       await releasePendingUpload({
         objectPath: claimedProfileUploadPath,
