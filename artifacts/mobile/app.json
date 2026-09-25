@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.avarpus.app",
-      "versionCode": 26,
+      "versionCode": 28,
       "icon": "./assets/images/avarpus-icon-legacy.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/avarpus-adaptive-foreground.png",

@@ -18,10 +18,15 @@
  * older apps, so the settings endpoint and the job both refuse until the
  * update console declares a minimum supported build at or above it.
  *
- * Keep this in step with `artifacts/mobile/app.json` when the on-device media
- * store first ships; see replit.md ("Chat media relay").
+ * The number is the Android versionCode EAS assigns (`appVersionSource:
+ * "remote"` with `autoIncrement` in `artifacts/mobile/eas.json`), not the one
+ * written in `app.json`: production installs of app 1.0.8 — the last build
+ * without the on-device store — report versionCode 27, so the first build that
+ * ships the store is 28 or higher. Confirm against the finished APK's
+ * versionCode (`aapt2 dump badging`) when 1.0.9 is built; see replit.md
+ * ("Chat media relay purge").
  */
-export const CHAT_RELAY_MIN_APP_BUILD = 26;
+export const CHAT_RELAY_MIN_APP_BUILD = 28;
 
 export type ChatRelayPolicy = {
   /** Master switch. Off means the job does nothing and reports `disabled`. */
