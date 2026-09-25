@@ -3,8 +3,8 @@
  *
  * A *critical* release forces every installed app up to at least that build,
  * so the highest build ever published as critical is the floor every device
- * has reached. That floor must survive later releases: publishing build 27 as
- * "optional" archives critical build 26, but 26 remains the minimum. It is
+ * has reached. That floor must survive later releases: publishing build N+1 as
+ * "optional" archives critical build N, but N remains the minimum. It is
  * therefore recorded monotonically in `app_settings` at publish time and
  * backfilled from release history for releases published before the key
  * existed.
