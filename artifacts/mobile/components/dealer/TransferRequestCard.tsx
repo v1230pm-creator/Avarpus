@@ -58,7 +58,7 @@ export function TransferRequestCard({
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8} testID={`transfer-request-${request.id}`} accessibilityRole="button">
-      <FlatCard style={{ padding: space.xl, gap: space.sm }}>
+      <FlatCard style={{ paddingVertical: layout.rowPaddingVertical, paddingLeft: layout.listInset, paddingRight: layout.listInsetEnd, gap: space.sm }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: layout.avatarGap }}>
           <View style={[styles.avatar, { backgroundColor: line.color + '1A' }]}>
             <Feather name={request.side === 'sender' ? 'upload' : 'download'} size={size.headerIcon} color={line.color} />

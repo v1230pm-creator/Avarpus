@@ -15,7 +15,7 @@ import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { font } from '@/constants/typography';
-import { layout, radius, size, space } from '@/constants/spacing';
+import { layout, radius, size, space, hitSlop } from '@/constants/spacing';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/ui/DataStates';
 import { FlatCard, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
@@ -67,7 +67,7 @@ export default function ReturnsListScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
 
-      <FadeInView animValue={headerAnims[0]} style={[styles.header, { paddingTop: topPad + space.lg }]}>
+      <FadeInView animValue={headerAnims[0]} style={[styles.header, { paddingTop: topPad }]}>
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
@@ -86,7 +86,7 @@ export default function ReturnsListScreen() {
             value={search}
             onChangeText={setSearch}
             placeholder="Search return cases..."
-            placeholderTextColor={colors.mutedForeground}
+            placeholderTextColor={colors.placeholder}
             style={[styles.searchInput, { color: colors.foreground }]}
           />
           {!!search && (
@@ -101,11 +101,11 @@ export default function ReturnsListScreen() {
           showsHorizontalScrollIndicator={false}
           data={FILTERS}
           keyExtractor={(f) => f}
-          contentContainerStyle={{ gap: space.sm }}
+          contentContainerStyle={{ gap: space.sm, paddingHorizontal: layout.listInset }}
           renderItem={({ item }) => {
             const active = filter === item;
             return (
-              <TouchableOpacity
+              <TouchableOpacity hitSlop={hitSlop.chip}
                 onPress={() => setFilter(item)}
                 activeOpacity={0.8}
                 style={[styles.filterTab, {
@@ -133,7 +133,7 @@ export default function ReturnsListScreen() {
         <FlatList
           data={filtered}
           keyExtractor={(r) => r.id}
-          contentContainerStyle={[styles.list, { paddingBottom: size.tabBar + space.xxl }]}
+          contentContainerStyle={[styles.list, { paddingBottom: space.xxl }]}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
           ListEmptyComponent={
@@ -190,17 +190,17 @@ export default function ReturnsListScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.md },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
+  header: { paddingBottom: layout.searchGap, gap: space.md },
+  headerRow: { flexDirection: 'row', alignItems: 'center', minHeight: layout.headerHeight, paddingHorizontal: layout.listInset, gap: space.xs },
   backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...font.title },
   headerSub: { ...font.captionStrong, marginTop: space.xs },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.lg, height: size.searchField, borderRadius: size.searchRadius },
-  searchInput: { flex: 1, ...font.search },
-  filterTab: { paddingHorizontal: space.lg, paddingVertical: space.sm, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
-  filterText: { ...font.label },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: size.searchGap, paddingLeft: size.searchPadding, paddingRight: space.md, minHeight: size.searchField, borderRadius: size.searchRadius, marginLeft: layout.listInset, marginRight: layout.screenPadding, marginTop: layout.headerGap },
+  searchInput: { flex: 1, ...font.search, paddingVertical: 0 },
+  filterTab: { paddingHorizontal: space.lg, minHeight: size.chip, justifyContent: 'center', borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
+  filterText: { ...font.captionStrong },
   list: { paddingHorizontal: layout.screenPadding, paddingTop: space.md, gap: space.md },
-  card: { padding: space.xl, gap: space.sm, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth },
+  card: { padding: space.lg, gap: space.sm, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },
   returnIdBadge: { paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.sm },
   returnId: { ...font.smallStrong },

@@ -5960,6 +5960,17 @@ components:
             to another shop: the latest transfer request and, once accepted,
             the linked repair's live status at the other shop.
           $ref: "#/components/schemas/RepairTransferSummary"
+        coverPhoto:
+          type: object
+          nullable: true
+          description: >-
+            The one photo a list thumbnail shows: the front shot when there is
+            one, otherwise the earliest upload. Staff views only; null when the
+            repair has no photos.
+          properties:
+            objectPath: { type: string }
+            kind: { type: string }
+          required: [objectPath, kind]
       required: [id, repairId, customerName, mobile, deviceType, brand, model, problem, status, priority, repairCharge, partsCharge, serviceCharge, otherCharge, discount, taxPercent, advance, simPresent, memoryCardPresent, totalAmount, paidAmount, balance, receiveDate, expectedDate, warrantyDays, isSample, createdAt]
     RepairInput:
       type: object

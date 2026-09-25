@@ -115,7 +115,7 @@ export default function SupplierRepairsScreen() {
           value={search}
           onChangeText={setSearch}
           placeholder="Search job no, device, problem..."
-          placeholderTextColor={colors.mutedForeground}
+          placeholderTextColor={colors.placeholder}
           style={[styles.searchInput, { color: colors.foreground }]}
         />
         {!!search && (
@@ -148,7 +148,7 @@ export default function SupplierRepairsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + layout.rowPaddingVertical }]}>
+      <View style={[styles.header, { paddingTop: topPad }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           accessibilityRole="button"
@@ -175,7 +175,7 @@ export default function SupplierRepairsScreen() {
           data={accumulated}
           keyExtractor={(r) => r.id}
           extraData={expandedId}
-          contentContainerStyle={{ paddingHorizontal: layout.screenPadding, paddingBottom: insets.bottom + size.tabBar + space.xxl, gap: space.md }}
+          contentContainerStyle={{ paddingHorizontal: layout.screenPadding, paddingBottom: space.xxl, gap: space.md }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           ListHeaderComponent={header}
@@ -232,7 +232,7 @@ function SupplierRepairCard({ repair, expanded, onPress }: { repair: Repair; exp
       accessibilityLabel={`${repair.repairId}, ${repair.brand} ${repair.model}`}
       testID={`supplier-repair-${repair.id}`}
     >
-      <FlatCard style={{ padding: space.xl, gap: space.sm }}>
+      <FlatCard style={{ padding: space.lg, gap: space.sm }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={[styles.codeBadge, { backgroundColor: colors.primary + '15' }]}>
             <Text style={{ ...font.smallStrong, color: colors.primary }}>{repair.repairId}</Text>
@@ -312,13 +312,13 @@ function BillRow({ label, value, strong, tone }: { label: string; value: string;
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: layout.headerHeight, paddingHorizontal: layout.listInset, gap: space.sm },
   backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...font.title },
   headerSub: { ...font.caption },
   codeBadge: { paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.sm },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, borderRadius: size.searchRadius },
-  searchInput: { flex: 1, height: size.searchField, ...font.search },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: size.searchGap, paddingLeft: size.searchPadding, paddingRight: space.md, minHeight: size.searchField, borderRadius: size.searchRadius },
+  searchInput: { flex: 1, ...font.search, paddingVertical: 0 },
   filterTab: { paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
   details: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 4, gap: 6 },
   bill: { borderRadius: radius.sm, padding: space.md, gap: space.xs, marginTop: space.xs },

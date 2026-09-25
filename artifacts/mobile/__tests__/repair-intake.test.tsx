@@ -14,8 +14,10 @@
  * Pattern follows __tests__/form-sheets.test.tsx.
  */
 import React from 'react';
-import { Alert, Text } from 'react-native';
+import { Text } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { formatDayLabel, formatMonthTitle } from '@/components/ui/CalendarDialog';
+import { getNextWeekStr, getTodayStr } from '@/utils/helpers';
 
 // ── Mocks (network + native boundaries only) ─────────────────────────────
 const mockRepairsCreate = jest.fn();
@@ -122,6 +124,12 @@ jest.mock('@/utils/offlineQueue', () => ({
     flush: jest.fn(async () => ({ success: 0, failed: 0 })),
   },
 }));
+// The form's pop-ups render through the shared dialog (a gradient card); the
+// gradient itself is native, so it becomes a plain View here.
+jest.mock('expo-linear-gradient', () => {
+  const { View } = require('react-native');
+  return { LinearGradient: ({ children, ...rest }: any) => <View {...rest}>{children}</View> };
+});
 jest.mock('react-native-signature-canvas', () => {
   const { View } = require('react-native');
   return (props: object) => <View {...props} />;
@@ -144,6 +152,7 @@ jest.mock('@/utils/storage', () => ({
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/context/AuthContext';
 import { DataProvider, useData } from '@/context/DataContext';
+import { ConfirmDialogProvider } from '@/components/ui/ConfirmDialog';
 import NewRepairScreen from '@/app/(tabs)/repairs/new';
 
 /** Shows the current repairs list so tests can assert records appear. */
@@ -163,8 +172,10 @@ async function renderIntake() {
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <AuthProvider>
         <DataProvider>
-          <RepairsProbe />
-          <NewRepairScreen />
+          <ConfirmDialogProvider>
+            <RepairsProbe />
+            <NewRepairScreen />
+          </ConfirmDialogProvider>
         </DataProvider>
       </AuthProvider>
     </QueryClientProvider>,
@@ -185,6 +196,31 @@ const type = (placeholder: string, value: string) =>
   fireEvent.changeText(screen.getByPlaceholderText(placeholder), value);
 
 const CONFIRM_LABEL = 'I have submitted the device and the above details are correct.';
+
+/** The in-app notice card (never the platform alert) currently showing `title`, or null. */
+const noticeTitled = (title: string) => (screen.queryByTestId('confirm-dialog') ? screen.queryByText(title) : null);
+/** Closes the open notice through its lone OK, the way a user would. */
+const dismissNotice = () => press('OK');
+
+/** YYYY-MM-DD ± n days, on the same UTC calendar the helpers use. */
+const shiftDays = (day: string, n: number) => {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().split('T')[0];
+};
+
+/** Opens the Expected Delivery calendar and pages it to the month that holds `day`. */
+const openCalendarOn = async (day: string) => {
+  await act(async () => { fireEvent.press(screen.getByLabelText(/^Expected delivery date: /)); });
+  expect(screen.getByText('Expected delivery')).toBeTruthy();
+  const target = formatMonthTitle(day);
+  // The grid opens on the month of the current value (a week ahead), so `day` is at most one month away.
+  const direction = day < getNextWeekStr() ? 'Previous month' : 'Next month';
+  for (let i = 0; i < 2 && !screen.queryByText(target); i += 1) {
+    await act(async () => { fireEvent.press(screen.getByLabelText(direction)); });
+  }
+  expect(screen.getByText(target)).toBeTruthy();
+};
 
 afterEach(() => {
   mockAuthUser.role = 'dealer';
@@ -265,33 +301,33 @@ const fillRequiredFields = async () => {
 
 /** Step 1 → review summary → confirm checkbox → submit. */
 const reviewConfirmAndSubmit = async () => {
-  await press('RECEIVE DEVICE');
+  await press('RECEIVE');
   await press(CONFIRM_LABEL);
   await press('Complete Intake');
 };
 
-let alertSpy: jest.SpyInstance;
-
 beforeEach(() => {
   jest.clearAllMocks();
   for (const key of Object.keys(mockLists)) mockLists[key] = [];
-  alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-});
-
-afterEach(() => {
-  alertSpy.mockRestore();
 });
 
 // ── Required-field validation blocks the review step ─────────────────────
 describe('required-field validation blocks submit', () => {
   it('empty review shows field errors and fires no API call', async () => {
     const { unmount } = await renderIntake();
-    await press('RECEIVE DEVICE');
+    await press('RECEIVE');
 
     // brand / model / problem all flag "Required" (name too)
     expect(screen.getAllByText('Required').length).toBeGreaterThanOrEqual(3);
     expect(screen.getByText('10-digit mobile required')).toBeTruthy();
-    expect(alertSpy).toHaveBeenCalledWith('Validation Error', expect.any(String));
+    // The validation pop-up is the app's own dialog card, not Alert.alert.
+    expect(screen.getByTestId('confirm-dialog')).toBeTruthy();
+    expect(screen.getByText('Missing details')).toBeTruthy();
+    expect(screen.getByText('Please complete the fields highlighted in red before continuing.')).toBeTruthy();
+    // Notices carry no CANCEL row; OK closes the card and the form is untouched.
+    expect(screen.queryByTestId('confirm-cancel')).toBeNull();
+    await dismissNotice();
+    expect(screen.queryByTestId('confirm-dialog')).toBeNull();
     // Still on step 1 — the confirm/submit step was never reached.
     expect(screen.queryByText('Complete Intake')).toBeNull();
     expect(mockRepairsCreate).not.toHaveBeenCalled();
@@ -304,7 +340,7 @@ describe('required-field validation blocks submit', () => {
     const { unmount } = await renderIntake();
     await fillRequiredFields();
     type('Number', '98765'); // too short
-    await press('RECEIVE DEVICE');
+    await press('RECEIVE');
 
     expect(screen.getByText('10-digit mobile required')).toBeTruthy();
     expect(screen.queryByText('Complete Intake')).toBeNull();
@@ -312,17 +348,54 @@ describe('required-field validation blocks submit', () => {
     unmount();
   });
 
-  it('rejects an expected date before the receive date without calling the API', async () => {
+  it('does not offer expected-delivery days before the receive date', async () => {
     const { unmount } = await renderIntake();
     await fillRequiredFields();
-    // Expected Delivery is the (only) visible date input unless backdating is on.
-    const dates = screen.getAllByPlaceholderText('YYYY-MM-DD');
-    fireEvent.changeText(dates[dates.length - 1], '2000-01-01');
-    await press('RECEIVE DEVICE');
+    // No typed date field any more: the calendar chip opens a month grid.
+    expect(screen.queryByPlaceholderText('YYYY-MM-DD')).toBeNull();
+    const yesterday = shiftDays(getTodayStr(), -1);
+    await openCalendarOn(yesterday);
 
-    expect(screen.getByText('Cannot be before the receive date')).toBeTruthy();
-    expect(screen.queryByText('Complete Intake')).toBeNull();
-    expect(mockRepairsCreate).not.toHaveBeenCalled();
+    const pastDay = screen.getByLabelText(formatDayLabel(yesterday));
+    expect(pastDay.props.accessibilityState).toMatchObject({ disabled: true });
+    fireEvent.press(pastDay);
+    // Still open (the press was ignored) and the default date is untouched.
+    expect(screen.getByText('Expected delivery')).toBeTruthy();
+    await act(async () => { fireEvent.press(screen.getByLabelText('Close')); });
+    expect(screen.queryByText('Expected delivery')).toBeNull();
+
+    await press('RECEIVE');
+    expect(screen.getByText(getNextWeekStr())).toBeTruthy();
+    unmount();
+  });
+
+  it('picking a day in the calendar closes it and carries the date to the summary', async () => {
+    const { unmount } = await renderIntake();
+    await fillRequiredFields();
+    const tomorrow = shiftDays(getTodayStr(), 1);
+    await openCalendarOn(tomorrow);
+
+    await act(async () => { fireEvent.press(screen.getByLabelText(formatDayLabel(tomorrow))); });
+    expect(screen.queryByText('Expected delivery')).toBeNull();
+    expect(screen.getByLabelText(`Expected delivery date: ${formatDayLabel(tomorrow)}`)).toBeTruthy();
+
+    await press('RECEIVE');
+    expect(screen.getByText(tomorrow)).toBeTruthy();
+    expect(screen.queryByText(getNextWeekStr())).toBeNull();
+    unmount();
+  });
+
+  it('the priority chip opens a chooser that closes on selection', async () => {
+    const { unmount } = await renderIntake();
+    await fillRequiredFields();
+    await act(async () => { fireEvent.press(screen.getByLabelText('Priority: Normal')); });
+    expect(screen.getByText('Priority')).toBeTruthy();
+    await press('Urgent');
+    expect(screen.queryByText('Low')).toBeNull();
+    expect(screen.getByLabelText('Priority: Urgent')).toBeTruthy();
+
+    await press('RECEIVE');
+    expect(screen.getByText('Urgent')).toBeTruthy();
     unmount();
   });
 });
@@ -344,9 +417,9 @@ describe('failed save shows the alert and keeps entered values', () => {
     fireEvent.changeText(screen.getAllByPlaceholderText('0')[0], '2500'); // estimate (advance input also uses placeholder 0)
     await reviewConfirmAndSubmit();
 
-    await waitFor(() =>
-      expect(alertSpy).toHaveBeenCalledWith('Save failed', expect.stringContaining('save the repair')),
-    );
+    await waitFor(() => expect(noticeTitled('Save failed')).toBeTruthy());
+    expect(screen.getByText(/save the repair/)).toBeTruthy();
+    await dismissNotice();
     // The review summary stayed up with everything the user entered.
     expect(screen.getByText('Asha Kumar')).toBeTruthy();
     expect(screen.getByText('9876543210')).toBeTruthy();
@@ -373,13 +446,8 @@ describe('failed save shows the alert and keeps entered values', () => {
     await fillRequiredFields();
     await reviewConfirmAndSubmit();
 
-    await waitFor(() =>
-      expect(alertSpy).toHaveBeenCalledWith(
-        'Saved Offline',
-        expect.stringContaining('saved offline'),
-        expect.anything(),
-      ),
-    );
+    await waitFor(() => expect(noticeTitled('Saved offline')).toBeTruthy());
+    expect(screen.getByText(/saved on this phone/)).toBeTruthy();
     expect(mockOfflineQueueAdd).toHaveBeenCalledWith(
       expect.objectContaining({
         customerName: 'Asha Kumar',
@@ -390,8 +458,8 @@ describe('failed save shows the alert and keeps entered values', () => {
       }),
       expect.any(String),
     );
-    // No plain failure alert and no success screen — the offline path won.
-    expect(alertSpy).not.toHaveBeenCalledWith('Save failed', expect.anything());
+    // No failure notice and no success screen — the offline path won.
+    expect(noticeTitled('Save failed')).toBeNull();
     expect(screen.queryByText('Job Card Created')).toBeNull();
     unmount();
   });
@@ -402,7 +470,8 @@ describe('failed save shows the alert and keeps entered values', () => {
     await fillRequiredFields();
     await reviewConfirmAndSubmit();
 
-    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('Save failed', expect.any(String)));
+    await waitFor(() => expect(noticeTitled('Save failed')).toBeTruthy());
+    await dismissNotice();
     expect(mockRepairsCreate).not.toHaveBeenCalled();
     expect(screen.getByText('Asha Kumar')).toBeTruthy();
     expect(screen.getByText('Screen cracked, no display')).toBeTruthy();
@@ -418,7 +487,8 @@ describe('failed save shows the alert and keeps entered values', () => {
     const { unmount } = await renderIntake();
     await fillRequiredFields();
     await reviewConfirmAndSubmit();
-    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('Save failed', expect.any(String)));
+    await waitFor(() => expect(noticeTitled('Save failed')).toBeTruthy());
+    await dismissNotice();
 
     mockRepairsCreate.mockResolvedValueOnce({
       repair: {
@@ -475,9 +545,8 @@ describe('successful save adds the repair to the list', () => {
       }),
     );
     expect(mockApprovalsCreate).not.toHaveBeenCalled(); // dealer saves directly
-    // Only the validation-free happy path — no error alerts fired.
-    expect(alertSpy).not.toHaveBeenCalledWith('Save failed', expect.anything());
-    expect(alertSpy).not.toHaveBeenCalledWith('Validation Error', expect.anything());
+    // Only the validation-free happy path — no notice card was shown.
+    expect(screen.queryByTestId('confirm-dialog')).toBeNull();
     unmount();
   });
 });

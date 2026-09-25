@@ -12,7 +12,7 @@ import { formatCurrency, getTodayStr } from '@/utils/helpers';
 import { buildReportHtml, type ReportData, type StaffMember } from '@/utils/reportHtml';
 import { useColors } from '@/hooks/useColors';
 import { font } from '@/constants/typography';
-import { layout, radius, space } from '@/constants/spacing';
+import { layout, radius, size, space, hitSlop } from '@/constants/spacing';
 
 interface ReportType {
   id: string;
@@ -263,7 +263,7 @@ export default function ReportsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 16, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1, paddingHorizontal: 12 }}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Business Reports</Text>
@@ -288,7 +288,7 @@ export default function ReportsScreen() {
               ] as [string, number | null][]).map(([label, days]) => {
                 const active = collectionDays === days;
                 return (
-                  <TouchableOpacity
+                  <TouchableOpacity hitSlop={hitSlop.chip}
                     key={label}
                     onPress={() => setCollectionDays(days)}
                     style={[
@@ -339,17 +339,18 @@ const styles = StyleSheet.create({
   header: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    paddingHorizontal: 12, 
-    paddingBottom: 16,
+    minHeight: layout.headerHeight,
+    paddingHorizontal: layout.screenPadding,
+    paddingBottom: space.lg,
     borderBottomWidth: 1,
   },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...font.title },
-  scroll: { padding: 12, paddingBottom: 100 },
-  periodCard: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, gap: 10 },
+  scroll: { padding: layout.screenPadding, paddingBottom: size.fab + space.xxxl },
+  periodCard: { borderWidth: 1, borderRadius: radius.sm, padding: space.lg, marginBottom: space.md, gap: space.sm },
   periodLabel: { ...font.overline },
   periodOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  periodOption: { paddingHorizontal: 11, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
+  periodOption: { minHeight: size.chip, paddingHorizontal: space.md, borderRadius: size.chip / 2, borderWidth: 1, justifyContent: 'center' },
   periodOptionText: { ...font.captionStrong },
 
   gridContainer: {
@@ -373,7 +374,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardTitle: {
-    fontSize: 13,
     ...font.bodyStrong,
     textAlign: 'center',
   },

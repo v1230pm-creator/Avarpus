@@ -8,7 +8,7 @@
 import React from 'react';
 import { Modal, Text, TouchableOpacity } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { ConfirmDialogHost, ConfirmDialogProvider, useConfirmDialog, type ConfirmOptions } from '@/components/ui/ConfirmDialog';
+import { ConfirmDialogHost, ConfirmDialogProvider, useConfirmDialog, type ConfirmOptions, type NoticeOptions } from '@/components/ui/ConfirmDialog';
 
 jest.mock('expo-linear-gradient', () => {
   const { View } = require('react-native');
@@ -23,6 +23,15 @@ function Trigger({ options, label = 'open' }: { options: ConfirmOptions; label?:
   const { confirm } = useConfirmDialog();
   return (
     <TouchableOpacity onPress={() => confirm(options)}>
+      <Text>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function NoticeTrigger({ options, label = 'notify' }: { options: NoticeOptions; label?: string }) {
+  const { notice } = useConfirmDialog();
+  return (
+    <TouchableOpacity onPress={() => notice(options)}>
       <Text>{label}</Text>
     </TouchableOpacity>
   );
@@ -184,6 +193,59 @@ describe('ConfirmDialog', () => {
     fireEvent.press(screen.getByText('toggle'));
     expect(screen.queryByTestId('confirm-dialog')).toBeNull();
     expect(onPress).not.toHaveBeenCalled();
+  });
+
+  it('a notice is the same card with a lone OK: no caption, no CANCEL row, tap or backdrop closes it', () => {
+    render(
+      <ConfirmDialogProvider>
+        <NoticeTrigger options={{ tone: 'warning', title: 'Missing details', message: 'Complete the fields in red.' }} />
+      </ConfirmDialogProvider>,
+    );
+    fireEvent.press(screen.getByText('notify'));
+    expect(screen.getByTestId('confirm-dialog')).toBeTruthy();
+    expect(screen.getByText('Missing details')).toBeTruthy();
+    expect(screen.getByText('Complete the fields in red.')).toBeTruthy();
+    expect(screen.queryByText('This action cannot be undone.')).toBeNull();
+    expect(screen.queryByTestId('confirm-cancel')).toBeNull();
+    expect(screen.getByText('OK')).toBeTruthy();
+
+    fireEvent.press(screen.getByText('OK'));
+    expect(screen.queryByTestId('confirm-dialog')).toBeNull();
+
+    fireEvent.press(screen.getByText('notify'));
+    fireEvent.press(screen.getByTestId('confirm-dialog-backdrop'));
+    expect(screen.queryByTestId('confirm-dialog')).toBeNull();
+  });
+
+  it('a notice whose lone OK navigates runs that action on backdrop dismiss too, but not with several actions', () => {
+    const go = jest.fn();
+    const first = jest.fn();
+    const second = jest.fn();
+    render(
+      <ConfirmDialogProvider>
+        <NoticeTrigger label="lone" options={{ tone: 'success', title: 'Request sent', actions: [{ label: 'OK', onPress: go }] }} />
+        <NoticeTrigger
+          label="many"
+          options={{ title: 'Saved', actions: [{ label: 'View repair', onPress: first }, { label: 'Add another', onPress: second }] }}
+        />
+      </ConfirmDialogProvider>,
+    );
+    fireEvent.press(screen.getByText('lone'));
+    fireEvent.press(screen.getByTestId('confirm-dialog-backdrop'));
+    expect(go).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('confirm-dialog')).toBeNull();
+
+    fireEvent.press(screen.getByText('many'));
+    expect(screen.getByText('VIEW REPAIR')).toBeTruthy();
+    expect(screen.getByText('ADD ANOTHER')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('confirm-dialog-backdrop'));
+    expect(first).not.toHaveBeenCalled();
+    expect(second).not.toHaveBeenCalled();
+
+    fireEvent.press(screen.getByText('many'));
+    fireEvent.press(screen.getByText('ADD ANOTHER'));
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).not.toHaveBeenCalled();
   });
 
   it('renders inside a mounted host instead of the root Modal', () => {

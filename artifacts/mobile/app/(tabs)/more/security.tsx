@@ -109,12 +109,12 @@ export default function SecurityScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 14 }]}>
+      <View style={[styles.header, { paddingTop: topPad }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}
         >
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>
           Security
@@ -204,15 +204,15 @@ export default function SecurityScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 12 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20 },
-  scroll: { paddingHorizontal: 12, paddingTop: 16, paddingBottom: 100, gap: 8 },
+  header: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.listInset },
+  backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: size.iconButton / 2, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  scroll: { paddingHorizontal: layout.screenPadding, paddingTop: space.lg, paddingBottom: 100, gap: space.sm },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
-  bannerText: { fontSize: 13, flex: 1 },
+  bannerText: { ...font.captionStrong, flex: 1 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  rowLabel: { fontSize: 15 },
+  rowLabel: { ...font.bodyStrong },
   rowSub: { ...font.caption, marginTop: space.xs },
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  infoIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  infoIcon: { width: size.avatarSm, height: size.avatarSm, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
 });

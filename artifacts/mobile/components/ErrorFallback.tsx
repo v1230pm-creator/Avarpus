@@ -10,8 +10,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
+import { useReachHoldOff } from '@/components/ui/ReachDown';
 import { Feather } from '@expo/vector-icons';
 import { reloadAppAsync } from 'expo';
+import { font } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 export type ErrorFallbackProps = {
   error: Error;
@@ -20,6 +23,8 @@ export type ErrorFallbackProps = {
 
 export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
   const colors = useColors();
+  // Selectable text keeps its own hold (copy handles); it never takes the page.
+  const holdOff = useReachHoldOff();
   const insets = useSafeAreaInsets();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -154,6 +159,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
                       },
                     ]}
                     selectable
+                    onPressIn={holdOff}
                   >
                     {formatErrorDetails()}
                   </Text>
@@ -174,41 +180,39 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: space.xxl,
   },
   content: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
+    gap: space.lg,
     width: '100%',
     maxWidth: 600,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
+    ...font.title,
     textAlign: 'center',
-    lineHeight: 40,
   },
   message: {
-    fontSize: 16,
+    ...font.body,
     textAlign: 'center',
-    lineHeight: 24,
   },
   topButton: {
     position: 'absolute',
     right: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 8,
+    width: size.iconButton,
+    height: size.iconButton,
+    borderRadius: radius.sm,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
   },
   button: {
-    paddingVertical: 16,
-    borderRadius: 8,
-    paddingHorizontal: 24,
+    minHeight: size.button,
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    paddingHorizontal: space.xxl,
     minWidth: 200,
     shadowColor: '#000',
     shadowOffset: {
@@ -220,9 +224,8 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   buttonText: {
-    fontWeight: '600',
+    ...font.button,
     textAlign: 'center',
-    fontSize: 16,
   },
   modalOverlay: {
     flex: 1,
@@ -239,18 +242,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingHorizontal: layout.screenPadding,
+    paddingTop: space.lg,
+    paddingBottom: space.md,
     borderBottomWidth: 1,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    ...font.heading,
   },
   closeButton: {
-    width: 44,
-    height: 44,
+    width: size.iconButton,
+    height: size.iconButton,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -258,17 +260,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalScrollContent: {
-    padding: 16,
+    padding: space.lg,
   },
   errorContainer: {
     width: '100%',
     borderRadius: 8,
     overflow: 'hidden',
-    padding: 16,
+    padding: space.lg,
   },
   errorText: {
-    fontSize: 13,
-    lineHeight: 18,
+    ...font.caption,
     width: '100%',
   },
 });

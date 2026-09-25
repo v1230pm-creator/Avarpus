@@ -4,8 +4,8 @@ import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
-import { font, fontFamily } from '@/constants/typography';
-import { layout, radius, size, space } from '@/constants/spacing';
+import { font } from '@/constants/typography';
+import { layout, radius, size, space, hitSlop } from '@/constants/spacing';
 import { useChatStore } from '@/context/ChatStoreContext';
 import { useLocalRooms } from '@/hooks/useLocalChat';
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -112,14 +112,14 @@ export default function ChatStorageScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { paddingTop: topPad, borderBottomColor: colors.border }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Feather name="arrow-left" size={24} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Storage and data</Text>
       </View>
@@ -140,7 +140,7 @@ export default function ChatStorageScreen() {
               {AUTO_DOWNLOAD_RULES.map((rule) => {
                 const active = autoDownload[kind.key] === rule.value;
                 return (
-                  <TouchableOpacity
+                  <TouchableOpacity hitSlop={hitSlop.chip}
                     key={rule.value}
                     onPress={() => setRule(kind.key, rule.value)}
                     style={[styles.segmentItem, active && { backgroundColor: colors.primary }]}
@@ -219,40 +219,37 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingBottom: 12,
+    minHeight: layout.headerHeight,
+    paddingHorizontal: space.sm,
     borderBottomWidth: 1,
   },
-  backButton: { padding: 10 },
+  backButton: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...font.title, marginLeft: space.sm },
   sectionLabel: {
-    fontSize: 14,
-    marginTop: 24,
+    marginTop: space.xxl,
     marginBottom: 4,
-    paddingHorizontal: 25,
+    paddingHorizontal: layout.screenPadding,
     ...font.overline,
   },
   sectionHint: {
-    fontSize: 13,
-    lineHeight: 18,
-    paddingHorizontal: 25,
+    paddingHorizontal: layout.screenPadding,
     marginBottom: 8,
     ...font.body,
   },
-  ruleRow: { paddingVertical: 12, paddingHorizontal: 25, gap: 10 },
+  ruleRow: { paddingVertical: space.md, paddingHorizontal: layout.screenPadding, gap: space.sm },
   ruleCopy: { flex: 1, paddingRight: 14 },
   settingTitle: { ...font.bodyStrong },
   settingSubtitle: { ...font.caption },
   segment: { flexDirection: 'row', borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
-  segmentItem: { flex: 1, paddingVertical: 8, alignItems: 'center' },
+  segmentItem: { flex: 1, minHeight: size.chip, justifyContent: 'center', alignItems: 'center' },
   segmentText: { ...font.smallStrong },
   sectionDivider: { marginTop: 10, borderTopWidth: 1 },
-  totalRow: { paddingHorizontal: 25, paddingVertical: 8, gap: 2 },
+  totalRow: { paddingHorizontal: layout.screenPadding, paddingVertical: space.sm, gap: 2 },
   totalValue: { ...font.title },
   roomRow: {
-    minHeight: 64,
-    paddingVertical: 10,
-    paddingHorizontal: 25,
+    minHeight: layout.headerHeight,
+    paddingVertical: space.sm,
+    paddingHorizontal: layout.screenPadding,
     flexDirection: 'row',
     alignItems: 'center',
   },

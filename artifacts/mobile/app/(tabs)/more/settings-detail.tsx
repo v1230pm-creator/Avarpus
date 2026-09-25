@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
-import { font, fontFamily } from '@/constants/typography';
+import { font } from '@/constants/typography';
 import { layout, radius, size, space } from '@/constants/spacing';
 
 export default function SettingsDetailScreen() {
@@ -19,7 +19,7 @@ export default function SettingsDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 12 }]}>
+      <View style={[styles.header, { paddingTop: topPad }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={24} color={colors.foreground} />
         </TouchableOpacity>
@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center', 
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: space.md,
+    minHeight: layout.headerHeight,
   },
   backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center', marginRight: space.sm },
   headerTitle: { ...font.title },
@@ -52,13 +52,13 @@ const styles = StyleSheet.create({
     flexGrow: 1, 
     alignItems: 'center', 
     justifyContent: 'center',
-    padding: space.xxl,
+    padding: layout.screenPadding,
     paddingBottom: 120,
   },
   iconWrap: { 
-    width: 80, 
-    height: 80, 
-    borderRadius: 40, 
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: 'center', 
     justifyContent: 'center',
     marginBottom: space.xxl,

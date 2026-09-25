@@ -9,7 +9,7 @@ import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { useNotificationsList, notificationsMarkRead, getNotificationsListQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getNotificationRoute } from '@/utils/notificationNavigation';
-import { font, fontFamily } from '@/constants/typography';
+import { font } from '@/constants/typography';
 import { layout, radius, size, space } from '@/constants/spacing';
 
 // ── Notifications ───────────────────────────────────────────────────────────
@@ -71,8 +71,8 @@ export default function NotificationsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
-      <View style={[styles.header, { paddingTop: topPad + 16 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }} activeOpacity={0.7}>
+      <View style={[styles.header, { paddingTop: topPad }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.7}>
           <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Notifications</Text>
@@ -85,20 +85,20 @@ export default function NotificationsScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: layout.screenPadding, paddingTop: space.md, paddingBottom: 120 }}
+        contentContainerStyle={{ paddingTop: space.md, paddingBottom: 120 }}
         refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={() => refetch()} tintColor={colors.primary} />}
       >
         {isLoading ? (
           <AvarpusSpinner size={20} style={{ marginTop: 40 }} />
         ) : notifications.length === 0 ? (
           <View style={{ alignItems: 'center', marginTop: 60 }}>
-            <Feather name="bell-off" size={32} color={colors.mutedForeground} />
+            <Feather name="bell-off" size={size.headerIcon} color={colors.mutedForeground} />
             <Text style={{ color: colors.mutedForeground, marginTop: space.md, ...font.captionStrong }}>
               No notifications yet
             </Text>
           </View>
         ) : (
-          <FlatCard style={{ paddingVertical: 4 }}>
+          <FlatCard style={{ paddingVertical: space.xs, marginHorizontal: layout.screenPadding }}>
             {notifications.map((n, idx) => {
               const meta = TYPE_ICON[n.type] ?? { icon: 'bell', tone: 'primary' as const };
               const iconColor = colors[meta.tone];
@@ -138,9 +138,10 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
+  header: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: layout.listInset },
+  backButton: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...font.title },
-  row: { minHeight: 64, flexDirection: 'row', gap: space.md, paddingHorizontal: space.lg, paddingVertical: layout.rowPaddingVertical, alignItems: 'flex-start' },
+  row: { flexDirection: 'row', gap: layout.avatarGap, paddingLeft: layout.listInset, paddingRight: layout.listInsetEnd, paddingVertical: layout.rowPaddingVertical, alignItems: 'center' },
   iconWrap: { width: size.avatarSm, height: size.avatarSm, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
   unreadDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
 });

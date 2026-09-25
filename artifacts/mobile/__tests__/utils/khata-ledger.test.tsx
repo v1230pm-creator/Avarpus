@@ -1,4 +1,9 @@
-import { buildKhataLedger, computeLedgerTotals, groupLedgerByParty } from '../../utils/khata-ledger';
+import {
+  buildKhataLedger,
+  computeLedgerTotals,
+  foldDealerEntriesIntoCustomers,
+  groupLedgerByParty,
+} from '../../utils/khata-ledger';
 import type { Repair } from '../../types';
 import type { PaymentsList200PaymentsItem } from '@workspace/api-client-react';
 
@@ -222,5 +227,46 @@ describe('khata-ledger', () => {
     ];
 
     expect(groupLedgerByParty(buildKhataLedger(repairs, []))).toHaveLength(2);
+  });
+
+  it('sums party balances from the entries it is given, so a subset of a ledger groups correctly', () => {
+    const repairs = [
+      mockRepair({ id: 'r1', dealerId: 'dealer-1', dealerName: 'Ritesh', totalAmount: 1000, createdAt: '2026-09-19T10:00:00.000Z' }),
+      mockRepair({ id: 'r2', repairId: 'TKT-2', dealerId: 'dealer-1', dealerName: 'Ritesh', totalAmount: 350, createdAt: '2026-09-21T10:00:00.000Z' }),
+    ];
+    const payments = [mockPayment({ id: 'p1', repairId: 'r1', amount: 400, createdAt: '2026-09-19T11:00:00.000Z' })];
+    const ledger = buildKhataLedger(repairs, payments);
+
+    expect(groupLedgerByParty(ledger)[0].balance).toBe(950);
+    // Only r1's entries: the running balance on the newest of them includes r2, the sum must not.
+    const onlyFirstRepair = ledger.filter((entry) => entry.repairDbId === 'r1');
+    expect(groupLedgerByParty(onlyFirstRepair)[0]).toMatchObject({ balance: 600, lastActivity: '2026-09-19T11:00:00.000Z' });
+  });
+
+  it('folds dealer entries linked to a known customer into that customer and keeps the rest', () => {
+    const repairs = [
+      // Ritesh is both a customer record and a dealer record; his repairs carry both links.
+      mockRepair({ id: 'r1', customerId: 'cust-ritesh', customerName: 'Ritesh patel', dealerId: 'dealer-ritesh', dealerName: 'Ritesh patel', totalAmount: 1350, createdAt: '2026-09-19T10:00:00.000Z' }),
+      mockRepair({ id: 'r2', repairId: 'TKT-2', customerId: 'cust-ritesh', customerName: 'Ritesh patel', dealerId: 'dealer-ritesh', dealerName: 'Ritesh patel', totalAmount: 200, createdAt: '2026-09-21T10:00:00.000Z' }),
+      // A legacy dealer repair with no customer link stays a dealer-only entry.
+      mockRepair({ id: 'r3', repairId: 'TKT-3', customerId: undefined, dealerId: 'dealer-ritesh', dealerName: 'Ritesh patel', totalAmount: 500, createdAt: '2026-09-01T10:00:00.000Z' }),
+      // A dealer repair linked to a customer this device does not know stays separate too.
+      mockRepair({ id: 'r4', repairId: 'TKT-4', customerId: 'cust-unknown', dealerId: 'dealer-other', dealerName: 'Other Dealer', totalAmount: 100, createdAt: '2026-09-02T10:00:00.000Z' }),
+      // Plain customer entries are never touched.
+      mockRepair({ id: 'r5', repairId: 'TKT-5', customerId: 'cust-mukesh', customerName: 'Mukesh', totalAmount: 1200, createdAt: '2026-09-12T10:00:00.000Z' }),
+    ];
+    const payments = [mockPayment({ id: 'p1', repairId: 'r2', amount: 200, createdAt: '2026-09-21T12:00:00.000Z' })];
+    const ledger = buildKhataLedger(repairs, payments);
+
+    const { folded, unlinked } = foldDealerEntriesIntoCustomers(ledger, new Set(['cust-ritesh', 'cust-mukesh']));
+
+    expect([...folded.entries()]).toEqual([
+      ['cust-ritesh', { lastActivity: '2026-09-21T12:00:00.000Z', dealerIds: ['dealer-ritesh'] }],
+    ]);
+    expect(unlinked.map((entry) => entry.repairDbId).sort()).toEqual(['r3', 'r4']);
+    expect(groupLedgerByParty(unlinked)).toEqual([
+      expect.objectContaining({ partyType: 'dealer', partyName: 'Other Dealer', balance: 100 }),
+      expect.objectContaining({ partyType: 'dealer', partyName: 'Ritesh patel', balance: 500 }),
+    ]);
   });
 });

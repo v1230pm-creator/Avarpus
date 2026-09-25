@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: layout.screenPadding, paddingTop: space.xl, paddingBottom: space.lg, borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  sheetTitle: font.heading,
+  sheetTitle: font.title,
   closeBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center', marginRight: -space.sm },
   body: { padding: layout.screenPadding, gap: space.lg },
   footer: { paddingHorizontal: layout.screenPadding, paddingTop: space.sm },

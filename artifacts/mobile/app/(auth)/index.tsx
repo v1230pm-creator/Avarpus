@@ -18,6 +18,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { onBlue } from '@/constants/brand';
 import { font, fontFamily } from '@/constants/typography';
+import { layout, size, space } from '@/constants/spacing';
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -142,7 +143,7 @@ export default function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: 'hidden' },
-  content: { flex: 1, paddingHorizontal: 24, justifyContent: 'space-between' },
+  content: { flex: 1, paddingHorizontal: layout.screenPadding, justifyContent: 'space-between' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   logoContainer: {
     width: 150,
@@ -161,8 +162,8 @@ const styles = StyleSheet.create({
   taglineLine: { width: 28, height: 1 },
   tagline: { ...font.smallStrong, letterSpacing: 0.8 },
   bottomBlock: { width: '100%', alignItems: 'center' },
-  buttonArea: { width: '100%', height: 64, paddingHorizontal: 5, paddingBottom: 10 },
-  primaryButton: { borderRadius: 28, minHeight: 54, maxHeight: 54 },
+  buttonArea: { width: '100%', minHeight: size.buttonLg, paddingHorizontal: space.xs, paddingBottom: space.sm },
+  primaryButton: { borderRadius: 28, minHeight: size.buttonLg },
   termsWrapper: { marginTop: 24, alignItems: 'center' },
   termsText: { ...font.smallStrong, textAlign: 'center' },
   termsLink: { color: '#FFFFFF', fontFamily: fontFamily.semibold, textDecorationLine: 'underline' },

@@ -114,7 +114,7 @@ export default function SendToDealerScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + layout.rowPaddingVertical }]}>
+      <View style={[styles.header, { paddingTop: topPad }]}>
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}>
           <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
@@ -139,7 +139,7 @@ export default function SendToDealerScreen() {
           contentContainerStyle={{ paddingHorizontal: layout.screenPadding, paddingBottom: insets.bottom + space.xxxl, gap: space.md }}
           ListHeaderComponent={
             <View style={{ gap: 12 }}>
-              <FlatCard style={{ padding: space.xl, gap: space.xs }} testID="send-repair-summary">
+              <FlatCard style={{ padding: space.lg, gap: space.xs }} testID="send-repair-summary">
                 <Text style={{ ...font.overline, color: colors.mutedForeground }}>DEVICE BEING SENT</Text>
                 <Text style={{ ...font.itemTitle, color: colors.foreground }}>{repair.repairId} · {repair.brand} {repair.model}</Text>
                 <Text style={{ ...font.body, color: colors.mutedForeground }} numberOfLines={2}>{repair.problem}</Text>
@@ -229,7 +229,7 @@ export default function SendToDealerScreen() {
           }
           renderItem={({ item }) => (
             <TouchableOpacity onPress={() => setSelected(item)} activeOpacity={0.8} testID={`dealer-result-${item.shopId}`} accessibilityRole="button">
-              <FlatCard style={{ padding: space.xl, flexDirection: 'row', alignItems: 'center', gap: layout.avatarGap }}>
+              <FlatCard style={{ paddingVertical: layout.rowPaddingVertical, paddingLeft: layout.listInset, paddingRight: layout.listInsetEnd, flexDirection: 'row', alignItems: 'center', gap: layout.avatarGap }}>
                 <View style={[styles.avatar, { backgroundColor: colors.primary + '1A' }]}>
                   <Feather name="briefcase" size={16} color={colors.primary} />
                 </View>
@@ -251,13 +251,13 @@ export default function SendToDealerScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: layout.headerHeight, paddingHorizontal: layout.listInset, gap: space.sm },
   backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...font.title },
   headerSub: { ...font.caption },
   sectionLabel: { ...font.overline, marginTop: space.xs },
   infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm, borderWidth: StyleSheet.hairlineWidth, padding: space.md, borderRadius: radius.md },
   infoText: { ...font.captionStrong, flex: 1 },
-  matchCard: { flexDirection: 'row', alignItems: 'center', gap: space.md, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.lg, padding: space.xl },
+  matchCard: { flexDirection: 'row', alignItems: 'center', gap: space.md, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.lg, padding: space.lg },
   avatar: { width: size.avatar, height: size.avatar, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
 });

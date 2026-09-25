@@ -166,6 +166,11 @@ export interface Repair {
   sourceReceiveDate?: string;
   /** Sending side: the latest "Send to Dealer" request made from this row. */
   transfer?: RepairTransferSummary;
+  /**
+   * The one photo a list thumbnail shows (front shot, else the earliest
+   * upload); staff views only, null when the repair has no photos.
+   */
+  coverPhoto?: { objectPath: string; kind: string } | null;
   createdById?: string;
   createdByName?: string;
   updatedById?: string;

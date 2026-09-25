@@ -766,7 +766,7 @@ describe('Inbox — no fake data', () => {
 
     expect(screen.getByTestId('room-item-r-archived-a')).toBeTruthy();
     expect(screen.getByTestId('room-item-r-archived-b')).toBeTruthy();
-    fireEvent(screen.getByTestId('room-item-r-archived-a'), 'longPress');
+    fireEvent(screen.getByTestId('room-avatar-r-archived-a'), 'longPress');
     fireEvent.press(screen.getByTestId('room-item-r-archived-b'));
     fireEvent.press(screen.getByLabelText('Restore selected chats'));
 
@@ -844,7 +844,7 @@ describe('Inbox — no fake data', () => {
     );
   });
 
-  it('supports long-press one-or-many chat selection with a selected count', () => {
+  it('supports one-or-many chat selection (long press on the photo) with a selected count', () => {
     const push = jest.fn();
     (useRouter as jest.Mock).mockReturnValue({ push, back: jest.fn(), replace: jest.fn() });
     mockUseChatCapabilities.mockReturnValue({
@@ -865,7 +865,7 @@ describe('Inbox — no fake data', () => {
     });
 
     render(<HomeScreen />);
-    fireEvent(screen.getByTestId('room-item-r-alice'), 'longPress');
+    fireEvent(screen.getByTestId('room-avatar-r-alice'), 'longPress');
     expect(screen.getByTestId('selected-room-count').props.children).toBe(1);
     expect(screen.getByLabelText('Pin selected chats')).toBeTruthy();
     expect(screen.getByLabelText('Delete selected chats')).toBeTruthy();
@@ -904,7 +904,7 @@ describe('Inbox — no fake data', () => {
     });
 
     render(<HomeScreen />);
-    fireEvent(screen.getByTestId('room-item-r-alice'), 'longPress');
+    fireEvent(screen.getByTestId('room-avatar-r-alice'), 'longPress');
     fireEvent.press(screen.getByTestId('room-item-r-carol'));
     fireEvent.press(screen.getByLabelText(label));
 
@@ -937,7 +937,7 @@ describe('Inbox — no fake data', () => {
     mockConfirm.mockClear();
 
     render(<HomeScreen />);
-    fireEvent(screen.getByTestId('room-item-r-alice'), 'longPress');
+    fireEvent(screen.getByTestId('room-avatar-r-alice'), 'longPress');
     fireEvent.press(screen.getByTestId('room-item-r-carol'));
     fireEvent.press(screen.getByLabelText('Delete selected chats'));
 
@@ -3402,11 +3402,11 @@ describe('Chat screen — message actions', () => {
     });
   });
 
-  it('long-press enters selection mode with a brand-blue overlay and count; tap toggles more rows', () => {
+  it('long-press on a bubble enters selection mode with a brand-blue overlay and count; tap toggles more rows', () => {
     render(<ChatRoomScreen />);
     expect(screen.queryByTestId('message-selection-header')).toBeNull();
 
-    fireEvent(screen.getByTestId('message-row-msg-photo-theirs'), 'longPress');
+    fireEvent(screen.getByTestId('message-bubble-msg-photo-theirs'), 'longPress');
     expect(screen.getByTestId('message-selection-header')).toBeTruthy();
     expect(screen.getByTestId('message-selection-count').props.children).toBe(1);
     expect(screen.getByTestId('message-selected-msg-photo-theirs').props.style).toEqual(
@@ -3435,7 +3435,7 @@ describe('Chat screen — message actions', () => {
     mockUseChatMessagesSend.mockReturnValue({ mutate: sendMutate, isPending: false });
     render(<ChatRoomScreen />);
 
-    fireEvent(screen.getByTestId('message-row-msg-photo-theirs'), 'longPress');
+    fireEvent(screen.getByTestId('message-bubble-msg-photo-theirs'), 'longPress');
     fireEvent.press(screen.getByTestId('selection-reply'));
     expect(screen.queryByTestId('message-selection-header')).toBeNull();
     const strip = within(screen.getByTestId('reply-composer-strip'));
@@ -3460,7 +3460,7 @@ describe('Chat screen — message actions', () => {
     const sendMutate = jest.fn();
     mockUseChatMessagesSend.mockReturnValue({ mutate: sendMutate, isPending: false });
     render(<ChatRoomScreen />);
-    fireEvent(screen.getByTestId('message-row-msg-text'), 'longPress');
+    fireEvent(screen.getByTestId('message-bubble-msg-text'), 'longPress');
     fireEvent.press(screen.getByTestId('selection-reply'));
     fireEvent.press(screen.getByTestId('reply-strip-close'));
     expect(screen.queryByTestId('reply-composer-strip')).toBeNull();
@@ -3503,7 +3503,7 @@ describe('Chat screen — message actions', () => {
     const push = jest.fn();
     (useRouter as jest.Mock).mockReturnValue({ push, back: jest.fn(), replace: jest.fn() });
     render(<ChatRoomScreen />);
-    fireEvent(screen.getByTestId('message-row-msg-photo-theirs'), 'longPress');
+    fireEvent(screen.getByTestId('message-bubble-msg-photo-theirs'), 'longPress');
     fireEvent.press(screen.getByTestId('message-row-msg-text'));
     fireEvent.press(screen.getByTestId('selection-forward'));
     expect(push).toHaveBeenCalledWith(
@@ -3521,7 +3521,7 @@ describe('Chat screen — message actions', () => {
     render(<ChatRoomScreen />);
 
     // Mixed ownership → only "Delete for me".
-    fireEvent(screen.getByTestId('message-row-msg-photo-mine'), 'longPress');
+    fireEvent(screen.getByTestId('message-bubble-msg-photo-mine'), 'longPress');
     fireEvent.press(screen.getByTestId('message-row-msg-photo-theirs'));
     fireEvent.press(screen.getByTestId('selection-delete'));
     let buttons = lastConfirm().actions;
@@ -3530,7 +3530,7 @@ describe('Chat screen — message actions', () => {
     fireEvent.press(screen.getByLabelText('Clear selection'));
 
     // Own-only → both options; choose everyone.
-    fireEvent(screen.getByTestId('message-row-msg-photo-mine'), 'longPress');
+    fireEvent(screen.getByTestId('message-bubble-msg-photo-mine'), 'longPress');
     fireEvent.press(screen.getByTestId('selection-delete'));
     buttons = lastConfirm().actions;
     expect(buttons.map((b) => b.label)).toEqual(['Delete for everyone', 'Delete for me']);
@@ -3555,7 +3555,7 @@ describe('Chat screen — message actions', () => {
     const deleteAsync = jest.fn().mockResolvedValue({ deletedIds: ['msg-photo-theirs'] });
     mockUseChatMessagesDelete.mockReturnValue({ mutateAsync: deleteAsync, isPending: false });
     render(<ChatRoomScreen />);
-    fireEvent(screen.getByTestId('message-row-msg-photo-theirs'), 'longPress');
+    fireEvent(screen.getByTestId('message-bubble-msg-photo-theirs'), 'longPress');
     fireEvent.press(screen.getByTestId('selection-delete'));
     await act(async () => {
       await lastConfirm().actions.find((a) => a.label === 'Delete for me')!.onPress();

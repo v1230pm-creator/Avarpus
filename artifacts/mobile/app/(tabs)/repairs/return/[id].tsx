@@ -108,7 +108,7 @@ export default function ReturnDetailScreen() {
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
 
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.notFound}>
           <Text style={{ color: colors.mutedForeground }}>Return case not found</Text>
@@ -253,14 +253,14 @@ export default function ReturnDetailScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
 
-      <FadeInView animValue={anims[0]} style={[styles.header, { paddingTop: topPad + 14 }]}>
+      <FadeInView animValue={anims[0]} style={[styles.header, { paddingTop: topPad }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={[styles.returnId, { color: getReturnStatusColor(ret.status, colors), fontFamily: fontFamily.bold }]}>{ret.returnId}</Text>
           <View style={[styles.statusBadge, { backgroundColor: getReturnStatusColor(ret.status, colors) + '15' }]}>
-            <Text style={{ fontSize: 13, color: getReturnStatusColor(ret.status, colors), fontFamily: fontFamily.semibold, textTransform: 'capitalize' }}>
+            <Text style={{ ...font.captionStrong, color: getReturnStatusColor(ret.status, colors), textTransform: 'capitalize' }}>
               {ret.status.replace(/_/g, ' ')}
             </Text>
           </View>
@@ -268,7 +268,7 @@ export default function ReturnDetailScreen() {
         <View style={{ width: 44 }} />
       </FadeInView>
 
-      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]} bottomOffset={24}>
+      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: space.xxl }]} bottomOffset={space.xxl}>
 
         {/* Status Stepper / Actions */}
         <FadeInView animValue={anims[1]}>
@@ -281,10 +281,10 @@ export default function ReturnDetailScreen() {
                 style={{ backgroundColor: colors.success, borderRadius: colors.radius - 2, padding: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8 }}
               >
                 <Feather name="edit" size={18} color="#FFFFFF" />
-                <Text style={{ color: '#FFFFFF', fontFamily: fontFamily.semibold, fontSize: 14 }}>Update Status</Text>
+                <Text style={{ ...font.button, color: '#FFFFFF' }}>Update Status</Text>
               </TouchableOpacity>
             ) : (
-              <Text style={{ fontSize: 13, color: colors.mutedForeground, fontStyle: 'italic', marginTop: 8 }}>
+              <Text style={{ ...font.caption, color: colors.mutedForeground, fontStyle: 'italic', marginTop: space.sm }}>
                 No further status updates available.
               </Text>
             )}
@@ -343,14 +343,14 @@ export default function ReturnDetailScreen() {
             {(!!ret.diagnosis || !!ret.workPerformed) && <View style={styles.divider} />}
             {!!ret.diagnosis && (
               <>
-                <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Diagnosis</Text>
-                <Text style={{ fontSize: 14, color: colors.foreground, marginBottom: 8 }}>{ret.diagnosis}</Text>
+                <Text style={{ ...font.caption, color: colors.mutedForeground }}>Diagnosis</Text>
+                <Text style={{ ...font.body, color: colors.foreground, marginBottom: space.sm }}>{ret.diagnosis}</Text>
               </>
             )}
             {!!ret.workPerformed && (
               <>
-                <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Work Performed</Text>
-                <Text style={{ fontSize: 14, color: colors.foreground }}>{ret.workPerformed}</Text>
+                <Text style={{ ...font.caption, color: colors.mutedForeground }}>Work Performed</Text>
+                <Text style={{ ...font.body, color: colors.foreground }}>{ret.workPerformed}</Text>
               </>
             )}
           </Card>
@@ -366,15 +366,15 @@ export default function ReturnDetailScreen() {
               </TouchableOpacity>
             </View>
             {parts.length === 0 ? (
-              <Text style={{ fontSize: 13, color: colors.mutedForeground, fontStyle: 'italic' }}>No parts added yet.</Text>
+              <Text style={{ ...font.caption, color: colors.mutedForeground, fontStyle: 'italic' }}>No parts added yet.</Text>
             ) : (
               parts.map(p => (
                 <View key={p.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                   <View>
-                    <Text style={{ fontSize: 14, color: colors.foreground }}>{p.partName}</Text>
-                    <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Qty: {p.quantity} @ {formatCurrency(p.unitCost)}</Text>
+                    <Text style={{ ...font.body, color: colors.foreground }}>{p.partName}</Text>
+                    <Text style={{ ...font.caption, color: colors.mutedForeground }}>Qty: {p.quantity} @ {formatCurrency(p.unitCost)}</Text>
                   </View>
-                  <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: fontFamily.semibold }}>
+                  <Text style={{ ...font.bodyStrong, color: colors.foreground }}>
                     {formatCurrency(p.quantity * p.unitCost)}
                   </Text>
                 </View>
@@ -390,23 +390,23 @@ export default function ReturnDetailScreen() {
               <Text style={[styles.cardLabel, { color: colors.mutedForeground, fontFamily: fontFamily.medium }]}>REFUNDS</Text>
               <TouchableOpacity onPress={() => setShowRefundModal(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Feather name="plus-circle" size={16} color={colors.primary} />
-                <Text style={{ fontSize: 13, color: colors.primary, fontFamily: fontFamily.semibold }}>
+                <Text style={{ ...font.captionStrong, color: colors.primary }}>
                   {isDealer ? 'Create Refund' : 'Request Refund'}
                 </Text>
               </TouchableOpacity>
             </View>
             {refunds.length === 0 ? (
-              <Text style={{ fontSize: 13, color: colors.mutedForeground, fontStyle: 'italic' }}>No refunds requested.</Text>
+              <Text style={{ ...font.caption, color: colors.mutedForeground, fontStyle: 'italic' }}>No refunds requested.</Text>
             ) : (
               refunds.map(rf => (
                 <View key={rf.id} style={{ padding: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 8, marginTop: 8 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <Text style={{ fontSize: 15, color: colors.foreground, fontFamily: fontFamily.semibold }}>{formatCurrency(rf.amount)}</Text>
+                    <Text style={{ ...font.bodyStrong, color: colors.foreground }}>{formatCurrency(rf.amount)}</Text>
                     <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: rf.status === 'paid' ? colors.success + '22' : colors.warning + '22' }}>
-                      <Text style={{ fontSize: 13, color: rf.status === 'paid' ? colors.success : colors.warning, textTransform: 'uppercase', fontFamily: fontFamily.bold }}>{rf.status.replace('_', ' ')}</Text>
+                      <Text style={{ ...font.smallStrong, color: rf.status === 'paid' ? colors.success : colors.warning, textTransform: 'uppercase' }}>{rf.status.replace('_', ' ')}</Text>
                     </View>
                   </View>
-                  <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Reason: {rf.reason}</Text>
+                  <Text style={{ ...font.caption, color: colors.mutedForeground }}>Reason: {rf.reason}</Text>
 
                   {rf.status === 'pending_approval' && isDealer && (
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
@@ -454,7 +454,7 @@ export default function ReturnDetailScreen() {
                     backgroundColor: editResolution === r ? colors.primary + '22' : colors.card
                   }}
                 >
-                  <Text style={{ fontSize: 13, color: editResolution === r ? colors.primary : colors.foreground }}>
+                  <Text style={{ ...font.captionStrong, color: editResolution === r ? colors.primary : colors.foreground }}>
                     {r.replace(/_/g, ' ')}
                   </Text>
                 </TouchableOpacity>
@@ -491,7 +491,7 @@ export default function ReturnDetailScreen() {
         <KeyboardAvoidingCompat style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Add Part</Text>
-            <Text style={{ fontSize: 13, color: colors.mutedForeground, marginBottom: 12 }}>
+            <Text style={{ ...font.caption, color: colors.mutedForeground, marginBottom: space.md }}>
               Select from inventory to deduct stock, or enter custom.
             </Text>
 
@@ -501,7 +501,7 @@ export default function ReturnDetailScreen() {
                 onPress={() => setSelectedInventoryId('')}
                 style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: !selectedInventoryId ? colors.primary + '22' : colors.card }}
               >
-                <Text style={{ fontSize: 13, color: !selectedInventoryId ? colors.primary : colors.foreground }}>Custom Part (Not in Inventory)</Text>
+                <Text style={{ ...font.caption, color: !selectedInventoryId ? colors.primary : colors.foreground }}>Custom Part (Not in Inventory)</Text>
               </TouchableOpacity>
               {inventory.map(i => (
                 <TouchableOpacity
@@ -509,7 +509,7 @@ export default function ReturnDetailScreen() {
                   onPress={() => setSelectedInventoryId(i.id)}
                   style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: selectedInventoryId === i.id ? colors.primary + '22' : colors.card }}
                 >
-                  <Text style={{ fontSize: 13, color: selectedInventoryId === i.id ? colors.primary : colors.foreground }}>
+                  <Text style={{ ...font.caption, color: selectedInventoryId === i.id ? colors.primary : colors.foreground }}>
                     {i.name} ({i.quantity} in stock)
                   </Text>
                 </TouchableOpacity>
@@ -585,7 +585,7 @@ export default function ReturnDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: layout.headerHeight, paddingHorizontal: layout.listInset },
   backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   returnId: { ...font.title },
@@ -598,9 +598,9 @@ const styles = StyleSheet.create({
   infoValue: { ...font.bodyStrong, textAlign: 'right', flex: 1, marginLeft: space.md },
   divider: { height: 1, marginVertical: 6, backgroundColor: '#333' },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 16 },
-  modalContent: { borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.lg, padding: space.xl },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: layout.screenPadding },
+  modalContent: { borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.lg, padding: space.lg },
   modalTitle: { ...font.heading, marginBottom: space.md },
   label: { ...font.label, marginBottom: space.xs, marginTop: space.sm },
-  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
+  input: { minHeight: size.input, borderWidth: 1, borderRadius: radius.sm, paddingHorizontal: space.md, paddingVertical: space.sm, ...font.input },
 });

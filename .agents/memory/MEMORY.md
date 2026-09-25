@@ -86,7 +86,7 @@
 - [Matrix homeserver DNS](matrix-homeserver-dns.md) — "fetch failed" on chat sends with a healthy API = missing custom Matrix subdomain record; check an outside resolver before blaming the provider.
 - [Paginated shared lists](paginated-shared-lists.md) — bare `repairsList()` returns the 50 oldest rows; bulk loaders must page, detail screens must resolve by id, snapshots keyed by id.
 - [Voice-note recording](voice-note-recording.md) — pause = stop into ADTS segments joined by byte concat; native forDuration cap; wall-clock segment length; owned temp files deleted on every exit.
-- [Shared confirm dialog](confirm-dialog.md) — destructive prompts use ConfirmDialog, never Alert.alert; hosts inside Modals, return promises from onPress, `caption: null` when reversible.
+- [Shared confirm dialog](confirm-dialog.md) — destructive prompts use confirm(), polished info pop-ups use notice() (lone OK = dismiss); hosts inside Modals, return promises from onPress, `caption: null` when reversible.
 - [Dealer-to-dealer ledger](dealer-to-dealer-ledger.md) — repair row is the shared transaction; per-(shop,direction) books never netted; labels from balance sign + server side; money is a separate permission.
 - [Object entity paths](object-entity-paths.md) — build stored `/objects/…` paths from the written key, never `publicUrl()`; non-canonical rows are unloadable and the sweep deletes their objects.
 - [OTP throttle refunds](otp-throttle-refunds.md) — dead SMS provider surfaces as 429 after 3 tries; refund only per-mobile for provable pre-dispatch failures, release siblings on denial.
@@ -109,3 +109,14 @@
 - [Mobile & web validation steps](mobile-web-validation-steps.md) — heavy steps share `/tmp/heavy-checks.lock`, Jest at 1 worker; web `test` is a catch-all; the guard step fails any unreached test file.
 - [Test registration guard](test-registration-guard.md) — every test file must be reached by an isValidation step; static chain resolution, fail-closed on unreadable discovery; vitest positionals are substrings.
 - [Shared bucket vs per-env databases](shared-bucket-sweeps.md) — one bucket, many databases: storage-deleting sweeps only in the deployment, delete only self-registered objects, final profile photos exempt everywhere.
+- [In-flow custom tab bar](in-flow-tab-bar.md) — the tab bar sits below the screen, not over it; floating controls use only their own clearance, never `size.tabBar + inset`.
+- [Compact scale tokens](compact-scale-tokens.md) — spacing/typography constants are the only mobile scale; 32dp chips need `hitSlop.chip`, 3-col labels stay caption, sweep traps and web-route quirks.
+- [Shop workspace footer](shop-workspace-footer.md) — no Shop dashboard; Shop tab opens the first allowed tool; child footer = tab-set swap, active block spans glyph+label; back logic lives in the tab bar.
+- [Generated query-key roots](react-query-key-roots.md) — key predicates must match `/api/<family>` roots via the shared businessQueries predicate; cancelQueries before any post-write setQueryData.
+- [Multiline Input growth](multiline-input-growth.md) — never pass rows/numberOfLines natively (Android fixes height); web textarea needs rows=1 + scrollHeight reset; single words shrink, phrases wrap.
+- [In-house CalendarDialog](calendar-dialog.md) — Expected-delivery picker is a UTC-day month grid Modal (no native picker); icon-only chips carry the value in their accessibility label.
+- [Orval nullable objects](orval-nullable-objects.md) — declare nullable object fields inline on the property; a named nullable component generates invalid api-zod TS.
+- [Repair list cover photos](repair-cover-photos.md) — staff-only server-projected `coverPhoto` (front else earliest), photo↔repair shop pair enforced; photo mutations must invalidate the list key.
+- [Intake in-app camera](intake-camera.md) — camera icon opens the viewfinder directly; serialised permissions + foreground re-read; every photo becomes an owned cache JPEG via the manipulator.
+- [Khata party identity](khata-party-identity.md) — dealer entries fold into the customer row their repair's customerId names; never merge by name/mobile; balance stays server dueAmount; sums per entry.
+- [One-hand reach gesture](reach-down-gesture.md) — app-wide hold-still-then-drag, page stays where released; own UI timer + veto list; text fields by host tagName; long-press conflicts resolved for the grab.

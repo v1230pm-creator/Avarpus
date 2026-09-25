@@ -23,6 +23,7 @@ import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { Avatar } from '@/components/ui/Avatar';
 import { useColors } from '@/hooks/useColors';
 import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { useAvarpusContacts, normalizeIndianPhone, type DevicePhoneContact } from '@/hooks/useAvarpusContacts';
 import { storage, KEYS } from '@/utils/storage';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -399,7 +400,7 @@ export default function ForwardScreen() {
         testID={`forward-target-${item.key}`}
       >
         <CircleCheck selected={isSelected} colors={colors} />
-        <Avatar name={item.name} url={item.photo} size={44} />
+        <Avatar name={item.name} url={item.photo} size={size.avatar} />
         <View style={styles.rowBody}>
           <Text style={[styles.rowName, { color: colors.foreground }]} numberOfLines={1}>{item.name}</Text>
           {item.kind === 'contact' && (
@@ -417,14 +418,14 @@ export default function ForwardScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPadding, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerIcon} accessibilityLabel="Back" testID="forward-back">
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         {searchOpen ? (
           <TextInput
             value={search}
             onChangeText={setSearch}
             placeholder="Search name or number"
-            placeholderTextColor={colors.mutedForeground}
+            placeholderTextColor={colors.placeholder}
             autoFocus
             style={[styles.searchInput, { color: colors.foreground }]}
             testID="forward-search-input"
@@ -433,7 +434,7 @@ export default function ForwardScreen() {
           <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>Forward to…</Text>
         )}
         <TouchableOpacity onPress={openContactPicker} style={styles.headerIcon} accessibilityLabel="Add contact" testID="forward-add-contact">
-          <MaterialCommunityIcons name="account-plus-outline" size={22} color={colors.foreground} />
+          <MaterialCommunityIcons name="account-plus-outline" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => {
@@ -444,13 +445,13 @@ export default function ForwardScreen() {
           accessibilityLabel={searchOpen ? 'Close search' : 'Search'}
           testID="forward-search-toggle"
         >
-          <Feather name={searchOpen ? 'x' : 'search'} size={20} color={colors.foreground} />
+          <Feather name={searchOpen ? 'x' : 'search'} size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
       </View>
 
       {/* Destinations */}
       {roomsLoading && rooms.length === 0 ? (
-        <View style={styles.centered}><AvarpusSpinner size={28} /></View>
+        <View style={styles.centered}><AvarpusSpinner size={size.headerIcon} /></View>
       ) : (
         <FlatList
           data={[...numberTargets, ...filteredTargets]}
@@ -519,7 +520,7 @@ export default function ForwardScreen() {
             value={note}
             onChangeText={setNote}
             placeholder="Add a message…"
-            placeholderTextColor={colors.mutedForeground}
+            placeholderTextColor={colors.placeholder}
             style={[styles.noteInput, { color: colors.foreground, backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
             testID="forward-note-input"
           />
@@ -547,7 +548,7 @@ export default function ForwardScreen() {
         <View style={[styles.container, { backgroundColor: colors.background }]}>
           <View style={[styles.header, { paddingTop: topPadding, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
             <TouchableOpacity onPress={() => setContactPickerOpen(false)} style={styles.headerIcon} accessibilityLabel="Close contacts">
-              <Feather name="arrow-left" size={20} color={colors.foreground} />
+              <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
               <Text style={[styles.headerTitle, { color: colors.foreground }]}>Select contact</Text>
@@ -571,7 +572,7 @@ export default function ForwardScreen() {
               </TouchableOpacity>
             </View>
           ) : contacts.status === 'loading' && !contacts.loaded ? (
-            <View style={styles.centered}><AvarpusSpinner size={28} /></View>
+            <View style={styles.centered}><AvarpusSpinner size={size.headerIcon} /></View>
           ) : (
             <SectionList<ContactListItem, { title: string; data: ContactListItem[] }>
               sections={[
@@ -587,7 +588,7 @@ export default function ForwardScreen() {
               renderItem={({ item }) =>
                 item.kind === 'registered' ? (
                   <TouchableOpacity onPress={() => pickContact(item.contact)} style={styles.row} accessibilityLabel={`Forward to ${item.contact.name}`}>
-                    <Avatar name={contacts.displayFor(item.contact).name} url={contacts.displayFor(item.contact).photo} size={44} />
+                    <Avatar name={contacts.displayFor(item.contact).name} url={contacts.displayFor(item.contact).photo} size={size.avatar} />
                     <View style={styles.rowBody}>
                       <Text style={[styles.rowName, { color: colors.foreground }]} numberOfLines={1}>{contacts.displayFor(item.contact).name}</Text>
                       <Text style={[styles.rowMeta, { color: colors.mutedForeground }]}>{item.contact.mobile}</Text>
@@ -596,7 +597,7 @@ export default function ForwardScreen() {
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.row}>
-                    <Avatar name={item.contact.name} url={item.contact.imageUri} size={44} />
+                    <Avatar name={item.contact.name} url={item.contact.imageUri} size={size.avatar} />
                     <View style={styles.rowBody}>
                       <Text style={[styles.rowName, { color: colors.foreground }]} numberOfLines={1}>{item.contact.name}</Text>
                       <Text style={[styles.rowMeta, { color: colors.mutedForeground }]}>{item.contact.phone}</Text>
@@ -629,20 +630,20 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingBottom: 8,
+    minHeight: layout.headerHeight,
+    paddingHorizontal: space.sm,
     borderBottomWidth: 1,
     gap: 2,
   },
-  headerIcon: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, ...font.bodyStrong, fontFamily: fontFamily.bold, paddingHorizontal: 6 },
-  searchInput: { flex: 1, ...font.input, paddingHorizontal: 6, height: 44 },
-  sectionLabel: { ...font.overline, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
+  headerIcon: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, ...font.title, paddingHorizontal: space.sm },
+  searchInput: { flex: 1, ...font.search, paddingHorizontal: space.sm, minHeight: size.searchField, paddingVertical: 0 },
+  sectionLabel: { ...font.overline, paddingHorizontal: layout.screenPadding, paddingTop: space.md, paddingBottom: space.sm },
+  row: { flexDirection: 'row', alignItems: 'center', gap: layout.avatarGap, paddingLeft: layout.listInset, paddingRight: layout.listInsetEnd, paddingVertical: layout.rowPaddingVertical },
   rowBody: { flex: 1 },
-  rowName: { ...font.captionStrong },
-  rowMeta: { ...font.small, marginTop: 2 },
-  circle: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  rowName: { ...font.itemTitle },
+  rowMeta: { ...font.body, marginTop: layout.rowLineGap },
+  circle: { width: size.selectionMark, height: size.selectionMark, borderRadius: size.selectionMark / 2, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
   emptyText: { ...font.small, textAlign: 'center' },
   settingsBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 },
@@ -664,13 +665,13 @@ const styles = StyleSheet.create({
   noteInput: {
     flex: 1,
     minWidth: 120,
-    height: 40,
-    borderRadius: 20,
+    minHeight: size.input,
+    borderRadius: size.input / 2,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 14,
     ...font.input,
   },
   selectedRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   selectedNames: { flex: 1, ...font.smallStrong },
-  sendButton: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  sendButton: { width: size.input, height: size.input, borderRadius: size.input / 2, alignItems: 'center', justifyContent: 'center' },
 });

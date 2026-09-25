@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button } from '@/components/ui/Button';
 import { onBlue } from '@/constants/brand';
 import { font } from '@/constants/typography';
+import { layout, size, space } from '@/constants/spacing';
 
 export default function TermsScreen() {
   const router = useRouter();
@@ -74,7 +75,7 @@ function TermSection({ title, text, colors }: { title: string; text: string; col
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  scroll: { flexGrow: 1, paddingHorizontal: 24 },
+  scroll: { flexGrow: 1, paddingHorizontal: layout.screenPadding },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backButton: { width: 44, height: 44, marginLeft: -10, alignItems: 'center', justifyContent: 'center' },
   wordmark: { ...font.smallStrong, letterSpacing: 2.4 },
@@ -86,6 +87,6 @@ const styles = StyleSheet.create({
   section: { paddingBottom: 16, marginBottom: 2, borderBottomWidth: 1 },
   sectionTitle: { ...font.labelStrong, marginBottom: 5 },
   sectionText: { ...font.captionStrong },
-  buttonArea: { width: '100%', height: 64, paddingHorizontal: 5, paddingBottom: 10, marginTop: 4 },
-  primaryButton: { borderRadius: 28, minHeight: 54, maxHeight: 54 },
+  buttonArea: { width: '100%', minHeight: size.buttonLg, paddingHorizontal: space.xs, paddingBottom: space.sm, marginTop: space.xs },
+  primaryButton: { borderRadius: 28, minHeight: size.buttonLg },
 });

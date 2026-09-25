@@ -10,3 +10,6 @@ description: How to make jest-expo work in this pnpm monorepo without hangs
 - `react-native-keyboard-controller` needs a manual mock in `jest.setup.js` (registered via `setupFiles`): the official `/jest` mock is incomplete for this app — also export `KeyboardAvoidingView` (View passthrough), `useKeyboardHandler`, `useKeyboardContext`, or consumers render `undefined` components.
 - UI tests script exact labels/placeholders/flows; after any screen redesign (section toggles, renamed buttons, payment-gated delivery confirm Alert) update the test scripts — "Unable to find text" failures are usually product drift, not mock breakage.
 - Jest testMatch only picks up `__tests__/**/*.test.tsx` — name new test files .test.tsx even when they contain no JSX, or they silently never run.
+
+**React Query under global fake timers:** observer notifications are batched behind a zero `setTimeout`, so after `queryClient.refetchQueries()`/`invalidateQueries()` in a test the screen does NOT re-render until you `jest.advanceTimersByTime(10)` inside `act`. Also advance the clock before the refetch if the assertion depends on `dataUpdatedAt` changing (frozen fake clock → identical stamp).
+

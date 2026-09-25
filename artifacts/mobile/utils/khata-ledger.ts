@@ -18,6 +18,13 @@ export interface LedgerEntry {
   partyId: string;
   partyName: string;
   partyType: KhataPartyType;
+  /**
+   * The repair's customer record, when it has one. A dealer-posted entry with
+   * a customer link is also that customer's transaction (the server counts it
+   * in the customer's due), which is how the overview folds a dealer back
+   * into the same person's customer row.
+   */
+  customerId?: string;
   repairId: string; // Display ticket ID
   repairDbId: string; // Database ID
   type: LedgerEntryType;
@@ -83,6 +90,7 @@ export function buildKhataLedger(repairs: Repair[], payments: PaymentsList200Pay
         partyId,
         partyName,
         partyType,
+        customerId: repair.customerId,
         repairId: repair.repairId,
         repairDbId: repair.id,
         type: 'bill',
@@ -104,6 +112,7 @@ export function buildKhataLedger(repairs: Repair[], payments: PaymentsList200Pay
           partyId,
           partyName,
           partyType,
+          customerId: repair.customerId,
           repairId: repair.repairId,
           repairDbId: repair.id,
           type: isRefund ? 'refund' : 'payment',
@@ -120,6 +129,7 @@ export function buildKhataLedger(repairs: Repair[], payments: PaymentsList200Pay
             partyId,
             partyName,
             partyType,
+            customerId: repair.customerId,
             repairId: repair.repairId,
             repairDbId: repair.id,
             type: 'void',
@@ -140,6 +150,7 @@ export function buildKhataLedger(repairs: Repair[], payments: PaymentsList200Pay
           partyId,
           partyName,
           partyType,
+          customerId: repair.customerId,
           repairId: repair.repairId,
           repairDbId: repair.id,
           type: 'fallback_advance',
@@ -232,14 +243,19 @@ function normalisePartyName(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-IN');
 }
 
+/**
+ * One summary per party. Balances are summed from the entries themselves
+ * (not read off `partyBalance`), so the function is also correct on a subset
+ * of a ledger — the overview passes it only the dealer entries that no
+ * customer record carries.
+ */
 export function groupLedgerByParty(ledger: LedgerEntry[]): LedgerPartySummary[] {
   const seenPartyIds = new Set<string>();
   const parties = new Map<string, LedgerPartySummary>();
 
   for (const entry of ledger) {
     const sourceKey = `${entry.partyType}:${entry.partyId}`;
-    if (seenPartyIds.has(sourceKey)) continue;
-    seenPartyIds.add(sourceKey);
+    const net = money(entry.debit - entry.credit);
 
     // Dealer records may have been created more than once for the same person.
     // Consolidate those records by their displayed name, while customers remain
@@ -251,8 +267,8 @@ export function groupLedgerByParty(ledger: LedgerEntry[]): LedgerPartySummary[] 
     const existing = parties.get(summaryKey);
 
     if (existing) {
-      existing.partyIds.push(entry.partyId);
-      existing.balance = money(existing.balance + entry.partyBalance);
+      if (!seenPartyIds.has(sourceKey)) existing.partyIds.push(entry.partyId);
+      existing.balance = money(existing.balance + net);
       if (entry.date > existing.lastActivity) {
         existing.lastActivity = entry.date;
         existing.partyName = entry.partyName;
@@ -263,11 +279,53 @@ export function groupLedgerByParty(ledger: LedgerEntry[]): LedgerPartySummary[] 
         partyIds: [entry.partyId],
         partyName: entry.partyName,
         partyType: entry.partyType,
-        balance: entry.partyBalance,
+        balance: net,
         lastActivity: entry.date,
       });
     }
+    seenPartyIds.add(sourceKey);
   }
 
   return [...parties.values()];
+}
+
+export interface FoldedDealerActivity {
+  /** Newest dealer-posted entry that the customer's row now also stands for. */
+  lastActivity: string;
+  /** Dealer records (ids) whose repairs were found on this customer. */
+  dealerIds: string[];
+}
+
+/**
+ * Splits dealer-posted entries into the ones a known customer record already
+ * carries (the repair is linked to that customer, so the server counts it in
+ * the customer's due and the customer's khata page lists it) and the ones no
+ * customer record has (unlinked legacy repairs). The overview shows the first
+ * group inside the customer's own row — one person, one row, one balance —
+ * and gives only the second group a separate dealer row, so nothing is listed
+ * or totalled twice.
+ */
+export function foldDealerEntriesIntoCustomers(
+  ledger: LedgerEntry[],
+  customerIds: ReadonlySet<string>,
+): { folded: Map<string, FoldedDealerActivity>; unlinked: LedgerEntry[] } {
+  const folded = new Map<string, FoldedDealerActivity>();
+  const unlinked: LedgerEntry[] = [];
+
+  for (const entry of ledger) {
+    if (entry.partyType !== 'dealer') continue;
+    if (!entry.customerId || !customerIds.has(entry.customerId)) {
+      unlinked.push(entry);
+      continue;
+    }
+    const existing = folded.get(entry.customerId);
+    if (existing) {
+      if (entry.date > existing.lastActivity) existing.lastActivity = entry.date;
+      if (!existing.dealerIds.includes(entry.partyId)) existing.dealerIds.push(entry.partyId);
+    } else {
+      folded.set(entry.customerId, { lastActivity: entry.date, dealerIds: [entry.partyId] });
+    }
+  }
+
+  return { folded, unlinked };
 }

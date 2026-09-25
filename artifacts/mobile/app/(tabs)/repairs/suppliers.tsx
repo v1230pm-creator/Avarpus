@@ -33,7 +33,7 @@ export default function SuppliersScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + layout.rowPaddingVertical }]}>
+      <View style={[styles.header, { paddingTop: topPad }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           accessibilityRole="button"
@@ -59,7 +59,7 @@ export default function SuppliersScreen() {
         <FlatList
           data={suppliers}
           keyExtractor={(link) => link.dealerId}
-          contentContainerStyle={{ paddingHorizontal: layout.screenPadding, paddingBottom: insets.bottom + size.tabBar + space.xxl, gap: space.md }}
+          contentContainerStyle={{ paddingHorizontal: layout.screenPadding, paddingBottom: space.xxl, gap: space.md }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={isFetching && !!data} onRefresh={() => { void refetch(); }} tintColor={colors.primary} />}
           ListEmptyComponent={
@@ -79,7 +79,7 @@ export default function SuppliersScreen() {
                 accessibilityLabel={`Open repairs at ${item.supplier.businessName}`}
                 testID={`supplier-card-${item.dealerId}`}
               >
-                <FlatCard style={{ padding: space.xl, gap: space.md }}>
+                <FlatCard style={{ paddingVertical: layout.rowPaddingVertical, paddingLeft: layout.listInset, paddingRight: layout.listInsetEnd, gap: space.md }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: layout.avatarGap }}>
                     <View style={[styles.avatar, { backgroundColor: colors.primary + '1A' }]}>
                       <Feather name="tool" size={18} color={colors.primary} />
@@ -147,7 +147,7 @@ function Stat({ label, value, color }: { label: string; value: string; color: st
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: layout.headerHeight, paddingHorizontal: layout.listInset, gap: space.sm },
   backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...font.title },
   headerSub: { ...font.caption },

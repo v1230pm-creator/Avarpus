@@ -45,6 +45,7 @@ jest.mock('expo-router', () => {
     Redirect: ({ href }: { href: string }) => <Text>{`Redirect:${href}`}</Text>,
     useRouter: () => ({ push: mockPush }),
     useSegments: () => mockSegments,
+    usePathname: () => `/${mockSegments.join('/')}`,
   };
 });
 

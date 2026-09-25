@@ -6,6 +6,7 @@ import { getChatMessageMediaUrl } from '@workspace/api-client-react';
 import type { ChatMessage, ChatMessageQuote } from '@workspace/api-client-react';
 import { AVARPUS_BLUE } from '@/constants/brand';
 import { font } from '@/constants/typography';
+import { layout, size, space } from '@/constants/spacing';
 import { useMediaThumbnailSource } from '@/hooks/useChatMedia';
 
 /**
@@ -289,10 +290,10 @@ const styles = StyleSheet.create({
   selectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingBottom: 8,
+    minHeight: layout.headerHeight,
+    paddingHorizontal: space.sm,
     borderBottomWidth: 1,
   },
-  selectionIcon: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
+  selectionIcon: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   selectionCount: { flex: 1, ...font.itemTitle, paddingHorizontal: 8 },
 });

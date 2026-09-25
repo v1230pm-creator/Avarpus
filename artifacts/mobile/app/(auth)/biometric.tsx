@@ -10,6 +10,7 @@ import { completeUnlockSuccess, isBiometricLockEnabled, setUnlocked } from '@/ut
 import { onBlue } from '@/constants/brand';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { font, fontFamily } from '@/constants/typography';
+import { layout, size, space } from '@/constants/spacing';
 
 export default function BiometricScreen() {
   const router = useRouter();
@@ -156,14 +157,14 @@ export default function BiometricScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, gap: 20 },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: layout.screenPadding, gap: space.xl },
   iconWrap: { width: 72, height: 72, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   titleWrap: { alignItems: 'center', gap: 6 },
   title: { ...font.title, textAlign: 'center' },
   subtitle: { ...font.small, textAlign: 'center', maxWidth: 300 },
   errorBox: { width: '100%', flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 8, borderWidth: 1 },
   errorText: { flex: 1, ...font.small },
-  unlockButton: { width: '100%', minHeight: 50, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  unlockButton: { width: '100%', minHeight: size.button, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm },
   unlockText: { color: onBlue.controlText, ...font.button },
   signOutButton: { paddingVertical: 10, paddingHorizontal: 16 },
   signOutText: { ...font.small },

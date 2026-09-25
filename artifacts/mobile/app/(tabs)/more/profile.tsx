@@ -9,7 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
-import { font, fontFamily } from '@/constants/typography';
+import { font } from '@/constants/typography';
 import { layout, radius, size, space } from '@/constants/spacing';
 import { Avatar } from '@/components/ui/Avatar';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
@@ -171,7 +171,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 12 }]}>
+      <View style={[styles.header, { paddingTop: topPad }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
           <Feather name="arrow-left" size={24} color={colors.foreground} />
         </TouchableOpacity>
@@ -192,7 +192,7 @@ export default function ProfileScreen() {
                 <AvarpusSpinner size={40} />
               </View>
             ) : (
-              <Avatar name={user?.name ?? 'User'} url={profilePhoto} size={150} />
+              <Avatar name={user?.name ?? 'User'} url={profilePhoto} size={size.avatar * 2} />
             )}
 
             <TouchableOpacity
@@ -209,7 +209,7 @@ export default function ProfileScreen() {
         <View style={styles.fieldsSection}>
           <View style={styles.fieldRow}>
             <View style={styles.fieldIcon}>
-              <Feather name="user" size={22} color={colors.mutedForeground} />
+              <Feather name="user" size={size.headerIcon} color={colors.mutedForeground} />
             </View>
             <View style={[styles.fieldContent, { borderBottomColor: colors.border }]}>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Name</Text>
@@ -218,14 +218,14 @@ export default function ProfileScreen() {
                 value={name}
                 onChangeText={setName}
                 placeholder="Your name"
-                placeholderTextColor={colors.mutedForeground}
+                placeholderTextColor={colors.placeholder}
               />
             </View>
           </View>
 
           <View style={styles.fieldRow}>
             <View style={styles.fieldIcon}>
-              <Feather name="info" size={22} color={colors.mutedForeground} />
+              <Feather name="info" size={size.headerIcon} color={colors.mutedForeground} />
             </View>
             <View style={[styles.fieldContent, { borderBottomColor: colors.border }]}>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>About</Text>
@@ -241,7 +241,7 @@ export default function ProfileScreen() {
 
           <View style={styles.fieldRow}>
             <View style={styles.fieldIcon}>
-              <Feather name="at-sign" size={22} color={colors.mutedForeground} />
+              <Feather name="at-sign" size={size.headerIcon} color={colors.mutedForeground} />
             </View>
             <View style={[styles.fieldContent, { borderBottomColor: colors.border }]}>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Username</Text>
@@ -258,7 +258,7 @@ export default function ProfileScreen() {
 
           <View style={styles.fieldRow}>
             <View style={styles.fieldIcon}>
-              <Feather name="phone" size={22} color={colors.mutedForeground} />
+              <Feather name="phone" size={size.headerIcon} color={colors.mutedForeground} />
             </View>
             <View style={[styles.fieldContent, { borderBottomColor: colors.border }]}>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Phone</Text>
@@ -273,7 +273,7 @@ export default function ProfileScreen() {
 
           <View style={styles.fieldRow}>
             <View style={styles.fieldIcon}>
-              <Feather name="link" size={22} color={colors.mutedForeground} />
+              <Feather name="link" size={size.headerIcon} color={colors.mutedForeground} />
             </View>
             <View style={[styles.fieldContent, { borderBottomColor: 'transparent' }]}>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Links</Text>
@@ -316,22 +316,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    paddingBottom: 12,
+    minHeight: layout.headerHeight,
+    paddingHorizontal: space.sm,
   },
-  backBtn: { padding: 10 },
-  headerTitle: { fontSize: 20 },
+  backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
   avatarSection: {
     alignItems: 'center',
-    paddingVertical: 32,
+    paddingVertical: space.xxl,
   },
   avatarWrapper: {
     position: 'relative',
   },
   avatarPlaceholder: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
+    width: size.avatar * 2,
+    height: size.avatar * 2,
+    borderRadius: size.avatar,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -339,15 +339,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: size.avatarSm,
+    height: size.avatarSm,
+    borderRadius: size.avatarSm / 2,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 4,
   },
   fieldsSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: layout.screenPadding,
   },
   fieldRow: {
     flexDirection: 'row',
@@ -365,29 +365,26 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   fieldLabel: {
-    fontSize: 14,
-    ...font.title,
+    ...font.label,
     marginBottom: 4,
   },
   fieldInput: {
-    fontSize: 16,
-    ...font.body,
+    ...font.input,
     padding: 0,
     minHeight: 24,
   },
   saveSection: {
-    padding: 24,
+    padding: space.xxl,
     marginTop: 20,
   },
   saveBtn: {
     borderRadius: 12,
-    paddingVertical: 14,
+    minHeight: size.button,
     alignItems: 'center',
     justifyContent: 'center',
   },
   saveBtnText: {
     color: '#FFFFFF',
-    fontSize: 16,
     ...font.button,
   },
 });

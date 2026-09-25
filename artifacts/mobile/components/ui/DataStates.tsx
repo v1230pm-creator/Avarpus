@@ -25,7 +25,7 @@ export function DataErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <View style={styles.wrap}>
       <View style={[styles.iconCircle, { backgroundColor: colors.destructive + '15' }]}>
-        <Feather name="wifi-off" size={26} color={colors.destructive} />
+        <Feather name="wifi-off" size={size.headerIcon} color={colors.destructive} />
       </View>
       <Text style={[styles.title, { color: colors.foreground }]}>
         Couldn't load shop data
@@ -79,9 +79,9 @@ const styles = StyleSheet.create({
   bannerBtn: { minHeight: 36, justifyContent: 'center', paddingHorizontal: space.lg, borderRadius: radius.sm },
   bannerBtnText: { color: '#FFFFFF', ...font.smallStrong },
   wrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xxxl, gap: space.md },
-  iconCircle: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: space.xs },
-  title: font.heading,
-  message: { ...font.caption, textAlign: 'center' },
+  iconCircle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginBottom: space.xs },
+  title: font.itemTitle,
+  message: { ...font.body, textAlign: 'center' },
   retryBtn: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: size.buttonSm, paddingHorizontal: space.xxl, borderRadius: radius.md, marginTop: space.sm },
   retryText: { color: '#FFFFFF', ...font.labelStrong },
 });

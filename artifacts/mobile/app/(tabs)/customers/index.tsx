@@ -73,6 +73,7 @@ export default function CustomersScreen() {
     primary: colors.primary,
     text: colors.foreground,
     textMuted: colors.mutedForeground,
+    placeholder: colors.placeholder,
     inputBg: colors.input,
     warning: colors.warning,
   };
@@ -120,7 +121,7 @@ export default function CustomersScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      <FadeInView animValue={headerAnim} style={[styles.header, { paddingTop: topPad + space.lg, backgroundColor: theme.bg }]}>
+      <FadeInView animValue={headerAnim} style={[styles.header, { paddingTop: topPad, backgroundColor: theme.bg }]}>
         <View style={styles.headerRow}>
           <View>
             <Text style={[styles.headerTitle, { color: theme.text }]}>Customers</Text>
@@ -155,12 +156,12 @@ export default function CustomersScreen() {
           backgroundColor: theme.inputBg,
           borderColor: theme.border,
         }]}>
-          <Feather name="search" size={size.inlineIcon} color={theme.textMuted} />
+          <Feather name="search" size={size.headerIcon} color={theme.textMuted} />
           <TextInput
             value={search}
             onChangeText={setSearch}
             placeholder="Search by name or mobile..."
-            placeholderTextColor={theme.textMuted}
+            placeholderTextColor={theme.placeholder}
             style={[styles.searchInput, { color: theme.text }]}
           />
           {!!search && (
@@ -205,17 +206,17 @@ export default function CustomersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.md },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  header: { paddingBottom: layout.searchGap, gap: layout.headerGap },
+  headerRow: { minHeight: layout.headerHeight, paddingHorizontal: layout.titleInset, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerTitle: { ...font.display },
   headerSub: { ...font.caption, marginTop: space.xs },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingHorizontal: space.md, height: size.iconButton, borderRadius: radius.sm },
   addBtnText: { color: '#FFFFFF', ...font.button },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: space.sm, borderWidth: StyleSheet.hairlineWidth, borderRadius: size.searchRadius, paddingHorizontal: space.lg, height: size.searchField },
-  searchInput: { flex: 1, ...font.search },
-  list: { paddingHorizontal: layout.screenPadding, paddingTop: space.sm, gap: space.sm },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: size.searchGap, borderWidth: StyleSheet.hairlineWidth, borderRadius: size.searchRadius, paddingLeft: size.searchPadding, paddingRight: space.md, minHeight: size.searchField, marginLeft: layout.listInset, marginRight: layout.screenPadding },
+  searchInput: { flex: 1, ...font.search, paddingVertical: 0 },
+  list: { paddingBottom: size.fab + space.xxxl },
   card: {
-    flexDirection: 'row', alignItems: 'center', gap: layout.avatarGap, paddingVertical: layout.rowPaddingVertical, paddingHorizontal: space.xl,
+    flexDirection: 'row', alignItems: 'center', gap: layout.avatarGap, paddingVertical: layout.rowPaddingVertical, paddingLeft: layout.listInset, paddingRight: layout.listInsetEnd,
   },
   cardContent: { flex: 1, gap: 4 },
   customerName: { ...font.itemTitle },

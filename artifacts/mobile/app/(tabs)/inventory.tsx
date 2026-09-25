@@ -21,7 +21,7 @@ import { InventoryFormSheet } from '@/components/forms/InventoryFormSheet';
 import { InventoryItem } from '@/types';
 import { formatCurrency } from '@/utils/helpers';
 import { font, fontFamily } from '@/constants/typography';
-import { layout, radius, size, space } from '@/constants/spacing';
+import { layout, radius, size, space, hitSlop } from '@/constants/spacing';
 
 const CATEGORIES = ['All', 'Products', 'Accessories', 'Spare Parts'] as const;
 type Cat = (typeof CATEGORIES)[number];
@@ -163,7 +163,7 @@ export default function InventoryScreen() {
             value={search}
             onChangeText={setSearch}
             placeholder="Search inventory..."
-            placeholderTextColor={colors.mutedForeground}
+            placeholderTextColor={colors.placeholder}
             style={[styles.searchInput, { color: colors.foreground }]}
           />
           {!!search && (
@@ -183,7 +183,7 @@ export default function InventoryScreen() {
             renderItem={({ item }) => {
               const active = category === item;
               return (
-                <TouchableOpacity
+                <TouchableOpacity hitSlop={hitSlop.chip}
                   onPress={() => setCategory(item)}
                   activeOpacity={0.8}
                   style={[
@@ -235,14 +235,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerRow: { 
+    minHeight: layout.headerHeight,
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'space-between',
-    paddingHorizontal: layout.screenPadding,
-    marginBottom: 12,
+    paddingLeft: layout.titleInset,
+    paddingRight: space.xs,
+    marginBottom: layout.headerGap,
   },
   headerTitle: { ...font.display },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   iconBtn: {
     width: size.iconButton,
     height: size.iconButton,
@@ -252,34 +254,37 @@ const styles = StyleSheet.create({
   searchBar: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    gap: 10, 
-    paddingHorizontal: 14,
-    marginHorizontal: layout.screenPadding,
-    height: size.searchField,
+    gap: size.searchGap,
+    paddingLeft: size.searchPadding,
+    paddingRight: space.md,
+    marginLeft: layout.listInset,
+    marginRight: layout.screenPadding,
+    minHeight: size.searchField,
     borderRadius: size.searchRadius,
     borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: 12,
+    marginBottom: layout.searchGap,
   },
-  searchInput: { flex: 1, height: '100%', ...font.search },
+  searchInput: { flex: 1, ...font.search, paddingVertical: 0 },
   tabsWrapper: {
     borderTopWidth: 1,
     borderTopColor: 'transparent', // controlled by container
   },
   tabsContent: { 
-    paddingHorizontal: 16, 
-    gap: 8,
-    paddingBottom: 4,
+    paddingHorizontal: layout.screenPadding,
+    gap: space.sm,
+    paddingBottom: space.xs,
   },
   filterTab: { 
-    paddingHorizontal: 16, 
-    paddingVertical: 6, 
-    borderRadius: 16, 
+    minHeight: size.chip,
+    paddingHorizontal: space.lg,
+    justifyContent: 'center',
+    borderRadius: size.chip / 2,
     borderWidth: 1 
   },
-  filterText: { ...font.label },
-  list: { paddingHorizontal: 16, paddingTop: 16, gap: 12 },
-  card: { padding: 14, gap: 12, borderRadius: 12 },
-  cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  filterText: { ...font.captionStrong },
+  list: { paddingHorizontal: layout.screenPadding, paddingTop: space.lg, gap: space.md },
+  card: { padding: space.lg, gap: space.md, borderRadius: radius.sm },
+  cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: space.md },
   itemName: { ...font.itemTitle, marginBottom: space.xs },
   brand: { ...font.caption },
   divider: { height: 1, marginVertical: 2 },

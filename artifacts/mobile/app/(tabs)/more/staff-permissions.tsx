@@ -23,6 +23,7 @@ import { FlatCard } from '@/components/ui/FlatCard';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { font, fontFamily } from '@/constants/typography';
+import { layout, size, space } from '@/constants/spacing';
 import { ROLE_LABELS } from '@/utils/helpers';
 
 const FEATURE_LABELS: Record<string, { label: string; description: string }> = {
@@ -158,7 +159,7 @@ export default function StaffPermissionsScreen() {
           onPress={() => router.back()}
           style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}
         >
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
@@ -178,7 +179,7 @@ export default function StaffPermissionsScreen() {
         <AvarpusLoadingScreen size={40} />
       ) : loadError && !settings ? (
         <View style={styles.center}>
-          <Feather name="alert-circle" size={28} color={colors.destructive} />
+          <Feather name="alert-circle" size={size.headerIcon} color={colors.destructive} />
           <Text style={[styles.message, { color: colors.mutedForeground }]}>{loadError}</Text>
           <TouchableOpacity onPress={load} style={[styles.retryBtn, { backgroundColor: colors.primary }]}>
             <Text style={styles.retryText}>Retry</Text>
@@ -292,21 +293,21 @@ export default function StaffPermissionsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 12 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.sm, padding: space.xxl },
+  header: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
+  backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: size.iconButton / 2, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerText: { flex: 1 },
-  headerTitle: { fontSize: 20 },
-  headerSub: { fontSize: 13 },
-  headerSpacer: { width: 40 },
+  headerTitle: { ...font.title },
+  headerSub: { ...font.caption },
+  headerSpacer: { width: size.iconButton },
   message: { ...font.small, textAlign: 'center' },
   retryBtn: { paddingHorizontal: 22, paddingVertical: 11, borderRadius: 12 },
   retryText: { ...font.smallStrong },
-  scroll: { padding: 12, gap: 8 },
-  profileCard: { padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  profileIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  scroll: { padding: layout.screenPadding, gap: space.sm },
+  profileCard: { padding: space.lg, flexDirection: 'row', alignItems: 'center', gap: layout.avatarGap },
+  profileIcon: { width: size.avatarSm, height: size.avatarSm, borderRadius: size.avatarSm / 2, alignItems: 'center', justifyContent: 'center' },
   profileText: { flex: 1, gap: 2 },
-  name: { fontSize: 16 },
+  name: { ...font.itemTitle },
   role: { ...font.caption },
   resetBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7 },
   resetText: { ...font.captionStrong },
@@ -314,10 +315,10 @@ const styles = StyleSheet.create({
   infoText: { ...font.caption, flex: 1 },
   sectionLabel: { ...font.overline, marginTop: 4 },
   permissionCard: { overflow: 'hidden' },
-  permissionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 15 },
+  permissionRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.lg },
   permissionText: { flex: 1, gap: 4 },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' },
-  permissionLabel: { fontSize: 14 },
+  permissionLabel: { ...font.label },
   permissionDesc: { ...font.caption },
   sourceBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
   sourceText: { ...font.small },

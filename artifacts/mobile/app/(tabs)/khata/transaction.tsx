@@ -16,6 +16,7 @@ import { FlatCard } from '@/components/ui/FlatCard';
 import { AvarpusLoadingScreen } from '@/components/ui/AvarpusSpinner';
 import { DataErrorState } from '@/components/ui/DataStates';
 import { useColors } from '@/hooks/useColors';
+import { useReachHoldOff } from '@/components/ui/ReachDown';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { dealerBalanceLabel, formatDateTime } from '@/utils/dealer-ledger';
 import { font } from '@/constants/typography';
@@ -36,6 +37,8 @@ export default function KhataTransactionDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const colors = useColors();
+  // Selectable text keeps its own hold (copy handles); it never takes the page.
+  const holdOff = useReachHoldOff();
   const params = useLocalSearchParams<{
     scope?: string;
     entryId?: string;
@@ -101,9 +104,9 @@ export default function KhataTransactionDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPadding + 14 }]}>
+      <View style={[styles.header, { paddingTop: topPadding + layout.rowPaddingVertical }]}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]} accessibilityLabel="Go back">
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>{view?.title ?? 'Entry'}</Text>
@@ -121,8 +124,8 @@ export default function KhataTransactionDetailScreen() {
       ) : !view ? (
         <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>This entry is no longer available.</Text>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: insets.bottom + 40, gap: 12 }} showsVerticalScrollIndicator={false}>
-          <FlatCard style={{ padding: 16, gap: 6, alignItems: 'center' }}>
+        <ScrollView contentContainerStyle={{ padding: layout.screenPadding, paddingBottom: insets.bottom + size.avatarSm, gap: space.md }} showsVerticalScrollIndicator={false}>
+          <FlatCard style={{ padding: space.lg, gap: space.sm, alignItems: 'center' }}>
             <Text style={[styles.amount, { color: view.tone === 'in' ? colors.success : view.tone === 'out' ? colors.destructive : colors.foreground }]}>
               {formatCurrency(view.amount)}
             </Text>
@@ -132,11 +135,11 @@ export default function KhataTransactionDetailScreen() {
             )}
           </FlatCard>
 
-          <FlatCard style={{ padding: 14, gap: 0 }}>
+          <FlatCard style={{ padding: space.lg, gap: 0 }}>
             {view.rows.map((row, i) => (
               <View key={row.label} style={[styles.row, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}>
                 <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>{row.label}</Text>
-                <Text style={[styles.rowValue, { color: colors.foreground }]} selectable>{row.value}</Text>
+                <Text style={[styles.rowValue, { color: colors.foreground }]} selectable onPressIn={holdOff}>{row.value}</Text>
               </View>
             ))}
           </FlatCard>
@@ -322,18 +325,18 @@ function customerView(
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: layout.headerHeight, paddingHorizontal: layout.screenPadding, gap: space.sm },
   backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...font.title },
   headerSub: { ...font.caption },
   amount: { ...font.title },
   direction: { ...font.bodyStrong },
   statusLine: { ...font.caption, textAlign: 'center' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, paddingVertical: 10 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: space.md, paddingVertical: space.md },
   rowLabel: { ...font.captionStrong, flexShrink: 0 },
   rowValue: { ...font.bodyStrong, flex: 1, textAlign: 'right' },
-  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 10, paddingVertical: 12 },
-  linkIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  linkRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, gap: space.md, paddingHorizontal: space.md },
+  linkIcon: { width: size.chip, height: size.chip, borderRadius: size.chip / 2, alignItems: 'center', justifyContent: 'center' },
   linkLabel: { flex: 1, ...font.bodyStrong },
   emptyText: { ...font.body, textAlign: 'center', marginTop: 40 },
 });

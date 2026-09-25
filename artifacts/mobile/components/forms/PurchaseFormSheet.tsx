@@ -11,6 +11,7 @@ import { formatCurrency, getTodayStr, isValidDateStr } from '@/utils/helpers';
 import { font, fontFamily } from '@/constants/typography';
 import { approvalsCreate } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
+import { radius, space } from '@/constants/spacing';
 
 const STATUS_OPTIONS = ['paid', 'unpaid', 'partial'];
 const STATUS_LABELS: Record<string, string> = { paid: 'Paid', unpaid: 'Unpaid', partial: 'Partial' };
@@ -185,11 +186,11 @@ export function PurchaseFormSheet({ visible, onClose, purchase }: Props) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 12 },
+  row: { flexDirection: 'row', gap: space.md },
   half: { flex: 1 },
   totalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
   totalLabel: { ...font.label },
   totalValue: { ...font.bodyStrong },
-  warningBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 4 },
+  warningBanner: { flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.md, borderRadius: radius.sm, borderWidth: 1, marginBottom: space.xs },
   warningText: { ...font.small, flex: 1 },
 });

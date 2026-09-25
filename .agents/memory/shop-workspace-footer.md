@@ -1,0 +1,21 @@
+---
+name: Shop workspace footer
+description: How the "Repairs | Khata | Inventory | Customers" child footer is implemented inside the single Tabs navigator, and the traps around back handling and screen-level focus hooks.
+---
+
+**Rule:** The Shop workspace footer is a *tab-set swap*, not a second navigator. `getWorkspaceTabs(segments, …)` in `utils/tabVisibility.ts` decides per focused route whether `PremiumTabBar` renders the main set (Chats/Status/Shop/Calls) or the workspace set; the four tools stay `href: null` tab routes. Portal/customer accounts and chat rooms under `customers/chat` always keep the main footer.
+
+**There is no Shop dashboard (user decision, Sept 2026).** The main-footer Shop tab lands directly on the account's first allowed tool (Repairs when permitted) via `getShopTabTarget`; back / hardware back from a tool root exits to Chats. `shop.tsx` survives only as the set-up / join / "Open <membership>" screen for accounts with nothing to enter, and it `Redirect`s anyone with a workspace onward. Workspace switching lives in Shop Settings (`more?scope=business`, SWITCH WORKSPACE group, only when >1 membership) — do not re-add a landing page or a header gear to Shop.
+
+**Why:** the user's rules are "never two footers at once", "tools never at main level", "back at the Shop root exits to the main level", and later "Shop tab must open Repairs same-to-same, remove the dashboard". A nested navigator would have needed route moves (data/URL churn) and broken the existing deep links and tests; swapping the rendered tab list keeps every route, guard and testID intact.
+
+**How to apply:**
+- `getShopTabTarget` must key on `hasShop` (`user.shopId`), not on permissions: owner roles pass `canAccess()` for every feature even before a Shop exists, so a permission-only rule would send fresh dealer sign-ups into an empty Repairs screen and hide set-up/join.
+- Hardware back lives in the tab bar (`workspaceBackTarget`), not in the screens: `RepairsScreen` (and siblings) are rendered in Jest without a navigator, and their expo-router mocks expose only `useRouter`/`useSegments`, so `useFocusEffect`/`useNavigation` inside those screens breaks suites. The layout test mocks `useSegments`, so read segments (not `usePathname`) in `(tabs)/_layout.tsx`.
+- Root detection must look at the focused *child name* (`index`), not the nested route count: a deep-linked `[id]` can be the lone stack entry and must go back to its list, not straight out.
+- A single-tool staff member still gets the (one-item) workspace footer so exit-on-back behaves identically for everyone.
+- Expo web deep links into `khata` (any tool whose layout wraps `FeatureRouteGuard`) redirect to Chats before `/auth/me` resolves — pre-existing guard race, not a footer bug; for screenshots enter via the footer tab instead of the URL.
+- Khata root-vs-child rule lives in two places that must stay in step: `tabRouteAccess` (overview = `repairs` OR `payments`, children = `payments`) and `khata/_layout`, which mirrors it from `useSegments()`. Judge segments only while `segments[1] === 'khata'` — the layout stays mounted behind other tabs, and a global-segment check there would Redirect from an unfocused tab.
+- Known limitation: `AuthContext.refreshUser()` swallows `authMe` failures, so a switch whose follow-up identity refresh fails leaves the old `shopId`/role locally until the next refresh (self-healing, pre-existing).
+
+**Two active-state shapes, one glyph language (user decisions, 24 Sept 2026):** both footers share the Feather glyph set and the main footer's charcoal-white idle colours; a new tool tab only needs a Feather icon name. The main footer keeps its 64×32 pill behind the glyph with the label below. The workspace footer's active state is one rounded block behind glyph *and* label together (stretch width, transparent border always laid out so Khata's gold ring never shifts content), label 12sp lightly tracked (`font.workspaceTab*`), label reads "Khata" (not "Khata Book"), and the active label takes the active colour. The user asked for exactly this ("box behind the icon only looks wrong; cover icon + label, same on all Shop pages") after earlier asking for one look — do not re-flatten the workspace block to the pill or touch the main footer when the workspace footer is what was requested.

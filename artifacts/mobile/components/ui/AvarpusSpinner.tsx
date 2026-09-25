@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useColors } from '@/hooks/useColors';
-import { fontFamily } from '@/constants/typography';
+import { font, fontFamily } from '@/constants/typography';
+import { radius, space } from '@/constants/spacing';
 
 /**
  * Avarpus loading mark.
@@ -169,8 +170,8 @@ export function AvarpusLoadingOverlay({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 14 },
-  message: { fontSize: 15, lineHeight: 20, textAlign: 'center' },
+  screen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xxxl, gap: space.md },
+  message: { ...font.body, textAlign: 'center' },
   overlay: {
     position: 'absolute',
     top: 0,
@@ -183,12 +184,12 @@ const styles = StyleSheet.create({
   },
   overlayCard: {
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 28,
-    paddingVertical: 24,
-    borderRadius: 18,
+    gap: space.md,
+    paddingHorizontal: space.xxl,
+    paddingVertical: space.lg,
+    borderRadius: radius.lg,
     borderWidth: 1,
     minWidth: 150,
   },
-  overlayText: { fontSize: 15, lineHeight: 20, textAlign: 'center' },
+  overlayText: { ...font.body, textAlign: 'center' },
 });

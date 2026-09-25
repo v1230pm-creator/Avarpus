@@ -6,7 +6,7 @@ import { Feather } from '@expo/vector-icons';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { font, fontFamily } from '@/constants/typography';
-import { layout, radius, space } from '@/constants/spacing';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { FlatCard } from '@/components/ui/Glass';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import {
@@ -67,8 +67,8 @@ export default function MyReportsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 16 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }} activeOpacity={0.7}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+        <TouchableOpacity onPress={() => router.back()} style={{ width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' }} activeOpacity={0.7}>
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
           Safety Reports
@@ -77,7 +77,7 @@ export default function MyReportsScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: 12, paddingBottom: 120 }}
+        contentContainerStyle={{ padding: layout.screenPadding, paddingBottom: size.fab + space.xxxl }}
         refreshControl={
           <RefreshControl
             refreshing={isFetching && !isLoading && !isFetchingNextPage}
@@ -90,7 +90,7 @@ export default function MyReportsScreen() {
           <AvarpusSpinner size={20} style={{ marginTop: 40 }} />
         ) : isError ? (
           <View style={{ alignItems: 'center', marginTop: 60 }}>
-            <Feather name="wifi-off" size={32} color={colors.mutedForeground} />
+            <Feather name="wifi-off" size={size.headerIcon} color={colors.mutedForeground} />
             <Text style={{ color: colors.mutedForeground, marginTop: space.md, ...font.captionStrong }}>
               Could not load your reports
             </Text>
@@ -100,7 +100,7 @@ export default function MyReportsScreen() {
           </View>
         ) : reports.length === 0 ? (
           <View style={{ alignItems: 'center', marginTop: 60 }}>
-            <Feather name="flag" size={32} color={colors.mutedForeground} />
+            <Feather name="flag" size={size.headerIcon} color={colors.mutedForeground} />
             <Text style={{ color: colors.mutedForeground, marginTop: space.md, ...font.captionStrong }}>
               You have not reported any chats
             </Text>
@@ -189,10 +189,10 @@ export default function MyReportsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 12 },
-  headerTitle: { fontSize: 20 },
+  header: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
+  headerTitle: { ...font.title },
   intro: { ...font.caption, paddingHorizontal: space.xs, paddingBottom: space.md },
-  row: { flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 12, alignItems: 'flex-start' },
+  row: { minHeight: 56, flexDirection: 'row', gap: space.md, paddingHorizontal: layout.screenPadding, paddingVertical: layout.rowPaddingVertical, alignItems: 'flex-start' },
   iconWrap: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' },
   statePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },

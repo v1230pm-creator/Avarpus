@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { font, fontFamily } from '@/constants/typography';
-import { layout, radius, space } from '@/constants/spacing';
+import { layout, radius, size, space, hitSlop } from '@/constants/spacing';
 import { FadeInView, FlatCard } from '@/components/ui/Glass';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { formatDate } from '@/utils/helpers';
@@ -70,23 +70,23 @@ export default function ActivityFeedScreen() {
   return (
     <View style={[{ flex: 1, backgroundColor: colors.background, paddingTop: Platform.OS === 'web' ? insets.top + 67 : insets.top + 16 }]}>
 
-      <View style={{ paddingHorizontal: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <View style={{ minHeight: layout.headerHeight, paddingHorizontal: layout.screenPadding, marginBottom: space.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <TouchableOpacity onPress={() => router.back()} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border }}>
-            <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <TouchableOpacity onPress={() => router.back()} style={{ width: size.iconButton, height: size.iconButton, borderRadius: size.iconButton / 2, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border }}>
+            <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
           </TouchableOpacity>
           <Text style={{ ...font.title, color: colors.foreground }}>Activity Log</Text>
         </View>
       </View>
 
-      <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 12, marginBottom: 16 }}>
-        <TouchableOpacity onPress={() => setFilterType(undefined)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: filterType === undefined ? colors.primary : colors.card, borderWidth: 1, borderColor: filterType === undefined ? colors.primary : colors.border }}>
+      <View style={{ flexDirection: 'row', gap: space.sm, paddingHorizontal: layout.screenPadding, marginBottom: space.lg }}>
+        <TouchableOpacity hitSlop={hitSlop.chip} onPress={() => setFilterType(undefined)} style={{ minHeight: size.chip, justifyContent: 'center', paddingHorizontal: space.md, borderRadius: size.chip / 2, backgroundColor: filterType === undefined ? colors.primary : colors.card, borderWidth: 1, borderColor: filterType === undefined ? colors.primary : colors.border }}>
           <Text style={{ color: filterType === undefined ? colors.primaryForeground : colors.foreground, ...font.captionStrong }}>All</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setFilterType(ActivityFeedType.repair)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: filterType === ActivityFeedType.repair ? colors.primary : colors.card, borderWidth: 1, borderColor: filterType === ActivityFeedType.repair ? colors.primary : colors.border }}>
+        <TouchableOpacity hitSlop={hitSlop.chip} onPress={() => setFilterType(ActivityFeedType.repair)} style={{ minHeight: size.chip, justifyContent: 'center', paddingHorizontal: space.md, borderRadius: size.chip / 2, backgroundColor: filterType === ActivityFeedType.repair ? colors.primary : colors.card, borderWidth: 1, borderColor: filterType === ActivityFeedType.repair ? colors.primary : colors.border }}>
           <Text style={{ color: filterType === ActivityFeedType.repair ? colors.primaryForeground : colors.foreground, ...font.captionStrong }}>Repairs</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setFilterType(ActivityFeedType.login)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: filterType === ActivityFeedType.login ? colors.primary : colors.card, borderWidth: 1, borderColor: filterType === ActivityFeedType.login ? colors.primary : colors.border }}>
+        <TouchableOpacity hitSlop={hitSlop.chip} onPress={() => setFilterType(ActivityFeedType.login)} style={{ minHeight: size.chip, justifyContent: 'center', paddingHorizontal: space.md, borderRadius: size.chip / 2, backgroundColor: filterType === ActivityFeedType.login ? colors.primary : colors.card, borderWidth: 1, borderColor: filterType === ActivityFeedType.login ? colors.primary : colors.border }}>
           <Text style={{ color: filterType === ActivityFeedType.login ? colors.primaryForeground : colors.foreground, ...font.captionStrong }}>Logins</Text>
         </TouchableOpacity>
       </View>
@@ -98,7 +98,7 @@ export default function ActivityFeedScreen() {
           data={activities}
           keyExtractor={item => item.id}
           renderItem={renderItem}
-          contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: layout.screenPadding, paddingBottom: size.fab + space.xxxl }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <Text style={{ textAlign: 'center', marginTop: 40, color: colors.mutedForeground }}>No activity found.</Text>

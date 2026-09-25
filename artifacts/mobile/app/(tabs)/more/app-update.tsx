@@ -747,9 +747,9 @@ export default function AppUpdateScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
-      <View style={[styles.header, { paddingTop: topPad + 16 }]}>
+      <View style={[styles.header, { paddingTop: topPad }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
           App Update
@@ -822,7 +822,7 @@ export default function AppUpdateScreen() {
         {checked && !checkError && !isUpdateAvailable && (
           <View style={[styles.card, styles.centerCard]}>
             <View style={[styles.bigIcon, { backgroundColor: '#34D3991A' }]}>
-              <Feather name="check-circle" size={30} color="#34D399" />
+              <Feather name="check-circle" size={size.headerIcon} color="#34D399" />
             </View>
             <Text style={[styles.upToDate, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
               You&apos;re on the latest version.
@@ -1111,7 +1111,7 @@ export default function AppUpdateScreen() {
           </View>
         )}
 
-        <View style={{ height: 100 }} />
+        <View style={{ minHeight: size.fab + space.xxxl }} />
       </ScrollView>
     </View>
   );
@@ -1128,45 +1128,45 @@ function MetaRow({ label, value, colors }: { label: string; value: string; color
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 16 },
-  backBtn: { padding: 4 },
-  headerTitle: { fontSize: 20 },
-  scroll: { padding: 12, gap: 8 },
-  card: { padding: 12, gap: 8 },
-  brandCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 16, borderWidth: 1 },
+  header: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: layout.listInset },
+  backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  scroll: { padding: layout.screenPadding, gap: space.sm },
+  card: { padding: space.lg, gap: space.sm },
+  brandCard: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.md, borderWidth: 1 },
   brandLogo: { width: 56, height: 56, borderRadius: 14 },
   brandCopy: { flex: 1, gap: 3 },
-  brandTitle: { fontSize: 17 },
+  brandTitle: { ...font.heading },
   centerCard: { alignItems: 'center', gap: 8 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   iconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  bigIcon: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  cardTitle: { fontSize: 15 },
+  bigIcon: { width: 52, height: 52, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  cardTitle: { ...font.bodyStrong },
   muted: { ...font.caption },
   lastChecked: { ...font.caption },
-  upToDate: { fontSize: 17, textAlign: 'center' },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 12 },
-  primaryBtnText: { color: '#FFF', fontSize: 14.5 },
-  secondaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 11, borderRadius: 12, borderWidth: 1 },
-  secondaryBtnText: { fontSize: 13.5 },
+  upToDate: { ...font.heading, textAlign: 'center' },
+  primaryBtn: { minHeight: size.button, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, paddingHorizontal: space.md, borderRadius: radius.sm },
+  primaryBtnText: { color: '#FFF', ...font.button },
+  secondaryBtn: { minHeight: size.button, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, paddingHorizontal: space.md, borderRadius: radius.sm, borderWidth: 1 },
+  secondaryBtnText: { ...font.button },
   typeBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, marginTop: 4 },
   typeBadgeText: { ...font.badge },
   metaGrid: { gap: 8 },
   metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   metaLabel: { ...font.caption },
-  metaValue: { fontSize: 13 },
+  metaValue: { ...font.captionStrong },
   notesBox: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
-  notesTitle: { fontSize: 14 },
+  notesTitle: { ...font.labelStrong },
   noteCategory: { ...font.smallStrong, marginTop: space.xs },
   noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   noteDot: { width: 5, height: 5, borderRadius: 3, marginTop: 6 },
   noteText: { ...font.caption, flex: 1 },
   progressTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: 8, borderRadius: 4 },
-  progressText: { fontSize: 14 },
+  progressText: { ...font.labelStrong },
   btnRow: { flexDirection: 'row', gap: 8 },
   smallBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 11, borderRadius: 12, borderWidth: 1 },
-  smallBtnText: { fontSize: 13 },
+  smallBtnText: { ...font.captionStrong },
   verifyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   errorText: { ...font.caption },
   installHint: { ...font.caption, textAlign: 'center' },

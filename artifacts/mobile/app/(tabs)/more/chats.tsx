@@ -14,7 +14,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { storage } from '@/utils/storage';
-import { font, fontFamily } from '@/constants/typography';
+import { font } from '@/constants/typography';
 import { layout, radius, size, space } from '@/constants/spacing';
 
 const CHAT_SETTINGS_KEY = 'avarpus_chat_settings';
@@ -144,7 +144,7 @@ export default function ChatsSettingsScreen() {
         style={[
           styles.header,
           {
-            paddingTop: topPad + 12,
+            paddingTop: topPad,
             borderBottomColor: colors.border,
           },
         ]}
@@ -192,7 +192,7 @@ export default function ChatsSettingsScreen() {
               {settings.fontSize}
             </Text>
           </View>
-          <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+          <Feather name="chevron-right" size={size.inlineIcon} color={colors.mutedForeground} />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.settingRow}
@@ -214,7 +214,7 @@ export default function ChatsSettingsScreen() {
               Read new voice messages.
             </Text>
           </View>
-          <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+          <Feather name="chevron-right" size={size.inlineIcon} color={colors.mutedForeground} />
         </TouchableOpacity>
         <ToggleRow
           title="Sticker suggestions"
@@ -279,8 +279,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: layout.headerHeight,
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: space.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backButton: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
@@ -295,8 +295,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.screenPadding,
   },
   settingRow: {
-    minHeight: 64,
-    paddingVertical: layout.rowPaddingVertical,
+    minHeight: layout.headerHeight,
+    paddingVertical: space.sm,
     paddingHorizontal: layout.screenPadding,
     flexDirection: 'row',
     alignItems: 'center',
@@ -313,11 +313,11 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   actionRow: {
-    minHeight: 64,
+    minHeight: layout.headerHeight,
     paddingHorizontal: layout.screenPadding,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.xxl,
+    gap: layout.avatarGap,
   },
   actionTitle: {
     ...font.bodyStrong,

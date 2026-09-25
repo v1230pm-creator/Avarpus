@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
-import { font, fontFamily } from '@/constants/typography';
+import { font } from '@/constants/typography';
 import { layout, radius, size, space } from '@/constants/spacing';
 import { storage } from '@/utils/storage';
 import { isBiometricLockEnabled } from '@/utils/appLock';
@@ -223,7 +223,7 @@ export default function PrivacyScreen() {
           accessibilityRole="button"
           accessibilityLabel="Back to Settings"
         >
-          <Feather name="arrow-left" size={25} color="#E9EEF1" />
+          <Feather name="arrow-left" size={size.headerIcon} color="#E9EEF1" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Privacy</Text>
       </View>
@@ -338,38 +338,36 @@ export default function PrivacyScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    minHeight: 57,
+    minHeight: layout.headerHeight,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backButton: {
-    width: 48,
-    height: 48,
+    width: size.iconButton,
+    height: size.iconButton,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     color: '#E9EEF1',
-    fontSize: 23,
     ...font.title,
     marginLeft: 1,
   },
   sectionHeading: {
-    paddingHorizontal: 25,
-    paddingTop: 24,
+    paddingHorizontal: layout.screenPadding,
+    paddingTop: space.xxl,
     paddingBottom: 8,
-    fontSize: 15,
     ...font.overline,
   },
   row: {
-    minHeight: 76,
-    paddingHorizontal: 25,
+    minHeight: layout.headerHeight,
+    paddingHorizontal: layout.screenPadding,
     justifyContent: 'center',
   },
   rowContent: {
-    minHeight: 58,
+    minHeight: layout.headerHeight,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -380,23 +378,17 @@ const styles = StyleSheet.create({
   },
   rowTitle: {
     color: '#E9EEF1',
-    fontSize: 17,
-    lineHeight: 22,
     ...font.bodyStrong,
   },
   rowSubtitle: {
     color: '#899399',
     marginTop: 2,
-    fontSize: 15,
-    lineHeight: 20,
     ...font.caption,
   },
   rowValue: {
     color: '#899399',
     maxWidth: 92,
     marginLeft: 12,
-    fontSize: 15,
-    lineHeight: 20,
     textAlign: 'right',
     ...font.body,
   },

@@ -750,13 +750,49 @@ function repairOut(r: typeof repairsTable.$inferSelect) {
 // on a row we offered to another shop, the latest request ("Waiting for X to
 // accept" / accepted / declined); on a row we accepted from another shop,
 // the sender's original ticket. Portal projections never include these.
+/**
+ * One photo per repair for list thumbnails: the front shot when there is one,
+ * otherwise the earliest upload — the same preference the detail screen uses
+ * for its device tile. One query for the whole page, never one per row.
+ */
+async function coverPhotosFor(repairs: { id: string; shopId: string }[]): Promise<Map<string, { objectPath: string; kind: string }>> {
+  const out = new Map<string, { objectPath: string; kind: string }>();
+  if (repairs.length === 0) return out;
+  // A photo row must belong to the same shop as its repair — the photo
+  // endpoints enforce that pair, and the projection does too, so a stray row
+  // can never put another shop's object path on a staff card.
+  const shopIds = Array.from(new Set(repairs.map((r) => r.shopId)));
+  const rows = await db
+    .selectDistinctOn([repairPhotosTable.repairId], {
+      repairId: repairPhotosTable.repairId,
+      shopId: repairPhotosTable.shopId,
+      objectPath: repairPhotosTable.objectPath,
+      kind: repairPhotosTable.kind,
+    })
+    .from(repairPhotosTable)
+    .innerJoin(
+      repairsTable,
+      and(eq(repairsTable.id, repairPhotosTable.repairId), eq(repairsTable.shopId, repairPhotosTable.shopId)),
+    )
+    .where(and(inArray(repairPhotosTable.repairId, repairs.map((r) => r.id)), inArray(repairPhotosTable.shopId, shopIds)))
+    .orderBy(
+      repairPhotosTable.repairId,
+      sql`(${repairPhotosTable.kind} = 'front') DESC`,
+      asc(repairPhotosTable.createdAt),
+      asc(repairPhotosTable.id),
+    );
+  for (const r of rows) out.set(r.repairId, { objectPath: r.objectPath, kind: r.kind });
+  return out;
+}
+
 async function withTransferContext<T extends { id: string }>(
   rows: (typeof repairsTable.$inferSelect)[],
   out: (r: typeof repairsTable.$inferSelect) => T,
 ) {
-  const [transfers, sources] = await Promise.all([
+  const [transfers, sources, covers] = await Promise.all([
     transferSummariesFor(rows.map((r) => r.id)),
     sourceRepairFacts(rows),
+    coverPhotosFor(rows),
   ]);
   return rows.map((r) => {
     const src = r.sourceRepairId ? sources.get(r.sourceRepairId) : undefined;
@@ -765,6 +801,7 @@ async function withTransferContext<T extends { id: string }>(
       transfer: transfers.get(r.id),
       sourceRepairTicket: src?.ticket,
       sourceReceiveDate: src?.receiveDate,
+      coverPhoto: covers.get(r.id) ?? null,
     };
   });
 }

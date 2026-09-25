@@ -5,6 +5,7 @@ import { SelectInput } from '@/components/ui/SelectInput';
 import { FormSheet } from '@/components/ui/FormSheet';
 import { useData } from '@/context/DataContext';
 import { InventoryItem } from '@/types';
+import { space } from '@/constants/spacing';
 
 const CATEGORY_OPTIONS = ['product', 'accessory', 'spare_part'];
 const CATEGORY_LABELS: Record<string, string> = { product: 'Product', accessory: 'Accessory', spare_part: 'Spare Part' };
@@ -118,6 +119,6 @@ export function InventoryFormSheet({ visible, onClose, item }: Props) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 12 },
+  row: { flexDirection: 'row', gap: space.md },
   half: { flex: 1 },
 });

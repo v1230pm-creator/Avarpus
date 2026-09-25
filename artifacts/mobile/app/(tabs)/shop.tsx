@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -10,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -18,14 +17,15 @@ import {
   shopMe,
   shopSetupRequest,
   shopSetupVerify,
-  shopSwitch,
   type ShopMeResponse,
 } from '@workspace/api-client-react';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { resetBusinessQueries, useWorkspaceSwitch } from '@/hooks/useWorkspaceSwitch';
 import { AvarpusLoadingScreen, AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
-import { isDealerPortalRole } from '@/types';
-import { font, fontFamily } from '@/constants/typography';
+import { isCustomerRole, isDealerPortalRole } from '@/types';
+import { getShopTabTarget } from '@/utils/tabVisibility';
+import { font } from '@/constants/typography';
 import { layout, radius, size, space } from '@/constants/spacing';
 
 type Mode = 'overview' | 'setup' | 'claim';
@@ -35,13 +35,26 @@ function messageOf(error: unknown, fallback: string) {
   return data?.message ?? (error instanceof Error ? error.message : fallback);
 }
 
+/**
+ * Entry point for accounts that have no workspace to open yet: set up a Shop,
+ * join one with an activation code, or open a membership that is already
+ * linked. Accounts inside a Shop never see this screen — the Shop tab takes
+ * them straight to their first business tool (see getShopTabTarget).
+ */
 export default function ShopScreen() {
   const colors = useColors();
-  const router = useRouter();
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const { user, refreshUser, refreshFeatures, canAccess } = useAuth();
   const isDealerPortal = isDealerPortalRole(user?.role);
+  const workspaceTarget = getShopTabTarget({
+    customer: isCustomerRole(user?.role),
+    portal: isDealerPortal,
+    hasShop: !!user?.shopId,
+    canAccess,
+  });
+  const entersWorkspace = workspaceTarget !== 'shop';
+  const { switching, switchTo } = useWorkspaceSwitch();
   const [mode, setMode] = useState<Mode>('overview');
   const [workspace, setWorkspace] = useState<ShopMeResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,17 +80,16 @@ export default function ShopScreen() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (entersWorkspace) return;
+    void load();
+  }, [entersWorkspace, load]);
 
-  const resetBusinessQueries = async () => {
-    const prefixes = ['/repairs', '/customers', '/inventory', '/purchases', '/finance', '/payments', '/dashboard', '/dealers', '/approvals'];
-    await queryClient.cancelQueries({
-      predicate: (query) => typeof query.queryKey[0] === 'string' && prefixes.some((prefix) => String(query.queryKey[0]).startsWith(prefix)),
-    });
-    queryClient.removeQueries({
-      predicate: (query) => typeof query.queryKey[0] === 'string' && prefixes.some((prefix) => String(query.queryKey[0]).startsWith(prefix)),
-    });
-  };
+  // Deep links and older shortcuts still point here; the workspace itself has
+  // no landing page, so hand them on to the first tool.
+  if (entersWorkspace) {
+    return <Redirect href={`/(tabs)/${workspaceTarget}`} />;
+  }
 
   const requestVerification = async () => {
     setSaving(true);
@@ -103,7 +115,7 @@ export default function ShopScreen() {
     setError(null);
     try {
       await shopSetupVerify({ email: businessEmail.trim(), code: verificationCode.trim() });
-      await resetBusinessQueries();
+      await resetBusinessQueries(queryClient);
       await refreshUser();
       await refreshFeatures();
       setMode('overview');
@@ -125,7 +137,7 @@ export default function ShopScreen() {
       // number, and the membership stays linked from then on.
       await shopClaim({ activationCode: activationCode.trim().toUpperCase() });
       setActivationCode('');
-      await resetBusinessQueries();
+      await resetBusinessQueries(queryClient);
       await refreshUser();
       await refreshFeatures();
       setMode('overview');
@@ -143,28 +155,24 @@ export default function ShopScreen() {
   const teamMemberships = workspace?.memberships ?? [];
   const ownsAShop = teamMemberships.some((membership) => membership.role === 'owner');
 
-  const switchWorkspace = async (shopId: string) => {
-    if (shopId === workspace?.activeShopId || saving) return;
-    setSaving(true);
+  const openWorkspace = async (shopId: string) => {
+    if (shopId === workspace?.activeShopId || switching || saving) return;
     setError(null);
     try {
-      await shopSwitch(shopId);
-      await resetBusinessQueries();
-      await refreshUser();
-      await refreshFeatures();
+      await switchTo(shopId);
       setLoading(true);
       await load();
     } catch (err) {
-      setError(messageOf(err, 'Could not switch workspace.'));
-    } finally {
-      setSaving(false);
+      setError(messageOf(err, 'Could not open this workspace.'));
     }
   };
+
+  const busy = saving || switching;
 
   const header = (
     <View style={[styles.header, { paddingTop: topPad + space.lg, backgroundColor: colors.background }]}>
       {mode !== 'overview' && (
-        <TouchableOpacity onPress={() => { setMode('overview'); setError(null); }} style={styles.iconButton}>
+        <TouchableOpacity onPress={() => { setMode('overview'); setError(null); }} style={styles.iconButton} accessibilityRole="button" accessibilityLabel="Back">
           <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
       )}
@@ -172,9 +180,6 @@ export default function ShopScreen() {
         <Text style={[styles.title, { color: colors.foreground }]}>Shop</Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Your secure business workspace</Text>
       </View>
-      <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/more', params: { scope: 'business' } })} style={styles.iconButton} accessibilityLabel="Open settings">
-        <Feather name="settings" size={size.headerIcon} color={colors.foreground} />
-      </TouchableOpacity>
     </View>
   );
 
@@ -188,8 +193,8 @@ export default function ShopScreen() {
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 100 }]} keyboardShouldPersistTaps="handled">
         {!!error && (
           <View style={[styles.errorBox, { borderColor: colors.destructive, backgroundColor: `${colors.destructive}10` }]}>
-            <Text style={{ color: colors.destructive, flex: 1 }}>{error}</Text>
-            {mode === 'overview' && <TouchableOpacity onPress={() => void load()}><Text style={{ color: colors.primary }}>Retry</Text></TouchableOpacity>}
+            <Text style={[styles.body, { color: colors.destructive, flex: 1 }]}>{error}</Text>
+            {mode === 'overview' && <TouchableOpacity onPress={() => void load()}><Text style={[styles.link, { color: colors.primary }]}>Retry</Text></TouchableOpacity>}
           </View>
         )}
 
@@ -211,7 +216,7 @@ export default function ShopScreen() {
               <>
                 <View style={[styles.verifiedEmail, { backgroundColor: colors.surfaceSecondary }]}>
                   <Feather name="mail" size={18} color={colors.primary} />
-                  <Text style={{ color: colors.foreground, flex: 1 }}>{businessEmail}</Text>
+                   <Text style={[styles.body, { color: colors.foreground, flex: 1 }]}>{businessEmail}</Text>
                 </View>
                 <Field label="6-digit verification code" value={verificationCode} onChangeText={setVerificationCode} colors={colors} keyboardType="number-pad" maxLength={6} />
                 <PrimaryButton label="Verify and create Shop" onPress={verifyAndCreate} busy={saving} disabled={verificationCode.trim().length !== 6} colors={colors} />
@@ -242,8 +247,9 @@ export default function ShopScreen() {
               <PrimaryButton
                 key={membership.id}
                 label={`Open ${membership.businessName}${membership.role === 'owner' ? ' (Owner)' : ''}`}
-                onPress={() => switchWorkspace(membership.id)}
-                busy={saving}
+                onPress={() => void openWorkspace(membership.id)}
+                busy={switching}
+                disabled={busy}
                 colors={colors}
               />
             ))}
@@ -265,7 +271,7 @@ export default function ShopScreen() {
               <PrimaryButton label="Set up your Shop" onPress={() => { setMode('setup'); setError(null); }} colors={colors} />
               {!isDealerPortal && (
                 <TouchableOpacity onPress={() => setMode('claim')} style={[styles.secondaryButton, { borderColor: colors.border }]}>
-                  <Text style={{ color: colors.foreground, fontFamily: fontFamily.semibold }}>Join with activation code</Text>
+                   <Text style={[styles.buttonText, { color: colors.foreground }]}>Join with activation code</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -276,46 +282,15 @@ export default function ShopScreen() {
           </>
         )}
 
-        {mode === 'overview' && workspace?.shop && (
-          <>
-            <View style={[styles.workspaceCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <View style={styles.workspaceHeading}>
-                <View style={[styles.workspaceIcon, { backgroundColor: `${colors.primary}14` }]}><Feather name="briefcase" size={24} color={colors.primary} /></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.cardTitle, { color: colors.foreground }]}>{workspace.shop.businessName}</Text>
-                  <Text style={[styles.body, { color: colors.mutedForeground }]}>{workspace.shop.role === 'owner' ? 'Owner' : workspace.shop.role.replace('_', ' ')}</Text>
-                </View>
-                {workspace.shop.businessEmailVerified && <Feather name="check-circle" size={20} color={colors.success} />}
-              </View>
-              {!!workspace.shop.businessEmail && <Text style={[styles.body, { color: colors.mutedForeground }]}>{workspace.shop.businessEmail}</Text>}
-            </View>
-
-            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>BUSINESS TOOLS</Text>
-            <View style={[styles.toolList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              {(canAccess('repairs') || canAccess('repairs_portal')) && <ToolRow icon="tool" label="Repairs" detail="Jobs, testing and delivery" onPress={() => router.push('/(tabs)/repairs')} colors={colors} />}
-              {(canAccess('payments') || canAccess('repairs')) && <ToolRow icon="book-open" label="Khata" detail="Balances and payments" onPress={() => router.push('/(tabs)/khata')} colors={colors} />}
-              {canAccess('customers') && <ToolRow icon="users" label="Customers" detail="Contacts and repair history" onPress={() => router.push('/(tabs)/customers')} colors={colors} />}
-              {canAccess('inventory') && <ToolRow icon="package" label="Inventory" detail="Parts and stock" onPress={() => router.push('/(tabs)/inventory')} colors={colors} />}
-            </View>
-
-            {workspace.memberships.length > 1 && (
-              <>
-                <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>SWITCH WORKSPACE</Text>
-                <View style={[styles.toolList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  {workspace.memberships.map((membership) => (
-                    <ToolRow
-                      key={membership.id}
-                      icon={membership.id === workspace.activeShopId ? 'check-circle' : 'circle'}
-                      label={membership.businessName}
-                      detail={membership.role}
-                      onPress={() => void switchWorkspace(membership.id)}
-                      colors={colors}
-                    />
-                  ))}
-                </View>
-              </>
-            )}
-          </>
+        {/* A Shop exists but every tool is switched off for this role: there is
+            nothing to open, so say so instead of bouncing the tap away. */}
+        {mode === 'overview' && !!workspace?.shop && (
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.cardTitle, { color: colors.foreground }]}>{workspace.shop.businessName}</Text>
+            <Text style={[styles.body, { color: colors.mutedForeground }]}>
+              No business tools are enabled for your role yet. Ask the Shop owner to turn them on under Staff Permissions.
+            </Text>
+          </View>
         )}
       </ScrollView>
     </View>
@@ -327,7 +302,7 @@ function Field({ label, colors, ...props }: React.ComponentProps<typeof TextInpu
     <Text style={[styles.fieldLabel, { color: colors.foreground }]}>{label}</Text>
     <TextInput
       {...props}
-      placeholderTextColor={colors.mutedForeground}
+      placeholderTextColor={colors.placeholder}
       style={[styles.input, props.multiline && styles.multiline, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
     />
   </View>;
@@ -348,44 +323,28 @@ function PrimaryButton({ label, onPress, disabled, busy, colors }: { label: stri
   </TouchableOpacity>;
 }
 
-function ToolRow({ icon, label, detail, onPress, colors }: { icon: keyof typeof Feather.glyphMap; label: string; detail: string; onPress: () => void; colors: any }) {
-  return <TouchableOpacity onPress={onPress} style={[styles.toolRow, { borderBottomColor: colors.border }]}>
-    <View style={[styles.toolIcon, { backgroundColor: `${colors.primary}12` }]}><Feather name={icon} size={18} color={colors.primary} /></View>
-    <View style={{ flex: 1 }}><Text style={[styles.toolLabel, { color: colors.foreground }]}>{label}</Text><Text style={[styles.body, { color: colors.mutedForeground }]}>{detail}</Text></View>
-    <Feather name="chevron-right" size={19} color={colors.mutedForeground} />
-  </TouchableOpacity>;
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { minHeight: 60, paddingHorizontal: layout.screenPadding, paddingBottom: space.md, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  header: { minHeight: layout.headerHeight, paddingLeft: layout.titleInset, paddingRight: space.xs, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', gap: space.sm },
   iconButton: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   title: { ...font.display },
   subtitle: { ...font.caption, marginTop: space.xs },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scroll: { padding: 16, gap: 14 },
-  errorBox: { padding: 12, borderRadius: 12, borderWidth: 1, flexDirection: 'row', gap: 12, alignItems: 'center' },
-  card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 14 },
+  scroll: { padding: layout.screenPadding, gap: space.md },
+  errorBox: { padding: space.md, borderRadius: radius.sm, borderWidth: 1, flexDirection: 'row', gap: space.md, alignItems: 'center' },
+  card: { borderWidth: 1, borderRadius: radius.md, padding: space.lg, gap: space.md },
   cardTitle: { ...font.heading },
   body: { ...font.body },
   fieldLabel: { ...font.labelStrong },
   input: { minHeight: size.input, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.sm, paddingHorizontal: space.md, ...font.input },
-  multiline: { minHeight: 84, paddingTop: 12, textAlignVertical: 'top' },
-  primaryButton: { minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
-  secondaryButton: { minHeight: 48, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  multiline: { minHeight: size.input + space.xxxl, paddingTop: space.md, textAlignVertical: 'top' },
+  primaryButton: { minHeight: size.button, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.lg },
+  secondaryButton: { minHeight: size.button, borderRadius: radius.sm, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   link: { textAlign: 'center', ...font.button, padding: space.xs },
-  verifiedEmail: { minHeight: 46, borderRadius: 10, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  hero: { borderWidth: 1, borderRadius: 18, padding: 22, gap: 14, alignItems: 'stretch' },
-  heroIcon: { width: 72, height: 72, borderRadius: 20, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
+  verifiedEmail: { minHeight: size.input, borderRadius: radius.sm, paddingHorizontal: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md },
+  hero: { borderWidth: 1, borderRadius: radius.lg, padding: space.lg, gap: space.md, alignItems: 'stretch' },
+  heroIcon: { width: size.fab, height: size.fab, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
   heroTitle: { ...font.heading, textAlign: 'center' },
   heroText: { ...font.body, textAlign: 'center', marginBottom: space.xs },
   securityNote: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 4 },
-  workspaceCard: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 8 },
-  workspaceHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  workspaceIcon: { width: 50, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  sectionLabel: { ...font.overline, marginTop: space.sm, marginLeft: space.xs },
-  toolList: { borderWidth: 1, borderRadius: 15, overflow: 'hidden' },
-  toolRow: { minHeight: 68, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: StyleSheet.hairlineWidth },
-  toolIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  toolLabel: { ...font.bodyStrong, marginBottom: space.xs },
+  buttonText: { ...font.button },
 });

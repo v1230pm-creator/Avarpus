@@ -25,6 +25,7 @@ import { DataLoadingState, DataErrorState, DataErrorBanner } from '@/components/
 import { FlatCard, FadeInView, useIsDark, useStaggerAnim } from '@/components/ui/Glass';
 import { formatDate } from '@/utils/helpers';
 import { KeyboardAvoidingCompat } from '@/components/KeyboardAvoidingCompat';
+import { layout, size, space } from '@/constants/spacing';
 import {
   useApprovalsList,
   approvalsApprove,
@@ -204,7 +205,7 @@ export default function ApprovalsScreen() {
       <FadeInView animValue={anims[0]}>
         <View style={[styles.header, { paddingTop: topPad + 14 }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Feather name="arrow-left" size={22} color={colors.foreground} />
+            <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
           </TouchableOpacity>
           <View>
             <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
@@ -257,7 +258,7 @@ export default function ApprovalsScreen() {
               value={rejectReason}
               onChangeText={setRejectReason}
               placeholder="Reason for rejection..."
-              placeholderTextColor={colors.mutedForeground}
+              placeholderTextColor={colors.placeholder}
               style={[styles.rejectInput, { color: colors.foreground, borderColor: colors.border, fontFamily: fontFamily.regular }]}
               multiline
               autoFocus
@@ -277,22 +278,22 @@ export default function ApprovalsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 12 },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20 },
+  header: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
+  backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
   headerSub: { ...font.caption, marginTop: 2 },
-  list: { paddingHorizontal: 12, paddingTop: 4, gap: 8 },
-  card: { padding: 12, gap: 8 },
+  list: { paddingHorizontal: layout.screenPadding, paddingTop: space.xs, gap: space.sm },
+  card: { padding: space.lg, gap: space.sm },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  requester: { fontSize: 16 },
+  requester: { ...font.itemTitle },
   role: { ...font.caption, marginTop: 2, textTransform: 'capitalize' },
   detailsBox: { padding: 12, borderRadius: 8, borderWidth: 1, gap: 6 },
-  recordType: { fontSize: 13 },
-  detailsText: { fontSize: 13, lineHeight: 18 },
-  dateInfo: { fontSize: 13, marginTop: 4 },
+  recordType: { ...font.captionStrong },
+  detailsText: { ...font.caption },
+  dateInfo: { ...font.captionStrong, marginTop: space.xs },
   reasonBlock: { gap: 4 },
   reasonLabel: { ...font.caption },
-  reasonText: { fontSize: 14, fontStyle: 'italic' },
+  reasonText: { ...font.body, fontStyle: 'italic' },
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
   decidedBox: { borderTopWidth: 1, paddingTop: 12, marginTop: 4, gap: 4 },
   decidedText: { ...font.caption },
@@ -300,8 +301,8 @@ const styles = StyleSheet.create({
 
   overlayCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 12 },
   rejectModal: { width: '100%', padding: 12, borderRadius: 16, borderWidth: 1 },
-  modalTitle: { fontSize: 18, marginBottom: 8 },
-  modalSub: { fontSize: 13, marginBottom: 16, lineHeight: 18 },
-  rejectInput: { borderWidth: 1, borderRadius: 8, padding: 12, height: 100, textAlignVertical: 'top', marginBottom: 20 },
+  modalTitle: { ...font.title, marginBottom: space.sm },
+  modalSub: { ...font.body, marginBottom: space.lg },
+  rejectInput: { ...font.input, borderWidth: 1, borderRadius: 8, padding: space.md, minHeight: 100, textAlignVertical: 'top', marginBottom: space.xl },
   modalActions: { flexDirection: 'row', gap: 8 },
 });

@@ -17,7 +17,7 @@ import { StatusMedia } from './StatusMedia';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { ConfirmDialogHost, useConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { font } from '@/constants/typography';
-import { space } from '@/constants/spacing';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { useColors } from '@/hooks/useColors';
 
 const IMAGE_DURATION_MS = 7_000;
@@ -184,9 +184,9 @@ export function StatusViewer({
           </View>
           <View style={styles.identityRow}>
             <TouchableOpacity onPress={onClose} style={styles.closeButton} accessibilityLabel="Close status">
-              <Feather name="arrow-left" size={24} color="#FFFFFF" />
+               <Feather name="arrow-left" size={size.headerIcon} color="#FFFFFF" />
             </TouchableOpacity>
-            <Avatar name={group.name} url={group.profilePhoto} size={38} />
+            <Avatar name={group.name} url={group.profilePhoto} size={size.avatarSm} />
             <View style={styles.identityText}>
               <Text numberOfLines={1} style={styles.name}>{own ? 'My status' : group.name}</Text>
               <Text style={styles.time}>{ageLabel(item.createdAt)}</Text>
@@ -232,7 +232,7 @@ export function StatusViewer({
                 <ScrollView>
                   {viewers.map((viewer) => (
                     <View key={viewer.userId} style={styles.viewerRow}>
-                      <Avatar name={viewer.name} url={viewer.profilePhoto} size={44} />
+                       <Avatar name={viewer.name} url={viewer.profilePhoto} size={size.avatarSm} />
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.viewerName, { color: colors.foreground }]}>{viewer.name}</Text>
                         <Text style={[styles.viewerTime, { color: colors.mutedForeground }]}>Viewed {ageLabel(viewer.viewedAt)} ago</Text>
@@ -263,19 +263,19 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 10,
-    paddingBottom: 22,
+    paddingHorizontal: space.md,
+    paddingBottom: space.xxl,
     backgroundColor: 'rgba(0,0,0,0.28)',
   },
   progressRow: { flexDirection: 'row', gap: 3, marginBottom: 10 },
   progressTrack: { flex: 1, height: 3, borderRadius: 2, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.35)' },
   progressFill: { height: '100%', backgroundColor: '#FFFFFF' },
-  identityRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  closeButton: { width: 32, height: 40, alignItems: 'center', justifyContent: 'center' },
+  identityRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  closeButton: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   identityText: { flex: 1 },
   name: { color: '#FFFFFF', ...font.bodyStrong },
   time: { color: 'rgba(255,255,255,0.75)', ...font.caption, marginTop: space.xs },
-  actionButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  actionButton: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   tapZone: { position: 'absolute', top: 105, bottom: 80, width: '34%' },
   leftZone: { left: 0 },
   rightZone: { right: 0 },
@@ -286,11 +286,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    minWidth: 62,
+    minWidth: size.fab,
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    height: 42,
-    borderRadius: 22,
+    paddingHorizontal: space.lg,
+    minHeight: size.buttonSm,
+    borderRadius: radius.pill,
     backgroundColor: 'rgba(0,0,0,0.52)',
   },
   viewerCount: { color: '#FFFFFF', ...font.badge },
@@ -298,16 +298,16 @@ const styles = StyleSheet.create({
   viewerSheet: {
     maxHeight: '58%',
     minHeight: 220,
-    paddingHorizontal: 18,
+    paddingHorizontal: layout.listInsetEnd,
     paddingBottom: 30,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
   sheetHandle: { width: 42, height: 4, borderRadius: 2, backgroundColor: '#D6DCE5', alignSelf: 'center', marginTop: 10, marginBottom: 18 },
   sheetTitle: { ...font.heading, marginBottom: space.sm },
-  viewerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
+  viewerRow: { flexDirection: 'row', alignItems: 'center', gap: layout.avatarGap, paddingVertical: layout.rowPaddingVertical, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
   viewerName: { ...font.bodyStrong },
   viewerTime: { ...font.caption, marginTop: space.xs },
-  noViewers: { alignItems: 'center', justifyContent: 'center', paddingTop: 42, gap: 10 },
+  noViewers: { alignItems: 'center', justifyContent: 'center', paddingTop: size.iconButton, gap: space.md },
   noViewersText: { ...font.bodyStrong },
 });

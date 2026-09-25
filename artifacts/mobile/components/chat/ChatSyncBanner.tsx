@@ -4,6 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import type { ChatSyncStatus } from '@/utils/chatSync';
 import { font } from '@/constants/typography';
+import { layout, space } from '@/constants/spacing';
 
 /**
  * Subtle strip under a chat header describing the local-first state: the
@@ -59,9 +60,9 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    gap: space.sm,
+    paddingHorizontal: layout.screenPadding,
+    paddingVertical: space.sm,
   },
   text: { flex: 1, ...font.captionStrong },
   retry: { ...font.labelStrong },

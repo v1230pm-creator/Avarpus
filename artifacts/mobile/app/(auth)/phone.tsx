@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { onBlue } from '@/constants/brand';
 import { AvarpusLoadingScreen } from '@/components/ui/AvarpusSpinner';
 import { font } from '@/constants/typography';
+import { layout, size, space } from '@/constants/spacing';
 
 export default function PhoneScreen() {
   const { signedOutNotice, clearSignedOutNotice } = useAuth();
@@ -166,9 +167,9 @@ export default function PhoneScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   loadingRoot: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scroll: { flexGrow: 1, paddingHorizontal: 24 },
-  topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52 },
-  backButton: { width: 42, height: 42, marginLeft: -8, alignItems: 'center', justifyContent: 'center' },
+  scroll: { flexGrow: 1, paddingHorizontal: layout.screenPadding },
+  topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: layout.headerHeight },
+  backButton: { width: size.iconButton, height: size.iconButton, marginLeft: -8, alignItems: 'center', justifyContent: 'center' },
   headerBrand: { ...font.itemTitle, letterSpacing: 1.8 },
   headerSpacer: { width: 34 },
   content: { flex: 1, alignItems: 'center', paddingTop: 46 },
@@ -176,7 +177,7 @@ const styles = StyleSheet.create({
   subtitle: { maxWidth: 330, ...font.captionStrong, textAlign: 'center', marginTop: 18 },
   phoneForm: { width: '100%', maxWidth: 306, marginTop: 34 },
   countryRow: {
-    height: 48,
+    minHeight: size.input,
     borderBottomWidth: 1.5,
     flexDirection: 'row',
     alignItems: 'center',
@@ -185,12 +186,12 @@ const styles = StyleSheet.create({
   },
   countryText: { ...font.search },
   phoneRow: { flexDirection: 'row', gap: 14, marginTop: 12 },
-  codeField: { width: 82, height: 50, borderBottomWidth: 1.5, justifyContent: 'center' },
+  codeField: { width: 82, minHeight: size.input, borderBottomWidth: 1.5, justifyContent: 'center' },
   codeText: { ...font.search },
-  numberField: { flex: 1, height: 50, borderBottomWidth: 1.5, justifyContent: 'center' },
-  numberInput: { height: 48, ...font.search, paddingHorizontal: 0 },
-  nextButtonArea: { width: '100%', height: 64, marginTop: 'auto', paddingHorizontal: 5, paddingBottom: 10 },
-  nextButton: { borderRadius: 28, minHeight: 54, maxHeight: 54 },
+  numberField: { flex: 1, minHeight: size.input, borderBottomWidth: 1.5, justifyContent: 'center' },
+  numberInput: { minHeight: size.input, ...font.input, paddingHorizontal: 0 },
+  nextButtonArea: { width: '100%', minHeight: size.buttonLg, marginTop: 'auto', paddingHorizontal: space.xs, paddingBottom: space.sm },
+  nextButton: { borderRadius: 28, minHeight: size.buttonLg },
   alertBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginTop: 18 },
   alertText: { ...font.smallStrong, flex: 1 },
 });

@@ -58,6 +58,7 @@ import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/ui/Avatar';
 import type { LiveKitCallProps } from './LiveKitCallTypes';
 import { font } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 /**
  * Shared navigation coordination refs, passed from the outer LiveKitCall
@@ -508,7 +509,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    padding: 24,
+    padding: layout.screenPadding,
   },
   callErrorTitle: {
     ...font.itemTitle,
@@ -516,7 +517,6 @@ const styles = StyleSheet.create({
   },
   callErrorBody: {
     ...font.small,
-    lineHeight: 20,
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -533,7 +533,7 @@ const styles = StyleSheet.create({
   videoPlaceholder: {
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
+    gap: space.lg,
   },
   placeholderName: {
     ...font.search,
@@ -557,7 +557,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 20,
+    gap: space.xl,
   },
   audioAvatar: {
     width: 112,
@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
+    gap: space.lg,
     zIndex: 15,
   },
   controlButton: {
@@ -629,9 +629,9 @@ const styles = StyleSheet.create({
     // handled dynamically now
   },
   hangupButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: size.fab,
+    height: size.fab,
+    borderRadius: size.fab / 2,
     justifyContent: 'center',
     alignItems: 'center',
   },

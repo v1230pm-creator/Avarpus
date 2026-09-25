@@ -13,6 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 import { completeUnlockSuccess } from '@/utils/appLock';
 import { onBlue } from '@/constants/brand';
 import { font, fontFamily } from '@/constants/typography';
+import { layout, size, space } from '@/constants/spacing';
 
 export default function OTPScreen() {
   const router = useRouter();
@@ -244,17 +245,17 @@ export default function OTPScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  container: { flex: 1, paddingHorizontal: 16 },
-  topbar: { height: 44, justifyContent: 'center', marginBottom: 8 },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
-  content: { flex: 1, justifyContent: 'center', gap: 24 },
+  container: { flex: 1, paddingHorizontal: layout.screenPadding },
+  topbar: { minHeight: layout.headerHeight, justifyContent: 'center', marginBottom: space.sm },
+  backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
+  content: { flex: 1, justifyContent: 'center', gap: space.xxl },
   header: { alignItems: 'center', gap: 8 },
   iconCircle: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
   title: { ...font.title },
   subtitle: { ...font.small, textAlign: 'center' },
   otpRow: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
-  otpCell: { width: 44, height: 56, ...font.heading, borderWidth: 1 },
-  nameInput: { width: '100%', height: 50, borderWidth: 1, paddingHorizontal: 16, ...font.input },
+  otpCell: { width: 44, minHeight: size.input, ...font.heading, borderWidth: 1 },
+  nameInput: { width: '100%', minHeight: size.input, borderWidth: 1, paddingHorizontal: layout.screenPadding, ...font.input },
   resendText: { ...font.smallStrong },
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 8, padding: 12, borderWidth: 1 },
   errorText: { ...font.small, flex: 1 },

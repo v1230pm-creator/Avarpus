@@ -29,7 +29,7 @@ export function EmptyState({ icon, title, description, actionLabel, onAction }: 
           },
         ]}
       >
-        <Feather name={icon} size={32} color={colors.primary} />
+        <Feather name={icon} size={24} color={colors.primary} />
       </View>
       <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
       {description && (
@@ -43,8 +43,8 @@ export function EmptyState({ icon, title, description, actionLabel, onAction }: 
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md, paddingHorizontal: space.xxxl + space.sm, paddingVertical: 60 },
-  iconWrap: { width: 88, height: 88, alignItems: 'center', justifyContent: 'center', marginBottom: space.xs },
-  title: { ...font.heading, textAlign: 'center' },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md, paddingHorizontal: space.xxxl + space.sm, paddingVertical: space.xxxl },
+  iconWrap: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center', marginBottom: space.xs },
+  title: { ...font.itemTitle, textAlign: 'center' },
   desc: { ...font.body, textAlign: 'center' },
 });

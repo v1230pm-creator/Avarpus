@@ -39,7 +39,7 @@ import {
   type PushDiagnostics,
   type PushPermissionState,
 } from '@/utils/pushNotifications';
-import { font, fontFamily } from '@/constants/typography';
+import { font } from '@/constants/typography';
 import { layout, radius, size, space } from '@/constants/spacing';
 
 // Settings → Notifications. Preferences are per account and enforced by the
@@ -250,7 +250,7 @@ export default function NotificationSettingsScreen() {
           accessibilityRole="button"
           accessibilityLabel="Back to Settings"
         >
-          <Feather name="arrow-left" size={25} color={FOREGROUND} />
+          <Feather name="arrow-left" size={size.headerIcon} color={FOREGROUND} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notifications</Text>
       </View>
@@ -451,19 +451,19 @@ export default function NotificationSettingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: DARK_BACKGROUND },
   header: {
-    minHeight: 57,
+    minHeight: layout.headerHeight,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: DIVIDER,
   },
-  backButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  backButton: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { color: FOREGROUND, ...font.title, marginLeft: 1 },
   statusCard: {
-    marginHorizontal: 16,
-    marginTop: 18,
-    padding: 18,
+    marginHorizontal: layout.screenPadding,
+    marginTop: space.lg,
+    padding: space.lg,
     borderRadius: 16,
     backgroundColor: '#121A20',
     borderWidth: StyleSheet.hairlineWidth,
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
   statusBody: { color: MUTED, marginTop: space.md, ...font.caption },
   primaryButton: {
     marginTop: 14,
-    minHeight: 44,
+    minHeight: size.button,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: '#FFFFFF', ...font.button },
   secondaryButton: {
     marginTop: 12,
-    minHeight: 44,
+    minHeight: size.button,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -493,26 +493,25 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: { color: FOREGROUND, ...font.button },
   sectionHeading: {
-    paddingHorizontal: 25,
-    paddingTop: 24,
+    paddingHorizontal: layout.screenPadding,
+    paddingTop: space.xxl,
     paddingBottom: 8,
-    fontSize: 15,
     color: MUTED,
     ...font.overline,
   },
   subHeading: { paddingHorizontal: 0, paddingTop: 18 },
-  row: { minHeight: 76, paddingHorizontal: 25, justifyContent: 'center' },
-  rowContent: { minHeight: 58, flexDirection: 'row', alignItems: 'center' },
+  row: { minHeight: layout.headerHeight, paddingHorizontal: layout.screenPadding, justifyContent: 'center' },
+  rowContent: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center' },
   rowCopy: { flex: 1, justifyContent: 'center', paddingVertical: 8, paddingRight: 12 },
   rowTitle: { color: FOREGROUND, ...font.bodyStrong },
   dimmed: { opacity: 0.6 },
   rowSubtitle: { color: MUTED, marginTop: 2, ...font.caption },
   divider: { height: StyleSheet.hairlineWidth, marginTop: 8, backgroundColor: DIVIDER },
   footnote: { color: MUTED, paddingHorizontal: layout.screenPadding, paddingTop: space.md, ...font.small },
-  loadingRow: { paddingHorizontal: 25, paddingVertical: 12, gap: 8 },
+  loadingRow: { paddingHorizontal: layout.screenPadding, paddingVertical: space.md, gap: space.sm },
   errorText: { color: '#E0685E', ...font.caption },
   linkText: { color: '#5FB8FF', ...font.captionStrong },
-  actionsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16 },
+  actionsRow: { flexDirection: 'row', gap: space.sm, paddingHorizontal: layout.screenPadding },
   actionButton: { flex: 1 },
   diagnostics: {
     marginHorizontal: 16,

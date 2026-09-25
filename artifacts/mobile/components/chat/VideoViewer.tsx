@@ -16,6 +16,7 @@ import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { chatMediaUri, formatRelativeTime } from './messageActions';
 import { localMediaPathOf } from '@/hooks/useChatMedia';
 import { font } from '@/constants/typography';
+import { layout, size } from '@/constants/spacing';
 
 interface VideoViewerProps {
   visible: boolean;
@@ -150,6 +151,7 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: layout.headerHeight,
     paddingHorizontal: 6,
     paddingBottom: 10,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -157,5 +159,5 @@ const styles = StyleSheet.create({
   headerCopy: { flex: 1, paddingHorizontal: 4 },
   headerTitle: { color: '#fff', ...font.captionStrong },
   headerSubtitle: { color: 'rgba(255,255,255,0.72)', ...font.small, marginTop: 1 },
-  iconButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
+  iconButton: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
 });

@@ -4,7 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { font } from '@/constants/typography';
-import { layout, radius, space } from '@/constants/spacing';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 export default function CallsScreen() {
   const colors = useColors();
@@ -17,7 +17,7 @@ export default function CallsScreen() {
       </View>
       <View style={styles.empty}>
         <View style={[styles.icon, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
-          <Feather name="phone" size={32} color={colors.primary} />
+          <Feather name="phone" size={size.fabIcon} color={colors.primary} />
         </View>
         <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No recent calls</Text>
         <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
@@ -30,10 +30,10 @@ export default function CallsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { minHeight: 60, paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
+  header: { minHeight: layout.headerHeight, paddingLeft: layout.titleInset, paddingRight: layout.screenPadding, justifyContent: 'center' },
   title: { ...font.display },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xxxl },
-  icon: { width: 80, height: 80, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center', marginBottom: space.xl },
+  icon: { width: size.fab, height: size.fab, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center', marginBottom: space.lg },
   emptyTitle: { ...font.heading, marginBottom: space.sm },
   emptyText: { ...font.body, textAlign: 'center', maxWidth: 300 },
 });

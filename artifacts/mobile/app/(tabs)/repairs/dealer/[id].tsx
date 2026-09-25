@@ -29,7 +29,7 @@ import {
   getRepairsListQueryKey,
 } from '@workspace/api-client-react';
 import { font, fontFamily } from '@/constants/typography';
-import { layout, radius, size, space } from '@/constants/spacing';
+import { layout, radius, size, space, hitSlop } from '@/constants/spacing';
 
 const STATUS_FILTERS = ['All', 'Received', 'Repair', 'Ready', 'Delivered'] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number];
@@ -114,7 +114,7 @@ export default function DealerProfileScreen() {
   const header = useMemo(() => (
     <View style={{ gap: 10 }}>
       {dealer && (
-        <FlatCard style={{ padding: space.xl, gap: space.sm }}>
+        <FlatCard style={{ padding: space.lg, gap: space.sm }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={[styles.avatar, { backgroundColor: colors.primary + '18' }]}>
               <Feather name="briefcase" size={16} color={colors.primary} />
@@ -196,7 +196,7 @@ export default function DealerProfileScreen() {
           value={search}
           onChangeText={setSearch}
           placeholder="Search this dealer's repairs..."
-          placeholderTextColor={colors.mutedForeground}
+          placeholderTextColor={colors.placeholder}
           style={[styles.searchInput, { color: colors.foreground }]}
         />
         {!!search && (
@@ -210,7 +210,7 @@ export default function DealerProfileScreen() {
         {STATUS_FILTERS.map((f) => {
           const active = statusFilter === f;
           return (
-            <TouchableOpacity
+            <TouchableOpacity hitSlop={hitSlop.chip}
               key={f}
               onPress={() => setStatusFilter(f)}
               activeOpacity={0.8}
@@ -248,7 +248,7 @@ export default function DealerProfileScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
 
-      <View style={[styles.header, { paddingTop: topPad + layout.rowPaddingVertical }]}>
+      <View style={[styles.header, { paddingTop: topPad }]}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}>
           <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
@@ -264,7 +264,7 @@ export default function DealerProfileScreen() {
       <FlatList
         data={accumulated}
         keyExtractor={(r) => r.id}
-        contentContainerStyle={{ paddingHorizontal: layout.screenPadding, paddingBottom: size.tabBar + space.xxl, gap: space.md }}
+        contentContainerStyle={{ paddingHorizontal: layout.screenPadding, paddingBottom: space.xxl, gap: space.md }}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={header}
         refreshControl={<RefreshControl refreshing={repairsLoading && page === 1} onRefresh={onRefresh} tintColor={colors.primary} />}
@@ -293,7 +293,7 @@ export default function DealerProfileScreen() {
           const balance = Math.max(0, total - item.advance);
           return (
             <TouchableOpacity onPress={() => router.push(`/(tabs)/repairs/${item.id}`)} activeOpacity={0.8}>
-              <FlatCard style={{ padding: space.xl, gap: space.sm }}>
+              <FlatCard style={{ padding: space.lg, gap: space.sm }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <View style={[styles.codeBadge, { backgroundColor: colors.primary + '15' }]}>
                     <Text style={{ ...font.smallStrong, color: colors.primary }}>{item.repairId}</Text>
@@ -325,7 +325,7 @@ export default function DealerProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: layout.headerHeight, paddingHorizontal: layout.listInset, gap: space.sm },
   backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...font.title },
   headerSub: { ...font.caption },
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
   statIcon: { width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   statValue: { ...font.bodyStrong },
   statLabel: { ...font.small },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, borderRadius: size.searchRadius },
-  searchInput: { flex: 1, height: size.searchField, ...font.search },
-  filterTab: { paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: size.searchGap, paddingLeft: size.searchPadding, paddingRight: space.md, minHeight: size.searchField, borderRadius: size.searchRadius },
+  searchInput: { flex: 1, ...font.search, paddingVertical: 0 },
+  filterTab: { paddingHorizontal: space.md, minHeight: size.chip, justifyContent: 'center', borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
 });

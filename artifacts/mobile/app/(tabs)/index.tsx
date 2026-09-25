@@ -27,6 +27,8 @@ import { font, fontFamily } from '@/constants/typography';
 import { layout, radius, size, space } from '@/constants/spacing';
 import { Avatar } from '@/components/ui/Avatar';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
+import { useReachHoldOff } from '@/components/ui/ReachDown';
+import { ContactCardIcon } from '@/components/ui/ContactCardIcon';
 import { useDeviceContactNames } from '@/hooks/useDeviceContactNames';
 import {
   useChatCapabilities,
@@ -123,11 +125,14 @@ function RoomItem({
   const isOutgoing = !!lastMsg && lastMsg.senderId === currentUserId;
   const receiptColor = room.lastMessageStatus === 'read' ? colors.primary : colors.mutedForeground;
   const receiptText = room.lastMessageStatus === 'delivered' || room.lastMessageStatus === 'read' ? '✓✓' : '✓';
+  const holdOff = useReachHoldOff();
 
   // The row is a plain container with two sibling controls: the photo (opens
-  // the peer's profile) and the rest of the row (opens the chat). Siblings —
-  // not nested touchables — so each stays independently reachable to screen
-  // readers and neither steals the other's long-press.
+  // the peer's profile; held, it selects the chat) and the rest of the row
+  // (opens the chat). Siblings — not nested touchables — so each stays
+  // independently reachable to screen readers. Only the photo keeps a hold of
+  // its own: a finger resting on the rest of the row takes the page for
+  // one-hand reach, like everywhere else in the app.
   return (
     <View
       style={[styles.roomItem, selected && { backgroundColor: colors.accent }]}
@@ -137,6 +142,7 @@ function RoomItem({
           style={{ position: 'relative' }}
           onPress={onAvatarPress}
           onLongPress={onLongPress}
+          onPressIn={holdOff}
           activeOpacity={0.72}
           accessibilityRole="button"
           accessibilityLabel={
@@ -144,6 +150,7 @@ function RoomItem({
               ? `${selected ? 'Selected, ' : ''}toggle selection of ${displayName}`
               : `View profile of ${displayName}`
           }
+          accessibilityHint={selecting ? undefined : 'Long press to select this chat'}
           accessibilityState={{ selected }}
           testID={`room-avatar-${room.id}`}
         >
@@ -160,14 +167,13 @@ function RoomItem({
                 { backgroundColor: colors.primary, borderColor: colors.background },
               ]}
             >
-              <Feather name="check" size={13} color="#FFFFFF" />
+              <Feather name="check" size={11} color="#FFFFFF" />
             </View>
           )}
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.roomContent}
           onPress={onPress}
-          onLongPress={onLongPress}
           activeOpacity={0.72}
           accessibilityRole="button"
           accessibilityLabel={
@@ -200,7 +206,7 @@ function RoomItem({
             {preview.icon && (
               <Feather
                 name={preview.icon}
-                size={16}
+                size={size.inlineIconSm}
                 color={colors.mutedForeground}
                 style={styles.roomPreviewIcon}
               />
@@ -209,8 +215,12 @@ function RoomItem({
               {isOutgoing && !preview.icon ? `You: ${preview.text}` : preview.text}
             </Text>
             <View style={styles.roomFooterIcons}>
-              {room.isPinned && <Feather name="map-pin" size={18} color={colors.mutedForeground} />}
-              {room.isMuted && <Feather name="bell-off" size={18} color={colors.mutedForeground} />}
+              {room.isPinned && (
+                <Feather name="map-pin" size={size.inlineIcon} color={colors.mutedForeground} />
+              )}
+              {room.isMuted && (
+                <Feather name="bell-off" size={size.inlineIcon} color={colors.mutedForeground} />
+              )}
               {unread > 0 && !selected && (
                 <View style={[styles.unreadBadge, { backgroundColor: colors.notification }]}>
                   <Text style={styles.unreadText}>
@@ -695,7 +705,7 @@ function CustomerInboxScreen() {
         value={search}
         onChangeText={setSearch}
         placeholder="Search"
-        placeholderTextColor={colors.mutedForeground}
+        placeholderTextColor={colors.placeholder}
         style={[styles.searchInput, { color: colors.foreground }]}
         returnKeyType="search"
         testID={autoFocusRef ? 'chat-search-input' : undefined}
@@ -707,7 +717,7 @@ function CustomerInboxScreen() {
           style={styles.searchClear}
           hitSlop={8}
         >
-          <Feather name="x" size={22} color={colors.mutedForeground} />
+          <Feather name="x" size={20} color={colors.mutedForeground} />
         </TouchableOpacity>
       )}
     </View>
@@ -750,7 +760,7 @@ function CustomerInboxScreen() {
               accessibilityLabel="Show all chats"
               hitSlop={10}
             >
-              <Feather name="x" size={18} color={colors.accentForeground} />
+              <Feather name="x" size={size.inlineIcon} color={colors.accentForeground} />
             </TouchableOpacity>
           </View>
         </View>
@@ -852,25 +862,17 @@ function CustomerInboxScreen() {
       {/* Floating Action Button */}
       {providerConfigured && roomFilter !== 'archived' && selectedRoomIds.size === 0 && (
         <TouchableOpacity
-          // Clear the tab bar (a fixed height plus 20 on web, plus the
-          // safe-area inset on native) by one spacing step.
-          style={[
-            styles.fab,
-            {
-              backgroundColor: colors.primary,
-              bottom: size.tabBar + (Platform.OS === 'web' ? 20 : Math.max(insets.bottom, 12)) + space.lg,
-            },
-          ]}
+          // The tab bar sits below this screen rather than over it (and it
+          // carries the bottom safe-area inset itself), so the button only
+          // needs its own clearance above the bar.
+          style={[styles.fab, { backgroundColor: colors.primary, bottom: space.lg }]}
           activeOpacity={0.8}
           onPress={() => setShowContactDiscovery(true)}
           accessibilityRole="button"
           accessibilityLabel="Start a new chat"
           testID="new-chat-control"
         >
-          <Feather name="message-square" size={28} color="#FFFFFF" />
-          <View style={styles.fabPlusBadge}>
-            <Feather name="plus" size={13} color="#FFFFFF" />
-          </View>
+          <ContactCardIcon size={size.fabIcon} color="#FFFFFF" />
         </TouchableOpacity>
       )}
 
@@ -954,7 +956,7 @@ function CustomerInboxScreen() {
               value={exactPhone}
               onChangeText={setExactPhone}
               placeholder="Search name or number"
-              placeholderTextColor={colors.mutedForeground}
+              placeholderTextColor={colors.placeholder}
               style={[styles.contactSearchInput, { color: colors.foreground }]}
               accessibilityLabel="Exact mobile number"
             />
@@ -1005,7 +1007,7 @@ function CustomerInboxScreen() {
                   <Avatar
                     name={deviceContactByPhone.get(normalizeIndianPhone(item.contact.mobile ?? '') ?? '')?.name ?? item.contact.name}
                     url={item.contact.profilePhoto ?? deviceContactByPhone.get(normalizeIndianPhone(item.contact.mobile ?? '') ?? '')?.imageUri}
-                    size={48}
+                    size={size.avatar}
                   />
                   <View style={styles.contactDetails}>
                     <Text style={[styles.contactName, { color: colors.foreground }]} numberOfLines={1}>
@@ -1022,7 +1024,7 @@ function CustomerInboxScreen() {
                 </TouchableOpacity>
               ) : (
                 <View style={styles.contactItem}>
-                  <Avatar name={item.contact.name} url={item.contact.imageUri} size={48} />
+                  <Avatar name={item.contact.name} url={item.contact.imageUri} size={size.avatar} />
                   <View style={styles.contactDetails}>
                     <Text style={[styles.contactName, { color: colors.foreground }]} numberOfLines={1}>{item.contact.name}</Text>
                     <Text style={[styles.contactPhone, { color: colors.mutedForeground }]}>+91 {item.contact.phone}</Text>
@@ -1056,15 +1058,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  // The header, search field and rows share the inbox's left inset; the
+  // search field and the trailing column keep their own right insets.
   normalHeaderContainer: {
-    paddingHorizontal: layout.screenPadding,
-    paddingBottom: space.md,
+    // Together with the list's top padding this leaves the reference's
+    // 18dp between the search field and the first row.
+    paddingBottom: layout.searchGap - space.md,
   },
   topAppBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    minHeight: 64,
+    minHeight: layout.headerHeight,
+    paddingLeft: layout.titleInset,
+    // The 44dp menu button ends 2dp from the edge so its glyph is centred
+    // 24dp in, where the reference draws its menu.
+    paddingRight: 2,
   },
   appTitleBlock: {
     flexShrink: 1,
@@ -1075,8 +1084,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.xs,
-    // Optically align the glyph with the screen's right padding.
-    marginRight: -space.sm,
   },
   iconButton: {
     width: size.iconButton,
@@ -1085,20 +1092,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   searchContainer: {
-    marginTop: space.lg,
+    marginTop: layout.headerGap,
+    marginLeft: layout.listInset,
+    marginRight: layout.screenPadding,
   },
   selectionSearchContainer: {
     marginTop: 0,
-    paddingHorizontal: layout.screenPadding,
     paddingVertical: space.md,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: size.searchField,
+    minHeight: size.searchField,
     borderRadius: size.searchRadius,
-    paddingHorizontal: space.xl,
-    gap: space.lg,
+    paddingLeft: size.searchPadding,
+    paddingRight: space.md,
+    gap: size.searchGap,
   },
   searchInput: {
     flex: 1,
@@ -1111,27 +1120,27 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: -space.sm,
   },
   activeFilterRow: {
     flexDirection: 'row',
-    marginTop: space.lg,
+    marginTop: space.md,
+    paddingHorizontal: layout.listInset,
   },
   activeFilterChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
-    height: 36,
-    paddingLeft: space.lg,
-    paddingRight: space.md,
-    borderRadius: 18,
+    minHeight: size.chip,
+    paddingLeft: space.md,
+    paddingRight: space.sm + 2,
+    borderRadius: size.chip / 2,
   },
   activeFilterText: font.captionStrong,
   selectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 64,
+    minHeight: layout.headerHeight,
     paddingHorizontal: space.md,
   },
   selectionHeaderLeft: {
@@ -1154,7 +1163,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: layout.rowPaddingVertical,
-    paddingHorizontal: layout.screenPadding,
+    paddingLeft: layout.listInset,
+    paddingRight: layout.listInsetEnd,
   },
   roomAvatar: {
     borderWidth: 0,
@@ -1163,9 +1173,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -2,
     right: -2,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: size.selectionMark,
+    height: size.selectionMark,
+    borderRadius: size.selectionMark / 2,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1179,7 +1189,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: space.xs,
+    marginBottom: layout.rowLineGap,
   },
   roomName: {
     ...font.itemTitle,
@@ -1192,13 +1202,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   receiptTicks: {
-    ...font.captionStrong,
+    ...font.caption,
     fontFamily: fontFamily.semibold,
+    lineHeight: font.body.lineHeight,
     letterSpacing: -2,
     marginRight: space.xs,
   },
   roomPreviewIcon: {
-    marginRight: 6,
+    marginRight: 5,
   },
   roomLastMsg: {
     ...font.body,
@@ -1207,16 +1218,16 @@ const styles = StyleSheet.create({
   roomFooterIcons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.sm + 2,
+    gap: space.sm,
     marginLeft: space.md,
   },
   unreadBadge: {
     minWidth: size.badge,
-    height: size.badge,
+    minHeight: size.badge,
     borderRadius: size.badge / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: space.sm,
+    paddingHorizontal: 6,
   },
   unreadText: {
     ...font.badge,
@@ -1224,7 +1235,7 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    right: layout.screenPadding,
+    right: layout.listInsetEnd,
     width: size.fab,
     height: size.fab,
     borderRadius: size.fabRadius,
@@ -1235,15 +1246,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.22,
     shadowRadius: 8,
-  },
-  // Sits inside the bubble so the glyph reads as "new message".
-  fabPlusBadge: {
-    position: 'absolute',
-    top: 18,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   centeredState: {
     position: 'absolute',
@@ -1375,16 +1377,16 @@ const styles = StyleSheet.create({
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 72,
-    paddingHorizontal: layout.screenPadding,
-    paddingVertical: space.sm,
+    paddingVertical: layout.rowPaddingVertical,
+    paddingLeft: layout.listInset,
+    paddingRight: layout.listInsetEnd,
   },
   contactDetails: {
     flex: 1,
     minWidth: 0,
     marginLeft: layout.avatarGap,
   },
-  contactName: font.bodyStrong,
+  contactName: font.itemTitle,
   contactPhone: {
     marginTop: 2,
     ...font.caption,

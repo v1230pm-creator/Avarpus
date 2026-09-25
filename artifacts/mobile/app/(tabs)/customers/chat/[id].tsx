@@ -63,6 +63,7 @@ import * as Location from 'expo-location';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import * as Sharing from 'expo-sharing';
 import { useColors } from '@/hooks/useColors';
+import { useReachHoldOff } from '@/components/ui/ReachDown';
 import { useDeviceContactNames } from '@/hooks/useDeviceContactNames';
 import { useConfirmDialog, type ConfirmAction } from '@/components/ui/ConfirmDialog';
 import { useAuth } from '@/context/AuthContext';
@@ -102,6 +103,7 @@ import { ChatSyncBanner } from '@/components/chat/ChatSyncBanner';
 import { makeTextOutboxItem, outboxToMessage } from '@/utils/chatOutbox';
 import type { ChatDeliveryStatus, OutboxItem } from '@/utils/chatStore';
 import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -429,7 +431,7 @@ function VideoAttachment({
       testID={`video-attachment-${msg.id}`}
     >
       <View style={styles.videoPlayBadge}>
-        <Feather name="play" size={26} color="#FFFFFF" />
+        <Feather name="play" size={size.headerIcon} color="#FFFFFF" />
       </View>
       <View style={styles.videoMetaRow}>
         <Feather name="video" size={12} color="#FFFFFF" />
@@ -640,6 +642,7 @@ function MessageBubble({
   quoteSenderLabel?: string;
 }) {
   const media = useChatMediaSource(msg, token);
+  const holdOff = useReachHoldOff();
   if (msg.deletedAt) {
     return (
       <View style={[styles.bubbleRow, isMine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
@@ -683,18 +686,26 @@ function MessageBubble({
     else if (isVideo) onOpenVideo?.(msg);
   };
 
+  const onPress = selectionMode || isImage || isVideo ? handlePress : undefined;
+
+  // The long press that starts selecting lives on the bubble itself, not on the
+  // whole row: a finger resting on the margin beside a bubble takes the page
+  // for one-hand reach, like everywhere else. In selection mode the row around
+  // the bubble still toggles it with a tap.
   return (
     <Pressable
-      onLongPress={canSelect ? () => onSelectStart?.(msg) : undefined}
-      onPress={selectionMode || isImage || isVideo ? handlePress : undefined}
-      delayLongPress={450}
+      onPress={onPress}
       style={styles.selectableRow}
       accessibilityLabel={selected ? 'Selected message' : undefined}
       accessibilityState={selectionMode ? { selected } : undefined}
       testID={`message-row-${msg.id}`}
     >
       <View style={[styles.bubbleRow, isMine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
-        <View
+        <Pressable
+          onLongPress={canSelect ? () => onSelectStart?.(msg) : undefined}
+          onPress={onPress}
+          onPressIn={holdOff}
+          delayLongPress={450}
           style={[
             styles.bubble,
             isMine
@@ -702,6 +713,7 @@ function MessageBubble({
               : [styles.bubbleTheirs, { backgroundColor: colors.card, borderColor: colors.border }],
             (isImage || isVideo || isFile || isAudio) && styles.bubbleMedia,
           ]}
+          testID={`message-bubble-${msg.id}`}
         >
           {msg.forwarded && (
             <View style={styles.forwardedRow} testID={`forwarded-label-${msg.id}`}>
@@ -787,7 +799,7 @@ function MessageBubble({
             </Text>
             {isMine && <DeliveryTicks msg={msg} colors={colors} />}
           </View>
-        </View>
+        </Pressable>
       </View>
       {selected && (
         <View
@@ -1062,7 +1074,7 @@ function AttachmentSheet({
               </View>
             ) : contacts.length === 0 ? (
               <View style={styles.attachmentEmptyState}>
-                <Feather name="users" size={26} color={colors.mutedForeground} />
+                <Feather name="users" size={size.headerIcon} color={colors.mutedForeground} />
                 <Text style={[styles.attachmentEmptyText, { color: colors.mutedForeground }]}>
                   No contacts with a phone number were found.
                 </Text>
@@ -1183,7 +1195,7 @@ function AttachmentSheet({
               </View>
             ) : recentAssets.length === 0 ? (
               <View style={styles.attachmentEmptyState}>
-                <Feather name="image" size={26} color={colors.mutedForeground} />
+                <Feather name="image" size={size.headerIcon} color={colors.mutedForeground} />
                 <Text style={[styles.attachmentEmptyText, { color: colors.mutedForeground }]}>
                   {recentMediaAccess === 'denied'
                     ? 'Photo access is off. Allow access to show recent photos here.'
@@ -3061,12 +3073,12 @@ export default function ChatScreen() {
           style={styles.iconButton}
           accessibilityLabel="Back"
         >
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
-        <Avatar name={roomName} size={34} url={room?.profilePhoto} />
+        <Avatar name={roomName} size={size.avatarSm} url={room?.profilePhoto} />
         <View style={styles.headerTitleContainer}>
           <Text
-            style={[styles.headerTitle, { color: colors.foreground, ...font.captionStrong, fontFamily: fontFamily.bold }]}
+            style={[styles.headerTitle, { color: colors.foreground }]}
             numberOfLines={1}
           >
             {roomName}
@@ -3076,7 +3088,7 @@ export default function ChatScreen() {
               {room?.peerOnline && (
                 <View style={[styles.presenceDot, { backgroundColor: colors.success }]} />
               )}
-              <Text style={[styles.headerSubtitle, { color: colors.mutedForeground, ...font.small }]}>
+              <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
                 {presenceText}
               </Text>
             </View>
@@ -3094,7 +3106,7 @@ export default function ChatScreen() {
         >
           <Feather
             name="phone"
-            size={18}
+            size={size.headerIcon}
             color={callEnabled ? colors.primary : colors.mutedForeground}
           />
         </TouchableOpacity>
@@ -3110,7 +3122,7 @@ export default function ChatScreen() {
         >
           <Feather
             name="video"
-            size={18}
+            size={size.headerIcon}
             color={callEnabled ? colors.primary : colors.mutedForeground}
           />
         </TouchableOpacity>
@@ -3119,7 +3131,7 @@ export default function ChatScreen() {
           accessibilityLabel="Open chat menu"
           onPress={openChatMenu}
         >
-          <Feather name="more-vertical" size={18} color={colors.foreground} />
+          <Feather name="more-vertical" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
       </View>
       )}
@@ -3202,7 +3214,7 @@ export default function ChatScreen() {
           </View>
         ) : roomCreateError ? (
           <View style={styles.centeredState}>
-            <Feather name="alert-circle" size={32} color={colors.destructive} />
+            <Feather name="alert-circle" size={size.headerIcon} color={colors.destructive} />
             <Text
               style={[
                 styles.noticeTitle,
@@ -3251,7 +3263,7 @@ export default function ChatScreen() {
           </View>
         ) : timelineError ? (
           <View style={styles.centeredState}>
-            <Feather name="alert-circle" size={28} color={colors.destructive} />
+            <Feather name="alert-circle" size={size.headerIcon} color={colors.destructive} />
             <Text
               style={[
                 styles.noticeTitle,
@@ -3576,7 +3588,7 @@ export default function ChatScreen() {
               ref={composerInputRef}
               style={[styles.input, { color: colors.foreground, fontFamily: fontFamily.regular }]}
               placeholder={providerAvailable ? 'Message…' : 'Messaging is not available yet'}
-              placeholderTextColor={colors.mutedForeground}
+              placeholderTextColor={colors.placeholder}
               value={text}
               onChangeText={setText}
               editable={providerAvailable && !!resolvedRoomId && !isBlocked}
@@ -3592,7 +3604,7 @@ export default function ChatScreen() {
             >
               <Feather
                 name="paperclip"
-                size={20}
+                size={size.headerIcon}
                 color={attachEnabled ? colors.mutedForeground : colors.textDisabled ?? colors.mutedForeground}
                 style={{ transform: [{ rotate: '-45deg' }] }}
               />
@@ -3605,7 +3617,7 @@ export default function ChatScreen() {
             >
               <Feather
                 name="camera"
-                size={20}
+                size={size.headerIcon}
                 color={attachEnabled ? colors.mutedForeground : colors.textDisabled ?? colors.mutedForeground}
               />
             </TouchableOpacity>
@@ -3635,7 +3647,7 @@ export default function ChatScreen() {
           >
             <Feather
               name={text.trim() ? 'send' : 'mic'}
-              size={text.trim() ? 19 : 22}
+              size={size.headerIcon}
               color={text.trim() || micEnabled ? colors.primaryForeground : colors.mutedForeground}
               style={text.trim() ? { transform: [{ translateX: -1 }, { translateY: 1 }] } : undefined}
             />
@@ -3844,19 +3856,19 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingBottom: 8,
+    minHeight: layout.headerHeight,
+    paddingHorizontal: space.sm,
     borderBottomWidth: 1,
   },
-  iconButton: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
-  headerTitleContainer: { flex: 1, paddingHorizontal: 8, justifyContent: 'center' },
-  headerTitle: { ...font.labelStrong },
+  iconButton: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  headerTitleContainer: { flex: 1, paddingHorizontal: space.sm, justifyContent: 'center' },
+  headerTitle: { ...font.itemTitle },
   presenceRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   presenceDot: { width: 6, height: 6, borderRadius: 3 },
-  headerSubtitle: { ...font.small },
+  headerSubtitle: { ...font.caption },
   disabledHeaderAction: {
-    width: 32,
-    height: 42,
+    width: size.iconButton,
+    height: size.iconButton,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3885,14 +3897,14 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
-    gap: 8,
+    padding: space.xxl,
+    gap: space.sm,
   },
   stateText: { ...font.small },
   noticeCard: {
     alignItems: 'center',
-    padding: 24,
-    borderRadius: 16,
+    padding: space.lg,
+    borderRadius: radius.md,
     borderWidth: 1,
     maxWidth: 420,
     width: '100%',
@@ -3919,7 +3931,7 @@ const styles = StyleSheet.create({
   safetyText: { flexShrink: 1, ...font.small },
   retryBtn: {
     marginTop: 12,
-    paddingHorizontal: 24,
+    paddingHorizontal: space.xxl,
     paddingVertical: 10,
     borderRadius: 12,
   },
@@ -3930,15 +3942,15 @@ const styles = StyleSheet.create({
   bubble: {
     maxWidth: '80%',
     borderRadius: 13,
-    paddingHorizontal: 11,
-    paddingTop: 8,
-    paddingBottom: 6,
+    paddingHorizontal: space.md,
+    paddingTop: space.sm,
+    paddingBottom: space.sm,
     gap: 2,
   },
   bubbleMine: { borderBottomRightRadius: 4 },
   bubbleTheirs: { borderBottomLeftRadius: 4, borderWidth: StyleSheet.hairlineWidth },
   bubbleMedia: { padding: 6 },
-  bubbleText: { ...font.small },
+  bubbleText: { ...font.message },
   bubbleFooter: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: 3, marginTop: 1 },
   bubbleTime: { ...font.small },
   deliveryTicks: { ...font.small, letterSpacing: -2 },
@@ -4061,8 +4073,8 @@ const styles = StyleSheet.create({
   recordingBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
     borderTopWidth: 1,
     gap: 10,
   },
@@ -4070,7 +4082,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: space.lg,
     paddingVertical: 10,
     borderTopWidth: 1,
   },
@@ -4154,14 +4166,14 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 24,
+    borderRadius: size.input / 2,
     paddingHorizontal: 4,
-    minHeight: 48,
+    minHeight: size.input,
     borderWidth: 0,
   },
   inlineComposerAction: {
-    width: 36,
-    height: 48,
+    width: size.iconButton,
+    height: size.iconButton,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -4173,9 +4185,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   actionCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: size.input,
+    height: size.input,
+    borderRadius: size.input / 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -4183,7 +4195,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: space.lg,
     paddingVertical: 10,
     borderTopWidth: 1,
   },
@@ -4219,7 +4231,7 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   attachmentSheetHeader: {
-    height: 48,
+    minHeight: size.input,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
@@ -4260,7 +4272,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: space.lg,
     paddingBottom: 9,
   },
   attachmentRecentTitle: { ...font.smallStrong },
@@ -4340,11 +4352,11 @@ const styles = StyleSheet.create({
   },
   attachmentSendFab: {
     position: 'absolute',
-    right: 18,
-    bottom: 22,
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    right: layout.listInsetEnd,
+    bottom: space.lg,
+    width: size.fab,
+    height: size.fab,
+    borderRadius: size.fabRadius,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -4399,7 +4411,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
-    paddingHorizontal: 24,
+    paddingHorizontal: space.xxl,
   },
   attachmentEmptyText: { ...font.small, textAlign: 'center' },
   attachmentEmptyButton: {

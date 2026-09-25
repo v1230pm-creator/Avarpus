@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { RepairChecklist } from './repairChecklist';
+import type { RepairCoverPhoto } from './repairCoverPhoto';
 import type { RepairPaymentStatus } from './repairPaymentStatus';
 import type { RepairPhysicalCondition } from './repairPhysicalCondition';
 import type { RepairTestingChecklist } from './repairTestingChecklist';
@@ -103,4 +104,6 @@ export interface Repair {
   sourceReceiveDate?: string;
   /** Present on the SENDING shop's own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair's live status at the other shop. */
   transfer?: RepairTransferSummary;
+  /** The one photo a list thumbnail shows: the front shot when there is one, otherwise the earliest upload. Staff views only; null when the repair has no photos. */
+  coverPhoto?: RepairCoverPhoto;
 }

@@ -23,7 +23,7 @@ import { PurchaseFormSheet } from '@/components/forms/PurchaseFormSheet';
 import { Purchase } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { font, fontFamily } from '@/constants/typography';
-import { layout, radius, size, space } from '@/constants/spacing';
+import { layout, radius, size, space, hitSlop } from '@/constants/spacing';
 
 const PAYMENT_STATUS_COLORS = {
   paid: 'success',
@@ -61,7 +61,7 @@ function PurchaseCard({ purchase, onPress }: { purchase: Purchase; onPress: () =
 
       <View style={styles.cardFooter}>
         <View>
-          <Text style={[styles.totalAmount, { color: colors.foreground, fontFamily: fontFamily.bold }]}>
+          <Text style={[styles.totalAmount, { color: colors.foreground }]}>
             {formatCurrency(purchase.total)}
           </Text>
           {purchase.paymentStatus !== 'paid' && (
@@ -138,7 +138,7 @@ export default function PurchasesScreen() {
       <FadeInView animValue={headerAnim}>
         <View style={[styles.header, { paddingTop: topPad + 14 }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Feather name="arrow-left" size={22} color={colors.foreground} />
+            <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
           </TouchableOpacity>
           <View>
             <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Purchases</Text>
@@ -160,12 +160,12 @@ export default function PurchasesScreen() {
             backgroundColor: colors.card,
             borderColor: colors.border,
           }]}>
-            <Feather name="search" size={16} color={colors.mutedForeground} />
+            <Feather name="search" size={size.headerIcon} color={colors.mutedForeground} />
             <TextInput
               value={search}
               onChangeText={setSearch}
               placeholder="Search purchases..."
-              placeholderTextColor={colors.mutedForeground}
+              placeholderTextColor={colors.placeholder}
               style={[styles.searchInput, { color: colors.foreground, fontFamily: fontFamily.regular }]}
             />
             {!!search && <TouchableOpacity onPress={() => setSearch('')}><Feather name="x" size={16} color={colors.mutedForeground} /></TouchableOpacity>}
@@ -174,7 +174,7 @@ export default function PurchasesScreen() {
             {(['All', 'Unpaid', 'Paid', 'Partial'] as const).map((f) => {
               const active = filter === f;
               return (
-                <TouchableOpacity
+                <TouchableOpacity hitSlop={hitSlop.chip}
                   key={f}
                   onPress={() => setFilter(f)}
                   style={[styles.filterTab, {
@@ -218,23 +218,23 @@ export default function PurchasesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
+  header: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
   backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   addBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...font.title },
   headerSub: { ...font.caption, marginTop: space.xs },
-  searchWrap: { paddingHorizontal: 12, paddingBottom: 12, gap: 8 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14 },
-  searchInput: { ...font.search, flex: 1, height: size.searchField },
+  searchWrap: { marginLeft: layout.listInset, marginRight: layout.screenPadding, paddingBottom: layout.searchGap, gap: space.sm },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: size.searchGap, minHeight: size.searchField, borderWidth: 1, borderRadius: size.searchRadius, paddingLeft: size.searchPadding, paddingRight: space.md },
+  searchInput: { ...font.search, flex: 1, minWidth: 0, paddingVertical: 0 },
   filterRow: { flexDirection: 'row', gap: 8 },
-  filterTab: { flex: 1, paddingVertical: 8, borderRadius: 20, borderWidth: 1, alignItems: 'center' },
+  filterTab: { flex: 1, minHeight: size.chip, borderRadius: size.chip / 2, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   filterText: { ...font.captionStrong },
-  list: { paddingHorizontal: 12, paddingTop: 4, gap: 8 },
-  card: { padding: 12, gap: 8 },
+  list: { paddingHorizontal: layout.screenPadding, paddingTop: space.xs, gap: space.sm },
+  card: { padding: space.lg, gap: space.sm },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   invoiceBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   invoiceId: { ...font.captionStrong },
-  supplier: { ...font.bodyStrong },
+  supplier: { ...font.itemTitle },
   itemsText: { ...font.caption },
   itemList: { borderTopWidth: 1, paddingTop: 8, gap: 4 },
   itemLine: { ...font.caption },

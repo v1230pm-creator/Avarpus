@@ -14,6 +14,8 @@ import {
 } from '../utils/khata';
 import type { Repair } from '../types';
 
+let mockSegments: string[] = ['(tabs)', 'khata'];
+
 jest.mock('expo-router', () => {
   const React = require('react');
   const { Text, View } = require('react-native');
@@ -28,6 +30,7 @@ jest.mock('expo-router', () => {
       back: jest.fn(),
     }),
     useLocalSearchParams: jest.fn(),
+    useSegments: () => mockSegments,
     Redirect: ({ href }: { href: string }) =>
       React.createElement(Text, null, `Redirect:${href}`),
     Stack,
@@ -426,5 +429,32 @@ describe('Chat and Khata direct-route guards', () => {
     render(<KhataLayout />);
     expect(screen.getByText('Stack:index')).toBeTruthy();
     expect(screen.getByText('Stack:party/[type]/[id]')).toBeTruthy();
+  });
+
+  it('lets repairs-only staff reach the overview but not the money screens', () => {
+    (useAuth as jest.Mock).mockReturnValue({
+      user: { role: 'technician' },
+      canAccess: (feature: string) => feature === 'repairs',
+    });
+
+    mockSegments = ['(tabs)', 'khata'];
+    const overview = render(<KhataLayout />);
+    expect(screen.getByText('Stack:index')).toBeTruthy();
+    expect(screen.queryByText('Redirect:/(tabs)')).toBeNull();
+    overview.unmount();
+
+    mockSegments = ['(tabs)', 'khata', 'party', 'customer', 'c1'];
+    const ledger = render(<KhataLayout />);
+    expect(screen.getByText('Redirect:/(tabs)')).toBeTruthy();
+    expect(screen.queryByText('Stack:index')).toBeNull();
+    ledger.unmount();
+
+    // The layout stays mounted behind the other tabs: segments that belong to
+    // another tab must never trip the child-screen rule.
+    mockSegments = ['(tabs)', 'repairs', 'repair-1'];
+    render(<KhataLayout />);
+    expect(screen.getByText('Stack:index')).toBeTruthy();
+    expect(screen.queryByText('Redirect:/(tabs)')).toBeNull();
+    mockSegments = ['(tabs)', 'khata'];
   });
 });

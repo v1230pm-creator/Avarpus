@@ -31,7 +31,7 @@ import {
   type DriveBackupStatus,
 } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
-import { font, fontFamily } from '@/constants/typography';
+import { font } from '@/constants/typography';
 import { layout, radius, size, space } from '@/constants/spacing';
 import { useMediaSummary } from '@/hooks/useChatMedia';
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -508,7 +508,7 @@ export default function ChatBackupScreen() {
       <View
         style={[
           styles.header,
-          { paddingTop: topPad + 12, borderBottomColor: colors.border },
+          { paddingTop: topPad, borderBottomColor: colors.border },
         ]}
       >
         <TouchableOpacity
@@ -517,7 +517,7 @@ export default function ChatBackupScreen() {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Feather name="arrow-left" size={24} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Chat backup</Text>
       </View>
@@ -655,7 +655,7 @@ export default function ChatBackupScreen() {
               style={styles.encryptionRow}
               onPress={openEncryptionDialog}
             >
-              <Feather name="lock" size={22} color={colors.mutedForeground} />
+              <Feather name="lock" size={size.headerIcon} color={colors.mutedForeground} />
               <View style={styles.encryptionCopy}>
                 <Text style={[styles.rowTitle, { color: colors.foreground }]}>
                   End-to-end encrypted backup
@@ -666,7 +666,7 @@ export default function ChatBackupScreen() {
               </View>
               <Feather
                 name="chevron-right"
-                size={20}
+                size={size.inlineIcon}
                 color={colors.mutedForeground}
               />
             </TouchableOpacity>
@@ -705,7 +705,7 @@ export default function ChatBackupScreen() {
                 setRecoveryPasswordError(null);
               }}
               placeholder="Recovery password"
-              placeholderTextColor={colors.mutedForeground}
+              placeholderTextColor={colors.placeholder}
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
@@ -723,7 +723,7 @@ export default function ChatBackupScreen() {
                   setRecoveryPasswordError(null);
                 }}
                 placeholder="Confirm recovery password"
-                placeholderTextColor={colors.mutedForeground}
+                placeholderTextColor={colors.placeholder}
                 secureTextEntry
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -792,26 +792,22 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingBottom: 12,
+    minHeight: layout.headerHeight,
+    paddingHorizontal: space.sm,
     borderBottomWidth: 1,
   },
-  backButton: { padding: 10 },
+  backButton: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   headerTitle: {
-    fontSize: 20,
     marginLeft: 8,
     ...font.title,
   },
   sectionLabel: {
-    fontSize: 14,
     marginTop: 18,
-    paddingHorizontal: 17,
+    paddingHorizontal: layout.screenPadding,
     ...font.overline,
   },
   description: {
-    fontSize: 14,
-    lineHeight: 20,
-    paddingHorizontal: 17,
+    paddingHorizontal: layout.screenPadding,
     marginTop: 2,
     ...font.body,
   },
@@ -819,29 +815,29 @@ const styles = StyleSheet.create({
   retryBlock: { padding: 24, alignItems: 'center' },
   errorText: { ...font.caption },
   retryText: { marginTop: space.sm, ...font.captionStrong },
-  backupSummary: { marginTop: 20, paddingHorizontal: 17, gap: 5 },
+  backupSummary: { marginTop: space.xl, paddingHorizontal: layout.screenPadding, gap: space.xs },
   summaryText: { ...font.caption },
   backupButton: {
     minWidth: 106,
-    height: 43,
-    borderRadius: 22,
+    minHeight: size.button,
+    borderRadius: size.button / 2,
     alignSelf: 'flex-start',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 17,
+    marginLeft: layout.screenPadding,
     marginTop: 26,
-    paddingHorizontal: 24,
+    paddingHorizontal: space.xxl,
   },
   backupButtonText: { ...font.button },
-  accountBlock: { paddingHorizontal: 17, marginTop: 31, paddingVertical: 5 },
+  accountBlock: { paddingHorizontal: layout.screenPadding, marginTop: space.xxl, paddingVertical: space.xs },
   accountTitle: { ...font.bodyStrong },
   accountSubtitle: { ...font.caption },
-  storageBlock: { paddingHorizontal: 17, marginTop: 28, paddingVertical: 5 },
+  storageBlock: { paddingHorizontal: layout.screenPadding, marginTop: space.xxl, paddingVertical: space.xs },
   storageTitle: { ...font.captionStrong },
   settingRow: {
-    minHeight: 74,
-    paddingVertical: 12,
-    paddingHorizontal: 17,
+    minHeight: layout.headerHeight,
+    paddingVertical: space.sm,
+    paddingHorizontal: layout.screenPadding,
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 8,
@@ -850,19 +846,17 @@ const styles = StyleSheet.create({
   rowTitle: { ...font.bodyStrong },
   rowSubtitle: { ...font.caption },
   inlineError: {
-    fontSize: 13,
-    lineHeight: 19,
-    paddingHorizontal: 17,
+    paddingHorizontal: layout.screenPadding,
     marginTop: 4,
     ...font.caption,
   },
   divider: { marginTop: 12, borderTopWidth: 1 },
   encryptionRow: {
-    minHeight: 86,
-    paddingHorizontal: 28,
+    minHeight: layout.headerHeight,
+    paddingHorizontal: layout.screenPadding,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 28,
+    gap: layout.avatarGap,
   },
   encryptionCopy: { flex: 1 },
   modalBackdrop: {
@@ -883,7 +877,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 12,
-    fontSize: 16,
     ...font.input,
   },
   warningText: { ...font.smallStrong },
@@ -899,7 +892,7 @@ const styles = StyleSheet.create({
   modalCancelText: { ...font.button },
   modalSubmit: {
     minWidth: 92,
-    minHeight: 42,
+    minHeight: size.buttonSm,
     borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',

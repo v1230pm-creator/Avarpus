@@ -1,5 +1,5 @@
 /**
- * App-wide destructive confirmation dialog.
+ * App-wide dialog family: destructive confirmations and plain notices.
  *
  * One look for every "are you sure?" moment: a round tinted icon, a short
  * question, "This action cannot be undone." under it, then stacked actions —
@@ -8,15 +8,21 @@
  * outlined CANCEL. Screens call `useConfirmDialog().confirm(...)` instead of
  * `Alert.alert`, so the dialog is owned once at the root and never depends on
  * the platform alert's styling.
+ *
+ * `notice(...)` is the same card for informational moments (validation,
+ * saved offline, request sent, failures): a tone-tinted icon, title, message
+ * and a filled OK — no "cannot be undone" line and no CANCEL row, because
+ * there is nothing to back out of.
  */
 import React, { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { font, fontFamily } from '@/constants/typography';
+import { size, space } from '@/constants/spacing';
 
 type FeatherName = React.ComponentProps<typeof Feather>['name'];
 
@@ -26,10 +32,16 @@ export interface ConfirmAction {
   /** One line under the label, e.g. "Remove for all participants". */
   description?: string;
   icon?: FeatherName;
-  /** `destructive` = red gradient; `neutral` = slate surface. Defaults to destructive for the first action, neutral after. */
-  tone?: 'destructive' | 'neutral';
+  /**
+   * `destructive` = red gradient; `primary` = brand blue; `neutral` = slate
+   * surface. Defaults to destructive for the first action, neutral after.
+   */
+  tone?: 'destructive' | 'primary' | 'neutral';
   onPress: () => void | Promise<void>;
 }
+
+/** Colours the notice icon: what kind of moment this is. */
+export type NoticeTone = 'info' | 'success' | 'warning' | 'error';
 
 export interface ConfirmOptions {
   title: string;
@@ -44,10 +56,38 @@ export interface ConfirmOptions {
   actions: ConfirmAction[];
   cancelLabel?: string;
   onCancel?: () => void;
+  /** `notice` drops the CANCEL row and tints the icon by `tone`; set by `notice()`. */
+  variant?: 'confirm' | 'notice';
+  tone?: NoticeTone;
+}
+
+export interface NoticeAction {
+  /** Rendered uppercase, e.g. "OK" or "Go to repairs". */
+  label: string;
+  icon?: FeatherName;
+  onPress?: () => void | Promise<void>;
+}
+
+export interface NoticeOptions {
+  title: string;
+  message?: string;
+  /** Defaults to `info`. */
+  tone?: NoticeTone;
+  /** Defaults per tone (info / check / alert-triangle / alert-circle). */
+  icon?: FeatherName;
+  /** Defaults to a single OK. The first action is the filled primary. */
+  actions?: NoticeAction[];
+  /**
+   * Runs when the notice is closed by the backdrop or the back button. When
+   * the notice has exactly one action and no `onDismiss`, closing it is that
+   * action — a lone OK that navigates must not be skippable.
+   */
+  onDismiss?: () => void;
 }
 
 interface ConfirmDialogContextValue {
   confirm: (options: ConfirmOptions) => void;
+  notice: (options: NoticeOptions) => void;
 }
 
 interface ConfirmDialogInternalValue {
@@ -161,7 +201,27 @@ export function ConfirmDialogProvider({ children }: { children: React.ReactNode 
     }
   }, [close]);
 
-  const value = useMemo(() => ({ confirm }), [confirm]);
+  const notice = useCallback((next: NoticeOptions) => {
+    const actions: NoticeAction[] = next.actions && next.actions.length > 0 ? next.actions : [{ label: 'OK' }];
+    const lone = actions.length === 1 ? actions[0] : null;
+    confirm({
+      variant: 'notice',
+      tone: next.tone ?? 'info',
+      title: next.title,
+      message: next.message,
+      caption: null,
+      icon: next.icon,
+      actions: actions.map((action, index) => ({
+        label: action.label,
+        icon: action.icon,
+        tone: index === 0 ? 'primary' : 'neutral',
+        onPress: action.onPress ?? (() => {}),
+      })),
+      onCancel: next.onDismiss ?? (lone?.onPress ? () => { void lone.onPress?.(); } : undefined),
+    });
+  }, [confirm]);
+
+  const value = useMemo(() => ({ confirm, notice }), [confirm, notice]);
   const topHost = hosts.length > 0 ? hosts[hosts.length - 1] : null;
   const internal = useMemo<ConfirmDialogInternalValue>(() => ({
     options, busyIndex, onAction: handleAction, onCancel: handleCancel, topHost, owner, registerHost, unregisterHost,
@@ -255,6 +315,16 @@ export function ConfirmDialogView({ options, busyIndex, onAction, onCancel, inli
         cancelText: '#0891B2',
       };
   const visible = options !== null;
+  const isNotice = options?.variant === 'notice';
+  const noticeTone = options?.tone ?? 'info';
+  const ring = isNotice
+    ? {
+        info: { background: colors.infoLight, foreground: colors.info, icon: 'info' as const },
+        success: { background: colors.successLight, foreground: colors.success, icon: 'check' as const },
+        warning: { background: colors.warningLight, foreground: colors.warning, icon: 'alert-triangle' as const },
+        error: { background: colors.redSoft, foreground: colors.destructive, icon: 'alert-circle' as const },
+      }[noticeTone]
+    : { background: colors.redSoft, foreground: colors.destructive, icon: 'trash-2' as const };
 
   const body = (
       <View
@@ -276,43 +346,60 @@ export function ConfirmDialogView({ options, busyIndex, onAction, onCancel, inli
             style={[styles.card, { borderColor: palette.border }]}
             testID="confirm-dialog"
           >
-            <View style={[styles.iconRing, { backgroundColor: 'rgba(255, 77, 79, 0.16)' }]}>
-              <Feather name={options.icon ?? 'trash-2'} size={30} color={colors.destructive} />
-            </View>
-            <Text style={[styles.title, { color: palette.title }]} accessibilityRole="header">
-              {options.title}
-            </Text>
-            {!!options.message && (
-              <Text style={[styles.message, { color: palette.message }]}>{options.message}</Text>
-            )}
-            {options.caption !== null && (
-              <Text style={[styles.message, styles.caption, { color: palette.message }]}>
-                {options.caption ?? DEFAULT_MESSAGE}
+            {/* The head scrolls when a long message or large system text would otherwise push the actions off-screen. */}
+            <ScrollView
+              style={styles.head}
+              contentContainerStyle={styles.headContent}
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={[styles.iconRing, { backgroundColor: ring.background }]}>
+                <Feather name={options.icon ?? ring.icon} size={30} color={ring.foreground} />
+              </View>
+              <Text
+                style={[styles.title, { color: palette.title }]}
+                accessibilityRole="header"
+                accessibilityLiveRegion={isNotice ? 'polite' : 'none'}
+              >
+                {options.title}
               </Text>
-            )}
+              {!!options.message && (
+                <Text style={[styles.message, { color: palette.message }]}>{options.message}</Text>
+              )}
+              {options.caption !== null && (
+                <Text style={[styles.message, styles.caption, { color: palette.message }]}>
+                  {options.caption ?? DEFAULT_MESSAGE}
+                </Text>
+              )}
+            </ScrollView>
 
             <View style={styles.actions}>
               {options.actions.map((action, index) => {
                 const tone = action.tone ?? (index === 0 ? 'destructive' : 'neutral');
+                const filled = tone !== 'neutral';
                 const busy = busyIndex === index;
                 const disabled = busyIndex !== null;
+                // Notices carry no default glyph: a lone OK reads better as a word.
+                const glyph = action.icon ?? (isNotice ? undefined : 'trash-2');
+                const labelColor = filled
+                  ? (tone === 'primary' ? colors.primaryForeground : colors.destructiveForeground)
+                  : palette.neutralText;
                 const content = (
                   <View style={styles.actionRow}>
-                    <View style={styles.actionIcon}>
-                      {busy
-                        ? <AvarpusSpinner size={20} color="#FFFFFF" />
-                        : <Feather name={action.icon ?? 'trash-2'} size={20} color={tone === 'destructive' ? '#FFFFFF' : palette.neutralText} />}
-                    </View>
+                    {(busy || glyph) && (
+                      <View style={styles.actionIcon}>
+                        {busy
+                          ? <AvarpusSpinner size={20} color={labelColor} />
+                          : <Feather name={glyph!} size={20} color={labelColor} />}
+                      </View>
+                    )}
                     <View style={styles.actionText}>
-                      <Text
-                        style={[styles.actionLabel, { color: tone === 'destructive' ? '#FFFFFF' : palette.neutralText }]}
-                        numberOfLines={1}
-                      >
+                      <Text style={[styles.actionLabel, { color: labelColor }]} numberOfLines={1}>
                         {action.label.toUpperCase()}
                       </Text>
                       {!!action.description && (
                         <Text
-                          style={[styles.actionSub, { color: tone === 'destructive' ? 'rgba(255,255,255,0.82)' : palette.neutralSub }]}
+                          style={[styles.actionSub, { color: filled ? 'rgba(255,255,255,0.82)' : palette.neutralSub }]}
                           numberOfLines={2}
                         >
                           {action.description}
@@ -341,6 +428,10 @@ export function ConfirmDialogView({ options, busyIndex, onAction, onCancel, inli
                       >
                         {content}
                       </LinearGradient>
+                    ) : tone === 'primary' ? (
+                      <View style={[styles.actionSurface, { backgroundColor: colors.primary }]}>
+                        {content}
+                      </View>
                     ) : (
                       <View style={[styles.actionSurface, { backgroundColor: palette.neutralBg, borderWidth: 1, borderColor: palette.neutralBorder }]}>
                         {content}
@@ -350,19 +441,21 @@ export function ConfirmDialogView({ options, busyIndex, onAction, onCancel, inli
                 );
               })}
 
-              <TouchableOpacity
-                onPress={onCancel}
-                disabled={busyIndex !== null}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={options.cancelLabel ?? 'Cancel'}
-                testID="confirm-cancel"
-                style={[styles.cancel, { borderColor: palette.cancelBorder }]}
-              >
-                <Text style={[styles.cancelText, { color: palette.cancelText }]}>
-                  {(options.cancelLabel ?? 'Cancel').toUpperCase()}
-                </Text>
-              </TouchableOpacity>
+              {(!isNotice || !!options.cancelLabel) && (
+                <TouchableOpacity
+                  onPress={onCancel}
+                  disabled={busyIndex !== null}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={options.cancelLabel ?? 'Cancel'}
+                  testID="confirm-cancel"
+                  style={[styles.cancel, { borderColor: palette.cancelBorder }]}
+                >
+                  <Text style={[styles.cancelText, { color: palette.cancelText }]}>
+                    {(options.cancelLabel ?? 'Cancel').toUpperCase()}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </LinearGradient>
         )}
@@ -389,7 +482,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(6, 10, 18, 0.72)',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: space.xxl,
   },
   inlineBackdrop: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
@@ -399,17 +492,26 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 360,
+    maxHeight: '100%',
     borderRadius: 24,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 20,
-    paddingTop: 28,
-    paddingBottom: 20,
+    paddingHorizontal: space.lg,
+    paddingTop: space.xl,
+    paddingBottom: space.lg,
     alignItems: 'center',
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 30, shadowOffset: { width: 0, height: 18 } },
       android: { elevation: 24 },
       default: {},
     }),
+  },
+  head: {
+    alignSelf: 'stretch',
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  headContent: {
+    alignItems: 'center',
   },
   iconRing: {
     width: 68,
@@ -424,7 +526,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   message: {
-    ...font.caption,
+    ...font.body,
     textAlign: 'center',
     marginTop: 8,
     paddingHorizontal: 8,
@@ -444,7 +546,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    minHeight: 56,
+    minHeight: size.button,
     justifyContent: 'center',
   },
   actionRow: {
@@ -462,8 +564,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionLabel: {
-    ...font.caption,
-    fontFamily: fontFamily.bold,
+    ...font.button,
     letterSpacing: 0.4,
     textAlign: 'center',
   },
@@ -475,13 +576,12 @@ const styles = StyleSheet.create({
   cancel: {
     borderWidth: 1,
     borderRadius: 16,
-    minHeight: 52,
+    minHeight: size.button,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelText: {
-    ...font.caption,
-    fontFamily: fontFamily.bold,
+    ...font.button,
     letterSpacing: 0.5,
   },
 });

@@ -17,7 +17,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useData } from '@/context/DataContext';
 import { useColors } from '@/hooks/useColors';
 import { font } from '@/constants/typography';
-import { layout, radius, size, space } from '@/constants/spacing';
+import { layout, radius, size, space, hitSlop } from '@/constants/spacing';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
@@ -93,7 +93,7 @@ export default function NewReturnScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
 
-      <FadeInView animValue={anims[0]} style={[styles.header, { paddingTop: topPad + layout.rowPaddingVertical }]}>
+      <FadeInView animValue={anims[0]} style={[styles.header, { paddingTop: topPad }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
@@ -103,7 +103,7 @@ export default function NewReturnScreen() {
         <View style={{ width: 44 }} />
       </FadeInView>
 
-      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: size.tabBar + space.xxl }]} bottomOffset={space.xxl}>
+      <KeyboardAwareScrollViewCompat showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: space.xxl }]} bottomOffset={space.xxl}>
 
         <FadeInView animValue={anims[1]}>
           <Card>
@@ -131,7 +131,7 @@ export default function NewReturnScreen() {
               {RETURN_REASONS.map((r) => {
                 const active = reason === r.id;
                 return (
-                  <TouchableOpacity
+                  <TouchableOpacity hitSlop={hitSlop.chip}
                     key={r.id}
                     onPress={() => setReason(r.id)}
                     style={[
@@ -160,7 +160,7 @@ export default function NewReturnScreen() {
               value={complaint}
               onChangeText={setComplaint}
               placeholder="What is the issue?"
-              placeholderTextColor={colors.mutedForeground}
+              placeholderTextColor={colors.placeholder}
               style={[styles.input, styles.textArea, { backgroundColor: colors.secondary, borderColor: colors.border, color: colors.foreground }]}
               multiline
               numberOfLines={3}
@@ -173,7 +173,7 @@ export default function NewReturnScreen() {
               value={deviceCondition}
               onChangeText={setDeviceCondition}
               placeholder="Scratches, physical damage, power on/off?"
-              placeholderTextColor={colors.mutedForeground}
+              placeholderTextColor={colors.placeholder}
               style={[styles.input, styles.textArea, { backgroundColor: colors.secondary, borderColor: colors.border, color: colors.foreground }]}
               multiline
               numberOfLines={3}
@@ -190,14 +190,14 @@ export default function NewReturnScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: layout.headerHeight, paddingHorizontal: layout.listInset, paddingBottom: space.md },
   backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...font.title },
   scroll: { padding: layout.screenPadding },
   sectionTitle: { ...font.overline },
   label: { ...font.label, marginBottom: space.sm, marginLeft: space.xs },
   reasonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  reasonChip: { paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
-  input: { borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.sm, paddingHorizontal: space.md, paddingVertical: space.md, ...font.input },
-  textArea: { height: 90, textAlignVertical: 'top' },
+  reasonChip: { paddingHorizontal: space.md, minHeight: size.chip, justifyContent: 'center', borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
+  input: { minHeight: size.input, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.sm, paddingHorizontal: space.md, paddingVertical: space.md, ...font.input },
+  textArea: { minHeight: size.input + space.xxxl, textAlignVertical: 'top' },
 });

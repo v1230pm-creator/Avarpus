@@ -64,7 +64,7 @@ export function FlatCard({ style, children, animValue, ...props }: FlatCardProps
 
 const styles = StyleSheet.create({
   card: {
-    padding: space.xl,
+    padding: space.lg,
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
   },

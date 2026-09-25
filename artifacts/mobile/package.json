@@ -84,6 +84,7 @@
     "expo-device": "~57.0.1",
     "expo-document-picker": "~57.0.1",
     "expo-file-system": "^57.0.6",
+    "expo-image-manipulator": "~57.0.19",
     "expo-intent-launcher": "~57.0.1",
     "expo-local-authentication": "~57.0.2",
     "expo-media-library": "~57.0.4",
@@ -109,6 +110,7 @@
       "**/__tests__/**/*.test.tsx"
     ],
     "setupFiles": [
+      "react-native-gesture-handler/jestSetup",
       "<rootDir>/jest.setup.js"
     ],
     "fakeTimers": {

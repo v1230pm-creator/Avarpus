@@ -23,6 +23,7 @@ import type { ChatMessage } from '@workspace/api-client-react';
 import { chatMediaUri, formatRelativeTime } from './messageActions';
 import { localMediaPathOf } from '@/hooks/useChatMedia';
 import { font } from '@/constants/typography';
+import { layout, size, space } from '@/constants/spacing';
 
 export type ImageViewerDownloadState = 'idle' | 'saving' | 'done' | 'error';
 
@@ -399,11 +400,12 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: layout.headerHeight,
     paddingHorizontal: 4,
     paddingBottom: 8,
     backgroundColor: 'rgba(0,0,0,0.55)',
   },
-  headerIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  headerIcon: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, paddingHorizontal: 4 },
   headerName: { color: '#FFFFFF', ...font.captionStrong },
   headerTime: { color: 'rgba(255,255,255,0.7)', ...font.small, marginTop: 1 },
@@ -436,17 +438,17 @@ const styles = StyleSheet.create({
   replyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   replyInput: {
     flex: 1,
-    height: 42,
-    borderRadius: 21,
+    minHeight: size.input,
+    borderRadius: size.input / 2,
     paddingHorizontal: 16,
     backgroundColor: 'rgba(255,255,255,0.14)',
     color: '#FFFFFF',
     ...font.caption,
   },
   replySend: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: size.input,
+    height: size.input,
+    borderRadius: size.input / 2,
     backgroundColor: '#006DA8',
     alignItems: 'center',
     justifyContent: 'center',

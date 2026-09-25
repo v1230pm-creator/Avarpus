@@ -8,6 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space, hitSlop } from '@/constants/spacing';
 import { FlatCard } from '@/components/ui/FlatCard';
 import { roleFeaturesGet, roleFeaturesUpdate } from '@workspace/api-client-react';
 
@@ -111,9 +112,9 @@ export default function PermissionsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
 
-      <View style={[styles.header, { paddingTop: topPad + 16 }]}>
+      <View style={[styles.header, { paddingTop: topPad }]}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.card }]}>
-          <Feather name="chevron-left" size={22} color={colors.foreground} />
+          <Feather name="chevron-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Staff Permissions</Text>
       </View>
@@ -144,7 +145,7 @@ export default function PermissionsScreen() {
             {ROLES.map((r) => {
               const active = r.key === selectedRole;
               return (
-                <TouchableOpacity
+                <TouchableOpacity hitSlop={hitSlop.chip}
                   key={r.key}
                   onPress={() => setSelectedRole(r.key)}
                   style={[
@@ -158,8 +159,7 @@ export default function PermissionsScreen() {
                   <Text
                     style={{
                       color: active ? '#FFF' : colors.foreground,
-                      fontFamily: fontFamily.semibold,
-                      fontSize: 13,
+                      ...font.captionStrong,
                     }}
                   >
                     {r.label}
@@ -211,21 +211,21 @@ export default function PermissionsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 16 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20 },
+  header: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: layout.listInset },
+  backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: size.iconButton / 2, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
-  scroll: { padding: 12, gap: 8 },
-  hint: { fontSize: 13, lineHeight: 19 },
+  retryBtn: { paddingHorizontal: space.xxl, minHeight: size.button, justifyContent: 'center', borderRadius: radius.sm },
+  scroll: { padding: layout.screenPadding, gap: space.sm },
+  hint: { ...font.caption },
   roleRow: { gap: 8, paddingVertical: 2 },
-  roleChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20, borderWidth: 1 },
+  roleChip: { minHeight: size.chip, paddingHorizontal: space.md, justifyContent: 'center', borderRadius: size.chip / 2, borderWidth: 1 },
   roleDesc: { ...font.caption },
   group: { overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
+  row: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: layout.screenPadding, paddingVertical: space.sm },
   rowBorder: { borderBottomWidth: 1 },
   rowText: { flex: 1, gap: 2 },
-  rowLabel: { fontSize: 15 },
+  rowLabel: { ...font.bodyStrong },
   rowDesc: { ...font.caption },
   note: { ...font.caption, textAlign: 'center', paddingHorizontal: 8 },
 });

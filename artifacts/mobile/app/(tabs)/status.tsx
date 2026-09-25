@@ -32,6 +32,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { StatusViewer } from '@/components/status/StatusViewer';
 import { KEYS, storage } from '@/utils/storage';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
+import { useReachHoldOff } from '@/components/ui/ReachDown';
 import { font } from '@/constants/typography';
 import { layout, radius, size, space } from '@/constants/spacing';
 
@@ -62,6 +63,7 @@ function errorText(error: unknown): string {
 
 export default function StatusScreen() {
   const colors = useColors();
+  const holdOff = useReachHoldOff();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -245,7 +247,7 @@ export default function StatusScreen() {
           },
         ]}
       >
-        <Avatar name={group.name} url={group.profilePhoto} size={48} />
+        <Avatar name={group.name} url={group.profilePhoto} size={size.avatar - 6} />
       </View>
       <View style={[styles.rowText, { borderBottomColor: colors.border }]}>
         <Text numberOfLines={1} style={[styles.rowName, { color: colors.foreground }]}>
@@ -296,12 +298,13 @@ export default function StatusScreen() {
         <TouchableOpacity
           onPress={() => ownGroup ? openGroup(ownGroup) : openTextComposer()}
           onLongPress={openTextComposer}
+          onPressIn={holdOff}
           style={styles.statusRow}
           activeOpacity={0.72}
           testID="add-status"
         >
           <View style={styles.addAvatar}>
-            <Avatar name={user?.name ?? 'You'} url={user?.profilePhoto} size={54} />
+            <Avatar name={user?.name ?? 'You'} url={user?.profilePhoto} size={size.avatar} />
             <TouchableOpacity
               onPress={openTextComposer}
               style={[styles.addBadge, { backgroundColor: colors.primary, borderColor: colors.background }]}
@@ -325,14 +328,14 @@ export default function StatusScreen() {
           </View>
         ) : statusQuery.isError ? (
           <TouchableOpacity style={styles.stateBox} onPress={() => void statusQuery.refetch()}>
-            <Feather name="wifi-off" size={28} color={colors.mutedForeground} />
+            <Feather name="wifi-off" size={size.headerIcon} color={colors.mutedForeground} />
             <Text style={[styles.stateTitle, { color: colors.foreground }]}>Couldn’t load updates</Text>
             <Text style={[styles.stateText, { color: colors.primary }]}>Tap to try again</Text>
           </TouchableOpacity>
         ) : contactGroups.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.emptyIcon, { backgroundColor: colors.successLight }]}>
-              <Feather name="clock" size={26} color={colors.success} />
+              <Feather name="clock" size={size.headerIcon} color={colors.success} />
             </View>
             <Text style={[styles.stateTitle, { color: colors.foreground }]}>No recent updates</Text>
             <Text style={[styles.stateText, { color: colors.mutedForeground }]}>
@@ -357,20 +360,20 @@ export default function StatusScreen() {
         )}
       </ScrollView>
 
-      <View style={[styles.floatingActions, { bottom: size.tabBar + (Platform.OS === 'web' ? 20 : Math.max(insets.bottom, 12)) + space.lg }]}>
+      <View style={styles.floatingActions}>
         <TouchableOpacity
           onPress={openTextComposer}
           style={[styles.smallFab, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
           accessibilityLabel="Create text status"
         >
-          <Feather name="edit-2" size={20} color={colors.foreground} />
+          <Feather name="edit-2" size={size.inlineIcon} color={colors.foreground} />
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => void selectMedia('camera')}
           style={[styles.fab, { backgroundColor: colors.primary }]}
           accessibilityLabel="Create camera status"
         >
-          <Feather name="camera" size={23} color="#FFFFFF" />
+          <Feather name="camera" size={size.fabIcon} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
@@ -406,7 +409,7 @@ export default function StatusScreen() {
             {pendingMedia ? (
               <View style={[styles.mediaChoice, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
                 <View style={[styles.mediaIcon, { backgroundColor: colors.accent }]}>
-                  <Feather name={pendingMedia.kind === 'video' ? 'video' : 'image'} size={28} color={colors.primary} />
+                  <Feather name={pendingMedia.kind === 'video' ? 'video' : 'image'} size={size.headerIcon} color={colors.primary} />
                 </View>
                 <Text numberOfLines={1} style={[styles.mediaName, { color: colors.foreground }]}>{pendingMedia.name}</Text>
                 <Text style={[styles.mediaMeta, { color: colors.mutedForeground }]}>
@@ -464,47 +467,47 @@ export default function StatusScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    minHeight: 74,
-    paddingHorizontal: layout.screenPadding,
-    paddingBottom: 10,
+    minHeight: layout.headerHeight,
+    paddingLeft: layout.titleInset,
+    paddingRight: 2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   title: { ...font.display },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   iconButton: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
-  content: { paddingHorizontal: layout.screenPadding, paddingBottom: 140 },
-  sectionTitle: { ...font.heading, marginTop: space.sm, marginBottom: space.md },
-  statusRow: { flexDirection: 'row', alignItems: 'center', minHeight: 72, gap: 12 },
-  addAvatar: { width: 62, height: 62, alignItems: 'center', justifyContent: 'center' },
+  content: { paddingBottom: size.fab + space.xxxl },
+  sectionTitle: { ...font.heading, marginTop: space.sm, marginBottom: space.md, marginHorizontal: layout.screenPadding },
+  statusRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: layout.rowPaddingVertical, paddingLeft: layout.listInset, paddingRight: layout.listInsetEnd, gap: layout.avatarGap },
+  addAvatar: { width: size.avatar, height: size.avatar, alignItems: 'center', justifyContent: 'center' },
   addBadge: { position: 'absolute', right: 1, bottom: 0, width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  statusRing: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center' },
-  rowText: { flex: 1, minHeight: 72, justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
+  statusRing: { width: size.avatar, height: size.avatar, borderRadius: size.avatar / 2, alignItems: 'center', justifyContent: 'center' },
+  rowText: { flex: 1, justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
   rowName: { ...font.itemTitle },
-  rowTime: { ...font.caption, marginTop: space.xs },
-  groupSection: { marginTop: 20 },
-  groupLabel: { ...font.labelStrong, marginBottom: space.sm },
-  stateBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 54, gap: 10 },
+  rowTime: { ...font.body, marginTop: layout.rowLineGap },
+  groupSection: { marginTop: space.xl },
+  groupLabel: { ...font.labelStrong, marginBottom: space.sm, marginHorizontal: layout.screenPadding },
+  stateBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: space.xxxl, gap: space.md },
   stateTitle: { ...font.bodyStrong, textAlign: 'center' },
   stateText: { ...font.body, textAlign: 'center', maxWidth: 286 },
-  emptyCard: { alignItems: 'center', marginTop: 24, padding: 28, borderRadius: 20, borderWidth: 1 },
-  emptyIcon: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  floatingActions: { position: 'absolute', right: layout.screenPadding, alignItems: 'center', gap: space.md },
+  emptyCard: { alignItems: 'center', margin: space.xxl, padding: space.lg, borderRadius: radius.lg, borderWidth: 1 },
+  emptyIcon: { width: size.fab, height: size.fab, borderRadius: size.fab / 2, alignItems: 'center', justifyContent: 'center', marginBottom: space.md },
+  floatingActions: { position: 'absolute', right: layout.listInsetEnd, bottom: space.lg, alignItems: 'center', gap: space.md },
   smallFab: { width: 46, height: 46, borderRadius: 15, borderWidth: 1, alignItems: 'center', justifyContent: 'center', elevation: 3 },
   fab: { width: size.fab, height: size.fab, borderRadius: size.fabRadius, alignItems: 'center', justifyContent: 'center' },
   composerBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.58)' },
   composer: { borderTopLeftRadius: 26, borderTopRightRadius: 26, overflow: 'hidden', paddingBottom: Platform.OS === 'web' ? 34 : 20 },
-  composerHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 12 },
+  composerHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingVertical: space.md },
   composerTitle: { flex: 1, ...font.heading, marginLeft: space.sm },
   publishButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   textComposer: { minHeight: 260, color: '#FFFFFF', ...font.title, textAlign: 'center', padding: space.xxxl },
-  mediaChoice: { minHeight: 260, marginHorizontal: 18, borderWidth: 1, borderRadius: 20, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  mediaIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
+  mediaChoice: { minHeight: 260, marginHorizontal: layout.listInsetEnd, borderWidth: 1, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', padding: space.lg },
+  mediaIcon: { width: size.fab, height: size.fab, borderRadius: size.fab / 2, alignItems: 'center', justifyContent: 'center', marginBottom: space.md },
   mediaName: { ...font.bodyStrong, maxWidth: '86%' },
   mediaMeta: { ...font.caption, marginTop: space.sm, textTransform: 'capitalize' },
   removeMedia: { position: 'absolute', right: 14, top: 14, width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  composerTools: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, marginTop: 18, paddingTop: 14, paddingHorizontal: 20 },
-  toolButton: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 52 },
+  composerTools: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, marginTop: layout.listInsetEnd, paddingTop: layout.rowPaddingVertical, paddingHorizontal: layout.screenPadding },
+  toolButton: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.xs, minHeight: size.buttonLg },
   toolLabel: { ...font.label },
 });

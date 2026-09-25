@@ -49,11 +49,11 @@ export default function ReceivablesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 16, borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { paddingTop: topPad + space.lg, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
         <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
-        <View style={{ flex: 1, paddingHorizontal: 16 }}>
+        <View style={{ flex: 1, paddingHorizontal: space.lg }}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Outstanding (Receivables)</Text>
         </View>
         <TouchableOpacity
@@ -89,7 +89,7 @@ export default function ReceivablesScreen() {
             ) : (
               outstandingCustomers.map((c) => (
                 <TouchableOpacity key={c.id} style={styles.customerRow} onPress={() => router.push(`/(tabs)/customers/${c.id}`)}>
-                  <Avatar name={c.name} size={32} />
+                  <Avatar name={c.name} size={size.avatarSm} />
                   <Text style={[styles.customerName, { color: colors.foreground }]} numberOfLines={1}>{c.name}</Text>
                   <Text style={[styles.customerDue, { color: colors.destructive }]}>{formatCurrency(c.dueAmount)}</Text>
                 </TouchableOpacity>
@@ -113,8 +113,8 @@ const styles = StyleSheet.create({
   header: { 
     flexDirection: 'row', 
     alignItems: 'center', 
+    minHeight: layout.headerHeight,
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: space.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
@@ -128,27 +128,28 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   summaryBox: {
-    paddingVertical: 24,
+    paddingVertical: space.xxl,
     alignItems: 'center',
     borderBottomWidth: 1,
   },
   summaryValue: { ...font.title, marginBottom: space.xs },
   summaryLabel: { ...font.captionStrong },
   
-  customerList: { padding: 16 },
+  customerList: { padding: space.lg },
   customerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: layout.rowPaddingVertical,
   },
   customerName: { flex: 1, ...font.bodyStrong, paddingHorizontal: space.md },
   customerDue: { ...font.bodyStrong },
   
   viewAllBtn: {
-    paddingVertical: 12,
-    borderRadius: 12,
+    minHeight: size.button,
+    borderRadius: radius.sm,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: space.lg,
   },
   viewAllText: { ...font.button, color: '#FFF' },
   emptyText: { ...font.body, textAlign: 'center', marginVertical: space.xl },

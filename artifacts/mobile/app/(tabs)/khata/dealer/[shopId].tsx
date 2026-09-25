@@ -101,12 +101,12 @@ export default function DealerLedgerScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPadding + 16, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { paddingTop: topPadding + space.lg, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()} accessibilityLabel="Go back">
-          <Feather name="arrow-left" size={24} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
-        <Avatar name={partyName} size={36} />
-        <View style={{ flex: 1, paddingHorizontal: 12 }}>
+        <Avatar name={partyName} size={size.avatarSm} />
+        <View style={{ flex: 1, paddingHorizontal: space.md }}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>{partyName}</Text>
           <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
             {dealerPartyRoleLabel({ direction })}
@@ -119,7 +119,7 @@ export default function DealerLedgerScreen() {
             disabled={chatBusy}
             accessibilityLabel={`Chat with ${partyName}`}
           >
-            <Feather name="message-circle" size={22} color={colors.primary} />
+            <Feather name="message-circle" size={size.headerIcon} color={colors.primary} />
           </TouchableOpacity>
         )}
       </View>
@@ -227,8 +227,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: layout.headerHeight,
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: space.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     elevation: 2,
     shadowColor: '#000',
@@ -245,25 +245,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 12,
     borderWidth: 1,
-    padding: 16,
-    marginBottom: 10,
+    padding: space.lg,
+    marginBottom: space.md,
   },
   summaryBox: { flex: 1, gap: 2 },
   summaryLabel: { ...font.captionStrong },
   summaryValue: { ...font.heading },
   summaryDirection: { ...font.captionStrong },
-  summaryDivider: { width: 1, height: '100%', marginHorizontal: 16 },
-  summaryRow: { flex: 1.2, gap: 10 },
+  summaryDivider: { width: 1, height: '100%', marginHorizontal: space.lg },
+  summaryRow: { flex: 1.2, gap: space.md },
   summaryMiniBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   summaryMiniLabel: { ...font.captionStrong },
   summaryMiniValue: { ...font.bodyStrong },
   metaLine: { ...font.caption, marginBottom: space.lg },
-  activityList: { gap: 10 },
+  activityList: { gap: space.md },
   entryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 12,
+    gap: space.md,
+    padding: space.md,
     borderRadius: 12,
     borderWidth: 1,
   },

@@ -11,7 +11,7 @@ import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { onBlue } from '@/constants/brand';
-import { fontFamily } from '@/constants/typography';
+import { font } from '@/constants/typography';
 import { size as controlSize, space } from '@/constants/spacing';
 
 interface ButtonProps {
@@ -77,8 +77,6 @@ export function Button({
   }[variant];
 
   const padH = { sm: space.lg, md: space.xxl, lg: space.xxxl }[size];
-  const fontSize = { sm: 15, md: 17, lg: 18 }[size];
-  const lineHeight = { sm: 20, md: 22, lg: 24 }[size];
   const minHeight = { sm: controlSize.buttonSm, md: controlSize.button, lg: controlSize.buttonLg }[size];
 
   // Layout styles (flex, width, margins…) must apply to the outer wrapper.
@@ -149,9 +147,9 @@ export function Button({
         ]}
       >
         {loading ? (
-          <AvarpusSpinner color={txtColor} size={Math.max(16, fontSize + 2)} accessibilityLabel={null} />
+          <AvarpusSpinner color={txtColor} size={controlSize.inlineIcon} accessibilityLabel={null} />
         ) : (
-          <Text numberOfLines={1} style={[styles.text, { color: txtColor, fontSize, lineHeight }, textStyle]}>
+          <Text numberOfLines={1} style={[styles.text, { color: txtColor }, textStyle]}>
             {title}
           </Text>
         )}
@@ -162,7 +160,7 @@ export function Button({
 
 const styles = StyleSheet.create({
   btn: { alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: space.sm },
-  text: { fontFamily: fontFamily.semibold, textAlign: 'center' },
+  text: { ...font.button, textAlign: 'center' },
   onBlueElevation: {
     shadowColor: '#012B41',
     shadowOffset: { width: 0, height: 6 },

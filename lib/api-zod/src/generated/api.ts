@@ -1696,7 +1696,11 @@ export const DealersSuppliersRepairsListResponse = zod.object({
   "resultStatus": zod.string().optional(),
   "createdAt": zod.string(),
   "respondedAt": zod.string().optional()
-}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.'),
+  "coverPhoto": zod.object({
+  "objectPath": zod.string(),
+  "kind": zod.string()
+}).nullish().describe('The one photo a list thumbnail shows: the front shot when there is one, otherwise the earliest upload. Staff views only; null when the repair has no photos.')
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -1919,7 +1923,11 @@ export const DealerTransactionsListResponse = zod.object({
   "resultStatus": zod.string().optional(),
   "createdAt": zod.string(),
   "respondedAt": zod.string().optional()
-}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.'),
+  "coverPhoto": zod.object({
+  "objectPath": zod.string(),
+  "kind": zod.string()
+}).nullish().describe('The one photo a list thumbnail shows: the front shot when there is one, otherwise the earliest upload. Staff views only; null when the repair has no photos.')
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -2291,7 +2299,11 @@ export const DealerTransfersAcceptResponse = zod.object({
   "resultStatus": zod.string().optional(),
   "createdAt": zod.string(),
   "respondedAt": zod.string().optional()
-}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.'),
+  "coverPhoto": zod.object({
+  "objectPath": zod.string(),
+  "kind": zod.string()
+}).nullish().describe('The one photo a list thumbnail shows: the front shot when there is one, otherwise the earliest upload. Staff views only; null when the repair has no photos.')
 })
 })
 
@@ -2607,7 +2619,11 @@ export const DealerTransactionsGetResponse = zod.object({
   "resultStatus": zod.string().optional(),
   "createdAt": zod.string(),
   "respondedAt": zod.string().optional()
-}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.'),
+  "coverPhoto": zod.object({
+  "objectPath": zod.string(),
+  "kind": zod.string()
+}).nullish().describe('The one photo a list thumbnail shows: the front shot when there is one, otherwise the earliest upload. Staff views only; null when the repair has no photos.')
 }),
   "counterpart": zod.object({
   "shopId": zod.string(),
@@ -2785,7 +2801,11 @@ export const DealerTransactionsReceiveResponse = zod.object({
   "resultStatus": zod.string().optional(),
   "createdAt": zod.string(),
   "respondedAt": zod.string().optional()
-}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.'),
+  "coverPhoto": zod.object({
+  "objectPath": zod.string(),
+  "kind": zod.string()
+}).nullish().describe('The one photo a list thumbnail shows: the front shot when there is one, otherwise the earliest upload. Staff views only; null when the repair has no photos.')
 })
 })
 
@@ -3064,7 +3084,11 @@ export const RepairsListResponse = zod.object({
   "resultStatus": zod.string().optional(),
   "createdAt": zod.string(),
   "respondedAt": zod.string().optional()
-}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.'),
+  "coverPhoto": zod.object({
+  "objectPath": zod.string(),
+  "kind": zod.string()
+}).nullish().describe('The one photo a list thumbnail shows: the front shot when there is one, otherwise the earliest upload. Staff views only; null when the repair has no photos.')
 })),
   "total": zod.number().optional(),
   "page": zod.number().optional(),
@@ -3218,7 +3242,11 @@ export const RepairsCreateResponse = zod.object({
   "resultStatus": zod.string().optional(),
   "createdAt": zod.string(),
   "respondedAt": zod.string().optional()
-}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.'),
+  "coverPhoto": zod.object({
+  "objectPath": zod.string(),
+  "kind": zod.string()
+}).nullish().describe('The one photo a list thumbnail shows: the front shot when there is one, otherwise the earliest upload. Staff views only; null when the repair has no photos.')
 })
 })
 
@@ -3330,7 +3358,11 @@ export const RepairsGetResponse = zod.object({
   "resultStatus": zod.string().optional(),
   "createdAt": zod.string(),
   "respondedAt": zod.string().optional()
-}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.'),
+  "coverPhoto": zod.object({
+  "objectPath": zod.string(),
+  "kind": zod.string()
+}).nullish().describe('The one photo a list thumbnail shows: the front shot when there is one, otherwise the earliest upload. Staff views only; null when the repair has no photos.')
 })
 })
 
@@ -3485,7 +3517,11 @@ export const RepairsUpdateResponse = zod.object({
   "resultStatus": zod.string().optional(),
   "createdAt": zod.string(),
   "respondedAt": zod.string().optional()
-}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.'),
+  "coverPhoto": zod.object({
+  "objectPath": zod.string(),
+  "kind": zod.string()
+}).nullish().describe('The one photo a list thumbnail shows: the front shot when there is one, otherwise the earliest upload. Staff views only; null when the repair has no photos.')
 })
 })
 
@@ -3954,7 +3990,11 @@ export const RepairAssignTechnicianResponse = zod.object({
   "resultStatus": zod.string().optional(),
   "createdAt": zod.string(),
   "respondedAt": zod.string().optional()
-}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.'),
+  "coverPhoto": zod.object({
+  "objectPath": zod.string(),
+  "kind": zod.string()
+}).nullish().describe('The one photo a list thumbnail shows: the front shot when there is one, otherwise the earliest upload. Staff views only; null when the repair has no photos.')
 })
 })
 
@@ -4068,7 +4108,11 @@ export const RepairTestingResponse = zod.object({
   "resultStatus": zod.string().optional(),
   "createdAt": zod.string(),
   "respondedAt": zod.string().optional()
-}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.'),
+  "coverPhoto": zod.object({
+  "objectPath": zod.string(),
+  "kind": zod.string()
+}).nullish().describe('The one photo a list thumbnail shows: the front shot when there is one, otherwise the earliest upload. Staff views only; null when the repair has no photos.')
 })
 })
 
@@ -4307,7 +4351,11 @@ export const RepairNotifyReadyResponse = zod.object({
   "resultStatus": zod.string().optional(),
   "createdAt": zod.string(),
   "respondedAt": zod.string().optional()
-}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.')
+}).optional().describe('Present on the SENDING shop\'s own repair when it has been offered to another shop: the latest transfer request and, once accepted, the linked repair\'s live status at the other shop.'),
+  "coverPhoto": zod.object({
+  "objectPath": zod.string(),
+  "kind": zod.string()
+}).nullish().describe('The one photo a list thumbnail shows: the front shot when there is one, otherwise the earliest upload. Staff views only; null when the repair has no photos.')
 })
 })
 

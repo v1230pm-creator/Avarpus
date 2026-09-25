@@ -6,6 +6,7 @@ import { Feather } from '@expo/vector-icons';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { useReachHoldOff } from '@/components/ui/ReachDown';
 import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { RepairStatusBadge, SampleBadge } from '@/components/ui/Badge';
@@ -20,6 +21,8 @@ import { layout, radius, size, space } from '@/constants/spacing';
 
 export default function CustomerDetailScreen() {
   const colors = useColors();
+  // Selectable text keeps its own hold (copy handles); it never takes the page.
+  const holdOff = useReachHoldOff();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
@@ -132,9 +135,9 @@ export default function CustomerDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      <View style={[styles.header, { paddingTop: topPad + 10, backgroundColor: theme.bg }]}>
+      <View style={[styles.header, { paddingTop: topPad, backgroundColor: theme.bg }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={20} color={theme.text} />
+          <Feather name="arrow-left" size={size.headerIcon} color={theme.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.text, fontFamily: fontFamily.bold }]}>Profile</Text>
         <TouchableOpacity onPress={() => setShowEdit(true)} style={styles.backBtn} accessibilityLabel="Edit customer">
@@ -199,6 +202,7 @@ export default function CustomerDetailScreen() {
                   </View>
                   <Text
                     selectable
+                    onPressIn={holdOff}
                     style={{
                       ...font.captionStrong, color: theme.primary,
                       backgroundColor: theme.card, borderRadius: 6, padding: 8,
@@ -408,12 +412,12 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: layout.screenPadding, paddingBottom: space.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'transparent',
+    minHeight: layout.headerHeight, paddingHorizontal: layout.screenPadding, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'transparent',
   },
   backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...font.title },
   scroll: { padding: layout.screenPadding, gap: space.md },
-  profileCard: { alignItems: 'center', gap: space.xs, padding: space.xl },
+  profileCard: { alignItems: 'center', gap: space.xs, padding: space.lg },
   name: { ...font.title, marginTop: space.xs },
   mobile: { ...font.body },
   email: { ...font.caption },

@@ -8,6 +8,7 @@ import { KeyboardProviderCompat } from '@/components/KeyboardProviderCompat';
 import { PrivacyShield } from '@/components/PrivacyShield';
 import { PushNotificationsBridge } from '@/components/PushNotificationsBridge';
 import { ConfirmDialogProvider } from '@/components/ui/ConfirmDialog';
+import { ReachDown } from '@/components/ui/ReachDown';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import {
   Inter_400Regular,
@@ -16,7 +17,7 @@ import {
   Inter_700Bold,
   useFonts,
 } from '@expo-google-fonts/inter';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import {
   setAuthTokenGetter,
@@ -46,8 +47,20 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 function RootLayoutNav({ dark }: { dark: boolean }) {
+  const pathname = usePathname();
   return (
     <Stack
+      // Screens outside the tabs (sign-in, OTP, unlock) get one-hand reach here; the tabs
+      // mount their own per-screen wrapper so the footer stays put while a page moves.
+      screenLayout={({ route, children }) =>
+        route.name === '(tabs)' ? (
+          children
+        ) : (
+          <ReachDown style={{ backgroundColor: AVARPUS_BLUE }} resetKey={pathname}>
+            {children}
+          </ReachDown>
+        )
+      }
       screenOptions={{
         headerShown: false,
         // Without this the native stack falls back to its own light surface,

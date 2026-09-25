@@ -5,6 +5,7 @@ import { useAudioPlayer, useAudioPlayerStatus, useAudioRecorderState, type Audio
 import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import type { VoiceRecorderPhase } from '@/hooks/useVoiceRecorder';
 import { font, fontFamily } from '@/constants/typography';
+import { size, space } from '@/constants/spacing';
 
 const BAR_WIDTH = 3;
 const BAR_GAP = 2;
@@ -129,7 +130,7 @@ function PreviewRow({
         accessibilityLabel={isPlaying ? 'Pause preview' : 'Play recording'}
         accessibilityRole="button"
       >
-        <Feather name={isPlaying ? 'pause' : 'play'} size={26} color={colors.foreground} />
+        <Feather name={isPlaying ? 'pause' : 'play'} size={size.headerIcon} color={colors.foreground} />
       </TouchableOpacity>
       <Waveform
         levels={levels}
@@ -310,16 +311,16 @@ export function VoiceRecorderPanel({
 
 const styles = StyleSheet.create({
   panel: {
-    paddingTop: 14,
-    paddingHorizontal: 16,
+    paddingTop: space.md,
+    paddingHorizontal: space.lg,
     borderTopWidth: StyleSheet.hairlineWidth,
-    gap: 18,
+    gap: space.lg,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    minHeight: 44,
+    minHeight: size.iconButton,
   },
   liveClock: {
     flexDirection: 'row',
@@ -336,8 +337,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   previewPlay: {
-    width: 44,
-    height: 44,
+    width: size.iconButton,
+    height: size.iconButton,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -347,16 +348,16 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   circle: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    width: size.fab,
+    height: size.fab,
+    borderRadius: size.fab / 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   pill: {
     flex: 1,
-    height: 62,
-    borderRadius: 31,
+    minHeight: size.fab,
+    borderRadius: size.fab / 2,
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     alignItems: 'center',

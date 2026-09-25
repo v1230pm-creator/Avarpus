@@ -12,6 +12,7 @@ import {
 import { Repair, Customer, InventoryItem, Purchase, FinanceEntry, isDealerPortalRole, isLinkedCustomerPortalUser } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { toFriendlyError } from '@/utils/friendlyError';
+import { isBusinessQuery } from '@/utils/businessQueries';
 import { offlineQueue } from '@/utils/offlineQueue';
 import { hasLegacyLocalData, migrateLegacyLocalData } from '@/utils/legacyMigration';
 
@@ -269,20 +270,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           }
         }
       }
-      // Screens using generated react-query hooks (dashboard stats, repairs
-      // tabs/detail, dealer views) refresh too — scoped to shop-data keys so
-      // we don't refetch every query in the app each tick.
+      // Screens using generated react-query hooks (repair detail, dealer
+      // views, return cases…) refresh too. Only the business families are
+      // touched, and only mounted queries actually refetch — the rest are
+      // just marked stale for their next mount — so personal data (chat,
+      // statuses, notifications) is never re-pulled by this tick.
       if (epoch === sessionEpoch.current) {
-        const SYNC_KEY_PREFIXES = [
-          '/repairs', '/customers', '/inventory', '/purchases', '/finance',
-          '/dashboard', '/dealers', '/approvals',
-        ];
-        queryClient.invalidateQueries({
-          predicate: (q) => {
-            const k = q.queryKey[0];
-            return typeof k === 'string' && SYNC_KEY_PREFIXES.some((p) => k.startsWith(p));
-          },
-        });
+        queryClient.invalidateQueries({ predicate: isBusinessQuery });
       }
     } catch {
       // Background sync is best-effort — keep showing the last good data.
@@ -499,8 +493,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       ? prev.map((x) => (x.id === updated.id ? updated : x))
       : [...prev, updated]));
     // Keep the per-id detail cache in step so a GET-backed screen never
-    // shows the pre-save record while its refetch is still in flight.
-    queryClient.setQueryData(getRepairsGetQueryKey(updated.id), { repair: updated });
+    // shows the pre-save record. A refetch that the background sync started
+    // before this save would resolve with the old record after it — cancel
+    // it first so the saved record is what stays in the cache.
+    const detailKey = getRepairsGetQueryKey(updated.id);
+    await queryClient.cancelQueries({ queryKey: detailKey });
+    queryClient.setQueryData(detailKey, { repair: updated });
     refreshCustomers();
     return updated;
   });

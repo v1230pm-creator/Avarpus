@@ -217,7 +217,7 @@ async function seedChatRoom({ shopId, memberIds, tag, scope = "shop" }) {
 }
 
 const forbiddenKeys = new Set([
-  "mobile", "customerId", "dealerId", "devicePassword", "notes", "checklist",
+  "mobile", "customerId", "dealerId", "devicePassword", "notes", "checklist", "coverPhoto",
   "receivingSignaturePath", "deliverySignaturePath", "technicianId", "assignedById",
   "receivedById", "deliveredById", "createdById", "updatedById", "testingConfirmedById",
   "objectPath", "uploadedByName", "createdByName", "updatedByName", "assignedByName",

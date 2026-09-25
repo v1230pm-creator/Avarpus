@@ -13,7 +13,7 @@ import { TransferRequestCard } from '@/components/dealer/TransferRequestCard';
 import { useDealerTransactionsList, useDealerTransfersList } from '@workspace/api-client-react';
 import type { DealerTransactionsListDirection, DealerTransferRequest } from '@workspace/api-client-react';
 import { font } from '@/constants/typography';
-import { layout, radius, size, space } from '@/constants/spacing';
+import { layout, radius, size, space, hitSlop } from '@/constants/spacing';
 
 type Direction = 'incoming' | 'outgoing';
 type StatusFilter = 'all' | 'in_repair' | 'ready' | 'completed';
@@ -70,7 +70,7 @@ export default function DealerTransactionsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + layout.rowPaddingVertical }]}>
+      <View style={[styles.header, { paddingTop: topPad }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           accessibilityRole="button"
@@ -92,7 +92,7 @@ export default function DealerTransactionsScreen() {
         {(['incoming', 'outgoing'] as Direction[]).map((d) => {
           const pendingCount = d === direction ? pendingRequests.length : 0;
           return (
-            <TouchableOpacity
+            <TouchableOpacity hitSlop={hitSlop.chip}
               key={d}
               testID={`dealer-txn-tab-${d}`}
               accessibilityRole="button"
@@ -118,7 +118,7 @@ export default function DealerTransactionsScreen() {
           { key: 'ready', label: 'Ready' },
           { key: 'completed', label: 'Completed' },
         ] as { key: StatusFilter; label: string }[]).map((c) => (
-          <TouchableOpacity
+          <TouchableOpacity hitSlop={hitSlop.chip}
             key={c.key}
             onPress={() => setStatusFilter(c.key)}
             style={[
@@ -203,7 +203,7 @@ export default function DealerTransactionsScreen() {
               activeOpacity={0.8}
               testID={`dealer-txn-card-${item.id}`}
             >
-              <FlatCard style={{ padding: space.xl, gap: space.sm }}>
+              <FlatCard style={{ paddingVertical: layout.rowPaddingVertical, paddingLeft: layout.listInset, paddingRight: layout.listInsetEnd, gap: space.sm }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: layout.avatarGap }}>
                   <View style={[styles.avatar, { backgroundColor: colors.primary + '1A' }]}>
                     <Feather name={direction === 'incoming' ? 'download' : 'upload'} size={size.headerIcon} color={colors.primary} />
@@ -243,14 +243,14 @@ export default function DealerTransactionsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: layout.headerHeight, paddingHorizontal: layout.listInset, gap: space.sm },
   backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...font.title },
   headerSub: { ...font.caption },
   segmentRow: { flexDirection: 'row', gap: space.sm, paddingHorizontal: layout.screenPadding, marginBottom: space.md },
-  segment: { flex: 1, paddingVertical: space.md, borderRadius: radius.sm, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center' },
+  segment: { flex: 1, minHeight: size.chip, justifyContent: 'center', borderRadius: radius.sm, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center' },
   chipRow: { flexDirection: 'row', gap: space.sm, paddingHorizontal: layout.screenPadding, marginBottom: space.md, flexWrap: 'wrap' },
-  chip: { paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
+  chip: { paddingHorizontal: space.md, minHeight: size.chip, justifyContent: 'center', borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
   groupLabel: { ...font.overline, marginTop: space.xs },
   avatar: { width: size.avatar, height: size.avatar, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
   pendingBadge: { flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'flex-start', paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.sm },

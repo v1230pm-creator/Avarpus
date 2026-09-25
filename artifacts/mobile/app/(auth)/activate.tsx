@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { onBlue } from '@/constants/brand';
 import { font, fontFamily } from '@/constants/typography';
+import { layout, size, space } from '@/constants/spacing';
 
 export default function ActivateScreen() {
   const insets = useSafeAreaInsets();
@@ -118,12 +119,12 @@ export default function ActivateScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  scroll: { paddingHorizontal: 16, gap: 16, flexGrow: 1 },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
+  scroll: { paddingHorizontal: layout.screenPadding, gap: space.lg, flexGrow: 1 },
+  backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
   header: { gap: 6 },
   title: { ...font.title },
   subtitle: { ...font.small },
-  card: { padding: 16, borderRadius: 12, borderWidth: 1, gap: 12 },
+  card: { padding: space.lg, borderRadius: 12, borderWidth: 1, gap: space.md },
   errorBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
     borderRadius: 8, padding: 10, borderWidth: 1,

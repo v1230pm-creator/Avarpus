@@ -161,12 +161,12 @@ export default function KhataDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPadding + 16, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { paddingTop: topPadding + space.lg, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={24} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
-        <Avatar name={partyName} size={36} />
-        <View style={{ flex: 1, paddingHorizontal: 12 }}>
+        <Avatar name={partyName} size={size.avatarSm} />
+        <View style={{ flex: 1, paddingHorizontal: space.md }}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>{partyName}</Text>
           <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
             {isDealer ? 'Supplier' : 'Customer'}
@@ -248,8 +248,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingBottom: 12,
+    minHeight: layout.headerHeight,
+    paddingLeft: space.sm,
+    paddingRight: layout.screenPadding,
     borderBottomWidth: 1,
     elevation: 2,
     shadowColor: '#000',
@@ -258,40 +259,40 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   iconBtn: {
-    width: 44, height: 44,
+    width: size.iconButton, height: size.iconButton,
     alignItems: 'center', justifyContent: 'center',
     marginRight: 4,
   },
   headerTitle: { ...font.title },
   headerSubtitle: { ...font.caption },
 
-  scroll: { padding: 16, paddingBottom: 24 },
+  scroll: { padding: layout.screenPadding, paddingBottom: space.xxl },
 
   summaryBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 12,
     borderWidth: 1,
-    padding: 16,
-    marginBottom: 24,
+    padding: space.lg,
+    marginBottom: space.xxl,
   },
   summaryBox: { flex: 1, gap: 4 },
   summaryLabel: { ...font.captionStrong },
   summaryValue: { ...font.heading },
-  summaryDivider: { width: 1, height: '100%', marginHorizontal: 16 },
-  summaryRow: { flex: 1.2, gap: 12 },
+  summaryDivider: { width: 1, height: '100%', marginHorizontal: space.lg },
+  summaryRow: { flex: 1.2, gap: space.md },
   summaryMiniBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   summaryMiniLabel: { ...font.captionStrong },
   summaryMiniValue: { ...font.bodyStrong },
 
-  activityList: { gap: 12 },
+  activityList: { gap: space.md },
   entryRow: { flexDirection: 'row', marginVertical: 4 },
   entryLeft: { justifyContent: 'flex-start', paddingRight: 40 },
   entryRight: { justifyContent: 'flex-end', paddingLeft: 40 },
   entryCard: {
     borderRadius: 12,
     borderWidth: 1,
-    padding: 12,
+    padding: space.md,
     minWidth: 160,
   },
   entryAmount: { ...font.heading, marginBottom: space.xs },
@@ -299,7 +300,7 @@ const styles = StyleSheet.create({
   entryDate: { ...font.caption, marginBottom: space.sm },
   balancePill: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 8,
+    paddingHorizontal: space.sm,
     paddingVertical: 2,
     borderRadius: 8,
   },
@@ -309,13 +310,13 @@ const styles = StyleSheet.create({
 
   footer: {
     flexDirection: 'row',
-    padding: 16,
+    padding: space.lg,
     borderTopWidth: 1,
-    gap: 12,
+    gap: space.md,
   },
   actionBtn: {
     flex: 1,
-    height: 48,
+    minHeight: size.button,
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',

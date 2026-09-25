@@ -54,3 +54,10 @@ GitHub connector writes may return a Cloudflare 403 for raw source trees or spec
 Plan the delta by comparing local `git ls-tree -r HEAD` blob SHAs with the remote recursive tree; upload only added/changed blobs (serially, base64, verify returned SHA == local SHA); then POST `/git/trees` in chunks of ~60 entries, each with `base_tree` = the previous chunk's result (deletions are entries with `sha: null`). The final root SHA must equal local `HEAD^{tree}` before creating the commit. Whole run for 311 blobs + 15 deletes took a few minutes and hit no WAF 403s.
 
 **Gotcha:** a helper function defined in one CodeExecution block and reused in a later block failed with `executeJs is not defined`; define the impure uploader inline in every block.
+
+## Blob upload inside the impure function (Sep 23 2026, 449 blobs)
+Read each base64 payload with `node:fs` *inside* the `"use impure"` uploader and call `proxyFetch` there in a serial loop. Passing payloads across the impure boundary from durable `readFile` counts roughly double against the 3 MB per-block file budget and exhausted it after three files.
+
+**Gotcha:** `fs.writeFile` inside an impure function does not persist to the workspace filesystem (reads work, writes vanish). Return the list of uploaded SHAs and persist it with durable `writeFile`; never keep the ledger in the impure scope.
+
+**Self-healing trees:** a `POST /git/trees` 422 `tree.sha <sha> is not a valid blob` names a blob the ledger wrongly counted as uploaded. Upload that blob and retry the same chunk from the same `base_tree` instead of trusting the ledger — three such blobs surfaced this way. Root-tree SHA == local `HEAD^{tree}` remains the final proof; when it matches, a recursive path-by-path comparison adds nothing.

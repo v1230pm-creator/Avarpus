@@ -6,6 +6,8 @@ import { isLockEnabled, isUnlocked } from '@/utils/appLock';
 import { SPLASH_BACKGROUND, SplashIntro } from '@/components/ui/SplashIntro';
 import { onBlue } from '@/constants/brand';
 import { AvarpusLoadingScreen, AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
+import { font } from '@/constants/typography';
+import { layout, size, space } from '@/constants/spacing';
 
 // Only a safety net: the splash normally hands off as soon as auth and lock
 // state resolve, so this cap just prevents a stalled check from trapping the
@@ -123,13 +125,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 28,
-    gap: 12,
+    paddingHorizontal: layout.screenPadding,
+    gap: space.md,
   },
-  statusTitle: { fontSize: 21, fontWeight: '700', textAlign: 'center' },
-  statusBody: { fontSize: 14, lineHeight: 21, textAlign: 'center', maxWidth: 320 },
-  otpButton: { paddingHorizontal: 18, paddingVertical: 12, marginTop: 6 },
-  otpButtonText: { fontSize: 15, fontWeight: '600' },
+  statusTitle: { ...font.heading, textAlign: 'center' },
+  statusBody: { ...font.body, textAlign: 'center', maxWidth: 320 },
+  otpButton: { minHeight: size.buttonSm, justifyContent: 'center', paddingHorizontal: space.lg, marginTop: space.xs },
+  otpButtonText: font.button,
   verifiedIcon: {
     width: 68,
     height: 68,
@@ -138,5 +140,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 4,
   },
-  checkmark: { fontSize: 36, fontWeight: '700' },
+  checkmark: font.title,
 });

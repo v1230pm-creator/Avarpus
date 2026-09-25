@@ -296,7 +296,7 @@ export default function DeleteAccountScreen() {
                 <Button title="Try again" onPress={loadPreview} variant="outline" />
               </View>
             ) : !preview ? (
-              <View style={styles.centered}><AvarpusSpinner size={28} /></View>
+              <View style={styles.centered}><AvarpusSpinner size={size.headerIcon} /></View>
             ) : (
               <View style={styles.options}>
                 {renderScopeOption('chat', 'Delete Chat Account', 'Conversations, messages you sent, statuses, chat contacts and settings. Your business data stays.', 'message-circle')}
@@ -461,10 +461,10 @@ export default function DeleteAccountScreen() {
           style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22', opacity: canGoBack ? 1 : 0.4 }]}
           accessibilityLabel="Back"
         >
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Delete Account</Text>
-        <View style={{ width: 40 }} />
+        <View style={{ width: size.iconButton }} />
       </View>
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 32 }]}
@@ -479,31 +479,31 @@ export default function DeleteAccountScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 12 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20 },
-  scroll: { paddingHorizontal: 12, paddingTop: 16, gap: 12 },
-  title: { fontSize: 17, marginBottom: 8, flexShrink: 1 },
-  desc: { fontSize: 13, lineHeight: 19, marginBottom: 8 },
+  header: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
+  backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: size.iconButton / 2, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  scroll: { paddingHorizontal: layout.screenPadding, paddingTop: space.lg, gap: space.md },
+  title: { ...font.heading, marginBottom: space.sm, flexShrink: 1 },
+  desc: { ...font.caption, marginBottom: space.sm },
   options: { gap: 10, marginTop: 6 },
   option: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1.5 },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   radioDot: { width: 10, height: 10, borderRadius: 5 },
   optionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  optionTitle: { fontSize: 15 },
+  optionTitle: { ...font.bodyStrong },
   optionSub: { ...font.caption, marginTop: space.xs },
   warnHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 6 },
   bullets: { gap: 8, marginBottom: 12 },
   bullet: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  bulletText: { flex: 1, fontSize: 13, lineHeight: 19 },
+  bulletText: { flex: 1, ...font.caption },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, marginBottom: 8 },
   checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  checkText: { flex: 1, fontSize: 14, lineHeight: 20 },
+  checkText: { flex: 1, ...font.body },
   centered: { alignItems: 'center', gap: 12, paddingVertical: 12, width: '100%' },
-  bigIcon: { width: 68, height: 68, borderRadius: 34, alignItems: 'center', justifyContent: 'center' },
+  bigIcon: { width: size.fab, height: size.fab, borderRadius: size.fab / 2, alignItems: 'center', justifyContent: 'center' },
   inlineError: { gap: 10, marginTop: 4 },
-  errorText: { fontSize: 13, lineHeight: 18 },
+  errorText: { ...font.caption },
   resend: { alignSelf: 'flex-start', paddingVertical: 8 },
-  resendText: { fontSize: 13 },
-  deleteButtonText: { fontSize: 14, letterSpacing: 0.3 },
+  resendText: { ...font.captionStrong },
+  deleteButtonText: { ...font.button, letterSpacing: 0.3 },
 });

@@ -1,16 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { SHOP_ME_QUERY_KEY, useWorkspaceSwitch } from '@/hooks/useWorkspaceSwitch';
 import { Avatar } from '@/components/ui/Avatar';
+import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { ROLE_LABELS } from '@/utils/helpers';
-import { useApprovalsList, useLatestAppUpdate, useNotificationsList } from '@workspace/api-client-react';
+import { shopMe, useApprovalsList, useLatestAppUpdate, useNotificationsList } from '@workspace/api-client-react';
 import { getAppBuildNumber, getAppVersion } from '@/utils/appVersion';
-import { font, fontFamily } from '@/constants/typography';
+import { font } from '@/constants/typography';
 import { layout, radius, size, space } from '@/constants/spacing';
 
 interface MenuItem {
@@ -74,6 +77,25 @@ export default function MoreScreen() {
   const updateAvailable =
     !!latestUpdateData?.update && latestUpdateData.update.buildNumber > currentBuild;
 
+  // Accounts on more than one Shop team change the active workspace here (the
+  // Shop tab has no dashboard of its own; it opens the workspace directly).
+  const hasWorkspace = !isPortal && !isCustomer && !!user?.shopId;
+  const { data: workspace } = useQuery({ queryKey: SHOP_ME_QUERY_KEY, queryFn: shopMe, enabled: hasWorkspace });
+  const memberships = hasWorkspace ? workspace?.memberships ?? [] : [];
+  const { switchingTo, switching, switchTo } = useWorkspaceSwitch();
+  const [switchError, setSwitchError] = useState<string | null>(null);
+
+  const handleSwitch = async (shopId: string) => {
+    if (switching || shopId === workspace?.activeShopId) return;
+    setSwitchError(null);
+    try {
+      await switchTo(shopId);
+    } catch (error) {
+      const data = (error as { data?: { message?: string } })?.data;
+      setSwitchError(data?.message ?? (error instanceof Error ? error.message : 'Could not switch workspace.'));
+    }
+  };
+
   const topPad = Platform.OS === 'web' ? insets.top + 67 : insets.top;
 
   // Fixed role lists cover owner roles; staff visibility follows the shop's
@@ -94,7 +116,7 @@ export default function MoreScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 16, borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { paddingTop: topPad, borderBottomColor: colors.border }]}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
             onPress={() => router.back()}
@@ -111,7 +133,7 @@ export default function MoreScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
         {/* User Card */}
         <View style={[styles.userCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Avatar name={user?.name ?? 'User'} url={user?.profilePhoto} size={52} />
+          <Avatar name={user?.name ?? 'User'} url={user?.profilePhoto} size={size.avatar} />
           <View style={styles.userInfo}>
             <Text style={[styles.userName, { color: colors.foreground }]}>{user?.name}</Text>
             <Text style={[styles.userEmail, { color: colors.mutedForeground }]}>{user?.email}</Text>
@@ -142,7 +164,7 @@ export default function MoreScreen() {
               ]}
             >
               <View style={[styles.menuIconWrap, { backgroundColor: item.color + '1A' }]}>
-                <Feather name={item.icon} size={18} color={item.color} />
+                <Feather name={item.icon} size={size.headerIcon} color={item.color} />
                 {item.id === 'approvals' && pendingCount > 0 && (user?.role === 'dealer' || user?.role === 'super_admin') && (
                   <View style={[styles.badgeWrap, { backgroundColor: colors.destructive, borderColor: colors.surface }]}>
                     <Text style={styles.badgeText}>{pendingCount > 99 ? '99+' : pendingCount}</Text>
@@ -163,11 +185,58 @@ export default function MoreScreen() {
                 <Text style={[styles.menuLabel, { color: colors.foreground }]}>{item.label}</Text>
                 <Text style={[styles.menuDesc, { color: colors.mutedForeground }]}>{item.description}</Text>
               </View>
-              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+              <Feather name="chevron-right" size={size.inlineIcon} color={colors.mutedForeground} />
             </TouchableOpacity>
           ))}
           </View></View>;
         })}
+
+        {memberships.length > 1 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>SWITCH WORKSPACE</Text>
+            <View style={[styles.menuGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              {memberships.map((membership, idx) => {
+                const active = membership.id === workspace?.activeShopId;
+                const pending = switchingTo === membership.id;
+                const tint = active ? colors.success : colors.primary;
+                return (
+                  <TouchableOpacity
+                    key={membership.id}
+                    onPress={() => void handleSwitch(membership.id)}
+                    disabled={active || switching}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={active ? `${membership.businessName}, current workspace` : `Switch to ${membership.businessName}`}
+                    accessibilityState={{ selected: active, disabled: active || switching, busy: pending }}
+                    testID={`workspace-switch-${membership.id}`}
+                    style={[
+                      styles.menuItem,
+                      idx < memberships.length - 1 && [styles.menuItemBorder, { borderBottomColor: colors.border }],
+                    ]}
+                  >
+                    <View style={[styles.menuIconWrap, { backgroundColor: tint + '1A' }]}>
+                      <Feather name={active ? 'check-circle' : 'briefcase'} size={size.headerIcon} color={tint} />
+                    </View>
+                    <View style={styles.menuContent}>
+                      <Text style={[styles.menuLabel, { color: colors.foreground }]} numberOfLines={1}>{membership.businessName}</Text>
+                      <Text style={[styles.menuDesc, { color: colors.mutedForeground }]} numberOfLines={1}>
+                        {active ? 'Current workspace' : membership.role === 'owner' ? 'Owner' : ROLE_LABELS[membership.role] ?? membership.role}
+                      </Text>
+                    </View>
+                    {pending ? (
+                      <AvarpusSpinner size={18} />
+                    ) : !active && (
+                      <Feather name="chevron-right" size={size.inlineIcon} color={colors.mutedForeground} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {!!switchError && (
+              <Text style={[styles.menuDesc, { color: colors.destructive, paddingHorizontal: space.xs }]}>{switchError}</Text>
+            )}
+          </View>
+        )}
 
         {/* Logout */}
         <TouchableOpacity
@@ -191,9 +260,8 @@ export default function MoreScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    minHeight: 60,
-    paddingHorizontal: 12,
-    paddingBottom: 12,
+    minHeight: layout.headerHeight,
+    paddingHorizontal: layout.listInset,
     borderBottomWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -202,7 +270,7 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: space.sm,
   },
   headerTitle: { ...font.title },
   headerAction: {
@@ -216,7 +284,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center', 
     gap: layout.avatarGap,
-    padding: space.xl,
+    padding: space.lg,
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
   },
@@ -232,16 +300,16 @@ const styles = StyleSheet.create({
   },
   section: { gap: space.sm },
   sectionLabel: { ...font.overline, paddingHorizontal: space.xs },
-  menuItem: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: layout.rowPaddingVertical },
+  menuItem: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: layout.screenPadding, paddingVertical: space.sm },
   menuItemBorder: { borderBottomWidth: StyleSheet.hairlineWidth },
   menuIconWrap: { width: size.avatarSm, height: size.avatarSm, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
-  badgeWrap: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, borderWidth: 2, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  badgeWrap: { position: 'absolute', top: -4, right: -4, minWidth: size.badge, minHeight: size.badge, borderRadius: size.badge / 2, borderWidth: 2, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xs },
   badgeText: { color: '#FFF', ...font.badge },
   menuContent: { flex: 1, minWidth: 0, gap: 2 },
-  menuLabel: { ...font.labelStrong },
+  menuLabel: { ...font.itemTitle },
   menuDesc: { ...font.caption },
   logoutBtn: { 
-    minHeight: 52,
+    minHeight: size.button,
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'center', 

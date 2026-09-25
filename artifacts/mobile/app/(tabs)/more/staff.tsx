@@ -13,6 +13,7 @@ import { AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { FlatCard, FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
 import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 const ROLE_COLOR_TOKENS: Record<string, string> = {
   super_admin: 'destructive',
@@ -56,7 +57,7 @@ function StaffCard({
   const roleColor = colors[ROLE_COLOR_TOKENS[staff.role]] ?? colors.primary;
   return (
     <FlatCard style={styles.card}>
-      <Avatar name={staff.name} url={staff.profilePhoto} size={52} />
+      <Avatar name={staff.name} url={staff.profilePhoto} size={size.avatar} />
       <View style={styles.cardContent}>
         <View style={styles.nameRow}>
           <Text style={[styles.name, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>{staff.name}</Text>
@@ -136,7 +137,7 @@ function PendingCard({
         activeOpacity={0.8}
         onPress={() => { setExpanded((e) => !e); setConfirmReject(false); }}
       >
-        <Avatar name={staff.name} url={staff.profilePhoto} size={44} />
+        <Avatar name={staff.name} url={staff.profilePhoto} size={size.avatarSm} />
         <View style={styles.cardContent}>
           <View style={styles.nameRow}>
             <Text style={[styles.name, { color: colors.foreground, fontFamily: fontFamily.semibold }]}>{staff.name}</Text>
@@ -333,7 +334,7 @@ export default function StaffScreen() {
       <FadeInView animValue={anims[0]}>
         <View style={[styles.header, { paddingTop: topPad + 14 }]}>
           <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}>
-            <Feather name="arrow-left" size={20} color={colors.foreground} />
+            <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Staff</Text>
@@ -355,12 +356,12 @@ export default function StaffScreen() {
 
         <View style={styles.searchWrap}>
           <View style={[styles.searchBar, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '22' }]}>
-            <Feather name="search" size={16} color={colors.mutedForeground} />
+            <Feather name="search" size={size.headerIcon} color={colors.mutedForeground} />
             <TextInput
               value={search}
               onChangeText={setSearch}
               placeholder="Search staff..."
-              placeholderTextColor={colors.mutedForeground}
+              placeholderTextColor={colors.placeholder}
               style={[styles.searchInput, { color: colors.foreground, fontFamily: fontFamily.regular }]}
             />
             {!!search && <TouchableOpacity onPress={() => setSearch('')}><Feather name="x" size={16} color={colors.mutedForeground} /></TouchableOpacity>}
@@ -464,20 +465,20 @@ export default function StaffScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 12, gap: 8 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20 },
-  headerSub: { fontSize: 13 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 38, paddingHorizontal: 14, borderRadius: 12, marginTop: 3 },
+  header: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: size.iconButton / 2, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  headerSub: { ...font.caption },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: size.buttonSm, paddingHorizontal: space.md, borderRadius: radius.sm },
   addBtnText: { ...font.smallStrong },
-  searchWrap: { paddingHorizontal: 12, paddingVertical: 12 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14 },
-  searchInput: { flex: 1, height: 46, fontSize: 14 },
-  list: { paddingHorizontal: 12, paddingTop: 12, gap: 8 },
-  card: { flexDirection: 'row', gap: 8, padding: 12, alignItems: 'center' },
+  searchWrap: { marginLeft: layout.listInset, marginRight: layout.screenPadding, paddingVertical: layout.headerGap, paddingBottom: layout.searchGap },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: size.searchGap, minHeight: size.searchField, borderWidth: 1, borderRadius: size.searchRadius, paddingLeft: size.searchPadding, paddingRight: space.md },
+  searchInput: { ...font.search, flex: 1, minWidth: 0, paddingVertical: 0 },
+  list: { paddingHorizontal: layout.screenPadding, paddingTop: space.md, gap: space.sm },
+  card: { flexDirection: 'row', gap: layout.avatarGap, padding: space.lg, alignItems: 'center' },
   cardContent: { flex: 1, gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  name: { fontSize: 15 },
+  name: { ...font.itemTitle },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   email: { ...font.caption },
   mobile: { ...font.caption },
@@ -489,7 +490,7 @@ const styles = StyleSheet.create({
   editBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   cardActions: { gap: 8 },
   pendingSection: { gap: 8, marginBottom: 4 },
-  sectionTitle: { fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.6 },
+  sectionTitle: { ...font.overline },
   actionErrorText: { ...font.caption },
   pendingCard: { padding: 12, gap: 0 },
   pendingRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
@@ -497,7 +498,7 @@ const styles = StyleSheet.create({
   pendingBadgeText: { ...font.smallStrong },
   pendingDetails: { marginTop: 12, gap: 8 },
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
-  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 40, borderRadius: 12 },
+  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: size.buttonSm, borderRadius: 12 },
   actionBtnText: { ...font.smallStrong },
   rejectHint: { ...font.caption },
 });

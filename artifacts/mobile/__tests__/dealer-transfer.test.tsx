@@ -1,10 +1,12 @@
 /**
  * Dealer-to-dealer RECEIVE TRANSFER, mobile side.
  *
- *  - Sender: long-press a repair → "Send to Dealer" dialog → picker route with
+ *  - Sender: the card's ⋮ button → "Send to Dealer" dialog → picker route with
  *    the repair id; rows already waiting on a dealer show "Waiting for … to
- *    accept" and cannot be long-pressed into a second request; portal users
- *    and staff without repairs_update get no long-press at all.
+ *    accept" and offer no button for a second request; portal users and staff
+ *    without repairs_update get no button at all. (The card has no long press
+ *    of its own: a held finger anywhere on a list takes the page for one-hand
+ *    reach.)
  *  - Receiver: an incoming request shows the sender's saved device facts and
  *    ACCEPT / DECLINE; accept calls the API once and opens the new repair.
  *  - Sender: a pending request offers CANCEL through the shared dialog.
@@ -151,13 +153,13 @@ beforeEach(() => {
   mockRequest = null;
 });
 
-describe('sender: long-press → Send to Dealer', () => {
+describe('sender: ⋮ → Send to Dealer', () => {
   it('opens the shared dialog and routes to the dealer picker with the repair id', async () => {
     mockRepairs = [baseRepair];
     await renderWithAuth(<RepairsScreen />);
     await waitFor(() => expect(screen.getByTestId('repair-card-rep-1')).toBeTruthy());
 
-    fireEvent(screen.getByTestId('repair-card-rep-1'), 'longPress');
+    fireEvent.press(screen.getByTestId('repair-menu-rep-1'));
     expect(mockConfirm).toHaveBeenCalledTimes(1);
     const call = mockConfirm.mock.calls[0][0] as ConfirmCall;
     expect(call.title).toBe('Send to Dealer');
@@ -182,7 +184,7 @@ describe('sender: long-press → Send to Dealer', () => {
     // Never the word "Received" for the sender while the other side has not accepted.
     expect(screen.queryByText(/Received from/)).toBeNull();
 
-    fireEvent(screen.getByTestId('repair-card-rep-1'), 'longPress');
+    expect(screen.queryByTestId('repair-menu-rep-1')).toBeNull();
     expect(mockConfirm).not.toHaveBeenCalled();
   });
 
@@ -193,17 +195,17 @@ describe('sender: long-press → Send to Dealer', () => {
     }];
     await renderWithAuth(<RepairsScreen />);
     await waitFor(() => expect(screen.getByText('Declined by Ravi Repairs · you can send again')).toBeTruthy());
-    fireEvent(screen.getByTestId('repair-card-rep-1'), 'longPress');
+    fireEvent.press(screen.getByTestId('repair-menu-rep-1'));
     expect(mockConfirm).toHaveBeenCalledTimes(1);
   });
 
-  it('offers no long-press to staff without the update-repairs toggle', async () => {
+  it('offers no send button to staff without the update-repairs toggle', async () => {
     mockRole = 'technician';
     mockFeatures = { repairs: true, repairs_update: false, customers: true };
     mockRepairs = [baseRepair];
     await renderWithAuth(<RepairsScreen />);
     await waitFor(() => expect(screen.getByTestId('repair-card-rep-1')).toBeTruthy());
-    fireEvent(screen.getByTestId('repair-card-rep-1'), 'longPress');
+    expect(screen.queryByTestId('repair-menu-rep-1')).toBeNull();
     expect(mockConfirm).not.toHaveBeenCalled();
   });
 

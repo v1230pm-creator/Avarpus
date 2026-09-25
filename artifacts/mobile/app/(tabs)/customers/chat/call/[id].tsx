@@ -31,6 +31,7 @@ import { useColors } from '@/hooks/useColors';
 import type { CallMode, LiveKitCallProps } from '@/components/chat/LiveKitCallTypes';
 import { AvarpusLoadingScreen } from '@/components/ui/AvarpusSpinner';
 import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 
 function supportsLiveKitNative(): boolean {
   return (
@@ -258,7 +259,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: layout.screenPadding,
   },
   loadingText: {
     marginTop: 16,
@@ -269,7 +270,7 @@ const styles = StyleSheet.create({
     maxWidth: 380,
     borderRadius: 16,
     borderWidth: 1,
-    padding: 28,
+    padding: space.lg,
     alignItems: 'center',
     gap: 14,
   },
@@ -302,18 +303,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 11,
-    borderRadius: 8,
+    minHeight: size.button,
+    paddingHorizontal: space.xl,
+    borderRadius: radius.sm,
   },
   buttonText: {
     color: '#fff',
     ...font.button,
   },
   backButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 11,
-    borderRadius: 8,
+    minHeight: size.button,
+    paddingHorizontal: space.xl,
+    borderRadius: radius.sm,
     borderWidth: 1,
   },
   backButtonText: {

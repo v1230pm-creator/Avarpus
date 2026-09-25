@@ -192,6 +192,38 @@ async function run(A, B) {
     rAfter,
   );
 
+  // ── List cover photo: front shot wins over an earlier upload; null without photos ──
+  check("repair without photos lists coverPhoto null", rAfter && rAfter.coverPhoto === null, rAfter);
+  await pool.query(
+    `INSERT INTO repair_photos (shop_id, repair_id, kind, object_path, created_at) VALUES
+       ($1, $2, 'back',  $3, now() - interval '2 minutes'),
+       ($1, $2, 'front', $4, now() - interval '1 minute')`,
+    [A.shopId, repA, `/objects/uploads/${A.shopId}/cover-back`, `/objects/uploads/${A.shopId}/cover-front`],
+  );
+  const withCover = await api("GET", "/repairs", A.token);
+  const covered = (withCover.json.repairs ?? []).find((r) => r.id === repA);
+  check(
+    "repair list cover photo prefers the front shot over the earlier back shot",
+    covered?.coverPhoto?.kind === "front" && covered.coverPhoto.objectPath === `/objects/uploads/${A.shopId}/cover-front`,
+    covered?.coverPhoto,
+  );
+  const coveredDetail = await api("GET", `/repairs/${repA}`, A.token);
+  check("repair detail carries the same cover photo", coveredDetail.json.repair?.coverPhoto?.kind === "front", coveredDetail.json.repair?.coverPhoto);
+  // A photo row stamped with another shop (no constraint ties the pair) must
+  // never become a cover, even when it is the newest front shot.
+  await pool.query(
+    `INSERT INTO repair_photos (shop_id, repair_id, kind, object_path, created_at)
+     VALUES ($1, $2, 'front', $3, now() - interval '3 minutes')`,
+    [B.shopId, repA, `/objects/uploads/${B.shopId}/stray-front`],
+  );
+  const strayList = await api("GET", "/repairs", A.token);
+  const strayRow = (strayList.json.repairs ?? []).find((r) => r.id === repA);
+  check(
+    "a photo row stamped with another shop is never the cover",
+    strayRow?.coverPhoto?.objectPath === `/objects/uploads/${A.shopId}/cover-front`,
+    strayRow?.coverPhoto,
+  );
+
   // ── Inventory ─────────────────────────────────────────────────────────────
   const inv = await api("POST", "/inventory", A.token, {
     name: "Shop A Screen",

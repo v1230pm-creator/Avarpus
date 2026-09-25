@@ -2,7 +2,8 @@ import React from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { RepairStatus, RepairPriority } from '@/types';
-import { fontFamily } from '@/constants/typography';
+import { font } from '@/constants/typography';
+import { radius, size as controlSize, space } from '@/constants/spacing';
 
 type BadgeVariant = 'default' | 'success' | 'warning' | 'error' | 'info' | 'muted';
 
@@ -31,13 +32,9 @@ export function Badge({ label, variant = 'default', style, size = 'md' }: BadgeP
     info: colors.info,
     muted: colors.mutedForeground,
   };
-  const padH = size === 'sm' ? 10 : 12;
-  const padV = size === 'sm' ? 3 : 5;
-  const fs = size === 'sm' ? 12 : 13;
-
   return (
-    <View style={[styles.badge, { backgroundColor: bg[variant], paddingHorizontal: padH, paddingVertical: padV, borderRadius: 100 }, style]}>
-      <Text style={[styles.text, { color: fg[variant], fontSize: fs, lineHeight: fs + 4 }]}>{label}</Text>
+    <View style={[styles.badge, size === 'sm' && styles.smallBadge, { backgroundColor: bg[variant] }, style]}>
+      <Text style={[styles.text, { color: fg[variant] }]}>{label}</Text>
     </View>
   );
 }
@@ -60,8 +57,14 @@ const PRIORITY_VARIANTS: Record<RepairPriority, BadgeVariant> = {
   low: 'muted', normal: 'default', high: 'warning', urgent: 'error',
 };
 
-export function RepairStatusBadge({ status }: { status: RepairStatus }) {
-  return <Badge label={REPAIR_STATUS_LABELS[status]} variant={REPAIR_STATUS_VARIANTS[status]} size="sm" />;
+// Short forms for list cards, where a long pill would squeeze the ticket id.
+const REPAIR_STATUS_SHORT_LABELS: Partial<Record<RepairStatus, string>> = {
+  waiting_parts: 'Waiting Parts', ready: 'Ready', customer_approval: 'Approval Needed',
+};
+
+export function RepairStatusBadge({ status, compact = false }: { status: RepairStatus; compact?: boolean }) {
+  const label = (compact && REPAIR_STATUS_SHORT_LABELS[status]) || REPAIR_STATUS_LABELS[status];
+  return <Badge label={label} variant={REPAIR_STATUS_VARIANTS[status]} size="sm" />;
 }
 
 export function PriorityBadge({ priority }: { priority?: RepairPriority | null }) {
@@ -80,6 +83,13 @@ export function PaymentBadge({ status }: { status: 'paid' | 'unpaid' | 'partial'
 }
 
 const styles = StyleSheet.create({
-  badge: { alignSelf: 'flex-start' },
-  text: { fontFamily: fontFamily.semibold, letterSpacing: 0.2 },
+  badge: {
+    alignSelf: 'flex-start',
+    minHeight: controlSize.badge,
+    justifyContent: 'center',
+    paddingHorizontal: space.sm,
+    borderRadius: radius.pill,
+  },
+  smallBadge: { minHeight: controlSize.badge },
+  text: { ...font.smallStrong, letterSpacing: 0.2 },
 });

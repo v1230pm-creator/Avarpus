@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
-import { font, fontFamily } from '@/constants/typography';
+import { font } from '@/constants/typography';
 import { layout, radius, size, space } from '@/constants/spacing';
 import { useAuth } from '@/context/AuthContext';
 import { Avatar } from '@/components/ui/Avatar';
@@ -126,7 +126,7 @@ export default function SettingsOverviewScreen() {
   const renderHeader = () => {
     if (isSearching) {
       return (
-        <View style={[styles.header, { paddingTop: topPad + 12 }]}>
+        <View style={[styles.header, { paddingTop: topPad }]}>
           <TouchableOpacity
             onPress={() => {
               setIsSearching(false);
@@ -141,7 +141,7 @@ export default function SettingsOverviewScreen() {
             value={search}
             onChangeText={setSearch}
             placeholder="Search settings..."
-            placeholderTextColor={colors.mutedForeground}
+            placeholderTextColor={colors.placeholder}
             style={[styles.searchInput, { color: colors.foreground, backgroundColor: colors.backgroundSecondary }]}
             autoFocus
           />
@@ -155,17 +155,17 @@ export default function SettingsOverviewScreen() {
     }
 
     return (
-      <View style={[styles.header, { paddingTop: topPad + 12, justifyContent: 'space-between' }]}>
+      <View style={[styles.header, { paddingTop: topPad, justifyContent: 'space-between' }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerIconBtn}>
           <Feather name="arrow-left" size={24} color={colors.foreground} />
         </TouchableOpacity>
 
         <View style={styles.headerActions}>
           <TouchableOpacity onPress={() => setIsSearching(true)} style={styles.headerIconBtn}>
-            <Feather name="search" size={22} color={colors.foreground} />
+            <Feather name="search" size={size.headerIcon} color={colors.foreground} />
           </TouchableOpacity>
           <TouchableOpacity onPress={handleQRClick} style={styles.headerIconBtn}>
-            <Feather name="grid" size={22} color={colors.foreground} />
+            <Feather name="grid" size={size.headerIcon} color={colors.foreground} />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => router.push('/(tabs)/more/profile')} style={styles.headerIconBtn}>
             <Feather name="edit-2" size={20} color={colors.foreground} />
@@ -191,7 +191,7 @@ export default function SettingsOverviewScreen() {
             onPress={() => router.push('/(tabs)/more/profile')}
           >
             <View style={styles.profileImageContainer}>
-              <Avatar name={user?.name || 'User'} url={user?.profilePhoto} size={72} />
+              <Avatar name={user?.name || 'User'} url={user?.profilePhoto} size={size.avatar * 2} />
             </View>
             <View style={styles.profileNameContainer}>
               <Text style={[styles.profileName, { color: colors.foreground }]}>{user?.name || 'Avarpus User'}</Text>
@@ -211,7 +211,7 @@ export default function SettingsOverviewScreen() {
               onPress={() => handleItemPress(item)}
             >
               <View style={styles.listIconContainer}>
-                <Feather name={item.icon as any} size={22} color={colors.mutedForeground} />
+                <Feather name={item.icon as any} size={size.headerIcon} color={colors.mutedForeground} />
               </View>
               <View style={styles.listTextContainer}>
                 <Text style={[styles.listTitle, { color: colors.foreground }]}>{item.title}</Text>
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: layout.screenPadding,
-    paddingBottom: space.sm,
+    minHeight: layout.headerHeight,
   },
   headerIconBtn: {
     width: size.iconButton,
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    height: size.searchField,
+    minHeight: size.searchField,
     borderRadius: size.searchRadius,
     paddingHorizontal: space.lg,
     paddingRight: size.iconButton,
@@ -265,8 +265,8 @@ const styles = StyleSheet.create({
   },
   profileSection: {
     alignItems: 'center',
-    paddingTop: space.xxxl,
-    paddingBottom: space.xxl,
+    paddingTop: space.xxl,
+    paddingBottom: space.xl,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'transparent',
   },
@@ -297,8 +297,8 @@ const styles = StyleSheet.create({
   listItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 64,
-    paddingVertical: layout.rowPaddingVertical,
+    minHeight: layout.headerHeight,
+    paddingVertical: space.sm,
     paddingHorizontal: layout.screenPadding,
   },
   listIconContainer: {
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listTitle: {
-    ...font.bodyStrong,
+    ...font.itemTitle,
     marginBottom: 2,
   },
   listSubtitle: {

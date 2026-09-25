@@ -11,6 +11,7 @@ import { font, fontFamily } from '@/constants/typography';
 import { getTodayStr, isValidDateStr } from '@/utils/helpers';
 import { approvalsCreate } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
+import { radius, space } from '@/constants/spacing';
 
 const TYPE_OPTIONS = ['income', 'expense'];
 const TYPE_LABELS: Record<string, string> = { income: 'Income', expense: 'Expense' };
@@ -154,6 +155,6 @@ export function FinanceFormSheet({ visible, onClose, entry }: Props) {
 }
 
 const styles = StyleSheet.create({
-  warningBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 4 },
+  warningBanner: { flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.md, borderRadius: radius.sm, borderWidth: 1, marginBottom: space.xs },
   warningText: { ...font.small, flex: 1 },
 });

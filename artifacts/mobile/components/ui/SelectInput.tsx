@@ -2,7 +2,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { font, fontFamily } from '@/constants/typography';
-import { radius, space } from '@/constants/spacing';
+import { radius, size, space } from '@/constants/spacing';
 
 interface SelectInputProps {
   label: string;
@@ -62,8 +62,9 @@ export function SelectInput({ label, options, value, onChange, labelMap, style, 
 }
 
 const styles = StyleSheet.create({
-  label: font.captionStrong,
-  chip: { minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.lg, borderWidth: 1 },
-  chipText: font.caption,
+  label: font.label,
+  // Form choices are tapped one at a time, so they keep the 44dp control height rather than the 32dp filter-chip height.
+  chip: { minHeight: size.buttonSm, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.lg, borderWidth: 1 },
+  chipText: font.captionStrong,
   error: font.small,
 });

@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { onBlue } from '@/constants/brand';
 import { font, fontFamily } from '@/constants/typography';
+import { layout, size, space } from '@/constants/spacing';
 
 type Step = 'form' | 'email_otp' | 'success';
 
@@ -57,7 +58,7 @@ function OtpInput({ value, onChange, onBack, inputRef, theme }: {
 const otpStyles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
   cell: {
-    width: 44, height: 52, borderRadius: 8,
+    width: 44, minHeight: size.input, borderRadius: 8,
     ...font.itemTitle, fontFamily: fontFamily.bold,
     borderWidth: 1,
   },
@@ -346,12 +347,12 @@ export default function RegisterScreen() {
 
 const gs = StyleSheet.create({
   root: { flex: 1 },
-  scroll: { paddingHorizontal: 16, gap: 16 },
+  scroll: { paddingHorizontal: layout.screenPadding, gap: space.lg },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
+  backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
   title: { ...font.title },
   subtitle: { ...font.small, marginTop: 2 },
-  card: { borderRadius: 12, borderWidth: 1, padding: 16, gap: 12 },
+  card: { borderRadius: 12, borderWidth: 1, padding: space.lg, gap: space.md },
   infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 8, padding: 10, borderWidth: 1 },
   infoText: { ...font.small, flex: 1 },
   photoRow: { flexDirection: 'row', gap: 8 },
@@ -365,7 +366,7 @@ const gs = StyleSheet.create({
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 8, padding: 10, borderWidth: 1 },
   errorText: { ...font.small, flex: 1 },
   timerText: { ...font.smallStrong },
-  successCard: { borderRadius: 12, borderWidth: 1, padding: 20, gap: 12, alignItems: 'center' },
+  successCard: { borderRadius: 12, borderWidth: 1, padding: space.lg, gap: space.md, alignItems: 'center' },
   successIcon: { marginBottom: 4 },
   successIconGrad: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
   successTitle: { ...font.itemTitle },

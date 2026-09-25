@@ -157,9 +157,9 @@ export default function AccountScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
 
-      <View style={[styles.header, { paddingTop: topPad + 14 }]}>
+      <View style={[styles.header, { paddingTop: topPad }]}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}>
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Account & Devices</Text>
         <View style={{ width: 40 }} />
@@ -179,7 +179,7 @@ export default function AccountScreen() {
         <Input label="Company Name" value={companyName} onChangeText={setCompanyName} leftIcon="briefcase" />
         <Input label="Phone" value={phone} onChangeText={setPhone} leftIcon="phone" keyboardType="phone-pad" />
         <Input label="Email" value={email} onChangeText={setEmail} leftIcon="mail" keyboardType="email-address" />
-        <Input label="Address" value={address} onChangeText={setAddress} leftIcon="map-pin" multiline numberOfLines={2} style={{ height: 72, textAlignVertical: 'top', paddingTop: 10 } as any} />
+        <Input label="Address" value={address} onChangeText={setAddress} leftIcon="map-pin" multiline numberOfLines={2} />
         <Input label="GST Number" value={gst} onChangeText={setGst} leftIcon="file-text" autoCapitalize="characters" />
         </FadeInView>
 
@@ -525,34 +525,34 @@ export default function AccountScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 12 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20 },
-  scroll: { paddingHorizontal: 12, paddingTop: 16, gap: 20 },
+  header: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.listInset },
+  backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: size.iconButton / 2, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  scroll: { paddingHorizontal: layout.screenPadding, paddingTop: space.lg, gap: space.xl },
   section: { gap: 8 },
   sectionHeader: { borderLeftWidth: 3, paddingLeft: 10, marginTop: 4, marginBottom: -4 },
-  sectionTitle: { fontSize: 15 },
+  sectionTitle: { ...font.heading },
   configRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  configLabel: { fontSize: 15 },
+  configLabel: { ...font.bodyStrong },
   configSub: { ...font.caption, marginTop: 2 },
   currencyBadge: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
-  currencyText: { fontSize: 14 },
-  versionText: { fontSize: 14 },
-  dangerDesc: { fontSize: 13, lineHeight: 20 },
+  currencyText: { ...font.captionStrong },
+  versionText: { ...font.caption },
+  dangerDesc: { ...font.caption },
   dangerActions: { flexDirection: 'row', gap: 8, marginTop: 14 },
   dangerBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
-  dangerBtnText: { fontSize: 13 },
+  dangerBtnText: { ...font.smallStrong },
   timeoutRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
   timeoutChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1 },
-  timeoutChipText: { fontSize: 13 },
-  historyEmpty: { fontSize: 13, marginTop: 14 },
+  timeoutChipText: { ...font.captionStrong },
+  historyEmpty: { ...font.caption, marginTop: 14 },
   historyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 2 },
   historyIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  historyMethod: { fontSize: 13 },
+  historyMethod: { ...font.captionStrong },
   revokeBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, minWidth: 70, alignItems: 'center' },
   revokeBtnText: { ...font.smallStrong },
   revokeAllBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1, marginTop: 12 },
   historyTime: { ...font.caption, marginTop: 2 },
   savedBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderWidth: 1 },
-  savedText: { fontSize: 14 },
+  savedText: { ...font.labelStrong },
 });

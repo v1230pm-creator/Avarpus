@@ -22,7 +22,7 @@ import { FinanceFormSheet } from '@/components/forms/FinanceFormSheet';
 import { FinanceEntry } from '@/types';
 import { formatCurrency, formatDate, getTodayStr } from '@/utils/helpers';
 import { font, fontFamily } from '@/constants/typography';
-import { layout, radius, size, space } from '@/constants/spacing';
+import { layout, radius, size, space, hitSlop } from '@/constants/spacing';
 
 const PERIODS = ['Today', 'Week', 'Month', 'All'] as const;
 type Period = (typeof PERIODS)[number];
@@ -51,7 +51,7 @@ function TransactionItem({ entry, isLast, onPress }: { entry: FinanceEntry; isLa
         )}
         <Text style={[styles.txDate, { color: colors.mutedForeground, fontFamily: fontFamily.regular }]}>{formatDate(entry.date)}</Text>
       </View>
-      <Text style={[styles.txAmount, { color: isIncome ? colors.success : colors.destructive, fontFamily: fontFamily.bold }]}>
+      <Text style={[styles.txAmount, { color: isIncome ? colors.success : colors.destructive }]}>
         {isIncome ? '+' : '-'}{formatCurrency(entry.amount)}
       </Text>
     </TouchableOpacity>
@@ -116,7 +116,7 @@ export default function FinanceScreen() {
 
       <View style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Finance</Text>
         <TouchableOpacity
@@ -145,7 +145,7 @@ export default function FinanceScreen() {
           {PERIODS.map((p) => {
             const active = period === p;
             return (
-              <TouchableOpacity
+              <TouchableOpacity hitSlop={hitSlop.chip}
                 key={p}
                 onPress={() => setPeriod(p)}
                 style={[styles.periodTab, {
@@ -210,23 +210,23 @@ export default function FinanceScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
+  header: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
   backBtn: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
   addBtn: { width: size.iconButton, height: size.iconButton, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...font.title },
   scroll: { padding: layout.screenPadding, gap: space.sm },
-  periodRow: { flexDirection: 'row', gap: 8 },
-  periodTab: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
-  periodText: { ...font.smallStrong },
+  periodRow: { flexDirection: 'row', gap: space.sm },
+  periodTab: { flex: 1, minHeight: size.chip, borderRadius: size.chip / 2, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  periodText: { ...font.captionStrong },
   statsRow: { flexDirection: 'row', gap: 8 },
   statCard: { flex: 1 },
   profitRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   profitLabel: { ...font.caption },
-  profitValue: { ...font.title, marginTop: space.xs },
-  profitBadge: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  profitValue: { ...font.heading, marginTop: space.xs },
+  profitBadge: { width: size.avatar, height: size.avatar, borderRadius: size.avatar / 2, alignItems: 'center', justifyContent: 'center' },
   sectionLabel: { ...font.overline },
   txList: { overflow: 'hidden' },
-  txItem: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: layout.rowPaddingVertical, paddingHorizontal: space.xl },
+  txItem: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: layout.rowPaddingVertical, paddingHorizontal: layout.screenPadding },
   txIcon: { width: size.avatarSm, height: size.avatarSm, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   txContent: { flex: 1, gap: 2 },
   txCategory: { ...font.bodyStrong },

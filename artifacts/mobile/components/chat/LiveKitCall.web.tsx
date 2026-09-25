@@ -9,6 +9,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { font, fontFamily } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 import type { LiveKitCallProps } from './LiveKitCallTypes';
 
 export function LiveKitCall({ onHangup }: LiveKitCallProps) {
@@ -58,14 +59,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: layout.screenPadding,
   },
   card: {
     width: '100%',
     maxWidth: 400,
     borderRadius: 16,
     borderWidth: 1,
-    padding: 28,
+    padding: space.lg,
     alignItems: 'center',
     gap: 16,
   },
@@ -77,7 +78,6 @@ const styles = StyleSheet.create({
   body: {
     ...font.small,
     textAlign: 'center',
-    lineHeight: 22,
   },
   e2eeRow: {
     flexDirection: 'row',
@@ -92,9 +92,9 @@ const styles = StyleSheet.create({
     ...font.small,
   },
   backButton: {
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 8,
+    minHeight: size.button,
+    paddingHorizontal: space.xxl,
+    borderRadius: radius.sm,
     marginTop: 4,
   },
   backButtonText: {

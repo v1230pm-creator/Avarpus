@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Redirect, useRouter, useSegments } from 'expo-router';
+import { BackHandler, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Redirect, usePathname, useRouter, useSegments } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { isDealerPortalRole, isCustomerRole, isLinkedCustomerPortalUser } from '@/types';
 import { useColors } from '@/hooks/useColors';
@@ -11,27 +11,46 @@ import { Tabs } from 'expo-router';
 import { canAccessTabsRoute } from '@/utils/tabRouteAccess';
 import {
   getPrimaryTabsHomeRoute,
+  getShopTabTarget,
   getVisiblePrimaryTabs,
+  getWorkspaceTabs,
+  workspaceBackTarget,
   type PrimaryTabName,
+  type TabRoute,
+  type WorkspaceTabName,
 } from '@/utils/tabVisibility';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AvarpusLoadingScreen, AvarpusSpinner } from '@/components/ui/AvarpusSpinner';
 import { useChatUnreadCount } from '@/hooks/useChatUnreadCount';
 import { StatusRingIcon } from '@/components/ui/StatusRingIcon';
+import { ReachDown } from '@/components/ui/ReachDown';
 import { font, fontFamily } from '@/constants/typography';
-import { size, space } from '@/constants/spacing';
+import { radius, size, space } from '@/constants/spacing';
 
-const MAIN_TABS: Array<{
-  name: PrimaryTabName;
+type TabSpec<Name extends string> = {
+  name: Name;
   label: string;
   /** `status` draws its own ring glyph; every other tab uses a Feather outline. */
   icon: React.ComponentProps<typeof Feather>['name'] | 'status';
-}> = [
+};
+
+const MAIN_TABS: Array<TabSpec<PrimaryTabName>> = [
   { name: 'index', label: 'Chats', icon: 'message-circle' as const },
   { name: 'status', label: 'Status', icon: 'status' as const },
   { name: 'shop', label: 'Shop', icon: 'shopping-bag' as const },
   { name: 'calls', label: 'Calls', icon: 'phone' as const },
   { name: 'repairs', label: 'My Repairs', icon: 'tool' as const },
+];
+
+// Child navigation of the Shop tab. The Shop tab itself opens the first of
+// these tools directly (see getShopTabTarget); while the focused route is
+// inside any of the four, this footer replaces MAIN_TABS. The two footers
+// never render together.
+const WORKSPACE_TABS: Array<TabSpec<WorkspaceTabName>> = [
+  { name: 'repairs', label: 'Repairs', icon: 'tool' as const },
+  { name: 'khata', label: 'Khata', icon: 'book-open' as const },
+  { name: 'inventory', label: 'Inventory', icon: 'package' as const },
+  { name: 'customers', label: 'Customers', icon: 'users' as const },
 ];
 
 const useChatsTabUnreadCount = useChatUnreadCount;
@@ -41,19 +60,43 @@ function PremiumTabBar({
   descriptors,
   navigation,
   tabs,
+  workspace,
+  shopTarget,
   chatsUnreadCount,
 }: {
-  state: { index: number; routes: Array<{ key: string; name: string }> };
+  state: { index: number; routes: TabRoute[] };
   descriptors: Record<string, { options: { href?: string | null; tabBarStyle?: unknown } }>;
-  navigation: { navigate: (name: string) => void };
-  tabs: typeof MAIN_TABS;
+  navigation: { navigate: (name: string, params?: object) => void; isFocused?: () => boolean };
+  tabs: Array<TabSpec<string>>;
+  /** True while the Shop workspace footer is showing. */
+  workspace: boolean;
+  /** Route the Shop tab opens: the account's first workspace tool, or the Shop set-up screen. */
+  shopTarget: string;
   chatsUnreadCount: number;
 }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const bottomInset = Platform.OS === 'web' ? 20 : Math.max(insets.bottom, 12);
-  const currentOptions = descriptors[state.routes[state.index]?.key]?.options;
+  const focusedRoute = state.routes[state.index];
+  const currentOptions = descriptors[focusedRoute?.key]?.options;
   const tabBarStyle = currentOptions?.tabBarStyle as any;
+
+  // Hardware back at a workspace root leaves the workspace for Chats, where
+  // the main footer takes over again. Deeper screens keep the normal
+  // behaviour: the listener declines and the focused stack pops.
+  const backTarget = workspace ? workspaceBackTarget(focusedRoute) : null;
+  const focusedName = focusedRoute?.name;
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !backTarget || !focusedName) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (navigation.isFocused && !navigation.isFocused()) return false;
+      if (backTarget === 'tool-root') navigation.navigate(focusedName, { screen: 'index' });
+      else navigation.navigate('index');
+      return true;
+    });
+    return () => subscription.remove();
+  }, [backTarget, focusedName, navigation]);
+
   if (tabBarStyle?.display === 'none') return null;
 
   return (
@@ -82,6 +125,47 @@ function PremiumTabBar({
         const activeBorder = isKhata ? colors.gold : 'transparent';
         // Inactive glyphs stay white-on-charcoal; only the active one turns blue.
         const iconColor = focused ? activeColor : colors.foreground;
+        const glyph =
+          tab.icon === 'status' ? (
+            <StatusRingIcon size={size.navIcon} color={iconColor} />
+          ) : (
+            <Feather name={tab.icon} size={size.navIcon} color={iconColor} />
+          );
+
+        if (workspace) {
+          // The Shop workspace footer uses the main footer's glyph, but its
+          // active state is one soft block behind glyph and label together,
+          // with a smaller, lightly tracked label: its tool names are longer.
+          return (
+            <TouchableOpacity
+              key={tab.name}
+              accessibilityRole="button"
+              accessibilityState={focused ? { selected: true } : {}}
+              accessibilityLabel={tab.label}
+              onPress={() => navigation.navigate(tab.name)}
+              style={styles.tabItem}
+              activeOpacity={0.8}
+            >
+              <View
+                style={[
+                  styles.workspaceTabBlock,
+                  focused && { backgroundColor: activeBg, borderColor: activeBorder },
+                ]}
+              >
+                {glyph}
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    focused ? font.workspaceTabStrong : font.workspaceTab,
+                    { color: focused ? activeColor : colors.foreground },
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        }
 
         return (
           <TouchableOpacity
@@ -89,22 +173,13 @@ function PremiumTabBar({
             accessibilityRole="button"
             accessibilityState={focused ? { selected: true } : {}}
             accessibilityLabel={tab.label}
-            onPress={() => navigation.navigate(tab.name)}
+            // Shop has no dashboard: the tab lands inside the workspace.
+            onPress={() => navigation.navigate(tab.name === 'shop' ? shopTarget : tab.name)}
             style={styles.tabItem}
             activeOpacity={0.8}
           >
-            <View
-              style={[
-                styles.tabIconWrap,
-                focused && { backgroundColor: activeBg },
-                focused && isKhata && { borderWidth: 1, borderColor: activeBorder },
-              ]}
-            >
-              {tab.icon === 'status' ? (
-                <StatusRingIcon size={size.navIcon} color={iconColor} />
-              ) : (
-                <Feather name={tab.icon} size={size.navIcon} color={iconColor} />
-              )}
+            <View style={[styles.tabIconWrap, focused && { backgroundColor: activeBg }]}>
+              {glyph}
               {tab.name === 'index' && chatsUnreadCount > 0 && (
                 <View
                   style={[styles.tabUnreadBadge, { backgroundColor: colors.notification }]}
@@ -120,10 +195,7 @@ function PremiumTabBar({
               numberOfLines={1}
               style={[
                 styles.tabLabel,
-                {
-                  color: colors.foreground,
-                  fontFamily: focused ? fontFamily.bold : fontFamily.medium,
-                },
+                { fontFamily: focused ? fontFamily.bold : fontFamily.medium, color: colors.foreground },
               ]}
             >
               {tab.label}
@@ -137,15 +209,38 @@ function PremiumTabBar({
 
 function ClassicTabLayout({ portal, customer }: { portal: boolean; customer: boolean }) {
   const colors = useColors();
-  const { canAccess } = useAuth();
+  const { canAccess, user } = useAuth();
   const isWeb = Platform.OS === 'web';
+  const segments = useSegments();
   const visibleTabNames = getVisiblePrimaryTabs({ customer, portal, canAccess });
   const visibleTabs = MAIN_TABS.filter((tab) => visibleTabNames.includes(tab.name));
+  // Inside Repairs / Khata / Inventory / Customers the footer becomes the
+  // Shop workspace's own navigation; everywhere else it is the main footer.
+  const workspaceTabNames = getWorkspaceTabs({ segments, customer, portal, canAccess });
+  const tabs: Array<TabSpec<string>> = workspaceTabNames
+    ? WORKSPACE_TABS.filter((tab) => workspaceTabNames.includes(tab.name))
+    : visibleTabs;
+  const shopTarget = getShopTabTarget({ customer, portal, hasShop: !!user?.shopId, canAccess });
   const chatsUnreadCount = useChatsTabUnreadCount();
+  const pathname = usePathname();
 
   return (
     <Tabs
-      tabBar={(props) => <PremiumTabBar {...props} tabs={visibleTabs} chatsUnreadCount={chatsUnreadCount} />}
+      // Every tab's screen area can be held and moved for one-hand reach; the footer below stays put.
+      screenLayout={({ children }) => (
+        <ReachDown style={{ backgroundColor: colors.background }} resetKey={pathname}>
+          {children}
+        </ReachDown>
+      )}
+      tabBar={(props) => (
+        <PremiumTabBar
+          {...props}
+          tabs={tabs}
+          workspace={workspaceTabNames !== null}
+          shopTarget={shopTarget}
+          chatsUnreadCount={chatsUnreadCount}
+        />
+      )}
       screenOptions={{
         headerShown: false,
         tabBarHideOnKeyboard: true,
@@ -362,38 +457,56 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     elevation: 0,
   },
+  // Main footer: 12 top padding + 32 pill + 7 gap + 16 label + 13 slack = 80dp
+  // of content. Workspace footer: 12 + 60 block + 8 slack.
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-start',
-    gap: space.xs + 2,
+    gap: 7,
     minHeight: size.tabBar - space.md,
   },
   tabIconWrap: {
     width: 64,
-    height: 36,
-    borderRadius: 18,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tabUnreadBadge: {
-    position: 'absolute',
-    top: -6,
-    right: 6,
-    minWidth: 22,
-    height: 22,
-    borderRadius: 11,
+  // Workspace tab: 8 + 24 glyph + 4 + 16 label + 8 = 60dp block that fills
+  // the column bar a 4dp gutter. The border is always laid out (transparent
+  // when idle) so the Khata tab's gold ring never shifts its contents.
+  workspaceTabBlock: {
+    alignSelf: 'stretch',
+    marginHorizontal: space.xs,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.sm,
+    gap: space.xs,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 6,
+  },
+  // Hangs off the top-right of the glyph, flush with the pill's top edge.
+  tabUnreadBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 7,
+    minWidth: 16,
+    minHeight: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
   },
   tabUnreadBadgeText: {
     color: '#FFFFFF',
     fontFamily: fontFamily.bold,
-    fontSize: 13,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 13,
   },
-  tabLabel: { ...font.label, fontFamily: fontFamily.medium },
+  tabLabel: { fontFamily: fontFamily.medium, fontSize: 14, lineHeight: 16 },
   inactivePage: {
     flex: 1,
     alignItems: 'center',

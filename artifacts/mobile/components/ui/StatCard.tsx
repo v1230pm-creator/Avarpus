@@ -59,10 +59,10 @@ export function StatCard({ title, value, icon, iconColor = 'primary', subtitle, 
 
 const styles = StyleSheet.create({
   card: {
-    padding: space.xl, gap: space.xs + 2,
+    padding: space.lg, gap: space.xs + 2,
   },
   iconWrap: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', marginBottom: space.xs },
-  value: font.title,
+  value: font.heading,
   title: font.caption,
   subtitle: font.smallStrong,
 });

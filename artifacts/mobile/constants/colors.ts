@@ -51,6 +51,8 @@ const colors = {
     muted: '#F0F3F6',
     mutedForeground: '#6B7580',
     textMuted: '#6B7580',
+    /** Hint text inside an empty field: a step dimmer than mutedForeground so it never reads as typed text. */
+    placeholder: '#7C8691',
     textDisabled: '#A3ACB5',
     accent: 'rgba(0, 140, 255, 0.12)',
     // Blue text on white needs a deeper shade to stay readable.
@@ -103,6 +105,7 @@ const colors = {
     muted: '#1D2428',
     mutedForeground: '#9AA1A8',
     textMuted: '#9AA1A8',
+    placeholder: '#6F787F',
     textDisabled: '#5E676F',
     accent: 'rgba(0, 140, 255, 0.16)',
     accentForeground: AVARPUS_ACCENT_BLUE,

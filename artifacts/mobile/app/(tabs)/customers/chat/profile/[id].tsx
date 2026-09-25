@@ -29,6 +29,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
 import * as Contacts from 'expo-contacts/legacy';
 import { font } from '@/constants/typography';
+import { layout, radius, size, space } from '@/constants/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -262,7 +263,7 @@ export default function ChatPeerProfileScreen() {
     });
   }, [roomReady, blockedByMe, unblockMutation, blockMutation, confirm, displayName, roomId, refreshRoom]);
 
-  const topPadding = Platform.OS === 'web' ? insets.top + 67 : Math.max(insets.top, 20);
+  const topPadding = Platform.OS === 'web' ? insets.top + 67 : Math.max(insets.top, space.xl);
   const nameParam = `name=${encodeURIComponent(displayName)}`;
   const photoParam = room?.profilePhoto ? `&photo=${encodeURIComponent(room.profilePhoto)}` : '';
 
@@ -443,7 +444,7 @@ export default function ChatPeerProfileScreen() {
           {/* Info card */}
           <View style={cardStyle}>
             <View style={styles.row}>
-              <Feather name="phone" size={20} color={colors.mutedForeground} style={styles.rowIcon} />
+               <Feather name="phone" size={size.headerIcon} color={colors.mutedForeground} style={styles.rowIcon} />
               <View style={styles.rowBody}>
                 <Text style={[styles.rowCaption, { color: colors.mutedForeground }]}>Mobile number</Text>
                 <Text style={[styles.rowValue, { color: colors.foreground }]}>
@@ -472,7 +473,7 @@ export default function ChatPeerProfileScreen() {
             >
               <Feather
                 name={isMuted ? 'bell-off' : 'bell'}
-                size={20}
+                 size={size.headerIcon}
                 color={colors.mutedForeground}
                 style={styles.rowIcon}
               />
@@ -484,7 +485,7 @@ export default function ChatPeerProfileScreen() {
                   {isMuted ? 'Off' : 'On'}
                 </Text>
               )}
-              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+               <Feather name="chevron-right" size={size.inlineIcon} color={colors.mutedForeground} />
             </TouchableOpacity>
           </View>
 
@@ -509,7 +510,7 @@ export default function ChatPeerProfileScreen() {
                     : `Block ${displayName}`}
               </Text>
               {!(isBlocked && !blockedByMe) && (
-                <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+                 <Feather name="chevron-right" size={size.inlineIcon} color={colors.mutedForeground} />
               )}
             </TouchableOpacity>
           </View>
@@ -524,18 +525,18 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingBottom: 6,
+    minHeight: layout.headerHeight,
+    paddingHorizontal: space.sm,
   },
-  iconButton: { padding: 8 },
-  headerTitle: { ...font.itemTitle, marginLeft: 8 },
-  scroll: { paddingHorizontal: 16 },
-  errorBody: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 32 },
+  iconButton: { width: size.iconButton, height: size.iconButton, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title, marginLeft: space.sm },
+  scroll: { paddingHorizontal: layout.screenPadding },
+  errorBody: { alignItems: 'center', paddingHorizontal: layout.screenPadding, paddingTop: space.xxxl },
   hero: {
     alignItems: 'center',
     justifyContent: 'center',
     height: RING_SIZE + 48,
-    marginHorizontal: -16,
+    marginHorizontal: -layout.screenPadding,
     overflow: 'hidden',
   },
   arc: {
@@ -593,8 +594,8 @@ const styles = StyleSheet.create({
   presence: { ...font.small },
   tilesRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 24,
+    gap: space.sm,
+    marginTop: space.xxl,
   },
   tile: {
     flex: 1,
@@ -603,33 +604,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: space.sm,
   },
   tileDisabled: { opacity: 0.4 },
   tileLabel: { ...font.smallStrong },
   card: {
     borderRadius: 22,
     borderWidth: 1,
-    marginTop: 16,
+    marginTop: space.lg,
     overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 16,
+    minHeight: layout.headerHeight,
+    paddingHorizontal: layout.screenPadding,
+    paddingVertical: space.sm,
     gap: 6,
   },
   rowIcon: { width: 28, marginRight: 8 },
   rowBody: { flex: 1 },
   rowCaption: { ...font.small },
   rowValue: { ...font.label, marginTop: 3 },
-  rowTitle: { flex: 1, ...font.label },
+  rowTitle: { flex: 1, ...font.itemTitle },
   rowTrailing: { ...font.caption, marginRight: 2 },
   copyButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
+    width: size.iconButton,
+    height: size.iconButton,
+    borderRadius: radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },

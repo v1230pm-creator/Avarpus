@@ -15,7 +15,7 @@ interface CardProps {
  * Premium surface card. Kept intentionally restrained so the app reads as
  * secure and operational rather than overly glassy.
  */
-export function Card({ children, style, variant = 'default', padding = space.xl }: CardProps) {
+export function Card({ children, style, variant = 'default', padding = space.lg }: CardProps) {
   const colors = useColors();
   const isDark = useColorScheme() === 'dark';
   return (

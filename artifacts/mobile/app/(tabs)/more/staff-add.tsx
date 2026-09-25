@@ -21,6 +21,7 @@ import { useColors } from '@/hooks/useColors';
 import { FadeInView, useStaggerAnim } from '@/components/ui/Glass';
 import { ROLE_LABELS } from '@/utils/helpers';
 import { font, fontFamily } from '@/constants/typography';
+import { layout, size, space } from '@/constants/spacing';
 
 // Roles an owner can assign. "owner" invites a co-owner (partner, brother,
 // second proprietor) with the same full access; super_admin can never be
@@ -128,7 +129,7 @@ export default function AddStaffScreen() {
 
       <View style={[styles.header, { paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '22' }]}>
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={size.headerIcon} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: fontFamily.bold }]}>Add Staff</Text>
@@ -260,16 +261,16 @@ export default function AddStaffScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 12, gap: 8 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20 },
-  headerSub: { fontSize: 13 },
-  scroll: { padding: 12, gap: 8 },
+  header: { minHeight: layout.headerHeight, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingBottom: space.md, gap: space.sm },
+  backBtn: { width: size.iconButton, height: size.iconButton, borderRadius: size.iconButton / 2, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { ...font.title },
+  headerSub: { ...font.caption },
+  scroll: { padding: layout.screenPadding, gap: space.sm },
   section: { gap: 8 },
   sectionLabel: { ...font.overline, marginTop: 4 },
   roleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   roleCard: { width: '48%', flexGrow: 1, borderWidth: 1.5, padding: 12, gap: 6 },
-  roleName: { fontSize: 13 },
+  roleName: { ...font.captionStrong },
   roleHint: { ...font.caption },
   infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, padding: 12 },
   infoText: { ...font.caption, flex: 1 },
